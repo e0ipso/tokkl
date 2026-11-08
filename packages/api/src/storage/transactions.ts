@@ -1,3 +1,4 @@
+import { setTimeout as sleepFor } from 'node:timers/promises';
 import { sql, type Kysely } from 'kysely';
 import type { Backend } from './config.ts';
 import type { StorageConnection } from './connections.ts';
@@ -18,6 +19,26 @@ export interface TransactionRunner<R extends object> {
 export interface TransactionRunnerOptions {
   /** Error details are deliberately omitted. Reporting must never fail an already committed write. */
   publicationFailed?: () => void | Promise<void>;
+  /** A number in [0, 1) that spreads retries apart. Defaults to `Math.random`. */
+  random?: () => number;
+  /** Waits between attempts. Defaults to a timer. */
+  sleep?: (milliseconds: number) => Promise<void>;
+}
+
+/** The longest wait before the first rerun of a conflicted attempt. Each later rerun doubles it. */
+export const RETRY_BASE_DELAY_MS = 10;
+/** The cap on any wait between attempts. */
+export const RETRY_MAX_DELAY_MS = 80;
+
+/**
+ * Wait before rerunning after attempt `failed` (1-based): half the doubled ceiling plus a random
+ * share of the other half. Two transactions that conflicted then rerun apart instead of colliding
+ * again at once, and no wait exceeds `RETRY_MAX_DELAY_MS`.
+ */
+export function retryDelay(failed: number, random: () => number): number {
+  const ceiling = Math.min(RETRY_MAX_DELAY_MS, RETRY_BASE_DELAY_MS * 2 ** (failed - 1));
+  const share = Math.min(Math.max(random(), 0), 1);
+  return ceiling / 2 + (share * ceiling) / 2;
 }
 
 type Hook = () => Promise<void>;
@@ -241,6 +262,8 @@ export function createTransactionRunner<D, R extends object>(
   options: TransactionRunnerOptions = {},
 ): TransactionRunner<R> {
   const backend = connection.backend;
+  const random = options.random ?? Math.random;
+  const sleep = options.sleep ?? ((milliseconds: number) => sleepFor(milliseconds));
 
   /** One attempt on one checked-out connection. Reports whether it rolled back or reached COMMIT. */
   async function attemptOnce<T>(
@@ -328,8 +351,8 @@ export function createTransactionRunner<D, R extends object>(
             outcome.rolledBack &&
             !!conflict &&
             (conflict.kind === 'deadlock' || conflict.kind === 'serialization');
-          if (retryable && number < attempts) continue;
-          throw error;
+          if (!retryable || number >= attempts) throw error;
+          await sleep(retryDelay(number, random));
         }
       }
     },
