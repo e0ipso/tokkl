@@ -31,11 +31,11 @@
     "test:container": "node scripts/production-image-smoke.ts"
   },
   "devDependencies": {
-    "@commitlint/cli": "^21.2.3",
-    "@commitlint/config-conventional": "^21.2.3",
+    "@commitlint/cli": "^21.2.4",
+    "@commitlint/config-conventional": "^21.2.4",
     "@commitlint/is-ignored": "^21.2.3",
     "@commitlint/lint": "^21.2.3",
-    "@commitlint/load": "^21.2.3",
+    "@commitlint/load": "^21.2.4",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.64.1",
     "@semantic-release/changelog": "^7.0.0",
