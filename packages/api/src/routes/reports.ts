@@ -77,14 +77,12 @@ function sendCsv(slot: DownloadSlot, res: Response, ws: Workspace, job: CsvDownl
     'Content-Type': 'text/csv; charset=utf-8',
     'Content-Disposition': `attachment; filename="${CSV_DOWNLOAD_FILENAMES[job.kind]}"`,
   };
-  return streamDownload(res, headers, output =>
-    slot.report(res.locals.auth.user.id, ws.id, job, output, { authentication: res.locals.auth }),
-  );
+  return streamDownload(res, headers, output => slot.report(ws.id, job, output, { authentication: res.locals.auth }));
 }
 
 /** Builds the response in the report runner and sends it. */
 async function send(slot: ReportSlot, res: Response, ws: Workspace, job: ReportJob): Promise<void> {
-  const result: JobResult = await slot.run(res.locals.auth.user.id, ws.id, job, { authentication: res.locals.auth });
+  const result: JobResult = await slot.run(ws.id, job, { authentication: res.locals.auth });
   res.set(result.headers);
   if (result.type === 'csv') {
     res.set('Content-Type', 'text/csv; charset=utf-8');

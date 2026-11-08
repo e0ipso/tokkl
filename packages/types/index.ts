@@ -21,6 +21,28 @@ export interface Me {
 
 export type UserRole = 'admin' | 'user';
 
+/**
+ * An `/api/app` feature a client may rely on, as `ServerApi.capabilities` names it:
+ * - `app-preferences`: `GET` and `POST /api/app/me/preferences`.
+ * - `timer-actions`: `GET /api/app/timer`, its event stream, and the revisioned timer and Pomodoro
+ *   actions under `/api/app/timer` and `/api/app/pomodoro`.
+ * - `timer-edit`: `POST /api/app/timer/edit`.
+ * - `pomodoro-revision`: `POST /api/app/pomodoro` checks an optional `revision`.
+ */
+export type ServerCapability = 'app-preferences' | 'timer-actions' | 'timer-edit' | 'pomodoro-revision';
+
+/**
+ * Tokkl only, in `GET /api/v9/me`: what this server's API offers. A client tests a capability
+ * instead of guessing from a 404, which a current server also answers for a missing project or
+ * workspace. A reply without these fields comes from a server older than all of them.
+ */
+export interface ServerApi {
+  /** Goes up when an existing `/api/app` contract changes in a way clients must know about. */
+  api_version: number;
+  /** Additive features; a client ignores names it does not know. */
+  capabilities: ServerCapability[];
+}
+
 /** An account as GET /api/app/admin/users lists it. */
 export interface AdminAccount {
   id: number;

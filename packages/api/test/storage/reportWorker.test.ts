@@ -21,6 +21,7 @@ import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createTransactionRunner } from '../../src/storage/transactions.ts';
 import { createReportRepositories } from '../../src/storage/repositories/reports.ts';
 import { ReportRunner } from '../../src/services/reportRunner.ts';
+import { runExport, runReport } from '../fixtures/reportRunner.ts';
 import { errorReply } from '../../src/http/errors.ts';
 import { runReportJob, type ReportJob } from '../../src/services/reportJobs.ts';
 import type { ExportAssemblyJob } from '../../src/services/exportJobs.ts';
@@ -44,7 +45,7 @@ function recordedLog() {
 /** The body `runner` streams for `userId`'s export. */
 async function streamedExport(runner: ReportRunner, userId: number, assembly: ExportAssemblyJob): Promise<string> {
   const chunks: string[] = [];
-  await runner.export(userId, assembly, async chunk => {
+  await runExport(runner, userId, assembly, async chunk => {
     chunks.push(chunk);
   });
   return chunks.join('');
@@ -97,7 +98,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
       });
       t.after(() => runner.close());
       const expected = await runReportJob(operations, { userId: user.id, workspaceId: wid, job });
-      assert.deepEqual(await runner.run(user.id, wid, job), expected);
+      assert.deepEqual(await runReport(runner, user.id, wid, job), expected);
       for (const request of jobs(job.filter))
         assert.deepEqual(
           await answerOnRunner(runner, user.id, wid, request),
@@ -123,26 +124,26 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
         // Hold delivery so the one-row report cannot finish before termination.
         // The runner still assigns the job to this real worker and handles its exit.
         const delivery = crash.mock.method(worker, 'postMessage', () => {});
-        const failed = assert.rejects(runner.run(user.id, wid, job), /Report worker stopped/);
+        const failed = assert.rejects(runReport(runner, user.id, wid, job), /Report worker stopped/);
         assert.equal(delivery.mock.callCount(), 1);
         await worker.terminate();
         await failed;
-        assert.deepEqual(await runner.run(user.id, wid, job), expected);
+        assert.deepEqual(await runReport(runner, user.id, wid, job), expected);
         assert.equal(workers.started.length, 3);
         assert.notEqual(workers.latest(), worker);
       });
       await t.test('queued cancellation, running cancellation, overload and restart', async () => {
         const abort = new AbortController();
-        const first = runner.run(user.id, wid, job);
-        const cancelled = runner.run(user.id, wid, job, { signal: abort.signal });
+        const first = runReport(runner, user.id, wid, job);
+        const cancelled = runReport(runner, user.id, wid, job, { signal: abort.signal });
         const observed = assert.rejects(cancelled, /Report cancelled/);
         abort.abort();
         await observed;
         assert.deepEqual(await first, expected);
         const active = new AbortController();
-        const a = assert.rejects(runner.run(user.id, wid, job, { signal: active.signal }), /Report cancelled/);
-        const b = runner.run(user.id, wid, job);
-        await assert.rejects(runner.run(user.id, wid, job), /Report queue is full/);
+        const a = assert.rejects(runReport(runner, user.id, wid, job, { signal: active.signal }), /Report cancelled/);
+        const b = runReport(runner, user.id, wid, job);
+        await assert.rejects(runReport(runner, user.id, wid, job), /Report queue is full/);
         active.abort();
         await a;
         assert.deepEqual(await b, expected);
@@ -236,13 +237,13 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
       assert.equal(await sessions(), backend === 'sqlite' ? 0 : 1);
       const oldWorker = heavyWorkers.latest();
       const exit = once(oldWorker, 'exit');
-      const duringClose = assert.rejects(heavy.run(user.id, wid, job), /Report runner is closed/);
-      const queuedClose = assert.rejects(heavy.run(user.id, wid, job), /Report runner is closed/);
+      const duringClose = assert.rejects(runReport(heavy, user.id, wid, job), /Report runner is closed/);
+      const queuedClose = assert.rejects(runReport(heavy, user.id, wid, job), /Report runner is closed/);
       await heavy.close();
       await Promise.all([duringClose, queuedClose]);
       await exit;
       assert.equal(await sessions(), 0);
-      await assert.rejects(heavy.run(user.id, wid, job), /Report runner is closed/);
+      await assert.rejects(runReport(heavy, user.id, wid, job), /Report runner is closed/);
     },
   );
 }
@@ -260,7 +261,7 @@ test('memory SQLite stays inline; reader startup never creates or migrates a fil
   const runner = new ReportRunner(config, operations, { startWorker: workers.startWorker });
   t.after(() => runner.close());
   assert.deepEqual(
-    await runner.run(user.id, user.defaultWorkspaceId, job),
+    await runReport(runner, user.id, user.defaultWorkspaceId, job),
     await runReportJob(operations, { userId: user.id, workspaceId: user.defaultWorkspaceId, job }),
   );
   assert.equal(workers.started.length, 0);
@@ -275,7 +276,7 @@ test('memory SQLite stays inline; reader startup never creates or migrates a fil
   // The export reads the account in its own snapshot; no credential reaches the output.
   assert.equal(body.includes(user.apiToken), false);
   await c.db.deleteFrom('workspace_users').where('user_id', '=', user.id).execute();
-  await assert.rejects(runner.run(user.id, user.defaultWorkspaceId, job), error => {
+  await assert.rejects(runReport(runner, user.id, user.defaultWorkspaceId, job), error => {
     assert.equal(errorReply(error).status, 403);
     assert.equal((error as Error).message, 'User does not have access to this resource.');
     return true;
@@ -286,7 +287,7 @@ test('memory SQLite stays inline; reader startup never creates or migrates a fil
   const startupLog = recordedLog();
   const missing = new ReportRunner({ ...config, filename }, operations, { logger: startupLog.logger });
   t.after(() => missing.close());
-  await assert.rejects(missing.run(user.id, user.defaultWorkspaceId, job), /Report worker stopped/);
+  await assert.rejects(runReport(missing, user.id, user.defaultWorkspaceId, job), /Report worker stopped/);
   assert.equal(existsSync(join(dir, 'missing')), false);
   // The startup failure is logged with its stack frames, never its message or the database path.
   const [started] = startupLog.lines;
@@ -300,7 +301,7 @@ test('memory SQLite stays inline; reader startup never creates or migrates a fil
   const jobLog = recordedLog();
   const unmigrated = new ReportRunner({ ...config, filename: empty }, operations, { logger: jobLog.logger });
   t.after(() => unmigrated.close());
-  await assert.rejects(unmigrated.run(user.id, user.defaultWorkspaceId, job), /Report failed/);
+  await assert.rejects(runReport(unmigrated, user.id, user.defaultWorkspaceId, job), /Report failed/);
   await unmigrated.close();
   assert.deepEqual(readFileSync(empty), before);
   // The job's failure names the job, not the SQL error's message.
@@ -350,7 +351,7 @@ test('inline cancellation and shutdown await the actual memory snapshot release'
   const runner = new ReportRunner(config, source);
   const controller = new AbortController();
   const cancelled = assert.rejects(
-    runner.run(user.id, user.defaultWorkspaceId, job, { signal: controller.signal }),
+    runReport(runner, user.id, user.defaultWorkspaceId, job, { signal: controller.signal }),
     /Report cancelled/,
   );
   await reading;

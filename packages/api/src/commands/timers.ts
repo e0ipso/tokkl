@@ -1,9 +1,9 @@
 /** Timer action bodies, parsed into commands. */
 import { POMODORO_SESSION_CONFIG_RANGES, type PomodoroSessionConfig } from '@tokkl/common/pomodoroSession';
-import type { StartPomodoro, StartTimer } from '../domain/timers.ts';
+import type { EditTimer, StartPomodoro, StartTimer } from '../domain/timers.ts';
 import { invalidInput } from '../lib/errors.ts';
 import { optionalId, parseInstant, type JsonBody } from '../lib/values.ts';
-import { parseEntryLabels } from './timeEntries.ts';
+import { parseEntryLabels, parseLabelChanges } from './timeEntries.ts';
 
 const LENGTH_FIELDS = {
   workMinutes: 'work_minutes',
@@ -26,8 +26,13 @@ function readLengths(body: JsonBody): Partial<PomodoroSessionConfig> {
   return lengths;
 }
 
+/**
+ * A session start. `revision` is optional so older clients keep working; a client that sends it is
+ * refused when the timer moved on.
+ */
 export function parseStartPomodoro(body: JsonBody): StartPomodoro {
   return {
+    revision: body.revision == null ? undefined : parseRevision(body.revision),
     workspaceId: optionalId(body.workspace_id, 'workspace_id'),
     lengths: readLengths(body),
     entry: parseEntryLabels(body),
@@ -58,4 +63,9 @@ export function parseStartTimer(body: JsonBody): StartTimer {
 /** A timer stop: the revision the client saw and an optional `stop` instant. */
 export function parseStopTimer(body: JsonBody): { revision: number; stop?: Date } {
   return { revision: parseRevision(body.revision), stop: optionalInstant(body.stop, 'stop') };
+}
+
+/** A running timer edit: the revision the client saw and the labels to change. */
+export function parseEditTimer(body: JsonBody): EditTimer {
+  return { revision: parseRevision(body.revision), entry: parseLabelChanges(body) };
 }

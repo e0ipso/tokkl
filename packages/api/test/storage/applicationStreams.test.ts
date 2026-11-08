@@ -10,6 +10,7 @@ import type { Authentication } from '../../src/domain/credentials.ts';
 import type { User } from '../../src/storage/domain.ts';
 import { credentialKey } from '../../src/services/streamCredentials.ts';
 import {
+  RECONNECT_DELAY_MS,
   TimerStreams,
   type EventStreamResponse,
   type StreamCredentialResult,
@@ -289,6 +290,25 @@ class SlowResponse extends EventEmitter implements EventStreamResponse {
 }
 const passing = async (): Promise<StreamCredentialResult> => ({ valid: true, revision: 0 });
 const settled = () => new Promise(resolve => setImmediate(resolve));
+
+test('the first event names a reconnect wait within the bounds, different from stream to stream', async t => {
+  const streams = new TimerStreams(async () => state(1));
+  t.after(() => streams.closeAll());
+  const waits = new Set<number>();
+  for (let user = 1; user <= 20; user++) {
+    const res = new SlowResponse();
+    await streams.open(user, res, passing);
+    await streams.publish(user, state(2));
+    const [first, next] = res.written;
+    const match = /^event: timer\nretry: (\d+)\ndata: \{.*"revision":1.*\}\n\n$/.exec(first!);
+    assert.ok(match, `the first event carries retry: ${JSON.stringify(first)}`);
+    const wait = Number(match[1]);
+    assert.ok(wait >= RECONNECT_DELAY_MS.min && wait <= RECONNECT_DELAY_MS.max, String(wait));
+    waits.add(wait);
+    assert.doesNotMatch(next!, /retry:/, 'later events leave the wait alone');
+  }
+  assert.ok(waits.size > 1, 'the wait is jittered');
+});
 
 test('a stream whose socket is full waits for it to drain instead of ending', { timeout: 10000 }, async t => {
   const streams = new TimerStreams(async () => state(1), { drainTimeoutMs: 5000 });

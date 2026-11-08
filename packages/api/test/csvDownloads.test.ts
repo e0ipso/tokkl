@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { storageFor } from './fixtures/database.ts';
 import { createApp } from '../src/app.ts';
 import { ReportRunner } from '../src/services/reportRunner.ts';
+import { runReport } from './fixtures/reportRunner.ts';
 import type { JobSource } from '../src/services/reportExecution.ts';
 import { setup, testConfig, testServer } from './helpers.ts';
 
@@ -38,13 +39,11 @@ test('detailed CSV reports stream in the download lane while the report queue is
     },
   };
   const reports = new ReportRunner(testConfig(ctx.db).storage, source, { maxQueue: 1 });
-  const holding = reports
-    .run(ctx.user.id, ctx.wid, {
-      kind: 'v3-weekly',
-      filter: { startDate: '2026-10-05', endDate: '2026-10-11' },
-      weekStart: '2026-10-05',
-    })
-    .catch(() => {});
+  const holding = runReport(reports, ctx.user.id, ctx.wid, {
+    kind: 'v3-weekly',
+    filter: { startDate: '2026-10-05', endDate: '2026-10-11' },
+    weekStart: '2026-10-05',
+  }).catch(() => {});
   const app = createApp({ storage, config: testConfig(ctx.db), setup: { code: null }, reports });
   t.after(async () => {
     release();

@@ -5,6 +5,7 @@
  */
 import type { OperationContext, Repositories } from '../storage/contracts.ts';
 import type { Id, TagLabel, TimerSnapshot } from '../storage/domain.ts';
+import { decodeTimerFingerprint, encodeTimerFingerprint, IDLE_TIMER_FINGERPRINT } from './timerFingerprint.ts';
 import { buildTimerView, type TimerView } from './timerView.ts';
 
 export type SettlementRepositories = Pick<Repositories, 'users' | 'entries' | 'timers' | 'tags'>;
@@ -15,58 +16,6 @@ export type SettlementContext = OperationContext<SettlementRepositories>;
 export type TimerPublication = (userId: Id, view: TimerView, incarnation: string) => Promise<void>;
 export type LocalTimerPublication = TimerPublication & { forgetUser(userId: Id): void };
 
-const orderedTags = (tags: TagLabel[]) => [...tags].sort((a, b) => a.id - b.id).map(t => ({ id: t.id, name: t.name }));
-/** Canonical domain fields only. Audit/driver JSON representations never number visible state. */
-function timerFingerprint(snapshot: TimerSnapshot, chainTags: TagLabel[]): string {
-  const e = snapshot.running,
-    c = snapshot.pauseChain,
-    s = snapshot.session;
-  return JSON.stringify({
-    running: e && {
-      id: e.id,
-      workspaceId: e.workspaceId,
-      projectId: e.projectId,
-      taskId: e.taskId,
-      description: e.description,
-      start: e.start,
-      billable: e.billable,
-      tags: orderedTags(e.tags),
-      project: e.project && {
-        name: e.project.name,
-        color: e.project.color,
-        active: e.project.active,
-        billable: e.project.billable,
-      },
-      client: e.client && { id: e.client.id, name: e.client.name },
-      task: e.task && { name: e.task.name, active: e.task.active },
-    },
-    session: s && {
-      userId: s.userId,
-      entryId: s.entryId,
-      config: {
-        workMinutes: s.config.workMinutes,
-        shortRestMinutes: s.config.shortRestMinutes,
-        longRestMinutes: s.config.longRestMinutes,
-        longRestEvery: s.config.longRestEvery,
-      },
-      phase: { kind: s.phase.kind, startedAt: s.phase.startedAt, completed: s.phase.completed },
-    },
-    chain: c && {
-      userId: c.userId,
-      workspaceId: c.workspaceId,
-      projectId: c.projectId,
-      taskId: c.taskId,
-      description: c.description,
-      tagIds: [...c.tagIds].sort((a, b) => a - b),
-      billable: c.billable,
-      seconds: c.seconds,
-      cloneEntryId: c.cloneEntryId,
-      tags: orderedTags(chainTags),
-    },
-  });
-}
-const idleFingerprint = timerFingerprint({ running: null, pauseChain: null, session: null, revision: null }, []);
-
 /**
  * True when settling `snapshot` would write: a session or pause chain is detached from the running
  * entry, or the visible state differs from the stored revision's fingerprint. `chainTags` are the
@@ -76,7 +25,7 @@ export function settlementDue(snapshot: TimerSnapshot, chainTags: TagLabel[]): b
   const runningId = snapshot.running?.id ?? null;
   if (snapshot.session && snapshot.session.entryId !== runningId) return true;
   if (snapshot.pauseChain && snapshot.pauseChain.cloneEntryId !== runningId) return true;
-  return timerFingerprint(snapshot, chainTags) !== (snapshot.revision?.fingerprint ?? idleFingerprint);
+  return encodeTimerFingerprint(snapshot, chainTags) !== (snapshot.revision?.fingerprint ?? IDLE_TIMER_FINGERPRINT);
 }
 
 /** Drops a session or pause chain whose entry is no longer the running one; returns what it left. */
@@ -111,13 +60,12 @@ export async function settleTimer(ctx: SettlementContext, userId: Id, publish: T
   const data = await ctx.timers.read(userId);
   const left = await dropDetached(ctx, userId, data);
   const tags = data.pauseChain ? await ctx.tags.findByIds(data.pauseChain.workspaceId, data.pauseChain.tagIds) : [];
-  const fingerprint = timerFingerprint(data, tags);
-  const changed = fingerprint !== (data.revision?.fingerprint ?? idleFingerprint);
+  const fingerprint = encodeTimerFingerprint(data, tags);
+  const changed = fingerprint !== (data.revision?.fingerprint ?? IDLE_TIMER_FINGERPRINT);
   if (changed) {
-    const prior = data.revision
-      ? (JSON.parse(data.revision.fingerprint) as { session: { entryId: Id } | null }).session?.entryId
-      : undefined;
-    if (prior !== undefined && prior !== data.session?.entryId) left.add(prior);
+    // The session the last revision showed may be gone now; its pomodoro may be the discarded one.
+    const prior = data.revision ? decodeTimerFingerprint(data.revision.fingerprint).sessionEntryId : null;
+    if (prior !== null && prior !== data.session?.entryId) left.add(prior);
     const discarded = await discardedPomodoro(ctx, userId, left);
     data.revision = { userId, revision: (data.revision?.revision ?? 0) + 1, fingerprint, discardedPomodoro: discarded };
     await ctx.timers.saveRevision(data.revision);

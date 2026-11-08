@@ -85,6 +85,14 @@ function readLabels(body: JsonBody, aliases: boolean): Omit<EntryFields, 'worksp
   };
 }
 
+/**
+ * The labels of an edit that leaves the times and the workspace alone, such as a running timer's.
+ * Tags sent replace the entry's.
+ */
+export function parseLabelChanges(body: JsonBody): Omit<EntryFields, 'workspaceId'> {
+  return readLabels(body, false);
+}
+
 const readCreatedWith = (body: JsonBody) => optionalString(body.created_with, 'created_with', MAX_CREATED_WITH_LENGTH);
 
 /** The entry fields of a body that carries other things too, such as a Pomodoro start. */
