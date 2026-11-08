@@ -9,6 +9,8 @@ import { DatabaseSync } from 'node:sqlite';
 import { setup } from './helpers.ts';
 import { openDatabase } from './fixtures/database.ts';
 import { MIGRATIONS } from './fixtures/legacyMigrations.ts';
+import { pageWindow } from '../src/http/params.ts';
+import { pageRange, sliceOffset, slicePage } from '../src/lib/pagination.ts';
 
 /** Every v9 DELETE answers an empty 200, as Toggl's docs list no response body for them. */
 async function assertEmptyOk(response: Response): Promise<void> {
@@ -205,6 +207,28 @@ test('task listings follow Toggl shapes: workspace envelope, project array, pagi
   for (const name of ['p1', 'p2']) await ctx.json('POST', `${base}/projects`, { name });
   assert.equal((await ctx.json('GET', `${base}/projects`)).body.length, 3);
   assert.equal((await ctx.json('GET', `${base}/projects?per_page=2&page=2`)).body.length, 1);
+  // Paged in SQL, each page is byte for byte the slice the full listing gives, lenient values included.
+  const all = JSON.parse(await (await ctx.request('GET', `${base}/projects?active=both`)).text()) as unknown[];
+  for (const paging of ['per_page=2&page=2', 'per_page=1', 'page=1.5&per_page=2', 'page=9e15', 'page=x&per_page=0']) {
+    const [page, perPage] = ['page', 'per_page'].map(name => new URLSearchParams(paging).get(name) ?? undefined);
+    const window = pageWindow(page, perPage, { defaultPerPage: 151, maxPerPage: 200 });
+    const paged = await (await ctx.request('GET', `${base}/projects?active=both&${paging}`)).text();
+    assert.equal(paged, JSON.stringify(slicePage(all, window)), paging);
+  }
+});
+
+test('a page range keeps exactly the items slicePage keeps', () => {
+  const items = Array.from({ length: 7 }, (_, index) => index);
+  for (const page of [1, 1.5, 2, 3.7, 4, 9, 9e15, Infinity])
+    for (const perPage of [1, 2, 2.5, 3, 200]) {
+      const range = pageRange({ page, perPage });
+      assert.deepEqual(
+        range ? sliceOffset(items, range.offset, range.limit) : [],
+        slicePage(items, { page, perPage }),
+        `${page}/${perPage}`,
+      );
+      if (range) assert.ok(Number.isSafeInteger(range.offset) && Number.isSafeInteger(range.limit) && range.limit > 0);
+    }
 });
 
 test('client_id null clears a project client; legacy cid still works', async () => {

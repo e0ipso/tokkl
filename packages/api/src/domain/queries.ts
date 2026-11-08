@@ -36,6 +36,7 @@ import { memberWorkspace } from './membership.ts';
 import { getInstanceSettings } from './instanceSettings.ts';
 import { getClient, getProject, getTask } from './catalogs.ts';
 import { getTimeEntry } from './entryAccess.ts';
+import { pageRange, type PageWindow, type RowRange } from '../lib/pagination.ts';
 
 /** Reads about accounts, the instance and workspace membership. No repository here can write. */
 export interface AccountReadRepositories {
@@ -154,8 +155,8 @@ export function createAccountQueries(r: AccountReadRepositories, deploymentSessi
 }
 
 export function createCatalogQueries(r: CatalogReadRepositories) {
-  const projectsOf = async (ws: Workspace, filter?: ProjectFilter): Promise<WorkspaceProject[]> =>
-    (await r.projects.list(ws.id, filter)).map(project => ({ project, defaultCurrency: ws.defaultCurrency }));
+  const projectsOf = async (ws: Workspace, filter?: ProjectFilter, range?: RowRange): Promise<WorkspaceProject[]> =>
+    (await r.projects.list(ws.id, filter, range)).map(project => ({ project, defaultCurrency: ws.defaultCurrency }));
   return {
     memberProjects: (userId: Id, filter: { includeArchived: boolean; changedSince?: string }) =>
       acrossWorkspaces(r, userId, ws =>
@@ -173,6 +174,11 @@ export function createCatalogQueries(r: CatalogReadRepositories) {
         ),
       ),
     workspaceProjects: (ws: Workspace, filter?: ProjectFilter) => projectsOf(ws, filter),
+    /** One page of `workspaceProjects`, read from the database as that page only. */
+    async workspaceProjectsPage(ws: Workspace, filter: ProjectFilter, window: PageWindow): Promise<WorkspaceProject[]> {
+      const range = pageRange(window);
+      return range ? projectsOf(ws, filter, range) : [];
+    },
     workspaceProject: (ws: Workspace, id: Id): Promise<ProjectSummary> => getProject(r, ws.id, id),
     async searchTasks(ws: Workspace, search: TaskSearch): Promise<TaskSummary[]> {
       let tasks = changedAfter(

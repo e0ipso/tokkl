@@ -31,6 +31,7 @@ import type {
   Workspace,
   WorkspaceMember,
 } from './domain.ts';
+import type { RowRange } from '../lib/pagination.ts';
 
 // Inputs have passed domain validation. Repositories still enforce scoping and database constraints.
 export interface NewAccount {
@@ -191,7 +192,8 @@ export interface ProjectsReader {
   count(workspaceId: Id): Promise<number>;
   getMetadata(workspaceId: Id, id: Id): Promise<Project | undefined>;
   listForClient(workspaceId: Id, clientId: Id): Promise<Array<Pick<Project, 'id' | 'name'>>>;
-  list(workspaceId: Id, filter?: ProjectFilter): Promise<ProjectSummary[]>;
+  /** Ordered by folded name, then id. A `range` keeps only those rows of that order. */
+  list(workspaceId: Id, filter?: ProjectFilter, range?: RowRange): Promise<ProjectSummary[]>;
   get(workspaceId: Id, id: Id): Promise<ProjectSummary | undefined>;
   /** Indexed lookup; never computes history totals. */
   getRef(workspaceId: Id, id: Id): Promise<ProjectRef | undefined>;

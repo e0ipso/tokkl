@@ -53,14 +53,17 @@ export function createProjectRepository(
         ).n,
       );
     },
-    async list(wid, filter = {}) {
+    async list(wid, filter = {}, range) {
       let q = catalogProjectQuery(db, backend).where('p.workspace_id', '=', wid);
       if (typeof filter.active === 'boolean') q = q.where('p.active', '=', Number(filter.active));
       if (filter.billable !== undefined) q = q.where('p.billable', '=', Number(filter.billable));
       if (filter.name) q = q.where(containsName(backend, 'p.name_key', filter.name));
       if (filter.clientIds?.length) q = q.where('p.client_id', 'in', filter.clientIds);
       if (filter.changedSince) q = q.where('p.updated_at', '>=', filter.changedSince);
-      return (await q.orderBy('p.name_key').orderBy('p.id').execute()).map(projectSummary);
+      q = q.orderBy('p.name_key').orderBy('p.id');
+      // Paging in SQL computes tracked totals for this page's projects only.
+      if (range) q = q.limit(range.limit).offset(range.offset);
+      return (await q.execute()).map(projectSummary);
     },
     async get(wid, id) {
       const r = await catalogProjectQuery(db, backend)

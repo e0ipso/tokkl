@@ -74,11 +74,12 @@ function projectRoutes(deps: CatalogRouteDeps, api: Router): void {
     '/workspaces/:wid/projects',
     jsonRead(deps, async (req, res, queries) => {
       const ws = await queries.workspace(res.locals.auth.user.id, parseId(req.params.wid));
-      const projects = await queries.workspaceProjects(ws, projectFilter(req));
+      const filter = projectFilter(req);
       const window = optionalPageWindow(req, PROJECT_PAGES);
-      return (window ? slicePage(projects, window) : projects).map(({ project }) =>
-        serializeProject(project, ws.defaultCurrency),
-      );
+      const projects = window
+        ? await queries.workspaceProjectsPage(ws, filter, window)
+        : await queries.workspaceProjects(ws, filter);
+      return projects.map(({ project }) => serializeProject(project, ws.defaultCurrency));
     }),
   );
   api.get(
