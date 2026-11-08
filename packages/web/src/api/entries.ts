@@ -125,7 +125,7 @@ export type RunningEntryUpdate = RunningEntryChanges & { id: number };
  * it. The reply is the new timer state, and a conflict hands over the server's.
  */
 export function updateRunningEntry(qc: QueryClient, { id, ...changes }: RunningEntryUpdate): Promise<TimerState> {
-  return inEntryScope(qc, id, () => editRunningEntry(qc, changes));
+  return inEntryScope(qc, id, () => editRunningEntry(qc, id, changes));
 }
 
 /** What the entry edit hooks return: `mutate` reports a failure to `onError` only. */

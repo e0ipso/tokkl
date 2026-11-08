@@ -199,31 +199,47 @@ export type RunningEntryChanges = Pick<
   'description' | 'project_id' | 'task_id' | 'billable' | 'tags' | 'tag_ids'
 >;
 
-/**
- * Edits the running entry at the cached revision, and takes the reply, the new state, into the
- * caches. Tags sent replace the entry's tags, and a null project or task clears it. The server
- * answers with a conflict when the timer moved on, so an edit never lands on an entry the user did
- * not see; the conflict's state replaces the cached one. A request that got no reply keeps its own
- * error, as an edit of a stopped entry does.
- *
- * Unlike an action it does not wait for other writes that move the timer: callers send it as one
- * of them (`MOVES_TIMER`), in the running entry's scope (`updateRunningEntry` in entries.ts), so it
- * would wait for itself, and the edit before it in that scope has already moved the cached revision.
- */
-export function editRunningEntry(qc: QueryClient, changes: RunningEntryChanges): Promise<TimerState> {
+/** Posts one running-entry edit at the revision `revision` gives, and takes the reply into the caches. */
+function postRunningEdit(
+  qc: QueryClient,
+  changes: RunningEntryChanges,
+  revision: () => Promise<number>,
+): Promise<TimerState> {
   return explainedTimerWrite(
     qc,
     async () =>
       acceptTimerState(
         qc,
-        await api.post(
-          `${timerPath}/edit`,
-          { ...changes, revision: (await seenState(qc)).revision },
-          { decode: timerStateOf },
-        ),
+        await api.post(`${timerPath}/edit`, { ...changes, revision: await revision() }, { decode: timerStateOf }),
       ),
     explainTimerConflict,
   );
+}
+
+/**
+ * Edits running entry `id` at the cached revision, and takes the reply, the new state, into the
+ * caches. Tags sent replace the entry's tags, and a null project or task clears it. The server
+ * answers with a conflict when the timer moved on; the conflict's state replaces the cached one.
+ *
+ * An edit only sets fields, so it is safe to apply again to the same entry. When the conflict's
+ * state still runs entry `id`, only the revision moved (another device tagged the entry, say), and
+ * the edit goes out once more at the new revision, so what the user typed is not lost. When that
+ * state runs another entry or none, or the second try conflicts too, the edit fails with the
+ * conflict; it never lands on an entry the user did not edit. A request that got no reply keeps its
+ * own error, as an edit of a stopped entry does.
+ *
+ * Unlike an action it does not wait for other writes that move the timer: callers send it as one
+ * of them (`MOVES_TIMER`), in the running entry's scope (`updateRunningEntry` in entries.ts), so it
+ * would wait for itself, and the edit before it in that scope has already moved the cached revision.
+ */
+export async function editRunningEntry(qc: QueryClient, id: number, changes: RunningEntryChanges): Promise<TimerState> {
+  try {
+    return await postRunningEdit(qc, changes, async () => (await seenState(qc)).revision);
+  } catch (error) {
+    const current = error instanceof TimerActionError && error.kind === 'conflict' ? error.state : null;
+    if (current?.running_entry?.id !== id) throw error;
+    return postRunningEdit(qc, changes, () => Promise.resolve(current.revision));
+  }
 }
 
 /** Fields of a timer start: the new entry's fields and when it starts (now if left out). */
