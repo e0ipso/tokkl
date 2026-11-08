@@ -14,6 +14,7 @@
 #include "connectionsetup.h"
 #include "fakes.h"
 #include "menuactions.h"
+#include "statuspresentation.h"
 #include "pomodorolengthssaves.h"
 #include "pomodorolengthsclient.h"
 #include "pomodoropreferences.h"
@@ -379,6 +380,7 @@ public Q_SLOTS:
         qmlRegisterUncreatableType<TimerController>(uri, 1, 0, "TokklTimer", QStringLiteral("Created by PanelFixture"));
         qmlRegisterUncreatableType<PomodoroSession>(uri, 1, 0, "TokklPomodoroSession", QStringLiteral("Created by PanelFixture"));
         qmlRegisterType<MenuActions>(uri, 1, 0, "TokklMenuActions");
+        qmlRegisterType<StatusParts>(uri, 1, 0, "TokklStatusParts");
         qmlRegisterType<FakeConnectionSetup>(uri, 1, 0, "TokklConnectionSetup");
         qmlRegisterUncreatableType<PomodoroPreferences>(uri, 1, 0, "TokklPomodoroPreferences", QStringLiteral("Created by TokklPomodoroLengths"));
         qmlRegisterType<FakePomodoroLengths>(uri, 1, 0, "TokklPomodoroLengths");
