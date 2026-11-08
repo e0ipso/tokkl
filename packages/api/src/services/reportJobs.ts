@@ -1,7 +1,6 @@
 import type { DurationFormat } from '@tokkl/types';
 import { addDays, daysBetween, startOfWeek } from '@tokkl/common/time';
-import { parseSortDirection } from '../commands/reports.ts';
-import type { Dimension, OrderBy, ReportFilter, SortDirection } from '../domain/reportCommands.ts';
+import type { DetailedOrderBy, Dimension, OrderBy, ReportFilter, SortDirection } from '../domain/reportCommands.ts';
 import type { AccountExportProjection } from '../storage/domain.ts';
 import { assembleCsvExport, assembleJsonExport } from './exports.ts';
 import { groupEntries, resolutionFor, timeSeries, totalsOf, weeklyGrid, type Resolution } from './reportAggregates.ts';
@@ -50,16 +49,16 @@ export type ReportJob =
   | {
       kind: 'app-entries';
       filter: ReportFilter;
-      sort: 'date' | 'duration' | 'description';
-      dir: 'asc' | 'desc';
+      orderBy: DetailedOrderBy;
+      orderDir: SortDirection;
       pageSize: number;
       page: number;
     }
   | {
       kind: 'app-detailed-csv';
       filter: ReportFilter;
-      sort: 'date' | 'duration' | 'description';
-      dir: 'asc' | 'desc';
+      orderBy: DetailedOrderBy;
+      orderDir: SortDirection;
       durationFormat: DurationFormat;
     }
   | {
@@ -185,7 +184,7 @@ const FORMATTERS: { [K in ReportJob['kind']]: JobFormatter<K> } = {
     });
   },
   'app-entries': (job, { entries }) => {
-    const sorted = sortDetailed(entries(), job.sort, parseSortDirection(job.dir));
+    const sorted = sortDetailed(entries(), job.orderBy, job.orderDir);
     const pages = Math.max(1, Math.ceil(sorted.length / job.pageSize));
     // A bookmarked page past the end shows the last page; the response says which page it is.
     const page = Math.min(job.page, pages);
@@ -200,7 +199,7 @@ const FORMATTERS: { [K in ReportJob['kind']]: JobFormatter<K> } = {
   },
   'app-detailed-csv': (job, { entries, user }) =>
     csv(
-      detailedCsv(sortDetailed(entries(), job.sort, parseSortDirection(job.dir)), user, job.durationFormat),
+      detailedCsv(sortDetailed(entries(), job.orderBy, job.orderDir), user, job.durationFormat),
       'tokkl_detailed.csv',
     ),
   'app-summary-csv': (job, { entries }) => {

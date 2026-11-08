@@ -170,8 +170,8 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
         .run(user.id, wid, {
           kind: 'app-detailed-csv',
           filter: job.filter,
-          sort: 'description',
-          dir: 'asc',
+          orderBy: 'description',
+          orderDir: 'ASC',
           durationFormat: 'improved',
         })
         .then(r => {

@@ -231,11 +231,11 @@ export function appReportRoutes(deps: ReportRouteDeps): Router {
     deps.auth.requireAuth,
     queued(deps, async (req, res, slot) => {
       const { ws, body, filter } = await appFilter(req, res);
-      const { sort, dir } = parseDetailedOrder(body);
+      const { orderBy, orderDir } = parseDetailedOrder(body);
       const pageSize = parsePositiveInt(body.page_size, APP_DEFAULT_PAGE_SIZE, 'page_size');
       if (pageSize > APP_MAX_PAGE_SIZE) throw invalidInput(`'page_size' must be at most ${APP_MAX_PAGE_SIZE}`);
       const page = parsePositiveInt(body.page, 1, 'page');
-      await send(slot, res, ws, { kind: 'app-entries', filter, sort, dir, pageSize, page });
+      await send(slot, res, ws, { kind: 'app-entries', filter, orderBy, orderDir, pageSize, page });
     }),
   );
 
@@ -245,12 +245,12 @@ export function appReportRoutes(deps: ReportRouteDeps): Router {
     deps.auth.requireAuth,
     queued(deps, async (req, res, slot) => {
       const { ws, body, filter } = await appFilter(req, res);
-      const { sort, dir } = parseDetailedOrder(body);
+      const { orderBy, orderDir } = parseDetailedOrder(body);
       await send(slot, res, ws, {
         kind: 'app-detailed-csv',
         filter,
-        sort,
-        dir,
+        orderBy,
+        orderDir,
         durationFormat: parseDurationFormat(body.duration_format),
       });
     }),
