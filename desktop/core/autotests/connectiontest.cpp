@@ -1110,6 +1110,197 @@ private Q_SLOTS:
         QCOMPARE(f.connection.workspaceId(), 8);
     }
 
+    // Before the first /me of a generation the connection reads what the
+    // server announces in GET /api/app/status, so the routes are known once
+    // the account binds.
+    void currentServerAnnouncesTheAppRoutes()
+    {
+        Fixture f;
+        f.transport.holdStatus = true;
+        f.store.secrets.insert(tokenKey(), token);
+        f.connection.setInstanceUrl(instance);
+        QTRY_COMPARE(f.transport.statusRequests.size(), 1);
+        QCOMPARE(f.transport.statusRequests.first().method, QByteArray("GET"));
+        QCOMPARE(f.transport.statusRequests.first().url.toString(), QStringLiteral("https://example.test/tokkl/api/app/status"));
+
+        // Nothing binds, and /me waits, until the announcement arrives.
+        QTest::qWait(10);
+        QVERIFY(f.transport.requests.isEmpty());
+        QCOMPARE(f.connection.state(), Connection::Connecting);
+        QVERIFY(!f.connection.canWrite());
+        QCOMPARE(f.connection.server(), ServerApi());
+
+        f.transport.respondStatus(0, FakeTransport::currentStatus());
+        QCOMPARE(f.transport.requests.size(), 1);
+        QCOMPARE(path(f.transport.requests.first()), QStringLiteral("/tokkl/api/v9/me"));
+        f.transport.respondLast(FakeTransport::answer(200, meBody(3, 7)));
+        QCOMPARE(f.connection.state(), Connection::Connected);
+        const ServerApi server = f.connection.server();
+        QCOMPARE(server.version, 1);
+        QVERIFY(server.appPreferences && server.timerActions && server.timerEdit && server.pomodoroRevision);
+
+        f.connection.fetchPreferences();
+        QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/app/me/preferences"));
+    }
+
+    // A status without the announcement is a server from before it: the v9
+    // routes. The fields in a /me body are not read.
+    void olderServerAnnouncesNothing()
+    {
+        Fixture f;
+        f.transport.status = FakeTransport::olderStatus();
+        f.store.secrets.insert(tokenKey(), token);
+        f.connection.setInstanceUrl(instance);
+        QTRY_COMPARE(f.transport.requests.size(), 1);
+        QCOMPARE(f.transport.statusRequests.size(), 1);
+        QJsonObject me = QJsonDocument::fromJson(meBody(3, 7)).object();
+        me.insert(QStringLiteral("api_version"), 1);
+        me.insert(QStringLiteral("capabilities"), QJsonArray{QStringLiteral("app-preferences"), QStringLiteral("timer-actions")});
+        f.transport.respondLast(FakeTransport::answer(200, QJsonDocument(me).toJson(QJsonDocument::Compact)));
+        QCOMPARE(f.connection.state(), Connection::Connected);
+        QCOMPARE(f.connection.server(), ServerApi());
+
+        f.connection.fetchPreferences();
+        QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/v9/me/preferences"));
+    }
+
+    void statusFailureAnnouncesNothing_data()
+    {
+        QTest::addColumn<HttpResponse>("status");
+        QTest::addColumn<bool>("askedAgain"); // by the next /me of the generation
+        QTest::newRow("no answer") << FakeTransport::failure(HttpResponse::Outcome::NetworkError, QStringLiteral("Host unreachable")) << true;
+        QTest::newRow("timeout") << FakeTransport::failure(HttpResponse::Outcome::Timeout) << true;
+        QTest::newRow("server error") << FakeTransport::answer(503, QByteArray()) << true;
+        QTest::newRow("not found") << FakeTransport::answer(404, "\"Not found\"") << false;
+        QTest::newRow("unauthorized") << FakeTransport::answer(401, "\"Unauthorized\"") << false;
+        QTest::newRow("rate limited") << FakeTransport::answer(429, "\"Too many requests\"", "120") << false;
+        QTest::newRow("not JSON") << FakeTransport::answer(200, "<html></html>") << false;
+    }
+
+    // A failed status read means the v9 routes. It never refuses the
+    // sign-in, pauses it or starts a cooldown. Without an answer from the
+    // server the next /me asks again; an answer holds for the generation.
+    void statusFailureAnnouncesNothing()
+    {
+        QFETCH(HttpResponse, status);
+        QFETCH(bool, askedAgain);
+        Fixture f;
+        f.transport.status = status;
+        QVERIFY(connectAccount(f));
+        QCOMPARE(f.transport.statusRequests.size(), 1);
+        QVERIFY(f.connection.canWrite());
+        QVERIFY(!f.connection.rateLimitedUntil().isValid());
+        QCOMPARE(f.connection.server(), ServerApi());
+
+        f.connection.fetchPreferences();
+        QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/v9/me/preferences"));
+
+        const qsizetype before = f.transport.requests.size();
+        f.connection.refreshAccount();
+        QTRY_COMPARE(f.transport.requests.size(), before + 1);
+        QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/v9/me"));
+        QCOMPARE(f.transport.statusRequests.size(), askedAgain ? 2 : 1);
+        f.transport.respondLast(FakeTransport::answer(200, meBody(3, 7)));
+        QCOMPARE(f.connection.state(), Connection::Connected);
+        QCOMPARE(f.connection.server(), ServerApi());
+    }
+
+    // A status read that found no network, and a /me that failed the same
+    // way: the retry asks for the status again, and its answer picks the
+    // app routes.
+    void statusAskedAgainAfterANetworkFailure()
+    {
+        Fixture f;
+        f.transport.status = FakeTransport::failure(HttpResponse::Outcome::NetworkError, QStringLiteral("Host unreachable"));
+        f.store.secrets.insert(tokenKey(), token);
+        f.connection.setInstanceUrl(instance);
+        QTRY_COMPARE(f.transport.requests.size(), 1);
+        QCOMPARE(f.transport.statusRequests.size(), 1);
+        f.transport.respondLast(FakeTransport::failure(HttpResponse::Outcome::NetworkError, QStringLiteral("Host unreachable")));
+        QCOMPARE(f.connection.state(), Connection::Disconnected);
+        QVERIFY(!f.connection.isConnected());
+
+        // The network is back. refreshAccount() is what the retry timer runs.
+        f.transport.status = FakeTransport::currentStatus();
+        f.connection.refreshAccount();
+        QTRY_COMPARE(f.transport.requests.size(), 2);
+        QCOMPARE(f.transport.statusRequests.size(), 2);
+        f.transport.respondLast(FakeTransport::answer(200, meBody(3, 7)));
+        QCOMPARE(f.connection.state(), Connection::Connected);
+        QVERIFY(f.connection.server().timerActions);
+        QVERIFY(f.connection.server().appPreferences);
+
+        f.connection.fetchPreferences();
+        QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/app/me/preferences"));
+
+        // Known now: the next revalidation sends /me alone.
+        f.connection.refreshAccount();
+        QTRY_COMPARE(f.transport.requests.size(), 4);
+        QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/v9/me"));
+        QCOMPARE(f.transport.statusRequests.size(), 2);
+    }
+
+    // Once per generation: a revalidation, also one that finds another
+    // account behind the same credentials, keeps the announcement, and a
+    // new generation asks again.
+    void statusIsReadOncePerGeneration()
+    {
+        Fixture f;
+        f.transport.status = FakeTransport::currentStatus();
+        QVERIFY(connectAccount(f));
+        QCOMPARE(f.transport.statusRequests.size(), 1);
+
+        f.connection.refreshAccount();
+        f.transport.respondLast(FakeTransport::answer(200, meBody(3, 7)));
+        f.connection.refreshAccount();
+        f.transport.respondLast(FakeTransport::answer(200, meBody(4, 8)));
+        QCOMPARE(f.connection.workspaceId(), 8);
+        QVERIFY(f.connection.server().timerActions);
+        QTest::qWait(10);
+        QCOMPARE(f.transport.statusRequests.size(), 1);
+
+        f.transport.status = FakeTransport::olderStatus();
+        f.store.secrets.insert(tokenKey(QStringLiteral("https://other.example.test")), token);
+        const qsizetype before = f.transport.requests.size();
+        f.connection.setInstanceUrl(QStringLiteral("https://other.example.test"));
+        QCOMPARE(f.connection.server(), ServerApi());
+        QTRY_COMPARE(f.transport.requests.size(), before + 1);
+        QCOMPARE(f.transport.statusRequests.size(), 2);
+        QCOMPARE(f.transport.statusRequests.last().url.toString(), QStringLiteral("https://other.example.test/api/app/status"));
+        f.transport.respondLast(FakeTransport::answer(200, meBody(3, 7)));
+        QCOMPARE(f.connection.state(), Connection::Connected);
+        QCOMPARE(f.connection.server(), ServerApi());
+    }
+
+    // A revalidation while the announcement is read sends no second /me,
+    // and an announcement of an older generation is dropped.
+    void statusInFlight()
+    {
+        Fixture f;
+        f.transport.holdStatus = true;
+        f.store.secrets.insert(tokenKey(), token);
+        f.connection.setInstanceUrl(instance);
+        QTRY_COMPARE(f.transport.statusRequests.size(), 1);
+        f.connection.refreshAccount();
+        QVERIFY(f.transport.requests.isEmpty());
+
+        // Another instance before the answer: the old one is aborted, and
+        // its late answer sends nothing.
+        f.store.secrets.insert(tokenKey(QStringLiteral("https://other.example.test")), token);
+        f.connection.setInstanceUrl(QStringLiteral("https://other.example.test"));
+        QVERIFY(f.transport.statusReplies.first()->aborted);
+        QTRY_COMPARE(f.transport.statusRequests.size(), 2);
+        f.transport.respondStatus(0, FakeTransport::currentStatus());
+        QVERIFY(f.transport.requests.isEmpty());
+
+        f.transport.respondStatus(1, FakeTransport::olderStatus());
+        QCOMPARE(f.transport.requests.size(), 1);
+        QCOMPARE(f.transport.requests.first().url.toString(), QStringLiteral("https://other.example.test/api/v9/me"));
+        f.transport.respondLast(FakeTransport::answer(200, meBody(3, 7)));
+        QCOMPARE(f.connection.state(), Connection::Connected);
+        QCOMPARE(f.connection.server(), ServerApi());
+    }
+
     void nonTokklAnswer()
     {
         Fixture f;

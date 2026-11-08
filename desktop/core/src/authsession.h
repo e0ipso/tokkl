@@ -21,7 +21,11 @@ namespace Tokkl
 // The settings name the instance, the sign-in mode and, for passwords, the
 // email; the secret comes from the credential store. SessionCredentials
 // holds both. GET /api/v9/me validates them and binds the account and its
-// default workspace to the current generation.
+// default workspace to the current generation. Before the first /me of a
+// generation, GET /api/app/status reads what the server announces, so the
+// routes are known once the account is bound. A failed or older answer
+// announces nothing, and the account binds all the same. Until the server
+// answers it, each later /me of the generation asks again first.
 //
 // Changing a setting or the stored secret starts a new generation: the
 // account is cleared at once, requests in flight are aborted, and replies
@@ -78,6 +82,9 @@ public:
     QDateTime rateLimitedUntil() const;
     // The bound account, or nullopt.
     std::optional<Me> account() const;
+    // What the server announced in this generation; nothing without a bound
+    // account.
+    ServerApi server() const;
 
     // The client for this session's requests.
     ApiClient &api();
@@ -116,6 +123,14 @@ private:
         quint64 generation = 0;
         Me me;
     };
+    // The GET /api/app/status of one generation. known once the server
+    // answered it; no answer, a timeout or a 5xx leaves it unknown.
+    struct Announcement {
+        quint64 generation = 0;
+        bool pending = false;
+        bool known = false;
+        ServerApi server;
+    };
 
     void settingsChanged();
     void scheduleReload();
@@ -123,6 +138,8 @@ private:
     void onSecretRead(const CredentialResult &result);
     void showFailedWrite(CredentialResult::Status status);
     void authenticate(bool explicitRequest);
+    void readAnnouncement();
+    void sendMe();
     void handleMe(const HttpResponse &response);
     void refuseCredentials(const ApiError &error);
     void pauseAuthentication(const QString &message);
@@ -142,6 +159,7 @@ private:
     State m_state = Unconfigured;
     QString m_error;
     std::optional<Context> m_context;
+    Announcement m_announcement;
 
     Cooldown m_cooldown;
     QTimer m_retryTimer;

@@ -20,16 +20,15 @@ const QString token = QStringLiteral("tok-state-1");
 const QString statePath = QStringLiteral("/api/app/timer");
 const QString eventsPath = QStringLiteral("/api/app/timer/events");
 
-// The account on a current server, or with current false on a server from
-// before the capabilities.
-QByteArray meBody(qint64 id, qint64 workspace, bool current = true)
+// The account. What its server announces comes from GET /api/app/status.
+QByteArray meBody(qint64 id, qint64 workspace)
 {
     const QJsonObject me{
         {QStringLiteral("id"), id},
         {QStringLiteral("email"), QStringLiteral("bea@example.test")},
         {QStringLiteral("default_workspace_id"), workspace},
     };
-    return QJsonDocument(current ? withCurrentServerApi(me) : me).toJson(QJsonDocument::Compact);
+    return QJsonDocument(me).toJson(QJsonDocument::Compact);
 }
 
 // A state with nothing running, built offsetMs after the given time.
@@ -129,10 +128,12 @@ class TimerStateClientTest : public QObject
         }
     };
 
-    // Configure token auth for the instance and answer /me. The client then
-    // reads the state and opens the stream.
+    // Configure token auth for the instance and answer /me, on a current
+    // server or, with current false, on one from before the capabilities.
+    // The client then reads the state and opens the stream.
     static bool connectAccount(Fixture &f, const QString &url = instanceA, qint64 userId = 3, bool current = true)
     {
+        f.transport.status = current ? FakeTransport::currentStatus() : FakeTransport::olderStatus();
         f.store.secrets.insert(credentialKey(parseInstanceUrl(url), AuthMode::Token, QString()), token);
         const qsizetype before = f.transport.requests.size();
         f.connection.setInstanceUrl(url);
@@ -141,7 +142,7 @@ class TimerStateClientTest : public QObject
             })) {
             return false;
         }
-        f.respond(before, FakeTransport::answer(200, meBody(userId, 7, current)));
+        f.respond(before, FakeTransport::answer(200, meBody(userId, 7)));
         return f.connection.state() == Connection::Connected;
     }
 

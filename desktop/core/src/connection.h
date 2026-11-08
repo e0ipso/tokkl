@@ -87,7 +87,8 @@ public:
     quint64 generation() const;
 
     std::optional<Me> account() const;
-    // What the bound account's server announced; none without an account.
+    // What the server announced in GET /api/app/status before the account
+    // bound; none without an account.
     ServerApi server() const;
     QVariantMap accountMap() const;
     qint64 workspaceId() const;

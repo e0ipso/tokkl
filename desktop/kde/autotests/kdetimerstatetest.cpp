@@ -18,7 +18,7 @@ const QString instance = QStringLiteral("https://a.example.test");
 QByteArray meBody()
 {
     return QByteArrayLiteral(
-        R"({"id":3,"email":"bea@example.test","fullname":"Bea","timezone":"UTC","default_workspace_id":7,"beginning_of_week":1,"api_version":1,"capabilities":["app-preferences","timer-actions","timer-edit","pomodoro-revision"]})");
+        R"({"id":3,"email":"bea@example.test","fullname":"Bea","timezone":"UTC","default_workspace_id":7,"beginning_of_week":1})");
 }
 
 qsizetype stateReads(const FakeTransport &transport)
@@ -37,10 +37,16 @@ class KdeTimerStateTest : public QObject
 {
     Q_OBJECT
 
+    // On a current server.
     struct Fixture {
         FakeTransport transport;
         FakeCredentialStore credentials;
         Connection connection{&transport, &credentials, testClientName()};
+
+        Fixture()
+        {
+            transport.status = FakeTransport::currentStatus();
+        }
     };
 
 private Q_SLOTS:

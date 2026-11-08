@@ -122,4 +122,13 @@ ApiResult<Me> meFromResponse(const HttpResponse &response)
     return ApiResult<Me>::failure(error);
 }
 
+ServerApi serverApiFromResponse(const HttpResponse &response)
+{
+    if (response.outcome != HttpResponse::Outcome::Finished || response.status < 200 || response.status >= 300) {
+        return ServerApi();
+    }
+    const std::optional<QJsonValue> json = parseJsonBody(response.body);
+    return json && json->isObject() ? decodeServerApi(json->toObject()) : ServerApi();
+}
+
 }

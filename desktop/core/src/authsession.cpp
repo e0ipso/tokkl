@@ -110,6 +110,12 @@ std::optional<Me> AuthSession::account() const
     return m_context->me;
 }
 
+ServerApi AuthSession::server() const
+{
+    // An account binds only after the announcement of its generation.
+    return hasAccount() && m_announcement.generation == m_generation && m_announcement.known ? m_announcement.server : ServerApi();
+}
+
 ApiClient &AuthSession::api()
 {
     return m_api;
@@ -234,6 +240,32 @@ void AuthSession::authenticate(bool explicitRequest)
     if (!hasAccount()) {
         setState(Connecting);
     }
+    if (m_announcement.generation != m_generation || (!m_announcement.pending && !m_announcement.known)) {
+        readAnnouncement();
+    } else if (!m_announcement.pending) {
+        sendMe();
+    }
+    // Otherwise the read in flight sends /me once it settles.
+}
+
+void AuthSession::readAnnouncement()
+{
+    // Its answer never touches the session state. Until the server answers,
+    // the routes are those of a server without the announcement, and the
+    // next /me of the generation, such as the retry after a connectivity
+    // failure, asks again. An answer, with the fields or without, or a
+    // refusal holds for the generation.
+    m_announcement = Announcement{m_generation, true, false, ServerApi()};
+    m_api.send("GET", instance().app(QStringLiteral("/status")), QByteArray(), [this](const HttpResponse &response) {
+        m_announcement.pending = false;
+        m_announcement.known = response.outcome == HttpResponse::Outcome::Finished && response.status < 500;
+        m_announcement.server = serverApiFromResponse(response);
+        sendMe();
+    });
+}
+
+void AuthSession::sendMe()
+{
     m_api.send("GET", instance().api(QStringLiteral("/me")), QByteArray(), [this](const HttpResponse &response) {
         handleMe(response);
     });
@@ -302,8 +334,10 @@ void AuthSession::pauseAuthentication(const QString &message)
 void AuthSession::bind(const Me &me)
 {
     if (hasAccount() && (m_context->me.id != me.id || m_context->me.defaultWorkspaceId != me.defaultWorkspaceId)) {
-        // The same credentials now name another account or workspace.
+        // The same credentials now name another account or workspace. The
+        // instance is the same, so what it announced still holds.
         resetAccount();
+        m_announcement.generation = m_generation;
     }
     const bool changed = !hasAccount() || m_context->me != me;
     m_context = Context{m_generation, me};

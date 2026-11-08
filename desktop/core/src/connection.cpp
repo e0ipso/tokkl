@@ -290,8 +290,7 @@ void Connection::savePreferences(const PomodoroConfigUpdate &update, Callback<Po
 
 ServerApi Connection::server() const
 {
-    const std::optional<Me> me = m_session.account();
-    return me ? me->server : ServerApi();
+    return m_session.server();
 }
 
 void Connection::preferencesCall(const QByteArray &method, const QByteArray &body, ApiAccess access, Callback<PomodoroConfig> done)

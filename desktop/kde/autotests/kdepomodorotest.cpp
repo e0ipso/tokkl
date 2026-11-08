@@ -32,7 +32,7 @@ QByteArray json(const QJsonObject &object)
 QByteArray meBody()
 {
     return QByteArrayLiteral(
-        R"({"id":3,"email":"bea@example.test","fullname":"Bea","timezone":"UTC","default_workspace_id":7,"beginning_of_week":1,"api_version":1,"capabilities":["app-preferences","timer-actions","timer-edit","pomodoro-revision"]})");
+        R"({"id":3,"email":"bea@example.test","fullname":"Bea","timezone":"UTC","default_workspace_id":7,"beginning_of_week":1})");
 }
 
 // A session in its first work phase, started at start; the open pomodoro
@@ -99,8 +99,10 @@ class KdePomodoroTest : public QObject
         TimerStateClient client{&connection, &clock};
         TimerController timer{&clock};
 
+        // On a current server.
         Fixture()
         {
+            transport.status = FakeTransport::currentStatus();
             timer.setStateClient(&client);
         }
 

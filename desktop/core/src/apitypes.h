@@ -73,7 +73,7 @@ std::optional<TransitionKind> parseTransitionKind(QStringView name);
 // 2, 3, 4, 5, 6, 10, 12, 15, 20, 30 and 60.
 bool isTimeResolution(qint64 minutes);
 
-// What the server's /api/app offers, as GET /api/v9/me announces it in
+// What the server's /api/app offers, as GET /api/app/status announces it in
 // api_version and capabilities. A server from before the announcement
 // sends neither and has none of the capabilities; names the client does not
 // know are ignored. The client picks its routes from these and never from
@@ -106,8 +106,6 @@ struct Me {
     // The step, in minutes, of the clock grid entries snap to. It divides an
     // hour; a missing or invalid value reads as 1.
     int timeResolutionMinutes = 1;
-    // Not in toVariantMap(): it decides routes, not what a panel shows.
-    ServerApi server;
 
     QVariantMap toVariantMap() const;
     bool operator==(const Me &other) const = default;
@@ -369,9 +367,9 @@ public:
 // Decoders for the API's bare JSON bodies. Each returns nullopt when the
 // value does not have the expected shape.
 std::optional<Me> decodeMe(const QJsonValue &value);
-// The api_version and capabilities of a /me object. Never fails: a field
-// missing or unreadable reads as not announced.
-ServerApi decodeServerApi(const QJsonObject &me);
+// The api_version and capabilities of a GET /api/app/status object. Never
+// fails: a field missing or unreadable reads as not announced.
+ServerApi decodeServerApi(const QJsonObject &status);
 std::optional<Project> decodeProject(const QJsonValue &value);
 std::optional<QList<Project>> decodeProjects(const QJsonValue &value);
 std::optional<TimeEntry> decodeTimeEntry(const QJsonValue &value);
@@ -400,6 +398,10 @@ ApiError errorFromResponse(const HttpResponse &response);
 // answer that is not an account is InvalidResponse, with a message that
 // points at the instance URL.
 ApiResult<Me> meFromResponse(const HttpResponse &response);
+
+// What an answer to GET /api/app/status announces. Anything but a 2xx JSON
+// object, such as a failure or an older server's 404, announces nothing.
+ServerApi serverApiFromResponse(const HttpResponse &response);
 
 // createdWith names the client that starts the entry. The v9 body carries
 // duration -1; the timer start carries the revision it applies to instead.
