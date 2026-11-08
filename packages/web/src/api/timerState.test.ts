@@ -105,7 +105,12 @@ test('only objects shaped like a timer state pass the guard', () => {
   assert.equal(isTimerState(state(1, { running_entry: null, pause })), true);
   assert.equal(isTimerState(state(1, { pomodoro })), true);
   assert.equal(
-    isTimerState(state(1, { running_entry: null, discarded_pomodoro: { entry_id: 7, start: 'a', stop: 'b' } })),
+    isTimerState(
+      state(1, {
+        running_entry: null,
+        discarded_pomodoro: { entry_id: 7, start: '2026-10-27T09:00:00.000Z', stop: '2026-10-27T09:00:00.000Z' },
+      }),
+    ),
     true,
   );
   assert.equal(isTimerState(null), false);
@@ -131,6 +136,16 @@ test('a state whose nested parts are malformed or missing fails the guard', () =
   );
   assert.equal(
     isTimerState(state(1, { discarded_pomodoro: { entry_id: 7 } as unknown as TimerState['discarded_pomodoro'] })),
+    false,
+  );
+});
+
+test('a state needs a whole revision and real instants', () => {
+  assert.equal(isTimerState(state(1.5)), false);
+  assert.equal(isTimerState(state(1, { server_time: '2026-10-27T10:00:05' })), false);
+  assert.equal(isTimerState(state(1, { server_time: 'yesterday' })), false);
+  assert.equal(
+    isTimerState(state(1, { discarded_pomodoro: { entry_id: 7, start: '2026-10-27T10:00:00Z', stop: 'soon' } })),
     false,
   );
 });

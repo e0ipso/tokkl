@@ -55,6 +55,19 @@ test('entry lists accept meta fields and refuse malformed rows', () => {
   assert.throws(() => entryListReply([{ ...entry, tags: 'a' }]), { message: /reply\[0\]\.tags is not a list/ });
 });
 
+test('entry ids must be whole numbers and times real instants', () => {
+  assert.throws(() => entryListReply([{ ...entry, id: 3.5 }]), { message: /reply\[0\]\.id is not a whole number/ });
+  assert.throws(() => entryListReply([{ ...entry, tag_ids: [4.2] }]), {
+    message: /reply\[0\]\.tag_ids\[0\] is not a whole number/,
+  });
+  assert.throws(() => entryListReply([{ ...entry, start: '2026-10-27T10:00:00' }]), {
+    message: /reply\[0\]\.start is not a date and time with a time zone/,
+  });
+  assert.throws(() => entryListReply([{ ...entry, stop: '2026-13-01T10:00:00Z' }]), {
+    message: /reply\[0\]\.stop is not a date and time/,
+  });
+});
+
 test('the running entry may be null', () => {
   assert.equal(runningEntryReply(null), null);
   assert.deepEqual(runningEntryReply(entry), entry);

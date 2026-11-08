@@ -1,4 +1,16 @@
-import { array, boolean, nullable, number, object, oneOf, optional, string, type Decoder } from './decode.ts';
+import {
+  array,
+  boolean,
+  instant,
+  integer,
+  nullable,
+  number,
+  object,
+  oneOf,
+  optional,
+  string,
+  type Decoder,
+} from './decode.ts';
 import type {
   Client,
   DetailedReportPage,
@@ -23,42 +35,43 @@ import type {
 /**
  * Decoders for the replies the views compute with: the account, the catalogs, entries, the timer
  * state and reports. Preferences are left as they come: their type is an open record of whatever the
- * clients saved.
+ * clients saved. Ids, revisions, counts and page numbers are safe integers (`integer`), other numbers
+ * finite (`number`), and timestamps RFC 3339 instants (`instant`); calendar days stay `string`.
  */
 
 export const meReply: Decoder<Me> = object<Me>({
-  id: number,
+  id: integer,
   api_token: string,
   email: string,
   fullname: string,
   timezone: string,
-  default_workspace_id: number,
-  beginning_of_week: number,
+  default_workspace_id: integer,
+  beginning_of_week: integer,
   role: oneOf('admin', 'user'),
-  time_resolution_minutes: number,
+  time_resolution_minutes: integer,
 });
 
 export const workspaceReply: Decoder<Workspace> = object<Workspace>({
-  id: number,
+  id: integer,
   name: string,
   default_currency: string,
   default_hourly_rate: nullable(number),
-  rounding: number,
-  rounding_minutes: number,
+  rounding: integer,
+  rounding_minutes: integer,
 });
 
 export const clientReply: Decoder<Client> = object<Client>({
-  id: number,
-  wid: number,
+  id: integer,
+  wid: integer,
   name: string,
   notes: nullable(string),
   archived: boolean,
 });
 
 export const projectReply: Decoder<Project> = object<Project>({
-  id: number,
-  workspace_id: number,
-  client_id: nullable(number),
+  id: integer,
+  workspace_id: integer,
+  client_id: nullable(integer),
   client_name: nullable(string),
   name: string,
   color: string,
@@ -72,15 +85,15 @@ export const projectReply: Decoder<Project> = object<Project>({
 });
 
 export const taskReply: Decoder<Task> = object<Task>({
-  id: number,
-  project_id: number,
+  id: integer,
+  project_id: integer,
   name: string,
   active: boolean,
   estimated_seconds: nullable(number),
   tracked_seconds: number,
 });
 
-export const tagReply: Decoder<Tag> = object<Tag>({ id: number, workspace_id: number, name: string });
+export const tagReply: Decoder<Tag> = object<Tag>({ id: integer, workspace_id: integer, name: string });
 
 export const clientListReply = array(clientReply);
 export const projectListReply = array(projectReply);
@@ -90,19 +103,19 @@ export const tagListReply = array(tagReply);
 const metaName = optional(nullable(string));
 
 export const timeEntryReply: Decoder<TimeEntry> = object<TimeEntry>({
-  id: number,
-  workspace_id: number,
-  project_id: nullable(number),
-  task_id: nullable(number),
+  id: integer,
+  workspace_id: integer,
+  project_id: nullable(integer),
+  task_id: nullable(integer),
   billable: boolean,
-  start: string,
-  stop: nullable(string),
+  start: instant,
+  stop: nullable(instant),
   duration: number,
   description: string,
   tags: array(string),
-  tag_ids: array(number),
-  at: string,
-  server_deleted_at: nullable(string),
+  tag_ids: array(integer),
+  at: instant,
+  server_deleted_at: nullable(instant),
   all_day: boolean,
   project_name: metaName,
   project_color: metaName,
@@ -120,14 +133,14 @@ const pomodoroPhaseKind = oneOf('work', 'shortRest', 'longRest');
 const timerPause: Decoder<TimerPause> = object<TimerPause>({
   paused: boolean,
   seconds: number,
-  workspace_id: number,
+  workspace_id: integer,
   description: string,
-  project_id: nullable(number),
-  task_id: nullable(number),
-  tag_ids: array(number),
+  project_id: nullable(integer),
+  task_id: nullable(integer),
+  tag_ids: array(integer),
   tags: array(string),
   billable: boolean,
-  clone_entry_id: nullable(number),
+  clone_entry_id: nullable(integer),
 });
 
 const timerPomodoro: Decoder<TimerPomodoro> = object<TimerPomodoro>({
@@ -137,25 +150,25 @@ const timerPomodoro: Decoder<TimerPomodoro> = object<TimerPomodoro>({
   long_rest_every: number,
   phase: object<TimerPomodoroPhase>({
     kind: pomodoroPhaseKind,
-    start: string,
-    completed: number,
-    planned_end: string,
+    start: instant,
+    completed: integer,
+    planned_end: instant,
   }),
   upcoming_phase: pomodoroPhaseKind,
   transition: oneOf('workToShortRest', 'shortRestToWork', 'workToLongRest', 'longRestToWork'),
-  number: number,
-  entry_id: number,
-  pomodoro_start: string,
+  number: integer,
+  entry_id: integer,
+  pomodoro_start: instant,
 });
 
 /** The timer state of GET /api/app/timer, every timer action, a 409 from one, and the event stream. */
 export const timerStateReply: Decoder<TimerState> = object<TimerState>({
-  revision: number,
-  server_time: string,
+  revision: integer,
+  server_time: instant,
   running_entry: runningEntryReply,
   pause: nullable(timerPause),
   pomodoro: nullable(timerPomodoro),
-  discarded_pomodoro: nullable(object<DiscardedPomodoro>({ entry_id: number, start: string, stop: string })),
+  discarded_pomodoro: nullable(object<DiscardedPomodoro>({ entry_id: integer, start: instant, stop: instant })),
 });
 
 export const entryBoundsReply: Decoder<EntryBounds> = object<EntryBounds>({
@@ -164,7 +177,7 @@ export const entryBoundsReply: Decoder<EntryBounds> = object<EntryBounds>({
 });
 
 const reportGroup: Decoder<ReportGroup> = object<ReportGroup>({
-  id: nullable(number),
+  id: nullable(integer),
   title: string,
   color: nullable(string),
   seconds: number,
@@ -181,7 +194,7 @@ export const reportReply: Decoder<Report> = object<Report>({
   totals: object<Report['totals']>({
     seconds: number,
     billable_seconds: number,
-    entry_count: number,
+    entry_count: integer,
     amounts: array(object<Report['totals']['amounts'][number]>({ currency: string, cents: number })),
   }),
   series: array(object<Report['series'][number]>({ start: string, seconds: number, billable_seconds: number })),
@@ -189,13 +202,13 @@ export const reportReply: Decoder<Report> = object<Report>({
 });
 
 const reportEntry: Decoder<ReportEntry> = object<ReportEntry>({
-  id: number,
+  id: integer,
   description: string,
-  start: string,
-  stop: string,
+  start: instant,
+  stop: instant,
   seconds: number,
   billable: boolean,
-  project_id: nullable(number),
+  project_id: nullable(integer),
   project_name: nullable(string),
   project_color: nullable(string),
   client_name: nullable(string),
@@ -207,10 +220,10 @@ const reportEntry: Decoder<ReportEntry> = object<ReportEntry>({
 });
 
 export const detailedReportReply: Decoder<DetailedReportPage> = object<DetailedReportPage>({
-  total: number,
-  page: number,
-  page_size: number,
-  pages: number,
+  total: integer,
+  page: integer,
+  page_size: integer,
+  pages: integer,
   has_amounts: boolean,
   entries: array(reportEntry),
 });
@@ -224,7 +237,7 @@ export const weeklyReportReply: Decoder<WeeklyReport> = object<WeeklyReport>({
   columns: array(object<WeeklyReport['columns'][number]>({ start: string, end: string })),
   rows: array(
     object<WeeklyRow>({
-      id: nullable(number),
+      id: nullable(integer),
       title: string,
       color: nullable(string),
       cells: array(number),
