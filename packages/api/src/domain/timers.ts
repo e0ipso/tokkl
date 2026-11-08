@@ -25,8 +25,9 @@ import { buildTimerView, type TimerView } from './timerView.ts';
 
 export interface StartPomodoro {
   /**
-   * The timer revision the client saw. Optional for older clients; when present the start is
-   * refused unless it is current, because a start replaces whatever runs.
+   * The timer revision the client saw; the start is refused unless it is current, because a start
+   * replaces whatever runs. Absent only for older clients: `OPTIONAL_REVISION_ACTIONS` in
+   * `commands/timers.ts` says which client may omit it and when that ends.
    */
   revision?: number;
   /** The workspace of the session's entry; the default workspace when absent or null. */
@@ -292,7 +293,8 @@ export function createTimerOperations<R extends EntryRepositories>(runner: Timer
     },
     /**
      * Pauses the running entry. A `revision` is checked like any other action's; without one the
-     * pause acts on whatever runs, as it did for older clients.
+     * pause acts on whatever runs, for older clients (see `OPTIONAL_REVISION_ACTIONS` in
+     * `commands/timers.ts`).
      */
     async pauseTimer(userId: Id, revision: number | undefined, now = new Date()): Promise<TimerView> {
       return action(userId, now, (ctx, user) => pauseWork(ctx, user, revision, now));

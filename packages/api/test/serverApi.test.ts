@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { AppStatus, ServerApi, ServerCapability, TimerState } from '@tokkl/types';
 import { SERVER_API, setup, type TestContext } from './helpers.ts';
+import { OPTIONAL_REVISION_ACTIONS } from '../src/commands/timers.ts';
 
 /**
  * A request whose status tells a server with the capability from one without it: a 404 for a
@@ -84,4 +85,30 @@ test('GET /api/app/status names the Pomodoro limits a session start enforces', a
       limits.long_rest_every.default,
     ],
   );
+});
+
+test('only the actions listed as optional-revision act without a revision, each behind an announced capability', async () => {
+  const ctx = await setup();
+  const { capabilities } = (await ctx.json<AppStatus>('GET', '/api/app/status')).body;
+  for (const capability of Object.values(OPTIONAL_REVISION_ACTIONS)) assert.ok(capabilities.includes(capability));
+  const started = await ctx.json<TimerState>('POST', '/api/app/timer/start', { revision: 0, description: 'Run' });
+  assert.equal(started.status, 200);
+  // Each revisioned action that is not listed refuses a body without a revision before it reads the timer.
+  for (const path of [
+    '/api/app/timer/start',
+    '/api/app/timer/stop',
+    '/api/app/timer/edit',
+    '/api/app/timer/resume',
+    '/api/app/timer/discard',
+    '/api/app/pomodoro/next',
+    '/api/app/pomodoro/end',
+  ]) {
+    assert.equal(`POST ${path}` in OPTIONAL_REVISION_ACTIONS, false, path);
+    assert.equal((await ctx.json('POST', path, {})).status, 400, path);
+  }
+  // The listed ones act on whatever runs.
+  const listed = Object.keys(OPTIONAL_REVISION_ACTIONS).sort();
+  assert.deepEqual(listed, ['POST /api/app/pomodoro', 'POST /api/app/timer/pause']);
+  assert.equal((await ctx.json('POST', '/api/app/timer/pause', {})).status, 200);
+  assert.equal((await ctx.json('POST', '/api/app/pomodoro', {})).status, 200);
 });

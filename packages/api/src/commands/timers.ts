@@ -1,6 +1,6 @@
 /** Timer action bodies, parsed into commands. */
 import { POMODORO_SESSION_CONFIG_RANGES, type PomodoroSessionConfig } from '@tokkl/common/pomodoroSession';
-import type { PomodoroLimits } from '@tokkl/types';
+import type { PomodoroLimits, ServerCapability } from '@tokkl/types';
 import type { EditTimer, StartPomodoro, StartTimer } from '../domain/timers.ts';
 import { invalidInput } from '../lib/errors.ts';
 import { optionalId, parseInstant, type JsonBody } from '../lib/values.ts';
@@ -28,12 +28,30 @@ function readLengths(body: JsonBody): Partial<PomodoroSessionConfig> {
 }
 
 /**
- * A session start. `revision` is optional so older clients keep working; a client that sends it is
- * refused when the timer moved on.
+ * The actions that still take a body without `revision`, each with the capability that announced
+ * the revision check. A client that sends a revision is refused when the timer moved on; a body
+ * without one acts on whatever runs, so clients from before the capability keep working.
+ *
+ * The minimum client is one that sends `revision` on every action named here, which a client does
+ * once it relies on these capabilities. When every supported client does, a release can require
+ * the revision: parse it with `parseRevision` in `parseStartPomodoro` and `parsePauseTimer`, make
+ * it required in `StartPomodoro` and `TimerOperations.pauseTimer`, and remove this table. The
+ * capabilities stay announced, since clients probe them.
  */
+export const OPTIONAL_REVISION_ACTIONS = Object.freeze({
+  'POST /api/app/pomodoro': 'pomodoro-revision',
+  'POST /api/app/timer/pause': 'pause-revision',
+} as const satisfies Record<string, ServerCapability>);
+
+/** The `revision` of an action in `OPTIONAL_REVISION_ACTIONS`; undefined when the body has none. */
+function optionalRevision(body: JsonBody, _action: keyof typeof OPTIONAL_REVISION_ACTIONS): number | undefined {
+  return body.revision == null ? undefined : parseRevision(body.revision);
+}
+
+/** A session start; see `OPTIONAL_REVISION_ACTIONS` for its optional revision. */
 export function parseStartPomodoro(body: JsonBody): StartPomodoro {
   return {
-    revision: body.revision == null ? undefined : parseRevision(body.revision),
+    revision: optionalRevision(body, 'POST /api/app/pomodoro'),
     workspaceId: optionalId(body.workspace_id, 'workspace_id'),
     lengths: readLengths(body),
     entry: parseEntryLabels(body),
@@ -66,9 +84,9 @@ export function parseStopTimer(body: JsonBody): { revision: number; stop?: Date 
   return { revision: parseRevision(body.revision), stop: optionalInstant(body.stop, 'stop') };
 }
 
-/** A pause: the revision the client saw, optional so older clients that send no body keep working. */
+/** A pause; see `OPTIONAL_REVISION_ACTIONS` for its optional revision. Older clients send no body. */
 export function parsePauseTimer(body: JsonBody): { revision?: number } {
-  return { revision: body.revision == null ? undefined : parseRevision(body.revision) };
+  return { revision: optionalRevision(body, 'POST /api/app/timer/pause') };
 }
 
 /** The id of the entry the client saw running. */
