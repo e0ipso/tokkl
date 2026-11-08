@@ -9,17 +9,23 @@ import {
     AUTH_MODES,
     OLDEST_SUPPORTED_INTERFACE_VERSION,
     TIMER1_XML_FILE,
+    cachedProperty,
     chosenProjectLabel,
     countdown,
     describeStatus,
     elapsedSeconds,
     fill,
     formatElapsed,
+    interfaceVersion,
     nextPhaseLabel,
+    outdatedServiceText,
     phaseName,
     pomodoroModeLabel,
     projectLabel,
+    serviceOutdated,
+    serviceRunning,
     sessionLine,
+    supportedProperty,
     supportsService,
 } from '../timer1.js';
 
@@ -162,6 +168,53 @@ test('a service below the floor is not used, and the menu asks for an update', (
     assert.equal(describeStatus('ready', '', identity, 1).text, 'This timer service is too old; update tokkl-timerd.');
     assert.equal(describeStatus('ready', '', identity, 2).text, 'Connected');
     assert.equal(describeStatus(null, '', identity, 0).text, 'Timer service not running');
+});
+
+// A stand-in for the Gio.DBusProxy: an owner and cached properties.
+function fakeProxy(owner, properties) {
+    return {
+        g_name_owner: owner,
+        get_cached_property: name => (name in properties ? { recursiveUnpack: () => properties[name] } : null),
+    };
+}
+
+test('the panel button and the preferences read nothing of a service below the floor', () => {
+    const current = fakeProxy(':1.7', { InterfaceVersion: 2, Status: 'ready' });
+    assert.equal(serviceOutdated(current), false);
+    assert.equal(supportedProperty(current, 'Status', 'error'), 'ready');
+    assert.equal(supportedProperty(current, 'Missing', 'fallback'), 'fallback');
+
+    for (const older of [fakeProxy(':1.7', { InterfaceVersion: 1, Status: 'ready' }), fakeProxy(':1.7', {})]) {
+        assert.equal(serviceOutdated(older), true);
+        assert.equal(supportedProperty(older, 'Status', 'error'), 'error');
+        assert.equal(
+            describeStatus('ready', '', identity, interfaceVersion(older)).text,
+            outdatedServiceText(identity),
+        );
+    }
+
+    // A service that is gone is not outdated: it is not running.
+    const gone = fakeProxy(null, { InterfaceVersion: 1, Status: 'ready' });
+    assert.equal(serviceRunning(gone), false);
+    assert.equal(serviceOutdated(gone), false);
+    assert.equal(serviceOutdated(null), false);
+    assert.equal(cachedProperty(gone, 'Status', 'none'), 'none');
+    assert.equal(interfaceVersion(gone), 0);
+});
+
+// The panel button and the preferences window stop at the same floor.
+test('the extension reads the service only through the shared gate', () => {
+    for (const name of ['indicator.js', 'prefs.js']) {
+        const source = readFileSync(new URL(`../${name}`, import.meta.url), 'utf8');
+        assert.equal(source.includes('cachedProperty('), false, `${name} reads a property past the gate`);
+        assert.match(source, /serviceOutdated\(/, `${name} does not check the floor`);
+    }
+    const prefs = readFileSync(new URL('../prefs.js', import.meta.url), 'utf8');
+    assert.match(
+        prefs,
+        /describeStatus\([^;]*interfaceVersion\(this\._proxy\)/s,
+        'prefs.js words the status without InterfaceVersion',
+    );
 });
 
 // No fallback for a service below the floor is left behind.

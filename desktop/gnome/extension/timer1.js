@@ -40,6 +40,66 @@ export function supportsService(interfaceVersion) {
 }
 
 /**
+ * Whether the service owns its name, so the proxy holds its properties.
+ *
+ * @param {import('gi://Gio').DBusProxy | null} proxy
+ * @returns {boolean}
+ */
+export function serviceRunning(proxy) {
+    return Boolean(proxy?.g_name_owner);
+}
+
+/**
+ * The property's cached value, or the fallback while the service is gone: a
+ * proxy without an owner keeps no properties.
+ *
+ * @param {import('gi://Gio').DBusProxy | null} proxy
+ * @param {string} name
+ * @param {any} fallback
+ * @returns {any}
+ */
+export function cachedProperty(proxy, name, fallback) {
+    if (!serviceRunning(proxy)) return fallback;
+    const value = proxy.get_cached_property(name);
+    return value ? value.recursiveUnpack() : fallback;
+}
+
+/**
+ * The service's InterfaceVersion, 0 when it publishes none or is gone.
+ *
+ * @param {import('gi://Gio').DBusProxy | null} proxy
+ * @returns {number}
+ */
+export function interfaceVersion(proxy) {
+    return cachedProperty(proxy, 'InterfaceVersion', 0);
+}
+
+/**
+ * Whether a service owns the name but is older than the extension supports.
+ * The panel button and the preferences window both check it before they
+ * read a property or call a method.
+ *
+ * @param {import('gi://Gio').DBusProxy | null} proxy
+ * @returns {boolean}
+ */
+export function serviceOutdated(proxy) {
+    return serviceRunning(proxy) && !supportsService(interfaceVersion(proxy));
+}
+
+/**
+ * A property of a service the extension can use, or the fallback without
+ * one, so an older service shows nothing of its own.
+ *
+ * @param {import('gi://Gio').DBusProxy | null} proxy
+ * @param {string} name
+ * @param {any} fallback
+ * @returns {any}
+ */
+export function supportedProperty(proxy, name, fallback) {
+    return serviceOutdated(proxy) ? fallback : cachedProperty(proxy, name, fallback);
+}
+
+/**
  * Seconds since startTime, never negative. startTime is the LocalStartTime
  * property, the start on this machine's clock: Unix seconds, or 0 when no
  * entry runs.
@@ -215,6 +275,18 @@ export function statusWords(status, errorString, _) {
 }
 
 /**
+ * The line the menu and the preferences show for a service older than
+ * OLDEST_SUPPORTED_INTERFACE_VERSION.
+ *
+ * @param {(text: string) => string} _ gettext
+ * @returns {string}
+ */
+export function outdatedServiceText(_) {
+    // Translators: tokkl-timerd is the name of the timer service program.
+    return _('This timer service is too old; update tokkl-timerd.');
+}
+
+/**
  * The words for the service's state. status is the Status property, or null
  * when nothing owns the bus name; a value the extension does not know reads
  * as an error. A service older than OLDEST_SUPPORTED_INTERFACE_VERSION gets
@@ -235,10 +307,7 @@ export function describeStatus(status, errorString, _, interfaceVersion = OLDEST
             mark: '!',
         };
     }
-    if (!supportsService(interfaceVersion)) {
-        // Translators: tokkl-timerd is the name of the timer service program.
-        return { text: _('This timer service is too old; update tokkl-timerd.'), detail: '', mark: '!' };
-    }
+    if (!supportsService(interfaceVersion)) return { text: outdatedServiceText(_), detail: '', mark: '!' };
     return statusWords(status, errorString, _) ?? statusWords('error', errorString, _);
 }
 
