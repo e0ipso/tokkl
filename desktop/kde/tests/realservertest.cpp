@@ -239,7 +239,7 @@ struct Session {
     MemoryPomodoroStore pomodoroStore;
     // The session reads and acts through the timer's state client, so the
     // timer has it first.
-    PomodoroSession pomodoro{&clock, bound(), &pomodoroStore};
+    PomodoroSession pomodoro{&clock, bound(), &state, &pomodoroStore};
 
     Session()
     {

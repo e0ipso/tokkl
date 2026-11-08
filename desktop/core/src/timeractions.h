@@ -7,13 +7,11 @@
 namespace Tokkl
 {
 
-class TimerStateClient;
-
-// The part of the timer a Pomodoro session works with: the state client the
-// timer reads, which the session reads and acts through too, whether the
-// timer holds an entry or could start something new, the project and
-// billable flag a session starts with, and the click's toggle.
-// TimerCoordinator implements it.
+// The part of the timer a Pomodoro session works with: whether the timer
+// holds an entry or could start something new, the project and billable
+// flag a session starts with, and the click's toggle. TimerCoordinator
+// implements it. The session reads the server's state through a
+// SessionState of its own, the one the timer reads.
 class TimerActions : public QObject
 {
     Q_OBJECT
@@ -30,8 +28,6 @@ public:
 
     using QObject::QObject;
 
-    // Not owned; null without one.
-    virtual TimerStateClient *stateClient() const = 0;
     // An entry runs or a chain is paused.
     virtual bool holdsEntry() const = 0;
     // A timer write is on its way, or its outcome is not known yet.

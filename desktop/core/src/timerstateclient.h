@@ -2,6 +2,7 @@
 
 #include "apitypes.h"
 #include "connection.h"
+#include "sessionstate.h"
 
 #include <QByteArray>
 #include <QDateTime>
@@ -38,7 +39,10 @@ class Clock;
 // outcome brings a state. A read already on its way does not count, as the
 // server may have answered it before the action. While settling, a failed
 // read is tried again every 30 s, also while the stream delivers.
-class TimerStateClient : public QObject
+//
+// A Pomodoro session reads it as a SessionState. A new generation emits
+// accountReset() after the state is dropped.
+class TimerStateClient : public SessionState
 {
     Q_OBJECT
 
@@ -73,23 +77,23 @@ public:
     // The clock the client was given; a timer or session built on the
     // client can share it.
     Clock *clock() const;
-    const std::optional<TimerState> &state() const;
+    const std::optional<TimerState> &state() const override;
     bool streaming() const;
-    bool settling() const;
+    bool settling() const override;
     // The server's clock minus this device's, from the server_time of the
     // state held. 0 without one.
-    qint64 serverOffsetMs() const;
+    qint64 serverOffsetMs() const override;
     // This device's clock corrected by serverOffsetMs().
-    QDateTime serverNow() const;
+    QDateTime serverNow() const override;
 
     // The connection's timer actions. The ones that apply to a revision send
     // the one held, and are refused without sending while no state is held.
     void pause(ActionCallback done = {});
     void resume(ActionCallback done = {});
     void discard(ActionCallback done = {});
-    void startPomodoro(const PomodoroStart &start, ActionCallback done = {});
-    void nextPhase(ActionCallback done = {});
-    void endPomodoro(ActionCallback done = {});
+    void startPomodoro(const PomodoroStart &start, ActionCallback done = {}) override;
+    void nextPhase(ActionCallback done = {}) override;
+    void endPomodoro(ActionCallback done = {}) override;
 
     // A write made elsewhere, such as a v9 start, had an unknown outcome or
     // answered with less than the state: read the state and stay settling
@@ -104,11 +108,8 @@ public Q_SLOTS:
     void resumed();
 
 Q_SIGNALS:
-    // A state at least as new as the one held arrived, or the state was
-    // dropped.
-    void stateChanged();
+    // stateChanged(), settlingChanged() and accountReset() are SessionState's.
     void streamingChanged();
-    void settlingChanged();
 
 private:
     // The fields of the event being read from the stream.

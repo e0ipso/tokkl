@@ -93,7 +93,7 @@ public:
 
     // Not owned. Null leaves the timer without a connection.
     void setStateClient(TimerStateClient *client);
-    TimerStateClient *stateClient() const override;
+    TimerStateClient *stateClient() const;
 
     bool holdsEntry() const override;
     bool isBusy() const override;

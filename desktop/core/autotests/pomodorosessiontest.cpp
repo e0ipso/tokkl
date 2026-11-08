@@ -129,22 +129,15 @@ QJsonObject pomodoroJson(const Phase &phase, qint64 entryId)
 }
 }
 
-// A timer that is only TimerActions, as a session sees it: the client it
-// reads, and answers the test sets.
+// A timer that is only TimerActions, as a session sees it: answers the test
+// sets.
 class StandInTimer : public TimerActions
 {
     Q_OBJECT
 
 public:
-    explicit StandInTimer(TimerStateClient *client)
-        : m_client(client)
-    {
-    }
+    using TimerActions::TimerActions;
 
-    TimerStateClient *stateClient() const override
-    {
-        return m_client;
-    }
     bool holdsEntry() const override
     {
         return held;
@@ -172,9 +165,59 @@ public:
     bool toggleSends = true;
     Selection chosen;
     int toggles = 0;
+};
+
+// The server's state as only a SessionState, with no connection behind it:
+// the state the test sets, and the actions the session sends, kept with
+// their callbacks for the test to answer.
+class StandInState : public SessionState
+{
+    Q_OBJECT
+
+public:
+    explicit StandInState(const Clock *clock)
+        : m_clock(clock)
+    {
+    }
+
+    const std::optional<TimerState> &state() const override
+    {
+        return held;
+    }
+    bool settling() const override
+    {
+        return false;
+    }
+    qint64 serverOffsetMs() const override
+    {
+        return 0;
+    }
+    QDateTime serverNow() const override
+    {
+        return m_clock->now();
+    }
+    void startPomodoro(const PomodoroStart &, ActionCallback done) override
+    {
+        sent.append(QStringLiteral("start"));
+        pending = std::move(done);
+    }
+    void nextPhase(ActionCallback done) override
+    {
+        sent.append(QStringLiteral("next"));
+        pending = std::move(done);
+    }
+    void endPomodoro(ActionCallback done) override
+    {
+        sent.append(QStringLiteral("end"));
+        pending = std::move(done);
+    }
+
+    std::optional<TimerState> held;
+    QStringList sent;
+    ActionCallback pending;
 
 private:
-    TimerStateClient *m_client;
+    const Clock *m_clock;
 };
 
 class PomodoroSessionTest : public QObject
@@ -208,7 +251,7 @@ class PomodoroSessionTest : public QObject
 
         void createSession()
         {
-            session = std::make_unique<PomodoroSession>(&clock, timer.coordinator(), &store);
+            session = std::make_unique<PomodoroSession>(&clock, timer.coordinator(), &client, &store);
         }
 
         QDateTime serverNow() const
@@ -398,9 +441,9 @@ private Q_SLOTS:
     {
         Fixture f(false);
         QVERIFY(connectAccount(f));
-        StandInTimer timer(&f.client);
+        StandInTimer timer;
         timer.chosen = {11, true};
-        PomodoroSession session(&f.clock, &timer, &f.store);
+        PomodoroSession session(&f.clock, &timer, &f.client, &f.store);
 
         QCOMPARE(session.activate(), PomodoroSession::Activation::Handled);
         QCOMPARE(timer.toggles, 1);
@@ -426,6 +469,48 @@ private Q_SLOTS:
         timer.held = true;
         Q_EMIT timer.changed();
         QVERIFY(session.modeLocked());
+    }
+
+    // The session needs nothing of the network either: it shows the state
+    // its SessionState holds and acts through it, and accountReset() drops
+    // the action on its way, so a late answer changes nothing.
+    void worksThroughSessionState()
+    {
+        Fixture f(false);
+        StandInTimer timer;
+        StandInState state(&f.clock);
+        PomodoroSession session(&f.clock, &timer, &state, &f.store);
+        QVERIFY(!session.isActive());
+
+        const std::optional<QJsonValue> json = parseJsonBody(f.state(work(f.clock.now())));
+        QVERIFY(json);
+        state.held = decodeTimerState(*json);
+        QVERIFY(state.held);
+        Q_EMIT state.stateChanged();
+        QVERIFY(session.isActive());
+        QCOMPARE(session.phase(), QStringLiteral("work"));
+        QCOMPARE(session.nextPhase(), QStringLiteral("shortRest"));
+
+        QVERIFY(session.confirmNextPhase());
+        QCOMPARE(state.sent, QStringList{QStringLiteral("next")});
+        // One action at a time.
+        QVERIFY(!session.endSession());
+
+        // Another account: the state goes, then the reset.
+        state.held.reset();
+        Q_EMIT state.stateChanged();
+        Q_EMIT state.accountReset();
+        QVERIFY(!session.isActive());
+        ApiError error;
+        error.kind = ApiError::Kind::Client;
+        error.message = QStringLiteral("Refused for the earlier account");
+        state.pending(TimerActionResult{TimerActionResult::Outcome::Refused, std::nullopt, error});
+        QVERIFY(session.message().isEmpty());
+
+        // Nothing waits any more: a new session can start.
+        QVERIFY(session.setPomodoroMode(true));
+        QVERIFY(session.startSession());
+        QCOMPARE(state.sent, (QStringList{QStringLiteral("next"), QStringLiteral("start")}));
     }
 
     void followsASessionStartedElsewhere()

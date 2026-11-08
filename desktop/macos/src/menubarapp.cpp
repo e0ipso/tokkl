@@ -62,7 +62,7 @@ MenuBarApp::MenuBarApp(Transport *transport,
     m_timer->setStateClient(m_stateClient.get());
     m_preferences = std::make_unique<PomodoroPreferences>(m_connection.get());
     // The session reads and acts through the timer's state client.
-    m_session = std::make_unique<PomodoroSession>(m_clock, m_timer->coordinator(), m_pomodoroStore.get());
+    m_session = std::make_unique<PomodoroSession>(m_clock, m_timer->coordinator(), m_stateClient.get(), m_pomodoroStore.get());
     m_sounds = std::make_unique<SoundChoices>(settings, &MenuBarApp::soundKey);
     // The bundle's Contents/Resources/sounds, which the build fills from
     // TOKKL_POMODORO_SOUND_FILES.

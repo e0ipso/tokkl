@@ -404,7 +404,7 @@ struct Daemon {
         , pomodoroStore(&settings)
         , sounds(&settings, &TimerService::soundKey)
         , preferences(&connection)
-        , session(clock, bound(timer, client), &pomodoroStore)
+        , session(clock, bound(timer, client), &client, &pomodoroStore)
         , connectionSettings(&settings, &connection, store)
         , configuration(&connectionSettings)
         , service({&timer, timer.coordinator(), &session, &preferences, &sounds, &configuration})

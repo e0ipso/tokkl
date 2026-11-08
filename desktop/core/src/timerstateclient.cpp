@@ -11,7 +11,7 @@ namespace Tokkl
 {
 
 TimerStateClient::TimerStateClient(Connection *connection, Clock *clock, QObject *parent)
-    : QObject(parent)
+    : SessionState(parent)
     , m_connection(connection)
     , m_clock(clock)
 {
@@ -192,6 +192,7 @@ void TimerStateClient::onGenerationChanged()
         m_state.reset();
         Q_EMIT stateChanged();
     }
+    Q_EMIT accountReset();
 }
 
 void TimerStateClient::resumed()

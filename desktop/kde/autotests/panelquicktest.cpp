@@ -199,7 +199,7 @@ private:
     // Last, so it goes first: it still reads the others while it ends. It
     // reads and acts through the timer's state client, so the timer gets
     // the client first.
-    PomodoroSession m_session{&m_clock, bound(), &m_pomodoroStore};
+    PomodoroSession m_session{&m_clock, bound(), &m_client, &m_pomodoroStore};
     QSet<qsizetype> m_answered;
 };
 

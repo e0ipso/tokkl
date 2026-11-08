@@ -4,8 +4,8 @@
 #include "clock.h"
 #include "epoch.h"
 #include "pomodorostore.h"
+#include "sessionstate.h"
 #include "timeractions.h"
-#include "timerstateclient.h"
 
 #include <QDateTime>
 #include <QObject>
@@ -19,7 +19,7 @@ namespace Tokkl
 // countdown, the alarm, and the actions Start session, Next phase and End
 // session. The session is the server's, so a session started, advanced or
 // ended on any device shows here, in either mode. Everything shown comes
-// from the pomodoro of the timer state the TimerStateClient holds; the
+// from the pomodoro of the timer state the SessionState holds; the
 // device adds only the mode and the alarm.
 //
 // The mode is stored per device. It decides what a click starts when nothing
@@ -32,8 +32,10 @@ namespace Tokkl
 // toggle(), and so does everything in Timer mode. In Pomodoro mode the click
 // starts a session.
 //
-// The session knows the timer only through TimerActions, and reads and acts
-// through the timer's own state client, so the two always share one state.
+// The session knows the timer only through TimerActions, and the server's
+// state only through a SessionState: the timer's own state client, so the
+// two always share one state. It hears of a new account only from
+// SessionState::accountReset().
 //
 // Start session sends the timer's chosen project and billable flag; the
 // server takes the account's lengths and starts the open pomodoro on its own
@@ -45,7 +47,7 @@ namespace Tokkl
 // leaves the connection's message in message; a pomodoro the server dropped
 // as too short leaves a message of its own.
 //
-// The time is the server's, as TimerStateClient::serverNow() estimates it.
+// The time is the server's, as SessionState::serverNow() estimates it.
 // phaseStart and plannedEnd are shown on this device's clock, so a panel
 // that counts down by itself agrees with the countdown here. The phase rings
 // from its planned end until a state shows another phase start or no
@@ -103,10 +105,10 @@ public:
     };
     Q_ENUM(Activation)
 
-    // Uses the clock, the timer and the store, none of which it owns, and
-    // the state client the timer has now. A timer that takes another client
-    // needs another session.
-    PomodoroSession(Clock *clock, TimerActions *timer, PomodoroStore *store, QObject *parent = nullptr);
+    // Uses the clock, the timer, the state and the store, none of which it
+    // owns. state must be the one the timer reads; a timer that takes
+    // another needs another session.
+    PomodoroSession(Clock *clock, TimerActions *timer, SessionState *state, PomodoroStore *store, QObject *parent = nullptr);
 
     bool pomodoroMode() const;
     // Returns false, and changes nothing, while modeLocked or when the
@@ -174,10 +176,10 @@ private:
     // An action is on its way, or the outcome of one is not known yet.
     bool busy() const;
     // Sends a session action with the revision shown.
-    bool sendWithRevision(void (TimerStateClient::*action)(TimerStateClient::ActionCallback));
-    TimerStateClient::ActionCallback finishing();
+    bool sendWithRevision(void (SessionState::*action)(SessionState::ActionCallback));
+    SessionState::ActionCallback finishing();
     void onStateChanged();
-    void onGenerationChanged();
+    void onAccountReset();
     // Recomputes the derived values and emits what changed.
     void update();
     void updateClock();
@@ -185,13 +187,13 @@ private:
 
     QPointer<Clock> m_clock;
     QPointer<TimerActions> m_timer;
-    QPointer<TimerStateClient> m_client;
+    QPointer<SessionState> m_client;
     QPointer<PomodoroStore> m_store;
 
     bool m_pomodoroMode = false;
     bool m_pending = false; // an action waits for its answer
-    // Advanced when the connection's generation changes: the answer to an
-    // action sent before never comes, and one that does is ignored.
+    // Advanced on accountReset(): the answer to an action sent before never
+    // comes, and one that does is ignored.
     Epoch m_epoch;
     QString m_message;
     // The last discarded pomodoro told about, so a state seen twice tells it
