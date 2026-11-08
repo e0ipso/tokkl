@@ -26,7 +26,14 @@ import { chooseJson, transferFixture } from './transfer-tests-helpers.ts';
 const FRESH_STATUS = {
   setup_required: true,
   api_version: 1,
-  capabilities: ['app-preferences', 'timer-actions', 'timer-edit', 'pomodoro-revision', 'pause-revision'],
+  capabilities: [
+    'app-preferences',
+    'timer-actions',
+    'timer-edit',
+    'pomodoro-revision',
+    'pause-revision',
+    'timer-edit-entry',
+  ],
 };
 
 // Failed setup and login in the browser, and what logout leaves behind.

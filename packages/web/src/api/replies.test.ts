@@ -179,7 +179,7 @@ test('a preference the views read that has the wrong shape fails the reply, nami
 test('the status, invite and reset link checks and the admin lists decode their replies', () => {
   const status = { setup_required: false, api_version: 1, capabilities: ['timer-actions', 'timer-edit'] };
   assert.deepEqual(appStatusReply(status), status);
-  const current = { ...status, capabilities: ['pomodoro-revision', 'pause-revision'] };
+  const current = { ...status, capabilities: ['pomodoro-revision', 'pause-revision', 'timer-edit-entry'] };
   assert.deepEqual(appStatusReply(current), current);
   assert.throws(() => appStatusReply({ ...status, setup_required: 'no' }), at('reply.setup_required'));
   assert.throws(() => appStatusReply({ ...status, capabilities: ['teleport'] }), at('reply.capabilities[0]'));

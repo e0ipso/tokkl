@@ -7,6 +7,7 @@ const CAPABILITIES: readonly ServerCapability[] = Object.freeze([
   'timer-edit',
   'pomodoro-revision',
   'pause-revision',
+  'timer-edit-entry',
 ]);
 
 /** Fresh on each call, so no reply shares an array another one could change. */

@@ -3,7 +3,10 @@ import assert from 'node:assert/strict';
 import type { ServerApi, ServerCapability } from '@tokkl/types';
 import { setup, type TestContext } from './helpers.ts';
 
-/** A request that only a server with the capability answers with something other than 404. */
+/**
+ * A request whose status tells a server with the capability from one without it: a 404 for a
+ * missing route, or the answer an older server gives a body it does not know.
+ */
 const PROBES: Record<ServerCapability, (ctx: TestContext) => Promise<number>> = {
   'app-preferences': async ctx => (await ctx.json('GET', '/api/app/me/preferences')).status,
   'timer-actions': async ctx => (await ctx.json('POST', '/api/app/timer/stop', { revision: 0 })).status,
@@ -16,6 +19,9 @@ const PROBES: Record<ServerCapability, (ctx: TestContext) => Promise<number>> = 
     assert.equal((await ctx.json('POST', '/api/app/timer/start', { revision, description: 'probe' })).status, 200);
     return (await ctx.json('POST', '/api/app/timer/pause', { revision: -1 })).status;
   },
+  // An older server refuses an edit without a revision as invalid input.
+  'timer-edit-entry': async ctx =>
+    (await ctx.json('POST', '/api/app/timer/edit', { entry_id: 999_999, billable: true })).status,
 };
 
 test('GET /api/app/status names the API version and the capabilities this server has', async () => {
@@ -30,6 +36,7 @@ test('GET /api/app/status names the API version and the capabilities this server
     'timer-edit',
     'pomodoro-revision',
     'pause-revision',
+    'timer-edit-entry',
   ]);
   const me = await ctx.json<Record<string, unknown>>('GET', '/api/v9/me');
   assert.equal('api_version' in me.body || 'capabilities' in me.body, false, 'the Toggl /me body stays as it was');
@@ -44,5 +51,6 @@ test('GET /api/app/status names the API version and the capabilities this server
     'timer-edit': 409,
     'pomodoro-revision': 409,
     'pause-revision': 409,
+    'timer-edit-entry': 409,
   });
 });

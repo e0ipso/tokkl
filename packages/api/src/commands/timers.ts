@@ -70,7 +70,22 @@ export function parsePauseTimer(body: JsonBody): { revision?: number } {
   return { revision: body.revision == null ? undefined : parseRevision(body.revision) };
 }
 
-/** A running timer edit: the revision the client saw and the labels to change. */
+/** The id of the entry the client saw running. */
+function optionalEntryId(value: unknown): number | undefined {
+  if (value == null) return undefined;
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1)
+    throw invalidInput('Invalid entry_id: expected a positive integer');
+  return value;
+}
+
+/**
+ * A running timer edit: what the client saw, the labels to change and an optional new `start`.
+ * The client names what it saw by `revision`, by `entry_id` (the entry it edits is still the
+ * running one), or by both. A body with neither is refused as a missing revision.
+ */
 export function parseEditTimer(body: JsonBody): EditTimer {
-  return { revision: parseRevision(body.revision), entry: parseLabelChanges(body) };
+  const entryId = optionalEntryId(body.entry_id);
+  const changes = { start: optionalInstant(body.start, 'start'), entry: parseLabelChanges(body) };
+  if (entryId !== undefined && body.revision == null) return { entryId, ...changes };
+  return { revision: parseRevision(body.revision), entryId, ...changes };
 }

@@ -46,12 +46,28 @@ export interface StartTimer {
   entry: Omit<NewEntry, 'allDay' | 'times' | 'workspaceId'>;
 }
 
-export interface EditTimer {
-  /** The timer revision the client saw. */
-  revision: number;
-  /** The running entry's labels to change; absent ones stay. Its times and workspace never change. */
+/**
+ * An edit of the running entry. It names what the client saw with `revision`, `entryId` or both,
+ * and is refused unless each one it names still holds.
+ */
+export type EditTimer = EditPrecondition & {
+  /** A new start for the running entry; it stays when absent. */
+  start?: Date;
+  /** The running entry's labels to change; absent ones stay. Its stop and workspace never change. */
   entry: Omit<EntryFields, 'workspaceId'>;
-}
+};
+
+/**
+ * What an edit checks before it acts. A revision refuses the edit after any change to the timer;
+ * an entry id refuses it only once that entry no longer runs, so an unrelated change, such as a
+ * catalog rename the running entry shows, does not send the client round a 409 loop.
+ */
+export type EditPrecondition =
+  | {
+      /** The timer revision the client saw. */ revision: number;
+      /** The entry the client saw running. */ entryId?: Id;
+    }
+  | { revision?: undefined; entryId: Id };
 
 /** A refused timer action. It carries the current view, so the client can catch up without another read. */
 export class TimerRefusal extends StateConflict<TimerView> {}
@@ -240,22 +256,18 @@ export function createTimerOperations<R extends EntryRepositories>(runner: Timer
       });
     },
     /**
-     * Edits the running entry's labels the way a v9 edit of it does, with the same validation and
-     * the same membership check.
+     * Edits the running entry's labels and start the way a v9 edit of it does, with the same
+     * validation and the same membership check.
      */
     async editTimer(userId: Id, edit: EditTimer, now = new Date()): Promise<TimerView> {
       return action(userId, now, async (ctx, user) => {
-        await checkRevision(ctx, user, edit.revision, now);
+        if (edit.revision !== undefined) await checkRevision(ctx, user, edit.revision, now);
         const e = await ctx.entries.running(user.id);
         if (!e) return refusal(ctx, user, now, 'No timer is running');
-        await updateTimeEntry(
-          ctx,
-          user,
-          e.workspaceId,
-          e.id,
-          { ...edit.entry, times: {}, tagAction: 'replace' },
-          publish,
-        );
+        if (edit.entryId !== undefined && edit.entryId !== e.id)
+          return refusal(ctx, user, now, `Entry ${edit.entryId} is no longer the running entry`);
+        const times = edit.start ? { start: edit.start } : {};
+        await updateTimeEntry(ctx, user, e.workspaceId, e.id, { ...edit.entry, times, tagAction: 'replace' }, publish);
       });
     },
     async startPomodoro(userId: Id, start: StartPomodoro, now = new Date()): Promise<TimerView> {

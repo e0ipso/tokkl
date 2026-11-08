@@ -216,7 +216,14 @@ for (const backend of backends.filter(b => !args[3] || b === args[3])) {
     assert.deepEqual(await (await fetch(base + '/api/app/status')).json(), {
       setup_required: true,
       api_version: 1,
-      capabilities: ['app-preferences', 'timer-actions', 'timer-edit', 'pomodoro-revision', 'pause-revision'],
+      capabilities: [
+        'app-preferences',
+        'timer-actions',
+        'timer-edit',
+        'pomodoro-revision',
+        'pause-revision',
+        'timer-edit-entry',
+      ],
     });
     const setup = await fetch(base + '/api/app/setup', {
       method: 'POST',
@@ -344,7 +351,14 @@ for (const backend of backends.filter(b => !args[3] || b === args[3])) {
     assert.deepEqual(await json('/api/app/status'), {
       setup_required: false,
       api_version: 1,
-      capabilities: ['app-preferences', 'timer-actions', 'timer-edit', 'pomodoro-revision', 'pause-revision'],
+      capabilities: [
+        'app-preferences',
+        'timer-actions',
+        'timer-edit',
+        'pomodoro-revision',
+        'pause-revision',
+        'timer-edit-entry',
+      ],
     });
     assert.equal((await json<{ id: number }>('/api/v9/me')).id, me.id);
     assert.equal((await json<{ running_entry: { id: number } }>('/api/app/timer')).running_entry.id, running.id);
