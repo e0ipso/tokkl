@@ -599,7 +599,13 @@ private Q_SLOTS:
         const QByteArray auth = tokenAuthorization(u);
         const QString foreign = QStringLiteral("/workspaces/%1/time_entries").arg(admin.workspaceId);
         const QList<std::tuple<QByteArray, QString, QByteArray>> attempts = {
-            {"POST", foreign, encodeStartEntry(StartEntry{QDateTime::currentDateTimeUtc(), QString(), std::nullopt, false, std::nullopt, {}}, admin.workspaceId, QStringLiteral("tokkl-kde"))},
+            // A plain v9 create of a running entry; the companion itself starts through /api/app.
+            {"POST", foreign, QJsonDocument(QJsonObject{
+                                  {QStringLiteral("workspace_id"), admin.workspaceId},
+                                  {QStringLiteral("start"), QDateTime::currentDateTimeUtc().toString(Qt::ISODate)},
+                                  {QStringLiteral("duration"), -1},
+                                  {QStringLiteral("created_with"), QStringLiteral("tokkl-kde")},
+                              }).toJson(QJsonDocument::Compact)},
             {"PATCH", foreign + QStringLiteral("/%1/stop").arg(admin.running->id), QByteArray()},
             {"PUT", foreign + QStringLiteral("/%1").arg(admin.running->id), encodeTimeEntryUpdate(TimeEntryUpdate{QStringLiteral("changed by another user"), {}, {}, true, {}})},
         };
@@ -694,7 +700,7 @@ private Q_SLOTS:
         QVERIFY(s.ready(b));
         // The new instance's GET /api/app/status, read once, picks the app routes.
         QCOMPARE(s.transport.sinceApp(switchedAt, "GET", QStringLiteral("/status")).size(), 1);
-        QVERIFY(s.connection.server().timerActions);
+        QVERIFY(s.connection.server().capabilities.contains(QStringLiteral("timer-actions")));
         QCOMPARE(s.timer.currentEntry()->id, b.running->id);
         QCOMPARE(s.timer.currentEntry()->description, b.running->description);
         QCOMPARE(s.timer.currentEntry()->start, b.running->start);
