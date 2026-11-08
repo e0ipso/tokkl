@@ -229,6 +229,19 @@ private Q_SLOTS:
         QCOMPARE(response.retryAfter, QByteArray("120"));
     }
 
+    void errorHeadersAreRead()
+    {
+        LoopbackServer server;
+        server.response = httpResponse("400 Bad Request",
+                                       "Tokkl-Error-Code: invalid_preference\r\nTokkl-Error-Field: pomodoro_focus_interval_in_minutes\r\n",
+                                       "\"Invalid pomodoro_focus_interval_in_minutes\"");
+        NetworkTransport transport(clientName);
+        const HttpResponse response = sendAndWait(transport, HttpRequest{"POST", server.url(QStringLiteral("/api/v9/me/preferences")), "Basic eA==", "{}"});
+        QCOMPARE(response.status, 400);
+        QCOMPARE(response.errorCode, QByteArray("invalid_preference"));
+        QCOMPARE(response.errorField, QByteArray("pomodoro_focus_interval_in_minutes"));
+    }
+
     // A 2xx whose body breaks off is a network failure, even when the part
     // that arrived would decode. An error status stays an HTTP answer.
     void truncatedBody_data()

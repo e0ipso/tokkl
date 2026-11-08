@@ -21,9 +21,10 @@ namespace Tokkl
 // the defaults show. A session takes its lengths on the server, so these are
 // only for showing and editing.
 //
-// save() posts only the lengths that differ from the ones shown. A 400 whose
-// message names one of the four keys is that field's error; any other failure
-// is the general error. A read issued while a save runs, or before one
+// save() posts only the lengths that differ from the ones shown. A 400 that
+// names one of the four keys is that field's error: in its Tokkl-Error-Field
+// header, or in the message of a server that sends no such header. Any other
+// failure is the general error. A read issued while a save runs, or before one
 // started, does not replace what the save returned.
 //
 // Everything is tied to the connection's generation. A new one clears the

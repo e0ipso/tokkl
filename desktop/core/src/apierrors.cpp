@@ -30,6 +30,13 @@ QString serverMessage(const QByteArray &body)
     return message;
 }
 
+// A header value as the client compares it: trimmed, and at most a short
+// identifier long.
+QString headerToken(const QByteArray &value)
+{
+    return QString::fromLatin1(value.trimmed().left(200));
+}
+
 QString redirectTarget(const QByteArray &location)
 {
     const QUrl url(QString::fromLatin1(location));
@@ -71,6 +78,8 @@ ApiError errorFromResponse(const HttpResponse &response)
     }
 
     error.status = response.status;
+    error.code = headerToken(response.errorCode);
+    error.field = headerToken(response.errorField);
     const QString message = serverMessage(response.body);
     if (response.status >= 300 && response.status < 400) {
         error.kind = ApiError::Kind::Redirect;

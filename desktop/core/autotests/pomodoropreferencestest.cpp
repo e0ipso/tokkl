@@ -182,6 +182,33 @@ private Q_SLOTS:
         QCOMPARE(refreshed.size(), 2);
     }
 
+    // A server that names the refused key in Tokkl-Error-Field is believed
+    // over the message; a key that is none of the four is the general
+    // error, whatever the message says.
+    void errorFieldHeaderNamesTheField()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f, instanceA, 3, 7));
+        f.transport.respondLast(FakeTransport::answer(200, preferencesBody({25, 5, 15, 4})));
+
+        QVERIFY(f.preferences.save(25, 5, 61, 13));
+        HttpResponse refused = FakeTransport::answer(400, message("Invalid pomodoro_focus_interval_in_minutes: expected an integer from 1 to 180"));
+        refused.errorCode = "invalid_preference";
+        refused.errorField = "pomodoro_long_break_interval_in_minutes";
+        f.transport.respondLast(refused);
+        QCOMPARE(f.preferences.longRestMinutesError(), QStringLiteral("Invalid pomodoro_focus_interval_in_minutes: expected an integer from 1 to 180"));
+        QVERIFY(f.preferences.workMinutesError().isEmpty());
+        QVERIFY(f.preferences.errorString().isEmpty());
+
+        QVERIFY(f.preferences.save(25, 5, 15, 13));
+        HttpResponse other = FakeTransport::answer(400, message("Invalid pomodoro_long_break_every: expected an integer from 1 to 12"));
+        other.errorField = "timezone";
+        f.transport.respondLast(other);
+        QVERIFY(f.preferences.longRestEveryError().isEmpty());
+        QVERIFY(f.preferences.longRestMinutesError().isEmpty());
+        QCOMPARE(f.preferences.errorString(), QStringLiteral("Invalid pomodoro_long_break_every: expected an integer from 1 to 12"));
+    }
+
     void keepsTheLengthsReadWhileUnreachable()
     {
         Fixture f;
