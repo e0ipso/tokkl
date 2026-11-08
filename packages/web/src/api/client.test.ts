@@ -102,23 +102,29 @@ const exportPath = '/api/app/export.csv';
 test('a download takes as long as its body keeps coming, past the deadline for its reply to start', async t => {
   t.mock.method(globalThis, 'fetch', streaming(['a,', 'b,', 'c,', 'd,', 'e,', 'f'], 20));
   // The body takes 140 ms, more than twice the 50 ms its reply had to start in.
-  const blob = await fetchDownload(exportPath, {}, { start: 50, stall: 100 });
+  const blob = await fetchDownload(exportPath, {}, 50);
   assert.equal(await blob.text(), 'a,b,c,d,e,f');
   assert.equal(blob.type, 'text/csv');
 });
 
-test('a download whose body stops coming fails as timed out', async t => {
-  t.mock.method(globalThis, 'fetch', streaming(['a,', 'b,'], 5, false));
-  await assert.rejects(
-    fetchDownload(exportPath, {}, { start: 1000, stall: 30 }),
-    (error: unknown) => error instanceof RequestTimeoutError && error.request.path === exportPath,
-  );
+test('a download whose body is cut off fails rather than saving a partial file', async t => {
+  // The server drops a download whose client stopped reading; the browser sees a network error.
+  t.mock.method(globalThis, 'fetch', () => {
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('a,'));
+        setTimeout(() => controller.error(new TypeError('network error')), 5);
+      },
+    });
+    return Promise.resolve(new Response(body, { headers: { 'Content-Type': 'text/csv' } }));
+  });
+  await assert.rejects(fetchDownload(exportPath, {}, 1000), TypeError);
 });
 
 test('a download whose reply never starts fails as timed out', async t => {
   t.mock.method(globalThis, 'fetch', (_path: string, init: RequestInit) => hang(init.signal!));
   await assert.rejects(
-    fetchDownload(exportPath, { method: 'POST', body: {} }, { start: 20, stall: 1000 }),
+    fetchDownload(exportPath, { method: 'POST', body: {} }, 20),
     (error: unknown) => error instanceof RequestTimeoutError && error.request.method === 'POST',
   );
 });

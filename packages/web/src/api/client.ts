@@ -75,25 +75,17 @@ function parseReply(text: string, method: Method, path: string): unknown {
  * - `write` (30 s): any other request. It waits longer, because giving up on a write leaves its
  *   outcome unknown.
  * - `transfer` (5 min): an import upload, which can carry a whole account's entries. A download
- *   (an export or a CSV report) gets it only for its reply to start: see `DOWNLOAD_DEADLINE_MS`.
+ *   (an export or a CSV report) gets it only for its reply to start: see `DOWNLOAD_START_MS`.
  */
 export const DEADLINE_MS = { read: 20_000, write: 30_000, transfer: 300_000 } as const;
 
-/** How long a download may go without progress (see `withProgressDeadline`). */
-export interface DownloadDeadline {
-  /** For the reply to start. The server may queue a download behind others before it answers. */
-  readonly start: number;
-  /** Between one piece of the body and the next. */
-  readonly stall: number;
-}
-
 /**
- * The server streams an export a batch at a time, at the pace the client reads, so a large one on
- * a slow link can take far longer than any fixed deadline. A download waits as long as bytes keep
- * coming: its reply must start within the transfer deadline, then each piece of the body must
- * come within a minute of the one before.
+ * How long a download's reply may take to start. The server may queue a download behind others
+ * before it answers. Once the reply starts there is no client deadline: the server streams a
+ * large export at the pace the client reads and drops a client that stops reading, and that
+ * drop fails the download here as a network error.
  */
-export const DOWNLOAD_DEADLINE_MS: DownloadDeadline = { start: DEADLINE_MS.transfer, stall: 60_000 };
+export const DOWNLOAD_START_MS = DEADLINE_MS.transfer;
 
 export type RequestKind = keyof typeof DEADLINE_MS;
 
@@ -219,64 +211,31 @@ export async function request<T>(method: Method, path: string, options: RequestO
   return options.decode ? options.decode(value) : (value as T);
 }
 
+type DownloadRequest = { method?: 'GET' | 'POST'; body?: unknown };
+
 /**
- * Runs `work` with a signal that aborts once no progress came for a while: `start` ms from the
- * call, then `stall` ms from each call of `progress`. Running out of time fails with a
- * `RequestTimeoutError`, as `withDeadline` does.
+ * Sends a download request and reads the whole reply. The reply must start within `startMs`; the
+ * body then takes as long as it takes. A refusal, such as a 503 from a full download lane or a 403
+ * for a lost session, fails with its `ApiError` and the server's message.
  */
-export async function withProgressDeadline<T>(
-  { start, stall }: DownloadDeadline,
-  request: { method: Method; path: string },
-  work: (signal: AbortSignal, progress: () => void) => Promise<T>,
-): Promise<T> {
+export async function fetchDownload(
+  path: string,
+  { method = 'GET', body }: DownloadRequest = {},
+  startMs: number = DOWNLOAD_START_MS,
+): Promise<Blob> {
+  // A controller the body read outlives: an AbortSignal.timeout would cut the body off later.
   const controller = new AbortController();
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const wait = (ms: number) => {
-    clearTimeout(timer);
-    timer = setTimeout(() => controller.abort(new DOMException('No progress in time', 'TimeoutError')), ms);
-  };
-  wait(start);
+  const timer = setTimeout(() => controller.abort(new DOMException('No reply in time', 'TimeoutError')), startMs);
+  let response: Response;
   try {
-    return await work(controller.signal, () => wait(stall));
+    response = await send(method, path, body, controller.signal);
   } catch (error) {
-    if (controller.signal.aborted) throw new RequestTimeoutError(request.method, request.path);
+    if (controller.signal.aborted) throw new RequestTimeoutError(method, path);
     throw error;
   } finally {
     clearTimeout(timer);
   }
-}
-
-/** Reads a reply body piece by piece, calling `progress` after each one. */
-async function readBody(response: Response, progress: () => void): Promise<Blob> {
-  const type = response.headers.get('Content-Type') ?? '';
-  if (!response.body) return response.blob();
-  const reader = response.body.getReader();
-  const pieces: BlobPart[] = [];
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) return new Blob(pieces, { type });
-    pieces.push(value);
-    progress();
-  }
-}
-
-type DownloadRequest = { method?: 'GET' | 'POST'; body?: unknown };
-
-/**
- * Sends a download request and reads the whole reply under `deadline`. A refusal, such as a 503
- * from a full download lane or a 403 for a lost session, fails with its `ApiError` and the
- * server's message.
- */
-export function fetchDownload(
-  path: string,
-  { method = 'GET', body }: DownloadRequest = {},
-  deadline: DownloadDeadline = DOWNLOAD_DEADLINE_MS,
-): Promise<Blob> {
-  return withProgressDeadline(deadline, { method, path }, async (signal, progress) => {
-    const response = await send(method, path, body, signal);
-    progress();
-    return readBody(response, progress);
-  });
+  return response.blob();
 }
 
 /**
