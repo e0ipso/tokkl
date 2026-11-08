@@ -10,6 +10,7 @@ import { usePomodoroSession } from '../components/PomodoroSessionProvider.tsx';
 import { useNow } from '../lib/clock.ts';
 import { entrySeconds } from '../lib/snapping.ts';
 import { applyTheme } from '../lib/theme.ts';
+import { prefetchPage } from './lazyPages.tsx';
 import type { NavItem } from './nav.ts';
 
 /**
@@ -93,6 +94,8 @@ export function NavLink({
       data-section={item.section}
       aria-current={active ? 'page' : undefined}
       onClick={onNavigate}
+      onPointerEnter={() => prefetchPage(item.href)}
+      onFocus={() => prefetchPage(item.href)}
     >
       <Icon name={item.icon} className="nav-icon" />
       <span>{t(item.label)}</span>
