@@ -3,7 +3,7 @@ import { type Kysely } from 'kysely';
 import type { Backend } from '../config.ts';
 import type { PhysicalDatabase } from '../physical.ts';
 import type { Repositories, TaskInput } from '../contracts.ts';
-import { booleanValue, entityId } from '../conversion.ts';
+import { booleanValue, entityId, utcInstant } from '../conversion.ts';
 import { StorageConflict } from '../errors.ts';
 import { catalogWrite, containsName, nameKey, taskEstimate } from './catalog-sql.ts';
 import {
@@ -37,7 +37,33 @@ export function createTaskRepository(
       if (filter.projectId !== undefined) q = q.where('t.project_id', '=', filter.projectId);
       if (filter.active !== undefined) q = q.where('t.active', '=', Number(filter.active));
       if (filter.name) q = q.where(containsName(backend, 't.name_key', filter.name));
+      if (filter.ids) {
+        if (!filter.ids.length) return [];
+        q = q.where('t.id', 'in', [...new Set(filter.ids)]);
+      }
       return (await q.orderBy('t.name_key').orderBy('t.id').execute()).map(taskSummary);
+    },
+    async listSortKeys(wid, filter) {
+      let q = db.selectFrom('tasks').select(['id', 'name', 'created_at', 'updated_at']).where('workspace_id', '=', wid);
+      if (filter.projectId !== undefined) q = q.where('project_id', '=', filter.projectId);
+      if (filter.active !== undefined) q = q.where('active', '=', Number(filter.active));
+      return (await q.orderBy('id').execute()).map(r => ({
+        id: entityId(r.id),
+        name: r.name,
+        createdAt: utcInstant(r.created_at),
+        updatedAt: utcInstant(r.updated_at),
+      }));
+    },
+    async listForMember(userId, filter, range) {
+      let q = catalogTaskQuery(db, backend)
+        .innerJoin('workspace_users as wu', 'wu.workspace_id', 't.workspace_id')
+        .where('wu.user_id', '=', userId);
+      if (filter.active !== undefined) q = q.where('t.active', '=', Number(filter.active));
+      if (filter.changedSince) q = q.where('t.updated_at', '>=', filter.changedSince);
+      q = q.orderBy('t.workspace_id').orderBy('t.name_key').orderBy('t.id');
+      // Paging in SQL computes tracked totals for this page's tasks only.
+      if (range) q = q.limit(range.limit).offset(range.offset);
+      return (await q.execute()).map(taskSummary);
     },
     async get(wid, id, pid) {
       let q = catalogTaskQuery(db, backend).where('t.workspace_id', '=', wid).where('t.id', '=', id);

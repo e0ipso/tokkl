@@ -11,6 +11,7 @@ import type {
   ProjectsReader,
   SettingsReader,
   TagsReader,
+  TaskSortKey,
   TasksReader,
   TokensReader,
   TransfersRepository,
@@ -36,7 +37,7 @@ import { memberWorkspace } from './membership.ts';
 import { getInstanceSettings } from './instanceSettings.ts';
 import { getClient, getProject, getTask } from './catalogs.ts';
 import { getTimeEntry } from './entryAccess.ts';
-import { pageRange, type PageWindow, type RowRange } from '../lib/pagination.ts';
+import { offsetRange, pageRange, slicePage, type PageWindow, type RowRange } from '../lib/pagination.ts';
 
 /** Reads about accounts, the instance and workspace membership. No repository here can write. */
 export interface AccountReadRepositories {
@@ -51,7 +52,7 @@ export interface CatalogReadRepositories {
   workspaces: Pick<WorkspacesReader, 'listForUser'>;
   clients: Pick<ClientsReader, 'list' | 'get'>;
   projects: Pick<ProjectsReader, 'list' | 'get'>;
-  tasks: Pick<TasksReader, 'list' | 'get'>;
+  tasks: Pick<TasksReader, 'list' | 'get' | 'listSortKeys' | 'listForMember'>;
   tags: Pick<TagsReader, 'list'>;
 }
 /** Reads of one user's time entries. */
@@ -94,6 +95,20 @@ export interface TaskSearch {
   sortField: TaskSortField;
   sortOrder: SortOrder;
 }
+/** One page of a task search and how many tasks match it in all. */
+export interface TaskSearchPage {
+  tasks: TaskSummary[];
+  totalCount: number;
+}
+
+export interface MemberTaskFilter {
+  includeInactive: boolean;
+  changedSince?: string;
+}
+const memberTaskFilter = (filter: MemberTaskFilter) => ({
+  active: filter.includeInactive ? undefined : true,
+  changedSince: filter.changedSince,
+});
 
 /** Toggl's default window for time entry lists that name no range. */
 const DEFAULT_LIST_DAYS = 9;
@@ -104,7 +119,7 @@ const changedAfter = <T extends { updatedAt: string }>(rows: T[], since: string 
 
 function compareTasks(field: TaskSortField, order: SortOrder) {
   const direction = order === 'ASC' ? 1 : -1;
-  return (a: TaskSummary, b: TaskSummary) =>
+  return (a: TaskSortKey, b: TaskSortKey) =>
     direction *
     ((field === 'name'
       ? a.name.toLowerCase().localeCompare(b.name.toLowerCase())
@@ -166,13 +181,13 @@ export function createCatalogQueries(r: CatalogReadRepositories) {
       acrossWorkspaces(r, userId, async ws => changedAfter(await r.clients.list(ws.id), changedSince)),
     memberTags: (userId: Id, changedSince?: string) =>
       acrossWorkspaces(r, userId, async ws => changedAfter(await r.tags.list(ws.id), changedSince)),
-    memberTasks: (userId: Id, filter: { includeInactive: boolean; changedSince?: string }) =>
-      acrossWorkspaces(r, userId, async ws =>
-        changedAfter(
-          await r.tasks.list(ws.id, { active: filter.includeInactive ? undefined : true }),
-          filter.changedSince,
-        ),
-      ),
+    memberTasks: (userId: Id, filter: MemberTaskFilter): Promise<TaskSummary[]> =>
+      r.tasks.listForMember(userId, memberTaskFilter(filter)),
+    /** `limit` of `memberTasks` from the 0-based `offset`, or all from it, read as those rows only. */
+    async memberTasksFrom(userId: Id, filter: MemberTaskFilter, offset: number, limit?: number) {
+      const range = offsetRange(offset, limit);
+      return range ? r.tasks.listForMember(userId, memberTaskFilter(filter), range) : [];
+    },
     workspaceProjects: (ws: Workspace, filter?: ProjectFilter) => projectsOf(ws, filter),
     /** One page of `workspaceProjects`, read from the database as that page only. */
     async workspaceProjectsPage(ws: Workspace, filter: ProjectFilter, window: PageWindow): Promise<WorkspaceProject[]> {
@@ -180,14 +195,22 @@ export function createCatalogQueries(r: CatalogReadRepositories) {
       return range ? projectsOf(ws, filter, range) : [];
     },
     workspaceProject: (ws: Workspace, id: Id): Promise<ProjectSummary> => getProject(r, ws.id, id),
-    async searchTasks(ws: Workspace, search: TaskSearch): Promise<TaskSummary[]> {
-      let tasks = changedAfter(
-        await r.tasks.list(ws.id, { projectId: search.projectId, active: search.active }),
+    /**
+     * One page of the workspace's tasks. The search and the order fold case and compare names as
+     * JavaScript does, which SQL cannot repeat, so they run on names and times read without the
+     * tracked totals; only the page's tasks are read in full.
+     */
+    async searchTasks(ws: Workspace, search: TaskSearch, window: PageWindow): Promise<TaskSearchPage> {
+      let keys = changedAfter(
+        await r.tasks.listSortKeys(ws.id, { projectId: search.projectId, active: search.active }),
         search.changedSince,
       );
       const needle = search.search?.toLowerCase();
-      if (needle) tasks = tasks.filter(task => task.name.toLowerCase().includes(needle));
-      return tasks.sort(compareTasks(search.sortField, search.sortOrder));
+      if (needle) keys = keys.filter(task => task.name.toLowerCase().includes(needle));
+      const page = slicePage(keys.sort(compareTasks(search.sortField, search.sortOrder)), window);
+      const read = page.length ? await r.tasks.list(ws.id, { ids: page.map(task => task.id) }) : [];
+      const byId = new Map(read.map(task => [task.id, task]));
+      return { tasks: page.flatMap(({ id }) => byId.get(id) ?? []), totalCount: keys.length };
     },
     async projectTasks(ws: Workspace, projectId: Id, onlyActive: boolean): Promise<TaskSummary[]> {
       await getProject(r, ws.id, projectId);
@@ -197,6 +220,11 @@ export function createCatalogQueries(r: CatalogReadRepositories) {
     workspaceClients: (ws: Workspace, filter?: ClientFilter): Promise<Client[]> => r.clients.list(ws.id, filter),
     workspaceClient: (ws: Workspace, id: Id): Promise<Client> => getClient(r, ws.id, id),
     workspaceTags: (ws: Workspace, search?: string): Promise<Tag[]> => r.tags.list(ws.id, search),
+    /** One page of `workspaceTags`, read from the database as that page only. */
+    async workspaceTagsPage(ws: Workspace, search: string | undefined, window: PageWindow): Promise<Tag[]> {
+      const range = pageRange(window);
+      return range ? r.tags.list(ws.id, search, range) : [];
+    },
     /** Every task in the workspace, active or not. */
     workspaceTasks: (ws: Workspace): Promise<TaskSummary[]> => r.tasks.list(ws.id),
   };

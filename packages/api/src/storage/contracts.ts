@@ -205,9 +205,25 @@ export interface ProjectsRepository extends ProjectsReader {
   delete(workspaceId: Id, id: Id, entryMode: 'detach' | 'delete'): Promise<void>;
 }
 export type TaskInput = Omit<Task, 'id' | 'createdAt' | 'updatedAt'>;
+/** What the workspace task search filters and sorts on, read without the tracked totals. */
+export type TaskSortKey = Pick<Task, 'id' | 'name' | 'createdAt' | 'updatedAt'>;
 export interface TasksReader {
   getMetadata(workspaceId: Id, id: Id): Promise<Task | undefined>;
-  list(workspaceId: Id, filter?: { projectId?: Id; active?: boolean; name?: string }): Promise<TaskSummary[]>;
+  /** Ordered by folded name, then id. `ids` keeps only those tasks. */
+  list(
+    workspaceId: Id,
+    filter?: { projectId?: Id; active?: boolean; name?: string; ids?: readonly Id[] },
+  ): Promise<TaskSummary[]>;
+  listSortKeys(workspaceId: Id, filter: { projectId?: Id; active?: boolean }): Promise<TaskSortKey[]>;
+  /**
+   * The tasks of every workspace the user belongs to, ordered by workspace id, folded name, then
+   * id. A `range` keeps only those rows of that order.
+   */
+  listForMember(
+    userId: Id,
+    filter: { active?: boolean; changedSince?: UtcInstant },
+    range?: RowRange,
+  ): Promise<TaskSummary[]>;
   get(workspaceId: Id, id: Id, projectId?: Id): Promise<TaskSummary | undefined>;
   getRef(workspaceId: Id, id: Id): Promise<TaskRef | undefined>;
   findByName(workspaceId: Id, projectId: Id, name: string): Promise<Task | undefined>;
@@ -223,7 +239,8 @@ export interface TasksRepository extends TasksReader {
   delete(workspaceId: Id, projectId: Id, id: Id): Promise<void>;
 }
 export interface TagsReader {
-  list(workspaceId: Id, search?: string): Promise<Tag[]>;
+  /** Ordered by folded name, then id. A `range` keeps only those rows of that order. */
+  list(workspaceId: Id, search?: string, range?: RowRange): Promise<Tag[]>;
   findByIds(workspaceId: Id, ids: readonly Id[]): Promise<Tag[]>;
   get(workspaceId: Id, id: Id): Promise<Tag | undefined>;
   findByName(workspaceId: Id, name: string): Promise<Tag | undefined>;

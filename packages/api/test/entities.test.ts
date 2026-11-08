@@ -9,8 +9,9 @@ import { DatabaseSync } from 'node:sqlite';
 import { setup } from './helpers.ts';
 import { openDatabase } from './fixtures/database.ts';
 import { MIGRATIONS } from './fixtures/legacyMigrations.ts';
-import { pageWindow } from '../src/http/params.ts';
-import { pageRange, sliceOffset, slicePage } from '../src/lib/pagination.ts';
+import { lenientNumber, pageWindow } from '../src/http/params.ts';
+import { offsetRange, pageRange, sliceOffset, slicePage } from '../src/lib/pagination.ts';
+import { addWorkspaceMember, createWorkspace } from './fixtures/domain.ts';
 
 /** Every v9 DELETE answers an empty 200, as Toggl's docs list no response body for them. */
 async function assertEmptyOk(response: Response): Promise<void> {
@@ -215,6 +216,104 @@ test('task listings follow Toggl shapes: workspace envelope, project array, pagi
     const paged = await (await ctx.request('GET', `${base}/projects?active=both&${paging}`)).text();
     assert.equal(paged, JSON.stringify(slicePage(all, window)), paging);
   }
+});
+
+test('task and tag pages are byte for byte the slices of their full listings', async () => {
+  const ctx = await setup();
+  const base = `/api/v9/workspaces/${ctx.wid}`;
+  const other = await createWorkspace(ctx.db, 'Other');
+  await addWorkspaceMember(ctx.db, other.id, ctx.user.id, 'owner');
+  // Names whose JavaScript order differs from their byte order, in two workspaces.
+  const names = ['b', 'É', 'f', 'é', '{x', 'a_b', 'ab', 'Zed', 'e'];
+  for (const wid of [ctx.wid, other.id]) {
+    const project = await ctx.json('POST', `/api/v9/workspaces/${wid}/projects`, { name: 'Alpha' });
+    for (const [index, name] of names.entries()) {
+      const task = await ctx.json('POST', `/api/v9/workspaces/${wid}/projects/${project.body.id}/tasks`, { name });
+      if (index % 3 === 0)
+        await ctx.json('PUT', `/api/v9/workspaces/${wid}/projects/${project.body.id}/tasks/${task.body.id}`, {
+          active: false,
+        });
+      if (index === 1)
+        await ctx.json('POST', `/api/v9/workspaces/${wid}/time_entries`, {
+          start: '2026-10-01T08:00:00Z',
+          duration: 600,
+          project_id: project.body.id,
+          task_id: task.body.id,
+        });
+    }
+    for (const name of names) await ctx.json('POST', `/api/v9/workspaces/${wid}/tags`, { name });
+  }
+  const text = async (path: string) => (await ctx.request('GET', path)).text();
+
+  const byName = JSON.parse(await text(`${base}/tasks?active=both&per_page=200`));
+  assert.deepEqual(
+    byName.data.map((task: any) => task.name),
+    [...names].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase())),
+  );
+  const pagings = ['per_page=2&page=2', 'per_page=3', 'page=1.5&per_page=2', 'page=9e15', 'page=x&per_page=0'];
+  for (const search of [
+    'active=both',
+    'active=true&sort_order=DESC',
+    'sort_field=created_at&sort_order=DESC',
+    'search=%C3%A9',
+    'search=B',
+  ]) {
+    const all = JSON.parse(await text(`${base}/tasks?${search}&per_page=200`));
+    for (const paging of pagings) {
+      const [page, perPage] = ['page', 'per_page'].map(name => new URLSearchParams(paging).get(name) ?? undefined);
+      const window = pageWindow(page, perPage, { defaultPerPage: 50, maxPerPage: 200 });
+      const expected = { ...all, data: slicePage(all.data, window), page: window.page, per_page: window.perPage };
+      assert.equal(await text(`${base}/tasks?${search}&${paging}`), JSON.stringify(expected), `${search} ${paging}`);
+    }
+  }
+
+  for (const search of ['', 'search=e']) {
+    const all = JSON.parse(await text(`${base}/tags?${search}`)) as unknown[];
+    for (const paging of pagings) {
+      const [page, perPage] = ['page', 'per_page'].map(name => new URLSearchParams(paging).get(name) ?? undefined);
+      const window = pageWindow(page, perPage, { defaultPerPage: 200, maxPerPage: 200 });
+      assert.equal(await text(`${base}/tags?${search}&${paging}`), JSON.stringify(slicePage(all, window)), paging);
+    }
+  }
+
+  for (const filter of ['include_not_active=true', 'include_not_active=false']) {
+    const all = JSON.parse(await text(`/api/v9/me/tasks?${filter}`)) as unknown[];
+    assert.equal(all.length, filter.endsWith('true') ? 2 * names.length : 2 * (names.length - 3));
+    for (const paging of [
+      'offset=1',
+      'offset=2&per_page=2',
+      'per_page=1',
+      'offset=1.5&per_page=2.5',
+      'offset=9e15',
+      'offset=-3&per_page=x',
+      'offset=Infinity',
+      'offset=1&per_page=1e300',
+    ]) {
+      const params = new URLSearchParams(paging);
+      const offset = Math.max(lenientNumber(params.get('offset') ?? undefined, 0), 0);
+      const size = params.get('per_page');
+      const perPage = size === null ? all.length : Math.max(lenientNumber(size, 1), 1);
+      assert.equal(
+        await text(`/api/v9/me/tasks?${filter}&${paging}`),
+        JSON.stringify(sliceOffset(all, offset, perPage)),
+        `${filter} ${paging}`,
+      );
+    }
+  }
+});
+
+test('an offset range keeps exactly the items sliceOffset keeps', () => {
+  const items = Array.from({ length: 7 }, (_, index) => index);
+  for (const offset of [0, 0.5, 1, 2.7, 6, 7, 9e15, Infinity])
+    for (const limit of [undefined, 1, 2.5, 3, 200, 1e300]) {
+      const range = offsetRange(offset, limit);
+      assert.deepEqual(
+        range ? sliceOffset(items, range.offset, range.limit) : [],
+        sliceOffset(items, offset, limit ?? items.length),
+        `${offset}/${limit}`,
+      );
+      if (range) assert.ok(Number.isSafeInteger(range.offset) && Number.isSafeInteger(range.limit) && range.limit > 0);
+    }
 });
 
 test('a page range keeps exactly the items slicePage keeps', () => {

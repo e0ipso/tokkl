@@ -176,6 +176,65 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
             await runner.readSnapshot(r => r.projects.list(1, {}, range)),
             allProjects.slice(range.offset, range.offset + range.limit),
           );
+        const allTags = await runner.readSnapshot(r => r.tags.list(1));
+        for (const range of [
+          { offset: 0, limit: 1 },
+          { offset: 1, limit: 2 },
+          { offset: allTags.length - 1, limit: 5 },
+          { offset: allTags.length, limit: 5 },
+        ])
+          assert.deepEqual(
+            await runner.readSnapshot(r => r.tags.list(1, undefined, range)),
+            allTags.slice(range.offset, range.offset + range.limit),
+          );
+        // Member tasks run in workspace order, then the folded name order; a range pages that order.
+        await connection.db
+          .insertInto('workspace_users')
+          .values([
+            { workspace_id: 1, user_id: 1, role: 'owner' },
+            { workspace_id: 2, user_id: 1, role: 'member' },
+          ])
+          .execute();
+        const [elsewhere] = await runner.readSnapshot(r => r.projects.list(2));
+        await runner.transaction(r =>
+          r.tasks.create({
+            workspaceId: 2,
+            projectId: elsewhere!.id,
+            name: 'Aardvark',
+            active: true,
+            estimatedSeconds: 1,
+          }),
+        );
+        const memberTasks = await runner.readSnapshot(r => r.tasks.listForMember(1, {}));
+        assert.deepEqual(memberTasks, [
+          ...(await runner.readSnapshot(r => r.tasks.list(1))),
+          ...(await runner.readSnapshot(r => r.tasks.list(2))),
+        ]);
+        assert.equal(memberTasks.at(-1)?.name, 'Aardvark');
+        for (const range of [
+          { offset: 0, limit: 1 },
+          { offset: 2, limit: 3 },
+          { offset: memberTasks.length - 1, limit: Number.MAX_SAFE_INTEGER - memberTasks.length },
+          { offset: memberTasks.length, limit: 5 },
+        ])
+          assert.deepEqual(
+            await runner.readSnapshot(r => r.tasks.listForMember(1, {}, range)),
+            memberTasks.slice(range.offset, range.offset + range.limit),
+          );
+        // Sort keys are the listed tasks' own values, and an id filter reads only those tasks.
+        const workspaceTasks = await runner.readSnapshot(r => r.tasks.list(1));
+        assert.deepEqual(
+          await runner.readSnapshot(r => r.tasks.listSortKeys(1, {})),
+          workspaceTasks
+            .map(({ id, name, createdAt, updatedAt }) => ({ id, name, createdAt, updatedAt }))
+            .sort((a, b) => a.id - b.id),
+        );
+        const picked = [workspaceTasks[2]!.id, workspaceTasks[0]!.id];
+        assert.deepEqual(await runner.readSnapshot(r => r.tasks.list(1, { ids: picked })), [
+          workspaceTasks[0],
+          workspaceTasks[2],
+        ]);
+        assert.deepEqual(await runner.readSnapshot(r => r.tasks.list(1, { ids: [] })), []);
         assert.deepEqual(
           (await runner.readSnapshot(r => r.tags.list(1))).map(r => r.name),
           ['%_\\', 'Name', 'Name ', 'É', 'é'],
