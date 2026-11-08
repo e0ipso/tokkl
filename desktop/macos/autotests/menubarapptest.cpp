@@ -986,7 +986,7 @@ private Q_SLOTS:
         QCOMPARE(f.item.indicator.color, QStringLiteral("#c7af14"));
         QCOMPARE(f.item.indicator.label, QStringLiteral("Beta (Acme)"));
 
-        f.app.m_timer.get()->setSelectedProjectId(qint64(11));
+        QVERIFY(f.app.m_timer.get()->chooseProject(qint64(11)));
         QTRY_COMPARE(f.item.indicator.color, QStringLiteral("#06aaf5"));
         QCOMPARE(f.item.indicator.label, QStringLiteral("Alpha"));
     }

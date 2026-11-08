@@ -441,10 +441,26 @@ private Q_SLOTS:
         // The entry was read before any tick; elapsed is already right.
         QCOMPARE(f.timer.elapsedSeconds(), 65);
         QCOMPARE(f.timer.elapsedText(), QStringLiteral("0:01"));
+    }
 
-        f.timer.setSelectedProjectId(11);
-        f.timer.setBillable(true);
-        QCOMPARE(f.timer.selectedProjectId().toLongLong(), 11);
+    // The next start's choices only read: QML and the panels change them
+    // through chooseProject() and chooseBillable(), which check canWrite.
+    void choicesAreReadOnly()
+    {
+        for (const char *name : {"selectedProjectId", "billable"}) {
+            const int index = TimerController::staticMetaObject.indexOfProperty(name);
+            QVERIFY2(index >= 0, name);
+            QVERIFY2(!TimerController::staticMetaObject.property(index).isWritable(), name);
+        }
+
+        Fixture f;
+        QVERIFY(connectAccount(f, instanceA, 3, 7, "null"));
+        QSignalSpy selection(&f.timer, &TimerController::selectionChanged);
+        QVERIFY(!f.timer.setProperty("selectedProjectId", 11));
+        QVERIFY(!f.timer.setProperty("billable", true));
+        QVERIFY(f.timer.selectedProjectId().isNull());
+        QVERIFY(!f.timer.billable());
+        QCOMPARE(selection.count(), 0);
     }
 
     void formatsElapsed()
@@ -624,8 +640,8 @@ private Q_SLOTS:
     {
         Fixture f;
         QVERIFY(connectAccount(f, instanceB, 3, 7, "null"));
-        f.timer.setSelectedProjectId(11);
-        f.timer.setBillable(true);
+        QVERIFY(f.timer.chooseProject(11));
+        QVERIFY(f.timer.chooseBillable(true));
         f.clock.current = QDateTime(QDate(2026, 10, 16), QTime(9, 15, 30), QTimeZone::fromSecondsAheadOfUtc(7200)).toUTC();
 
         QSignalSpy status(&f.timer, &TimerController::statusChanged);
@@ -1409,12 +1425,14 @@ private Q_SLOTS:
         QFETCH(int, lookupStatus);
         QFETCH(QByteArray, lookup);
         Fixture f;
-        QVERIFY(connectAccount(f, instanceA, 3, 7, running));
+        // A choice made before the entry started elsewhere.
+        QVERIFY(connectAccount(f, instanceA, 3, 7, "null"));
+        QVERIFY(f.timer.chooseProject(11));
+        QVERIFY(f.timer.billable());
+        QVERIFY(f.push(running));
         if (lookupStatus != 0) {
             f.respond(f.last("GET", "/projects/" + QByteArray::number(lookupStatus == 200 ? 33 : 44)), FakeTransport::answer(lookupStatus, lookup));
         }
-        f.timer.setSelectedProjectId(11);
-        f.timer.setBillable(true);
 
         QVERIFY(f.timer.stop());
         f.respond(f.last("POST", stopPath), f.stateAnswer("null"));
@@ -1463,7 +1481,7 @@ private Q_SLOTS:
         QCOMPARE(f.timer.billable(), billable);
 
         // Polls that keep seeing nothing running neither ask again nor change it.
-        f.timer.setSelectedProjectId(QVariant::fromValue(nullptr));
+        QVERIFY(f.timer.chooseProject(QVariant::fromValue(nullptr)));
         poll(f);
         QVERIFY(f.answerState("null"));
         QCOMPARE(f.find("GET", listPath).size(), 1);
@@ -1842,8 +1860,8 @@ private Q_SLOTS:
     {
         QFETCH(int, status);
         Fixture f;
-        QVERIFY(connectAccount(f));
-        f.timer.setSelectedProjectId(11);
+        QVERIFY(connectAccount(f, instanceA, 3, 7, "null"));
+        QVERIFY(f.timer.chooseProject(11));
         for (int i = 0; i < 30; ++i) {
             f.clock.advance(1000);
         }
@@ -1937,9 +1955,13 @@ private Q_SLOTS:
     {
         QFETCH(QByteArray, trigger);
         Fixture f;
-        QVERIFY(connectAccount(f, instanceA, 3, 7, trigger == "start" ? QByteArray("null") : entryBody(5, 7, startedAt)));
-        f.timer.setSelectedProjectId(11);
-        f.timer.setBillable(true);
+        // Alpha, billable, is chosen before an entry starts elsewhere.
+        QVERIFY(connectAccount(f, instanceA, 3, 7, "null"));
+        QVERIFY(f.timer.chooseProject(11));
+        QVERIFY(f.timer.billable());
+        if (trigger != "start") {
+            QVERIFY(f.push(entryBody(5, 7, startedAt)));
+        }
 
         const QByteArray forbidden("\"User does not have access to this resource.\"");
         if (trigger == "projects") {
@@ -2102,9 +2124,11 @@ private Q_SLOTS:
     {
         QFETCH(bool, switchInstance);
         Fixture f;
-        QVERIFY(connectAccount(f));
-        f.timer.setSelectedProjectId(11);
-        f.timer.setBillable(true);
+        // Alpha, billable, is chosen before an entry starts elsewhere.
+        QVERIFY(connectAccount(f, instanceA, 3, 7, "null"));
+        QVERIFY(f.timer.chooseProject(11));
+        QVERIFY(f.timer.billable());
+        QVERIFY(f.push(entryBody(5, 7, startedAt)));
         // A stop is in flight when the account changes.
         QVERIFY(f.timer.stop());
         const qsizetype oldStop = f.last("POST", stopPath);
@@ -2193,13 +2217,15 @@ private Q_SLOTS:
         QTest::newRow("next start") << false;
     }
 
+    // The next start's project is outside the list when the last entry's
+    // project is active but the list does not have it, as a list cut short.
     void indicatorResolvesProjectsMissingFromTheList()
     {
         QFETCH(bool, running);
         Fixture f;
         QVERIFY(connectAccount(f, instanceA, 3, 7, running ? entryBody(5, 7, startedAt, true, 33) : QByteArray("null")));
         if (!running) {
-            f.timer.setSelectedProjectId(33);
+            f.respond(f.last("GET", listPath), FakeTransport::answer(200, listBody({listedEntry(8, 7, 33, true)})));
         }
         QCOMPARE(f.timer.chosenProjectId().toLongLong(), 33);
         QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::Pending);
@@ -2218,8 +2244,12 @@ private Q_SLOTS:
             poll(f);
             QVERIFY(f.answerState(entryBody(5, 7, startedAt, true, 44)));
         } else {
-            f.timer.setSelectedProjectId(44);
+            // Reconnect asks for the last entry again, now on project 44.
+            f.timer.reconnect();
+            f.respond(f.last("GET", statePath), f.stateAnswer());
+            f.respond(f.last("GET", listPath), FakeTransport::answer(200, listBody({listedEntry(9, 7, 44, true)})));
         }
+        QCOMPARE(f.timer.chosenProjectId().toLongLong(), 44);
         QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::Pending);
         f.respond(f.last("GET", "/projects/44"), FakeTransport::answer(404, "\"Project not found\""));
         QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::None);
@@ -2253,7 +2283,8 @@ private Q_SLOTS:
         Fixture f;
         QVERIFY(connectAccount(f, instanceA, 3, 7, current));
         if (!running) {
-            f.timer.setSelectedProjectId(33);
+            // The last entry's project, active but not in the list.
+            f.respond(f.last("GET", listPath), FakeTransport::answer(200, listBody({listedEntry(8, 7, 33, true)})));
         }
         f.respond(f.last("GET", "/projects/33"), FakeTransport::answer(200, json(projectObject(33, 7, QStringLiteral("#9e5bd9"), false))));
         QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::Project);

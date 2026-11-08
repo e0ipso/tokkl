@@ -108,7 +108,6 @@ public:
     // A pick by the user, which no default replaces until the next start or
     // stop.
     virtual void pick(const NextStartSelection::Choice &choice) = 0;
-    virtual void pickProjectId(const QVariant &projectId) = 0;
     virtual void pickBillable(bool billable) = 0;
     // Asks for the last entry's project after the next state.
     virtual void wantLastEntry() = 0;
@@ -355,7 +354,6 @@ protected:
     void startSent() override;
     std::optional<NextStartSelection::Choice> choiceFor(const QVariant &projectId) const override;
     void pick(const NextStartSelection::Choice &choice) override;
-    void pickProjectId(const QVariant &projectId) override;
     void pickBillable(bool billable) override;
     void wantLastEntry() override;
 

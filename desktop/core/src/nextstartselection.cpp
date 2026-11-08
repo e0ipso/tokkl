@@ -81,16 +81,6 @@ void NextStartSelection::pick(const Choice &choice)
     apply(choice);
 }
 
-void NextStartSelection::pickProjectId(const QVariant &projectId)
-{
-    if (m_connection) {
-        m_defaults.pick();
-        bool ok = false;
-        const qint64 id = projectId.toLongLong(&ok);
-        set(Choice{ok && id > 0 ? std::optional<qint64>(id) : std::nullopt, m_choice.billable});
-    }
-}
-
 void NextStartSelection::pickBillable(bool billable)
 {
     if (m_connection) {

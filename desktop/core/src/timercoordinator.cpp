@@ -301,16 +301,6 @@ bool TimerCoordinator::chooseBillable(bool billable)
     return updateEntry(update);
 }
 
-void TimerCoordinator::setSelectedProjectId(const QVariant &projectId)
-{
-    m_selection->pickProjectId(projectId);
-}
-
-void TimerCoordinator::setBillable(bool billable)
-{
-    m_selection->pickBillable(billable);
-}
-
 bool TimerCoordinator::updateEntry(const TimeEntryUpdate &update)
 {
     // Only the fields in the update travel; the server keeps the entry's

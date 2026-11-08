@@ -37,16 +37,6 @@ void TimerController::setStateClient(TimerStateClient *client)
     m_coordinator->setStateClient(client);
 }
 
-void TimerController::setSelectedProjectId(const QVariant &projectId)
-{
-    m_coordinator->setSelectedProjectId(projectId);
-}
-
-void TimerController::setBillable(bool billable)
-{
-    m_coordinator->setBillable(billable);
-}
-
 bool TimerController::start()
 {
     return m_coordinator->start();

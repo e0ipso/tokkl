@@ -419,11 +419,6 @@ void TimerModel::pick(const NextStartSelection::Choice &choice)
     m_next->pick(choice);
 }
 
-void TimerModel::pickProjectId(const QVariant &projectId)
-{
-    m_next->pickProjectId(projectId);
-}
-
 void TimerModel::pickBillable(bool billable)
 {
     m_next->pickBillable(billable);

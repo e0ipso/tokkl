@@ -137,9 +137,6 @@ public:
     bool chooseProject(const QVariant &projectId);
     // Refused while a chain is paused.
     bool chooseBillable(bool billable);
-    // Sets the next start's choice as given, with no check and no write.
-    void setSelectedProjectId(const QVariant &projectId);
-    void setBillable(bool billable);
 
     // Reads the state and the projects again.
     void refresh();
