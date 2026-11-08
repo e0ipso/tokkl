@@ -69,7 +69,7 @@ export interface ReportReader {
   /** Up to `limit` entries from position `offset` (0-based) in `order`. */
   page(order: DetailedOrder, offset: number, limit: number): Promise<ReportEntry[]>;
   /** Every entry in `order`, one batch at a time. */
-  ordered(order: DetailedOrder, visit: (batch: ReportEntry[]) => void): Promise<void>;
+  ordered(order: DetailedOrder, visit: (batch: ReportEntry[]) => void | Promise<void>): Promise<void>;
   /** Every entry by start, then id, one batch at a time. */
   each(visit: (batch: ReportEntry[]) => void): Promise<void>;
 }
@@ -173,7 +173,7 @@ export function readReport<T>(
         return page;
       },
       async ordered(order, visit) {
-        for await (const batch of entriesOf(await orderedIds(order))) visit(batch);
+        for await (const batch of entriesOf(await orderedIds(order))) await visit(batch);
       },
       async each(visit) {
         let after: ReportCursor | undefined;

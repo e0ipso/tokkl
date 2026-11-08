@@ -293,12 +293,16 @@ export function createImportOperations<R extends EntryRepositories>(
         dryRun: options.dryRun,
       });
     },
-    /** The file is parsed before the transaction opens. */
-    async importTogglCsv(userId: number, text: string, options: ImportOptions & { users?: string[] }) {
-      const table = await readTogglCsv(text);
-      checkCancelled(options.signal);
-      return runner.transaction(ctx => importTogglCsv(ctx, userId, table, options, publish), {
-        dryRun: options.dryRun,
+    /**
+     * The file is parsed before the transaction opens. Not an async function on purpose: only the
+     * parse holds `text`, so the file's text is released before the transaction runs.
+     */
+    importTogglCsv(userId: number, text: string, options: ImportOptions & { users?: string[] }) {
+      return readTogglCsv(text).then(table => {
+        checkCancelled(options.signal);
+        return runner.transaction(ctx => importTogglCsv(ctx, userId, table, options, publish), {
+          dryRun: options.dryRun,
+        });
       });
     },
   };

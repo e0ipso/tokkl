@@ -68,14 +68,11 @@ export function summaryGroup(group: Group, groupingDimension: Dimension, include
 }
 
 const csvItem = (entry: ReportEntry) => ({ ...entry, tags: entry.tags.map(tag => tag.name) });
-/** Toggl's detailed CSV layout, built a batch at a time: the header, then each batch's lines. */
+/** Toggl's detailed CSV layout, a piece at a time: the header, then each batch's lines. */
 export function detailedCsvWriter(user: ReportUser, durationFormat: DurationFormat) {
-  const chunks = [togglCsvHeader()];
   return {
-    add(entries: ReportEntry[]) {
-      chunks.push(togglCsvLines(entries.map(csvItem), user, durationFormat));
-    },
-    result: () => chunks.join(''),
+    header: togglCsvHeader(),
+    lines: (entries: ReportEntry[]) => togglCsvLines(entries.map(csvItem), user, durationFormat),
   };
 }
 

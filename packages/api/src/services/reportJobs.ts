@@ -2,6 +2,7 @@ import type { DurationFormat } from '@tokkl/types';
 import { addDays, daysBetween, startOfWeek } from '@tokkl/common/time';
 import type { DetailedOrderBy, Dimension, OrderBy, ReportFilter, SortDirection } from '../domain/reportCommands.ts';
 import type { Authentication } from '../domain/credentials.ts';
+import type { ExportEmitter } from './exportJobs.ts';
 import {
   grouping,
   resolutionFor,
@@ -28,7 +29,8 @@ import { readReport, type ReportReader, type ReportSource } from './reports.ts';
 /**
  * The part of each report request that reads the entries and builds the response body. The routes
  * validate the request first and pass a job here, so a job only fails on a bug. Jobs read the
- * database and nothing else, which lets them run in the report worker (see reportRunner.ts).
+ * database and nothing else, which lets them run in the report worker (see reportRunner.ts). A
+ * `ReportJob` is answered whole; a `CsvDownloadJob` is written a batch at a time as a download.
  */
 export type ReportJob =
   | {
@@ -40,7 +42,6 @@ export type ReportJob =
       firstRow: number;
     }
   | { kind: 'v3-totals'; filter: ReportFilter; granularity: Resolution; withGraph: boolean }
-  | { kind: 'v3-csv'; filter: ReportFilter; orderBy: OrderBy; orderDir: SortDirection; durationFormat: DurationFormat }
   | { kind: 'v3-summary'; filter: ReportFilter; grouping: Dimension; sub: Dimension; includeIds: boolean }
   | {
       kind: 'v3-summary-csv';
@@ -61,13 +62,6 @@ export type ReportJob =
       page: number;
     }
   | {
-      kind: 'app-detailed-csv';
-      filter: ReportFilter;
-      orderBy: DetailedOrderBy;
-      orderDir: SortDirection;
-      durationFormat: DurationFormat;
-    }
-  | {
       kind: 'app-summary-csv';
       filter: ReportFilter;
       grouping: Dimension;
@@ -76,6 +70,23 @@ export type ReportJob =
     };
 
 export type { JobResult };
+
+/** The detailed CSVs: one line per entry, so they stream instead of being answered whole. */
+export type CsvDownloadJob =
+  | { kind: 'v3-csv'; filter: ReportFilter; orderBy: OrderBy; orderDir: SortDirection; durationFormat: DurationFormat }
+  | {
+      kind: 'app-detailed-csv';
+      filter: ReportFilter;
+      orderBy: DetailedOrderBy;
+      orderDir: SortDirection;
+      durationFormat: DurationFormat;
+    };
+
+/** The name each detailed CSV download gets. */
+export const CSV_DOWNLOAD_FILENAMES: Readonly<Record<CsvDownloadJob['kind'], string>> = {
+  'v3-csv': 'Toggl_time_entries.csv',
+  'app-detailed-csv': 'tokkl_detailed.csv',
+};
 
 type JobFormatter<K extends ReportJob['kind']> = (
   job: Extract<ReportJob, { kind: K }>,
@@ -149,11 +160,6 @@ const FORMATTERS: { [K in ReportJob['kind']]: JobFormatter<K> } = {
       },
       rangeHeaders(filter.startDate, filter.endDate),
     );
-  },
-  'v3-csv': async (job, report) => {
-    const writer = detailedCsvWriter(report.user, job.durationFormat);
-    await report.ordered({ orderBy: job.orderBy, direction: job.orderDir }, batch => writer.add(batch));
-    return csv(writer.result(), 'Toggl_time_entries.csv');
   },
   'v3-summary': async (job, report) => {
     const groups = grouping(job.grouping, job.sub);
@@ -241,11 +247,6 @@ const FORMATTERS: { [K in ReportJob['kind']]: JobFormatter<K> } = {
       entries: entries.map(appEntry),
     });
   },
-  'app-detailed-csv': async (job, report) => {
-    const writer = detailedCsvWriter(report.user, job.durationFormat);
-    await report.ordered({ orderBy: job.orderBy, direction: job.orderDir }, batch => writer.add(batch));
-    return csv(writer.result(), 'tokkl_detailed.csv');
-  },
   'app-summary-csv': async (job, report) => {
     const groups = appGrouping(job);
     await feed(report, groups);
@@ -272,6 +273,36 @@ export function runReportJob(source: ReportSource, work: ReportJobWork, onRows?:
   return readReport(source, userId, workspaceId, job.filter, { authentication, onRows }, report =>
     format(job as never, report),
   );
+}
+
+/** A detailed CSV download and whose entries it reads. */
+export interface CsvDownloadWork {
+  userId: number;
+  workspaceId: number;
+  download: CsvDownloadJob;
+  authentication?: Authentication;
+}
+
+/**
+ * Reads `work` in one read snapshot and writes its CSV through `emit`: the header, then the lines
+ * of each batch in report order. Nothing is emitted before the credential and the workspace are
+ * checked, so those refusals keep their status. The pieces join to the body a whole answer had.
+ */
+export function runCsvDownloadJob(
+  source: ReportSource,
+  work: CsvDownloadWork,
+  emit: ExportEmitter,
+  onRows?: () => void,
+): Promise<void> {
+  const { userId, workspaceId, download, authentication } = work;
+  return readReport(source, userId, workspaceId, download.filter, { authentication, onRows }, async report => {
+    const writer = detailedCsvWriter(report.user, download.durationFormat);
+    await emit(writer.header);
+    await report.ordered({ orderBy: download.orderBy, direction: download.orderDir }, async batch => {
+      const lines = writer.lines(batch);
+      if (lines) await emit(lines);
+    });
+  });
 }
 
 /** The v3 weekly report covers at most the seven days from its start date. */

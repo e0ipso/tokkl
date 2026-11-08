@@ -13,7 +13,7 @@ import { tmpdir } from 'node:os';
 import { collectAccountExport } from '../fixtures/exports.ts';
 import { oracleExportBody } from '../fixtures/exportOracle.ts';
 import { createTransferRepositories } from '../../src/storage/repositories/transfers.ts';
-import { jobs } from './support/report-jobs.ts';
+import { answerJob, answerOnRunner, jobs } from './support/report-jobs.ts';
 import { Worker } from 'node:worker_threads';
 import { sql } from 'kysely';
 import { openReportReader } from '../../src/storage/repositories/report-reader.ts';
@@ -100,8 +100,8 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
       assert.deepEqual(await runner.run(user.id, wid, job), expected);
       for (const request of jobs(job.filter))
         assert.deepEqual(
-          await runner.run(user.id, wid, request),
-          await runReportJob(operations, { userId: user.id, workspaceId: wid, job: request }),
+          await answerOnRunner(runner, user.id, wid, request),
+          await answerJob(operations, { userId: user.id, workspaceId: wid, job: request }),
         );
       const exported = await collectAccountExport(operations, user.id);
       for (const assembly of [
@@ -109,9 +109,9 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
         { kind: 'export-csv', range: {}, filename: 'tokkl.csv' },
       ] as ExportAssemblyJob[])
         assert.equal(await streamedExport(runner, user.id, assembly), oracleExportBody(exported, assembly));
-      // Every job so far ran in the one worker the runner started.
-      assert.equal(workers.started.length, 1);
-      const worker = workers.latest();
+      // Every job so far ran in the two workers the runner started: the reports' first, then the downloads'.
+      assert.equal(workers.started.length, 2);
+      const worker = workers.started[0]!;
       assert.ok(worker instanceof Worker);
       assert.equal(
         Number(
@@ -128,7 +128,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
         await worker.terminate();
         await failed;
         assert.deepEqual(await runner.run(user.id, wid, job), expected);
-        assert.equal(workers.started.length, 2);
+        assert.equal(workers.started.length, 3);
         assert.notEqual(workers.latest(), worker);
       });
       await t.test('queued cancellation, running cancellation, overload and restart', async () => {
@@ -184,18 +184,16 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
       t.after(() => heavy.close());
       let finished = false;
       const started = performance.now();
-      const result = heavy
-        .run(user.id, wid, {
-          kind: 'app-detailed-csv',
-          filter: job.filter,
-          orderBy: 'description',
-          orderDir: 'ASC',
-          durationFormat: 'improved',
-        })
-        .then(r => {
-          finished = true;
-          return r;
-        });
+      const result = answerOnRunner(heavy, user.id, wid, {
+        kind: 'app-detailed-csv',
+        filter: job.filter,
+        orderBy: 'description',
+        orderDir: 'ASC',
+        durationFormat: 'improved',
+      }).then(r => {
+        finished = true;
+        return r;
+      });
       await formatting;
       const timerStarted = performance.now();
       await operations.transaction(r =>

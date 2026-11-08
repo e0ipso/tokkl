@@ -32,7 +32,7 @@ import type { ExportAssemblyJob, ExportEmitter } from './exportJobs.ts';
 import type { ReportExecutor } from './reportRunner.ts';
 import { createCatalogOperations } from './catalogOperations.ts';
 import { createEntryOperations } from './entryOperations.ts';
-import { credentialCheck } from './streamCredentials.ts';
+import { credentialCheck, credentialKey } from './streamCredentials.ts';
 import { createTimerDelivery } from './timerDelivery.ts';
 import { presentTimerOperations } from './timerReplies.ts';
 import type { EventStreamResponse, TimerStreamOptions } from './timerStreams.ts';
@@ -53,15 +53,23 @@ export interface ApplicationServiceOptions {
 
 const refused = () => forbidden('Incorrect username and/or password');
 
+/** Write transactions that refuse a credential that no longer holds. */
+type GuardedTransactions = Pick<Storage, 'transaction'>;
+/** Guarded write transactions and read snapshots, for operations that also read without writing. */
+type GuardedRunner = Pick<Storage, 'transaction' | 'readSnapshot'>;
+
 /**
- * `storage` whose transactions refuse a credential that no longer holds. Account operations
+ * Transactions on `storage` that refuse a credential that no longer holds. Account operations
  * (`administrative`) check once under the instance guard. Other work checks before and again after
  * it ran, because it holds the actor's user guard only once the domain took it: a credential
- * changed while the write waited rolls the write back.
+ * changed while the write waited rolls the write back. Nothing else of `storage` is in reach.
  */
-function guardedStorage(storage: Storage, authentication: Authentication, administrative = false): Storage {
+function guardedTransactions(
+  storage: Storage,
+  authentication: Authentication,
+  administrative = false,
+): GuardedTransactions {
   return {
-    ...storage,
     transaction: (work, options) =>
       storage.transaction(async ctx => {
         if (administrative) await ctx.lockInstanceAdministration();
@@ -71,6 +79,23 @@ function guardedStorage(storage: Storage, authentication: Authentication, admini
         if (!(await authenticatedUser(ctx, authentication))) throw refused();
         return result;
       }, options),
+  };
+}
+
+/** Read snapshots on `storage` that check the credential in the same snapshot before `work` reads. */
+function guardedSnapshot(storage: Storage, authentication: Authentication): Storage['readSnapshot'] {
+  return work =>
+    storage.readSnapshot(async repositories => {
+      if (!(await authenticatedUser(repositories, authentication))) throw refused();
+      return work(repositories);
+    });
+}
+
+/** Guarded transactions and guarded read snapshots: what account and timer operations take. */
+function guardedRunner(storage: Storage, authentication: Authentication, administrative = false): GuardedRunner {
+  return {
+    ...guardedTransactions(storage, authentication, administrative),
+    readSnapshot: guardedSnapshot(storage, authentication),
   };
 }
 
@@ -135,15 +160,20 @@ export function createApplicationServices({
     /** The claim runs before the stream joins, so it never shares a group with a deleted account's streams. */
     openTimerStream(authentication: Authentication, res: EventStreamResponse): Promise<void> {
       publish.claim(authentication.user.id, authentication.user.createdAt);
-      return timerStreams.open(authentication.user.id, res, streamCredentials.check(authentication));
+      return timerStreams.open(
+        authentication.user.id,
+        res,
+        streamCredentials.check(authentication),
+        credentialKey(authentication),
+      );
     },
     readFor,
     /** Admits an import before it reads its file, or refuses it with a 503 and `Retry-After`. */
     importAdmission: createImportAdmission(imports),
     /**
-     * Takes a place in the report queue, then writes the signed-in account's export to `output` on
-     * the report runner, a batch of entries at a time, after checking the credential in the export's
-     * own snapshot. A full queue or a cancelled request reads nothing.
+     * Takes a place in the report runner's download lane, then writes the signed-in account's export
+     * to `output`, a batch of entries at a time, after checking the credential in the export's own
+     * snapshot. A full lane or a cancelled request reads nothing.
      */
     exportAccount(
       authentication: Authentication,
@@ -152,27 +182,27 @@ export function createApplicationServices({
       options: { signal?: AbortSignal } = {},
     ): Promise<void> {
       const userId = authentication.user.id;
-      return reports.reserve({ userId, signal: options.signal }, slot =>
+      return reports.reserveDownload({ userId, signal: options.signal }, slot =>
         slot.export(userId, assembly, output, { authentication }),
       );
     },
     accountsFor: (authentication: Authentication): SignedInAccountOperations =>
       boundAccountOperations(
-        createAccountOperations(guardedStorage(storage, authentication, true), security),
+        createAccountOperations(guardedRunner(storage, authentication, true), security),
         entryEffects,
         sessionDays,
       ),
     /** Preferences take only the user's guard, so their credential check runs before and after. */
     preferencesFor: (authentication: Authentication) =>
-      createPreferenceOperations(guardedStorage(storage, authentication)),
+      createPreferenceOperations(guardedTransactions(storage, authentication)),
     timersFor: (authentication: Authentication) =>
-      presentTimerOperations(createTimerOperations(guardedStorage(storage, authentication), publish)),
+      presentTimerOperations(createTimerOperations(guardedRunner(storage, authentication), publish)),
     importsFor: (authentication: Authentication) =>
-      createImportOperations(guardedStorage(storage, authentication), publish),
+      createImportOperations(guardedTransactions(storage, authentication), publish),
     entriesFor: (authentication: Authentication) =>
-      createEntryOperations(guardedStorage(storage, authentication), authentication.user, publish),
+      createEntryOperations(guardedTransactions(storage, authentication), authentication.user, publish),
     catalogsFor: (authentication: Authentication) =>
-      createCatalogOperations(guardedStorage(storage, authentication), authentication.user.id, publish),
+      createCatalogOperations(guardedTransactions(storage, authentication), authentication.user.id, publish),
     async close() {
       const results = await Promise.allSettled([timerStreams.closeAll(), reports.close()]);
       // Streams are closed, so no new rebuild starts. Let started ones finish before storage closes.

@@ -8,7 +8,7 @@ import type { JsonBody } from '../lib/values.ts';
  * clients do not always send `Content-Type: application/json`, and the imports take raw CSV or JSON.
  * A longer body is refused with a 413.
  */
-export const textBody = (limit: string): RequestHandler => express.text({ type: () => true, limit });
+export const textBody = (limit: string | number): RequestHandler => express.text({ type: () => true, limit });
 
 /** Bodies arrive as raw text (see `textBody`), so a missing or wrong Content-Type is not an error. */
 function parseBody(req: Request): unknown {

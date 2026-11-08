@@ -752,9 +752,9 @@ test('SQLite file: reports on a file-backed database are built in the worker and
     assert.equal(inline.status, 200, `${path}: ${inline.body}`);
     assert.deepEqual(worker, inline, path);
   }
-  // One worker took every job and is still running.
-  assert.equal(workers.started.length, 1);
-  assert.equal(workers.started[0]!.exitCode, null);
+  // The report lane's worker took the reports and the download lane's the detailed CSVs; both still run.
+  assert.equal(workers.started.length, 2);
+  for (const record of workers.started) assert.equal(record.exitCode, null);
 });
 
 test('SQLite file: an idle report worker lets the process exit once the server closes', async () => {
@@ -779,13 +779,13 @@ test('SQLite file: a crashed report worker fails its pending jobs with 500 and t
   const workers = watchWorkers();
   t.after(workers.stop);
   const logged = t.mock.method(console, 'error', () => {});
-  const [summary, , csv] = reportRequests(ctx.wid);
+  const [summary, search] = reportRequests(ctx.wid);
 
   // With the database file gone the worker throws while opening it, before it takes any job. The
   // app keeps its own open connection, so only report jobs are affected.
   const moved = `${file.path}.moved`;
   renameSync(file.path, moved);
-  const failed = await Promise.all([summary!, csv!].map(([path, body]) => file.request('POST', path, body)));
+  const failed = await Promise.all([summary!, search!].map(([path, body]) => file.request('POST', path, body)));
   assert.deepEqual(await Promise.all(failed.map(statusAndBody)), [
     { status: 500, body: '"Internal Server Error"' },
     { status: 500, body: '"Internal Server Error"' },
@@ -809,7 +809,7 @@ test('SQLite file: a crashed report worker fails its pending jobs with 500 and t
   assert.equal((await file.json('GET', '/api/v9/me/time_entries/current')).status, 200);
 
   renameSync(moved, file.path);
-  for (const [path, body] of [summary!, csv!]) {
+  for (const [path, body] of [summary!, search!]) {
     const inline = await snapshot(await ctx.request('POST', path, body));
     assert.deepEqual(await snapshot(await file.request('POST', path, body)), inline, path);
   }
