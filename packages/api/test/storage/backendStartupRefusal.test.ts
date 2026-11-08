@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { sql } from 'kysely';
 import { disposableBackend } from './support/disposableBackend.ts';
 import { openConnection } from '../../src/storage/connections.ts';
-import { initializeDatabase, validateEngine } from '../../src/storage/migrations.ts';
+import { initializeDatabase, migrations, validateEngine } from '../../src/storage/migrations.ts';
 import type { PhysicalDatabase } from '../../src/storage/physical.ts';
 
 for (const backend of ['mysql', 'mariadb'] as const) {
@@ -67,7 +67,10 @@ for (const backend of ['mysql', 'mariadb'] as const) {
       }
       const valid = await initializeDatabase(config);
       try {
-        assert.equal((await valid.db.selectFrom('storage_migrations').selectAll().execute()).length, 5);
+        assert.equal(
+          (await valid.db.selectFrom('storage_migrations').selectAll().execute()).length,
+          migrations(valid.backend).length,
+        );
       } finally {
         await valid.close();
       }

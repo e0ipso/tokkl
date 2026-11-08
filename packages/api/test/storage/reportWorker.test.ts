@@ -17,7 +17,7 @@ import { answerJob, answerOnRunner, jobs } from './support/report-jobs.ts';
 import { Worker } from 'node:worker_threads';
 import { sql } from 'kysely';
 import { openReportReader } from '../../src/storage/repositories/report-reader.ts';
-import { initializeDatabase } from '../../src/storage/migrations.ts';
+import { initializeDatabase, migrations } from '../../src/storage/migrations.ts';
 import { createTransactionRunner } from '../../src/storage/transactions.ts';
 import { createReportRepositories } from '../../src/storage/repositories/reports.ts';
 import { ReportRunner } from '../../src/services/reportRunner.ts';
@@ -118,7 +118,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
         Number(
           (await sql<{ n: number | string }>`select count(*) as n from storage_migrations`.execute(c.db)).rows[0]!.n,
         ),
-        5,
+        migrations(c.backend).length,
       );
       await t.test('crash rejects current work and starts a fresh worker', async crash => {
         // Hold delivery so the one-row report cannot finish before termination.

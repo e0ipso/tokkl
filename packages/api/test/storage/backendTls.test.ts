@@ -9,7 +9,7 @@ import { sql } from 'kysely';
 import { Worker } from 'node:worker_threads';
 import type { UsersRepository } from '../../src/storage/contracts.ts';
 import type { ServerConfig } from '../../src/storage/config.ts';
-import { initializeDatabase, validateEngine } from '../../src/storage/migrations.ts';
+import { initializeDatabase, migrations, validateEngine } from '../../src/storage/migrations.ts';
 import { openConnection } from '../../src/storage/connections.ts';
 import { createStorage } from '../../src/storage/index.ts';
 import { openReportReader } from '../../src/storage/repositories/report-reader.ts';
@@ -169,7 +169,10 @@ for (const backend of ['postgres', 'mysql', 'mariadb'] as const) {
           console.log(`${backend}: ${label} refused by writer, reader, worker and actual startup`);
         });
       }
-      assert.equal((await c.db.selectFrom('storage_migrations').selectAll().execute()).length, 5);
+      assert.equal(
+        (await c.db.selectFrom('storage_migrations').selectAll().execute()).length,
+        migrations(c.backend).length,
+      );
     },
   );
 }
