@@ -2,8 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { QueryClient, onlineManager } from '@tanstack/react-query';
 import { ApiError, RequestTimeoutError } from './client.ts';
+import { DecodeError, number, object } from './decode.ts';
 import { TIMER_ENTRY_OPTIONS, attemptTimerRequest, createTimerOutcome, isUncertain } from './timerOutcome.ts';
-import { TIMER_OFFLINE_MESSAGE, TimerActionError } from './timerState.ts';
+import { TIMER_OFFLINE_MESSAGE, TimerActionError, UnreadableTimerStateError, timerStateOf } from './timerState.ts';
 import type { TimeEntry, TimerState } from './types.ts';
 
 const running = (id: number): TimeEntry => ({
@@ -59,12 +60,41 @@ test('a request that got no reply fails with the offline message; others pass th
   assert.equal(await attemptTimerRequest(() => Promise.resolve(5)), 5);
 });
 
-test('only a write that got no reply leaves the timer unknown', () => {
+test('a write that got no reply leaves the timer unknown; a conflict or another refusal does not', () => {
   assert.equal(isUncertain(new TimerActionError('offline')), true);
   assert.equal(isUncertain(new TimerActionError('conflict')), false);
-  assert.equal(isUncertain(new ApiError(500, 'Server error')), false);
+  for (const status of [400, 403, 404, 409, 422, 429]) {
+    assert.equal(isUncertain(new ApiError(status, 'Refused')), false, `${status}`);
+  }
   // A raw TypeError never reaches the outcome: attemptTimerRequest turns it into the offline error first.
   assert.equal(isUncertain(offline()), false);
+  assert.equal(isUncertain(new Error('Something else')), false);
+});
+
+test('a 5xx may follow a write that was saved, so it leaves the timer unknown', () => {
+  for (const status of [500, 502, 503, 504]) {
+    assert.equal(isUncertain(new ApiError(status, 'Server error')), true, `${status}`);
+  }
+});
+
+test('a 2xx whose body cannot be read or decoded leaves the timer unknown', async () => {
+  const notJson = attemptTimerRequest(() => Promise.resolve(JSON.parse('<html>')));
+  await assert.rejects(notJson, (error: unknown) => error instanceof SyntaxError && isUncertain(error));
+  const misfit = attemptTimerRequest(async () => object<{ id: number }>({ id: number })({ id: 'x' }));
+  await assert.rejects(misfit, (error: unknown) => error instanceof DecodeError && isUncertain(error));
+  const notState = attemptTimerRequest(async () => timerStateOf({ revision: 1 }));
+  await assert.rejects(notState, (error: unknown) => error instanceof UnreadableTimerStateError && isUncertain(error));
+});
+
+test('after a start answered with a 5xx, the next start reads the state first', async () => {
+  const { outcome, reads } = tracked(state(running(9)));
+  const failed = attemptTimerRequest(() => Promise.reject(new ApiError(502, 'Bad gateway')));
+  await assert.rejects(failed, (error: unknown) => {
+    outcome.failed(error);
+    return error instanceof ApiError && error.message === 'Bad gateway';
+  });
+  assert.equal(await outcome.mayStart(null), false, 'the start was saved before the gateway failed');
+  assert.equal(reads(), 1);
 });
 
 test('a start goes out without a read while the outcome of every write is known', async () => {
