@@ -146,6 +146,14 @@
     <property name="PomodoroLengthErrors" type="a{ss}" access="read">
       <annotation name="org.qtproject.QtDBus.QtTypeName" value="QMap&lt;QString,QString&gt;"/>
     </property>
+    <!-- The range and default of each length the server accepts, keyed as
+         PomodoroLengths, each with min, max and default (i), so a settings
+         pane offers what SetPomodoroLengths can save. It does not change
+         while the service runs. A service from before this property has
+         none: a client then keeps the limits it had built in. -->
+    <property name="PomodoroLengthLimits" type="a{sa{si}}" access="read">
+      <annotation name="org.qtproject.QtDBus.QtTypeName" value="QMap&lt;QString,QMap&lt;QString,int&gt;&gt;"/>
+    </property>
     <!-- The sound each transition plays when it rings: the four transition
          names of RingingTransition, each with an id from SoundChoices. -->
     <property name="Sounds" type="a{ss}" access="read">

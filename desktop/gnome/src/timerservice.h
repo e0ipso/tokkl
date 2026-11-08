@@ -70,6 +70,7 @@ class TimerService : public QObject, protected QDBusContext
     Q_PROPERTY(QMap<QString, int> PomodoroLengths READ pomodoroLengths)
     Q_PROPERTY(bool PomodoroLengthsEditable READ pomodoroLengthsEditable)
     Q_PROPERTY(QMap<QString, QString> PomodoroLengthErrors READ pomodoroLengthErrors)
+    Q_PROPERTY(QMap<QString, QMap<QString, int>> PomodoroLengthLimits READ pomodoroLengthLimits)
     Q_PROPERTY(QMap<QString, QString> Sounds READ sounds)
     Q_PROPERTY(QList<QVariantMap> SoundChoices READ soundCatalogue)
 
@@ -145,6 +146,8 @@ public:
     QMap<QString, int> pomodoroLengths() const;
     bool pomodoroLengthsEditable() const;
     QMap<QString, QString> pomodoroLengthErrors() const;
+    // PomodoroPreferences::limits(), keyed as PomodoroLengths.
+    QMap<QString, QMap<QString, int>> pomodoroLengthLimits() const;
     QMap<QString, QString> sounds() const;
     QList<QVariantMap> soundCatalogue() const;
 

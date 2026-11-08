@@ -14,6 +14,7 @@ import Gtk from 'gi://Gtk';
 
 import { ExtensionPreferences, gettext as _ } from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
+import { lengthLimits } from './legacylimits.js';
 import { AUTH_MODES, describeStatus } from './timer1.js';
 import { cachedProperty, createTimer1Proxy, serviceRunning } from './timer1proxy.js';
 
@@ -40,19 +41,22 @@ class PomodoroGroup {
         this._save.connect('clicked', () => this._saveLengths());
         this.group.header_suffix = this._save;
 
-        // Keyed as PomodoroLengths, with the server's ranges and defaults.
+        // Keyed as PomodoroLengths. The ranges and defaults are the ones the
+        // service publishes in PomodoroLengthLimits once it is reached.
         const minutes = _('Minutes');
+        const limits = lengthLimits(null);
         this._lengths = [
-            ['work', _('Work'), minutes, 180, 25],
-            ['shortRest', _('Short rest'), minutes, 60, 5],
-            ['longRest', _('Long rest'), minutes, 60, 15],
-            ['longRestEvery', _('Long rest every'), _('Pomodoros'), 12, 4],
-        ].map(([key, title, unit, upper, value]) => {
+            ['work', _('Work'), minutes],
+            ['shortRest', _('Short rest'), minutes],
+            ['longRest', _('Long rest'), minutes],
+            ['longRestEvery', _('Long rest every'), _('Pomodoros')],
+        ].map(([key, title, unit]) => {
+            const { min, max, default: value } = limits[key];
             const row = new Adw.SpinRow({
                 title,
                 subtitle: unit,
                 numeric: true,
-                adjustment: new Gtk.Adjustment({ lower: 1, upper, value, step_increment: 1, page_increment: 5 }),
+                adjustment: new Gtk.Adjustment({ lower: min, upper: max, value, step_increment: 1, page_increment: 5 }),
             });
             this.group.add(row);
             return { key, unit, row };
@@ -103,8 +107,22 @@ class PomodoroGroup {
 
     // changed holds the properties that changed, or is null to show them all.
     _sync(changed) {
+        if (changed === null || 'PomodoroLengthLimits' in changed) this._syncLimits();
         this._syncLengths(changed === null || 'PomodoroLengths' in changed);
         this._syncSounds();
+    }
+
+    // The range of each row, and its value while the service has no
+    // lengths for it.
+    _syncLimits() {
+        const limits = lengthLimits(this._property('PomodoroLengthLimits', null));
+        const lengths = this._property('PomodoroLengths', {});
+        for (const { key, row } of this._lengths) {
+            const { min, max, default: value } = limits[key];
+            row.adjustment.lower = min;
+            row.adjustment.upper = max;
+            if (!(key in lengths)) row.value = value;
+        }
     }
 
     _syncLengths(refill) {

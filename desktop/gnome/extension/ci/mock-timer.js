@@ -45,6 +45,7 @@ const types = {
     PomodoroLengths: 'a{si}',
     PomodoroLengthsEditable: 'b',
     PomodoroLengthErrors: 'a{ss}',
+    PomodoroLengthLimits: 'a{sa{si}}',
     Sounds: 'a{ss}',
     SoundChoices: 'aa{sv}',
     PomodoroMode: 'b',
@@ -84,6 +85,13 @@ const state = {
     PomodoroLengths: { work: 25, shortRest: 5, longRest: 15, longRestEvery: 4 },
     PomodoroLengthsEditable: true,
     PomodoroLengthErrors: {},
+    // The core's ranges and defaults.
+    PomodoroLengthLimits: {
+        work: { min: 1, max: 180, default: 25 },
+        shortRest: { min: 1, max: 60, default: 5 },
+        longRest: { min: 1, max: 60, default: 15 },
+        longRestEvery: { min: 1, max: 12, default: 4 },
+    },
     Sounds: {
         workToShortRest: 'work-to-short-rest',
         shortRestToWork: 'short-rest-to-work',

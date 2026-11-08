@@ -71,6 +71,7 @@ TimerService::TimerService(const Parts &parts, QObject *parent)
     qDBusRegisterMetaType<QMap<QString, int>>();
     qDBusRegisterMetaType<QMap<QString, QString>>();
     qDBusRegisterMetaType<QMap<QString, QVariantMap>>();
+    qDBusRegisterMetaType<QMap<QString, QMap<QString, int>>>();
     new Timer1Adaptor(this);
 
     // Each core signal marks the groups whose properties it can change, and
@@ -383,6 +384,27 @@ QMap<QString, QString> TimerService::pomodoroLengthErrors() const
     return errors;
 }
 
+QMap<QString, QMap<QString, int>> TimerService::pomodoroLengthLimits() const
+{
+    // The core's limits are keyed by the preferences' names; the bus keys
+    // them as PomodoroLengths.
+    const std::pair<QString, QString> keys[] = {
+        {QStringLiteral("work"), QStringLiteral("workMinutes")},
+        {QStringLiteral("shortRest"), QStringLiteral("shortRestMinutes")},
+        {QStringLiteral("longRest"), QStringLiteral("longRestMinutes")},
+        {QStringLiteral("longRestEvery"), QStringLiteral("longRestEvery")},
+    };
+    const QVariantMap limits = PomodoroPreferences::limits();
+    QMap<QString, QMap<QString, int>> published;
+    for (const auto &[key, name] : keys) {
+        const QVariantMap limit = limits.value(name).toMap();
+        for (auto it = limit.cbegin(); it != limit.cend(); ++it) {
+            published[key].insert(it.key(), it.value().toInt());
+        }
+    }
+    return published;
+}
+
 QMap<QString, QString> TimerService::sounds() const
 {
     QMap<QString, QString> sounds;
@@ -599,7 +621,10 @@ QVariantMap TimerService::soundProperties() const
 
 QVariantMap TimerService::fixedProperties() const
 {
-    return {{QStringLiteral("SoundChoices"), QVariant::fromValue(soundCatalogue())}};
+    return {
+        {QStringLiteral("PomodoroLengthLimits"), QVariant::fromValue(pomodoroLengthLimits())},
+        {QStringLiteral("SoundChoices"), QVariant::fromValue(soundCatalogue())},
+    };
 }
 
 QVariantMap TimerService::read(unsigned groups) const

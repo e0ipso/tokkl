@@ -717,6 +717,7 @@ private Q_SLOTS:
             {QStringLiteral("PomodoroLengths"), QStringLiteral("a{si} read")},
             {QStringLiteral("PomodoroLengthsEditable"), QStringLiteral("b read")},
             {QStringLiteral("PomodoroLengthErrors"), QStringLiteral("a{ss} read")},
+            {QStringLiteral("PomodoroLengthLimits"), QStringLiteral("a{sa{si}} read")},
             {QStringLiteral("Sounds"), QStringLiteral("a{ss} read")},
             {QStringLiteral("SoundChoices"), QStringLiteral("aa{sv} read")},
         };
@@ -1672,6 +1673,35 @@ private Q_SLOTS:
 
     // The lengths follow the account; a save sends only what differs, and
     // the server's refusals show per length or as the general error.
+    // The limits are the core's, keyed as PomodoroLengths, so the
+    // extension's controls need no copy of them.
+    void pomodoroLengthLimitsAreTheCores()
+    {
+        Fixture f;
+        QVERIFY(f.start());
+        const QDBusArgument argument = f.get(QStringLiteral("PomodoroLengthLimits")).value<QDBusArgument>();
+        const QMap<QString, IntMap> limits = qdbus_cast<QMap<QString, IntMap>>(argument);
+        const QVariantMap core = PomodoroPreferences::limits();
+        const StringMap names{
+            {QStringLiteral("work"), QStringLiteral("workMinutes")},
+            {QStringLiteral("shortRest"), QStringLiteral("shortRestMinutes")},
+            {QStringLiteral("longRest"), QStringLiteral("longRestMinutes")},
+            {QStringLiteral("longRestEvery"), QStringLiteral("longRestEvery")},
+        };
+        QCOMPARE(limits.keys(), names.keys());
+        for (auto it = names.cbegin(); it != names.cend(); ++it) {
+            const QVariantMap limit = core.value(it.value()).toMap();
+            const IntMap expected{
+                {QStringLiteral("min"), limit.value(QStringLiteral("min")).toInt()},
+                {QStringLiteral("max"), limit.value(QStringLiteral("max")).toInt()},
+                {QStringLiteral("default"), limit.value(QStringLiteral("default")).toInt()},
+            };
+            QCOMPARE(limits.value(it.key()), expected);
+        }
+        QCOMPARE(limits.value(QStringLiteral("work")).value(QStringLiteral("max")), PomodoroConfig::workMinutesRange.max);
+        QCOMPARE(limits.value(QStringLiteral("longRestEvery")).value(QStringLiteral("default")), PomodoroConfig().longRestEvery);
+    }
+
     void pomodoroLengthsOverTheBus()
     {
         Fixture f;
