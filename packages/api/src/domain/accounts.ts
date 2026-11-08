@@ -235,7 +235,9 @@ function createProfileOperations<R extends AccountRepositories>(
  * Saving preferences guards only the user. A deletion that commits while the save waits makes the
  * user lock restart the transaction, which then finds the account gone.
  */
-export function createPreferenceOperations<R extends AccountRepositories>(runner: AccountRunner<R>) {
+export function createPreferenceOperations<R extends AccountRepositories>(
+  runner: Pick<AccountRunner<R>, 'transaction'>,
+) {
   return {
     async savePreferences(userId: Id, changes: PreferenceChanges): Promise<JsonObject> {
       return runner.transaction(async ctx => {
