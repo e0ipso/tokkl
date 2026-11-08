@@ -1,7 +1,8 @@
 /**
  * Timer actions: start and stop the timer, pause, resume and discard a pause chain, and run a
  * Pomodoro session. Each action checks the revision the client saw and answers with the view as
- * committed.
+ * committed. Every stop of the running entry goes through `stopRunningEntry`, which refuses a user
+ * who is no longer a member of the entry's workspace.
  */
 import { nextPhase, startSession, type PomodoroSessionConfig } from '@tokkl/common/pomodoroSession';
 import type { OperationContext } from '../storage/contracts.ts';
@@ -18,7 +19,7 @@ import {
 import type { NewEntry } from './entryCommands.ts';
 import { entryDurationSeconds, wholeSeconds } from './entrySpans.ts';
 import { memberWorkspace } from './membership.ts';
-import { createTimeEntry, stopEntryAt } from './timeEntries.ts';
+import { createTimeEntry, stopRunningEntry } from './timeEntries.ts';
 import { settleTimer, settlementDue, touchTimer, type TimerPublication } from './timerSettlement.ts';
 import { buildTimerView, type TimerView } from './timerView.ts';
 
@@ -150,7 +151,7 @@ export function createTimerOperations<R extends EntryRepositories>(runner: Timer
     let entryId = s.entryId;
     if (next.kind === 'work') {
       const ended = await getTimeEntry(ctx, user.id, s.entryId);
-      await stopEntryAt(ctx, user, ended, now);
+      await stopRunningEntry(ctx, user, ended, now);
       entryId = (await createTimeEntry(ctx, user, ended.workspaceId, runningFrom(now, copiedLabels(ended)), publish))
         .id;
     }
@@ -165,7 +166,7 @@ export function createTimerOperations<R extends EntryRepositories>(runner: Timer
     if (await ctx.timers.getSession(user.id)) return refusal(ctx, user, now, 'A Pomodoro session cannot be paused');
     const e = await ctx.entries.running(user.id);
     if (!e) return refusal(ctx, user, now, 'No timer is running');
-    await stopEntryAt(ctx, user, e, now);
+    await stopRunningEntry(ctx, user, e, now);
     const stored = entryDurationSeconds(await getTimeEntry(ctx, user.id, e.id, { includeDeleted: true }));
     const c = await ctx.timers.getPauseChain(user.id);
     await ctx.timers.savePauseChain({
@@ -227,9 +228,7 @@ export function createTimerOperations<R extends EntryRepositories>(runner: Timer
         await checkRevision(ctx, user, revision, now);
         const e = await ctx.entries.running(user.id);
         if (!e) return refusal(ctx, user, now, 'No timer is running');
-        // Like a v9 stop: only a member of the entry's workspace may stop it.
-        await memberWorkspace(ctx, user.id, e.workspaceId);
-        await stopEntryAt(ctx, user, e, stop ?? now);
+        await stopRunningEntry(ctx, user, e, stop ?? now);
       });
     },
     async startPomodoro(userId: Id, start: StartPomodoro, now = new Date()): Promise<TimerView> {
@@ -248,7 +247,7 @@ export function createTimerOperations<R extends EntryRepositories>(runner: Timer
     async endPomodoro(userId: Id, revision: number, now = new Date()): Promise<TimerView> {
       return action(userId, now, async (ctx, user) => {
         const s = await sessionAt(ctx, user, revision, now);
-        await stopEntryAt(ctx, user, await getTimeEntry(ctx, user.id, s.entryId), now);
+        await stopRunningEntry(ctx, user, await getTimeEntry(ctx, user.id, s.entryId), now);
         await ctx.timers.deleteSession(user.id);
       });
     },

@@ -88,10 +88,21 @@ export async function stopEntryAt(
   return true;
 }
 
+/**
+ * Stops `entry`, the user's running entry, at `at`, the way every timer path stops it: only a member
+ * of the entry's workspace may, as for a v9 stop. Anyone else gets 403 and, because the refusal
+ * throws, the caller's whole transaction rolls back. Answers what `stopEntryAt` answers.
+ */
+export async function stopRunningEntry(ctx: EntryContext, user: User, entry: TimeEntry, at: Date): Promise<boolean> {
+  await memberWorkspace(ctx, user.id, entry.workspaceId);
+  return stopEntryAt(ctx, user, entry, at);
+}
+
+/** Stops the running entry, unless it is `exceptId`, before another entry starts running. */
 async function stopRunning(ctx: EntryContext, user: User, at: Date, exceptId?: Id): Promise<void> {
   const running = await ctx.entries.running(user.id);
   if (!running || running.id === exceptId) return;
-  await stopEntryAt(ctx, user, running, at < new Date(running.start) ? new Date() : at);
+  await stopRunningEntry(ctx, user, running, at < new Date(running.start) ? new Date() : at);
 }
 
 /** A new timed entry's span: `stop`, else `start + duration` for a non-negative one, else running. */
