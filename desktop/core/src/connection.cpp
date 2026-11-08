@@ -383,6 +383,11 @@ void Connection::stopTimer(qint64 revision, qint64 entryId, ActionCallback done)
     m_session.api().action(app(QStringLiteral("/timer/stop")), encodeRevision(revision), std::move(done));
 }
 
+void Connection::editTimer(qint64 revision, const TimeEntryUpdate &update, ActionCallback done)
+{
+    m_session.api().action(app(QStringLiteral("/timer/edit")), encodeTimerEdit(revision, update), std::move(done));
+}
+
 PendingStream *Connection::openTimerEvents()
 {
     return m_session.api().openStream(app(QStringLiteral("/timer/events")));

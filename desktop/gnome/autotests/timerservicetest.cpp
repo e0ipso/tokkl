@@ -940,13 +940,16 @@ private Q_SLOTS:
         QCOMPARE(f.transport.requests.size(), sent);
         QCOMPARE(f.get(QStringLiteral("ChosenProject")).toLongLong(), 12);
 
-        // Billable stays editable: one PUT that carries only billable.
+        // Billable stays editable: one timer edit that carries only billable,
+        // against the revision shown.
         QCOMPARE(f.result(QStringLiteral("SetBillable"), {QVariant(true)}).toBool(), true);
-        const QList<qsizetype> updates = f.find("PUT", "/workspaces/7/time_entries/5");
+        const QList<qsizetype> updates = f.find("POST", "/app/timer/edit");
         QCOMPARE(updates.size(), 1);
-        QCOMPARE(QJsonDocument::fromJson(f.transport.requests.at(updates.first()).body).object(), QJsonObject({{QStringLiteral("billable"), true}}));
-        f.change(entryObject(5, 12, true, true));
-        f.respond(updates.first(), FakeTransport::answer(200, json(entryObject(5, 12, true, true))));
+        QJsonObject expected = revisionBody(f.revision);
+        expected.insert(QStringLiteral("billable"), true);
+        QCOMPARE(QJsonDocument::fromJson(f.transport.requests.at(updates.first()).body).object(), expected);
+        QVERIFY(f.find("PUT", "/workspaces/7/time_entries/5").isEmpty());
+        f.respond(updates.first(), FakeTransport::answer(200, f.change(entryObject(5, 12, true, true))));
         QVERIFY(f.serve());
         QCOMPARE(f.get(QStringLiteral("Billable")).toBool(), true);
         QVERIFY(f.recorder.valuesOf(QStringLiteral("Billable")).contains(true));

@@ -149,6 +149,12 @@ public:
     // route is a refusal like any other and is never sent again elsewhere.
     void startTimer(qint64 revision, const StartEntry &entry, ActionCallback done = {});
     void stopTimer(qint64 revision, qint64 entryId, ActionCallback done = {});
+    // Edits the running entry through POST /api/app/timer/edit, against
+    // revision; only the fields update sets travel, and start never does.
+    // A 409 brings the server's state when the timer changed since revision
+    // or nothing runs. Only for a server that announces timer-edit; see
+    // server().
+    void editTimer(qint64 revision, const TimeEntryUpdate &update, ActionCallback done = {});
     // Opens GET /api/app/timer/events, or returns nullptr without a bound
     // account or during a 429 cooldown. The caller reads the stream's
     // signals; the connection deletes it after finished(). A new generation

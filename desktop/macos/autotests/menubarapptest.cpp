@@ -819,9 +819,11 @@ private Q_SLOTS:
         menu.m_billableAction->trigger();
         QCOMPARE(f.transport.requests.size(), before + 1);
         const HttpRequest update = f.transport.requests.last();
-        QCOMPARE(update.method, QByteArray("PUT"));
-        QCOMPARE(update.url.path(), QStringLiteral("/api/v9/workspaces/7/time_entries/5"));
-        QCOMPARE(jsonBody(update), QJsonObject({{QStringLiteral("billable"), true}}));
+        QCOMPARE(update.method, QByteArray("POST"));
+        QCOMPARE(update.url.path(), QStringLiteral("/api/app/timer/edit"));
+        QCOMPARE(jsonBody(update).value(QStringLiteral("billable")), QJsonValue(true));
+        QVERIFY(jsonBody(update).value(QStringLiteral("revision")).isDouble());
+        QCOMPARE(jsonBody(update).size(), 2);
     }
 
     // Stop Timer in the menu stops a running timer and ends the chain.

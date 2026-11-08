@@ -406,6 +406,9 @@ ApiResult<Me> meFromResponse(const HttpResponse &response);
 QByteArray encodeStartEntry(const StartEntry &entry, qint64 workspaceId, const QString &createdWith);
 QByteArray encodeTimerStart(qint64 revision, const StartEntry &entry, qint64 workspaceId, const QString &createdWith);
 QByteArray encodeTimeEntryUpdate(const TimeEntryUpdate &update);
+// POST /api/app/timer/edit: the fields update sets, apart from start, and
+// the revision the edit applies to.
+QByteArray encodeTimerEdit(qint64 revision, const TimeEntryUpdate &update);
 QByteArray encodePomodoroConfigUpdate(const PomodoroConfigUpdate &update);
 // {"revision":n}, for an action that applies only to the state it was sent
 // against.

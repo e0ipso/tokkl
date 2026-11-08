@@ -495,6 +495,15 @@ void TimerStateClient::discard(ActionCallback done)
     withRevision(&Connection::discardPause, std::move(done));
 }
 
+void TimerStateClient::edit(const TimeEntryUpdate &update, ActionCallback done)
+{
+    withRevision(
+        [update](Connection &connection, qint64 revision, ActionCallback adopted) {
+            connection.editTimer(revision, update, std::move(adopted));
+        },
+        std::move(done));
+}
+
 void TimerStateClient::startPomodoro(const PomodoroStart &start, ActionCallback done)
 {
     withRevision(

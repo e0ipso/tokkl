@@ -307,6 +307,10 @@ bool TimerCoordinator::updateEntry(const TimeEntryUpdate &update)
     // start, description, tags and the rest, and it keeps running.
     const qint64 entryId = m_model->currentEntry()->id;
     beginMutation();
+    if (m_model->connection()->server().timerEdit) {
+        editRunningEntry(entryId, update, true);
+        return true;
+    }
 
     m_model->connection()->updateEntry(entryId, update, m_epoch.guard(this, [this](const ApiResult<TimeEntry> &result) {
         // Stopped elsewhere before the edit: the reply names its project.
@@ -316,6 +320,25 @@ bool TimerCoordinator::updateEntry(const TimeEntryUpdate &update)
         finishMutation(outcomeOf(result.error, result.ok()), result.error, false, true);
     }));
     return true;
+}
+
+void TimerCoordinator::editRunningEntry(qint64 entryId, const TimeEntryUpdate &update, bool mayReapply)
+{
+    m_model->stateClient()->edit(update, m_epoch.guard(this, [this, entryId, update, mayReapply](const TimerActionResult &result) {
+        // A 409 whose state still runs the same entry means only the
+        // revision moved: the timer changed elsewhere, but this entry still
+        // runs. The edit only sets fields, so it is applied once more, at
+        // the revision the client just adopted. That is a deliberate second
+        // write of an edit the server refused, not a replay of an unknown
+        // outcome, which is never sent again.
+        const bool sameEntry = result.state && result.state->runningEntry && result.state->runningEntry->id == entryId;
+        if (result.outcome == Outcome::Conflict && mayReapply && sameEntry) {
+            qCInfo(lcTimer) << "Edit refused at an older revision of the same entry; applying it once more";
+            editRunningEntry(entryId, update, false);
+            return;
+        }
+        finishMutation(result.outcome, result.error);
+    }));
 }
 
 // ----- settling ------------------------------------------------------------

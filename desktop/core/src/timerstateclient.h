@@ -101,6 +101,8 @@ public:
     void pause(ActionCallback done = {});
     void resume(ActionCallback done = {});
     void discard(ActionCallback done = {});
+    // Edits the running entry; see Connection::editTimer().
+    void edit(const TimeEntryUpdate &update, ActionCallback done = {});
     void startPomodoro(const PomodoroStart &start, ActionCallback done = {}) override;
     void nextPhase(ActionCallback done = {}) override;
     void endPomodoro(ActionCallback done = {}) override;

@@ -24,6 +24,7 @@ const QByteArray statePath = "/app/timer";
 const QByteArray listPath = "/me/time_entries";
 const QByteArray startPath = "/app/timer/start";
 const QByteArray stopPath = "/app/timer/stop";
+const QByteArray editPath = "/app/timer/edit";
 // The v9 route of a server from before the app's start and stop.
 const QByteArray v9StartPath = "/v9/workspaces/7/time_entries";
 
@@ -1199,8 +1200,7 @@ private Q_SLOTS:
             path = "/timer/discard";
         } else if (write == QLatin1String("billable")) {
             QVERIFY(f.timer.chooseBillable(true));
-            method = "PUT";
-            path = "/time_entries/5";
+            path = editPath;
         } else {
             QVERIFY(f.timer.stop());
         }
@@ -1341,27 +1341,116 @@ private Q_SLOTS:
         QCOMPARE(selection.count(), 0);
         QVERIFY(!f.timer.isBusy());
 
-        // Billable still edits the running entry, with billable alone.
+        // Billable still edits the running entry, with billable alone,
+        // against the revision shown.
         QVERIFY(f.timer.chooseBillable(true));
-        const qsizetype put = f.last("PUT", "/time_entries/5");
-        QVERIFY(f.unanswered(put));
-        QCOMPARE(QJsonDocument::fromJson(f.transport.requests.at(put).body).object(), QJsonObject({{QStringLiteral("billable"), true}}));
+        const qsizetype edit = f.last("POST", editPath);
+        QVERIFY(f.unanswered(edit));
+        QCOMPARE(QJsonDocument::fromJson(f.transport.requests.at(edit).body).object(),
+                 QJsonObject({{QStringLiteral("billable"), true}, {QStringLiteral("revision"), f.revision}}));
 
         // Stopped, the project is a choice again.
-        f.respond(put, FakeTransport::answer(200, entryBody(5, 7, startedAt)));
-        QVERIFY(f.answerState(entryBody(5, 7, startedAt)));
+        f.respond(edit, f.stateAnswer(entryBody(5, 7, startedAt)));
+        QVERIFY(!f.timer.isBusy());
         QVERIFY(f.timer.stop());
         f.respond(f.last("POST", stopPath), f.stateAnswer("null"));
         QVERIFY(f.timer.chooseProject(11));
         QCOMPARE(f.timer.selectedProjectId().toLongLong(), 11);
-        QCOMPARE(f.find("PUT", "/time_entries/5").size(), 1);
+        QCOMPARE(f.find("POST", editPath).size(), 1);
+        QVERIFY(f.find("PUT", "/time_entries/5").isEmpty());
     }
 
-    // The billable edit's reply is an entry. What the menu shows comes from
-    // the state a read sent after the reply brings, never from the reply.
+    // On a current server the billable edit goes through the timer and
+    // answers with the state, which shows it at once: no v9 PUT, no read.
+    void billableEditGoesThroughTheTimer()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f));
+        const qsizetype reads = f.stateReads();
+        QVERIFY(f.timer.chooseBillable(true));
+        QVERIFY(f.timer.isBusy());
+        QVERIFY(!f.timer.chooseBillable(false));
+        const qsizetype edit = f.last("POST", editPath);
+        QCOMPARE(QJsonDocument::fromJson(f.transport.requests.at(edit).body).object(),
+                 QJsonObject({{QStringLiteral("billable"), true}, {QStringLiteral("revision"), f.revision}}));
+
+        QJsonObject edited = entryObject(5, 7, startedAt);
+        edited.insert(QStringLiteral("billable"), true);
+        f.respond(edit, f.stateAnswer(json(edited)));
+        QVERIFY(!f.timer.isBusy());
+        QVERIFY(f.timer.chosenBillable());
+        QVERIFY(f.timer.errorString().isEmpty());
+        QCOMPARE(f.stateReads(), reads);
+        QVERIFY(f.find("PUT", "/time_entries/5").isEmpty());
+    }
+
+    // A 409 whose state still runs the same entry: only the revision moved,
+    // so the edit is applied once more at the new revision. A second 409
+    // shows as a conflict and nothing more is sent.
+    void billableEditReappliesOnceForTheSameEntry_data()
+    {
+        QTest::addColumn<bool>("secondApplies");
+        QTest::newRow("applied at the new revision") << true;
+        QTest::newRow("refused again") << false;
+    }
+
+    void billableEditReappliesOnceForTheSameEntry()
+    {
+        QFETCH(bool, secondApplies);
+        Fixture f;
+        QVERIFY(connectAccount(f));
+        QVERIFY(f.timer.chooseBillable(true));
+        f.respond(f.last("POST", editPath), FakeTransport::answer(409, f.nextState(entryBody(5, 7, startedAt))));
+        QVERIFY(f.timer.isBusy());
+        QCOMPARE(f.find("POST", editPath).size(), 2);
+        const qsizetype again = f.last("POST", editPath);
+        QCOMPARE(QJsonDocument::fromJson(f.transport.requests.at(again).body).object(),
+                 QJsonObject({{QStringLiteral("billable"), true}, {QStringLiteral("revision"), f.revision}}));
+
+        QJsonObject edited = entryObject(5, 7, startedAt);
+        edited.insert(QStringLiteral("billable"), true);
+        if (secondApplies) {
+            f.respond(again, f.stateAnswer(json(edited)));
+            QVERIFY(f.timer.chosenBillable());
+            QVERIFY(f.timer.errorString().isEmpty());
+        } else {
+            f.respond(again, FakeTransport::answer(409, f.nextState(entryBody(5, 7, startedAt))));
+            QVERIFY(!f.timer.chosenBillable());
+            QCOMPARE(f.timer.errorString(), QStringLiteral("The timer changed on another device first."));
+        }
+        QVERIFY(!f.timer.isBusy());
+        QCOMPARE(f.find("POST", editPath).size(), 2);
+    }
+
+    // A 409 whose state runs another entry, or none, is a conflict: the
+    // edit was for an entry that no longer runs, and it is not sent again.
+    void billableEditConflictForAnotherEntry_data()
+    {
+        QTest::addColumn<QByteArray>("running");
+        QTest::newRow("another entry") << entryBody(6, 7, startedAt);
+        QTest::newRow("stopped") << QByteArray("null");
+    }
+
+    void billableEditConflictForAnotherEntry()
+    {
+        QFETCH(QByteArray, running);
+        Fixture f;
+        QVERIFY(connectAccount(f));
+        QVERIFY(f.timer.chooseBillable(true));
+        f.respond(f.last("POST", editPath), FakeTransport::answer(409, f.nextState(running)));
+        QVERIFY(!f.timer.isBusy());
+        QCOMPARE(f.timer.errorString(), QStringLiteral("The timer changed on another device first."));
+        QCOMPARE(f.find("POST", editPath).size(), 1);
+        QVERIFY(f.find("PUT", "/time_entries/5").isEmpty());
+    }
+
+    // On a server without timer-edit the billable edit is a v9 PUT whose
+    // reply is an entry. What the menu shows comes from the state a read
+    // sent after the reply brings, never from the reply.
     void billableEditShowsTheStateAfterIt()
     {
         Fixture f;
+        f.olderServer = true;
         QVERIFY(connectAccount(f));
         QVERIFY(!f.timer.chosenBillable());
         QVERIFY(f.timer.chooseBillable(true));
