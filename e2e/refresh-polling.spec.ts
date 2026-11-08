@@ -86,6 +86,9 @@ test("making the window visible again refreshes another device's history edit at
   });
   await login(page);
   await expect(entryRow(page, 'Old history')).toHaveCount(1);
+  // The stream's first state is fresh for a second (`staleTime` in useTimerState); past that the
+  // focus reads the timer state again.
+  await page.waitForTimeout(1_100);
   const polls = countPolls(page);
 
   await setVisibility(page, 'hidden');
@@ -108,6 +111,9 @@ test("focusing a window that stayed visible refreshes another device's history e
   });
   await login(page);
   await expect(entryRow(page, 'Old history')).toHaveCount(1);
+  // The stream's first state is fresh for a second (`staleTime` in useTimerState); past that the
+  // focus reads the timer state again.
+  await page.waitForTimeout(1_100);
   const polls = countPolls(page);
 
   await page.evaluate(() => window.dispatchEvent(new Event('blur')));
