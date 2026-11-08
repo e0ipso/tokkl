@@ -1811,6 +1811,10 @@ TestCase {
         const description = button.Accessible.description;
         verify(description.indexOf("Offline, showing the last known state") >= 0, description);
         verify(description.indexOf(button.words.detailText) >= 0, description);
+        // The tooltip and the menu's state line name it too, after the
+        // session's line.
+        compare(button.words.summary, button.words.sessionText + " · Offline, showing the last known state");
+        compare(button.words.menuLine, button.words.summary);
     }
 
     function test_endSessionIsRefusedWhenTheSessionMovedOn() {

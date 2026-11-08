@@ -98,12 +98,12 @@ struct StatusPolicy {
     // During a session only an alert marks the countdown.
     bool sessionMarksAlertOnly = false;
 
-    // The KDE panel: a session's line stands alone, and the summary ends
-    // with the message.
+    // The KDE panel: the summary and the menu line name a connection that
+    // is not ready during a session, as the panel shows it otherwise only
+    // as a symbol, and the summary ends with the message.
     static StatusPolicy plasma();
-    // The macOS menu bar app: the summary and the menu line name a
-    // connection that is not ready during a session, and a session's
-    // countdown is marked only for an alert.
+    // The macOS menu bar app: as the KDE panel, without the message, and a
+    // session's countdown is marked only for an alert.
     static StatusPolicy macos();
     // The GNOME button: its accessible name always names the project and
     // the connection, during a session too, and its menu line names the

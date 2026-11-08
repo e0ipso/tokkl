@@ -67,9 +67,7 @@ StatusInput StatusInput::of(const TimerModel &timer, const PomodoroSession *sess
 StatusPolicy StatusPolicy::plasma()
 {
     StatusPolicy policy;
-    policy.summarySessionConnection = SessionConnection::Never;
     policy.summaryMessage = true;
-    policy.menuSessionConnection = SessionConnection::Never;
     return policy;
 }
 
