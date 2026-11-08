@@ -225,6 +225,31 @@ private Q_SLOTS:
         QVERIFY(!stream->aborted);
     }
 
+    // offsetChanged() fires whenever the offset moves, also for a state that
+    // changes nothing else, and not for one that keeps it.
+    void offsetChangesAreSignalled()
+    {
+        Fixture f;
+        QSignalSpy offset(&f.client, &TimerStateClient::offsetChanged);
+        QVERIFY(connectAccount(f));
+        f.answerRead(stateBody(3, f.clock.now(), 2500));
+        QCOMPARE(offset.count(), 1);
+
+        // The same revision, read after this machine's clock was set back.
+        FakeStream *stream = f.transport.lastStream();
+        f.clock.current = f.clock.current.addSecs(-60);
+        stream->push(eventFrame(stateBody(3, f.clock.now(), 62500)));
+        QCOMPARE(f.client.serverOffsetMs(), 62500);
+        QCOMPARE(offset.count(), 2);
+        stream->push(eventFrame(stateBody(4, f.clock.now(), 62500)));
+        QCOMPARE(offset.count(), 2);
+
+        // A new account drops the offset with the state.
+        f.connection.setInstanceUrl(instanceB);
+        QCOMPARE(f.client.serverOffsetMs(), 0);
+        QCOMPARE(offset.count(), 3);
+    }
+
     // When the stream ends the client reads the state, reconnects after a
     // second, and polls every 30 s until a stream delivers again.
     void closeFallsBackToPoll()

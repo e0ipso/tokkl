@@ -120,6 +120,10 @@ public Q_SLOTS:
 Q_SIGNALS:
     // stateChanged(), settlingChanged() and accountReset() are SessionState's.
     void streamingChanged();
+    // serverOffsetMs() changed. A state that changes nothing else, such as
+    // the same revision read again after this machine's clock was set, can
+    // still move it.
+    void offsetChanged();
 
 private:
     // The fields of the event being read from the stream.
@@ -153,6 +157,7 @@ private:
     bool adopt(const TimerState &state);
     void setStreaming(bool streaming);
     void setSettling(bool settling);
+    void setOffset(qint64 offsetMs);
     ActionCallback adopting(ActionCallback done);
     // Sends action with the revision held, adopting what it answers.
     void withRevision(const std::function<void(Connection &, qint64, ActionCallback)> &action, ActionCallback done);

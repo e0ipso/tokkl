@@ -1035,6 +1035,15 @@ private Q_SLOTS:
         QVERIFY(f.recorder.valuesOf(QStringLiteral("LocalStartTime")).contains(start - 90));
         QCOMPARE(f.clock.now().toSecsSinceEpoch() - local, f.daemon->timer.elapsedSeconds());
 
+        // This machine's clock is set 60 s forward. The same state, read
+        // again, moves only the offset, and LocalStartTime follows it.
+        f.clock.current = f.clock.current.addSecs(60);
+        f.serverAheadMs = 30000;
+        QVERIFY(f.push(f.state()));
+        QTRY_VERIFY(f.recorder.valuesOf(QStringLiteral("LocalStartTime")).contains(start - 30));
+        QCOMPARE(f.get(QStringLiteral("StartTime")).toLongLong(), start);
+        QCOMPARE(f.clock.now().toSecsSinceEpoch() - (start - 30), f.daemon->timer.elapsedSeconds());
+
         // Stopped elsewhere: both are 0.
         QVERIFY(f.push(f.change(QJsonValue::Null)));
         QTRY_COMPARE(f.get(QStringLiteral("Running")).toBool(), false);

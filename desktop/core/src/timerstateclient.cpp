@@ -148,9 +148,18 @@ bool TimerStateClient::adopt(const TimerState &state)
         return false;
     }
     m_state = state;
-    m_offsetMs = m_clock ? m_clock->now().msecsTo(state.serverTime) : 0;
+    setOffset(m_clock ? m_clock->now().msecsTo(state.serverTime) : 0);
     Q_EMIT stateChanged();
     return true;
+}
+
+void TimerStateClient::setOffset(qint64 offsetMs)
+{
+    if (offsetMs == m_offsetMs) {
+        return;
+    }
+    m_offsetMs = offsetMs;
+    Q_EMIT offsetChanged();
 }
 
 // ----- connection and clock ------------------------------------------------
@@ -185,7 +194,7 @@ void TimerStateClient::onGenerationChanged()
     m_readAgain = false;
     m_nextPoll = QDateTime();
     m_started = false;
-    m_offsetMs = 0;
+    setOffset(0);
     // The write belonged to the earlier account.
     setSettling(false);
     if (m_state) {
