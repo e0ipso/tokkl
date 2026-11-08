@@ -1,3 +1,4 @@
+import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
 
@@ -61,6 +62,45 @@ test('a failed request fails the scenario even with a rule for another one', asy
   await failed;
   await expect(runtimeErrors.verify(testInfo)).rejects.toThrow(
     /response: 500 GET \S*\/api\/v9\/workspaces\/\d+\/projects/,
+  );
+  runtimeErrors.issues.splice(0);
+});
+
+/** Sends a request from the page that `page.route` fails with `error`, and waits until it has failed. */
+async function failFromPage(page: Page, method: 'GET' | 'POST', path: string, error: 'aborted' | 'connectionrefused') {
+  await page.route(path, route => (route.request().method() === method ? route.abort(error) : route.continue()), {
+    times: 1,
+  });
+  const failed = page.waitForEvent('requestfailed', request => new URL(request.url()).pathname === path);
+  await page.evaluate(
+    ({ method, path }) =>
+      fetch(path, {
+        method,
+        headers: { 'X-Tokkl-CSRF': '1', 'Content-Type': 'application/json' },
+        body: method === 'GET' ? undefined : '{}',
+      }).catch(() => null),
+    { method, path },
+  );
+  await failed;
+}
+
+test('a cancelled read passes, but an aborted write fails the scenario', async ({ page, runtimeErrors }, testInfo) => {
+  await login(page);
+  await failFromPage(page, 'GET', '/api/app/status', 'aborted');
+  await runtimeErrors.verify(testInfo);
+
+  await failFromPage(page, 'POST', '/api/v9/me/preferences', 'aborted');
+  await expect(runtimeErrors.verify(testInfo)).rejects.toThrow(
+    /requestfailed: POST \S*\/api\/v9\/me\/preferences: net::ERR_ABORTED/,
+  );
+  runtimeErrors.issues.splice(0);
+});
+
+test('a read that fails for any reason but a cancel fails the scenario', async ({ page, runtimeErrors }, testInfo) => {
+  await login(page);
+  await failFromPage(page, 'GET', '/api/app/status', 'connectionrefused');
+  await expect(runtimeErrors.verify(testInfo)).rejects.toThrow(
+    /requestfailed: GET \S*\/api\/app\/status: net::ERR_CONNECTION_REFUSED/,
   );
   runtimeErrors.issues.splice(0);
 });

@@ -3,15 +3,32 @@ import assert from 'node:assert/strict';
 import { QueryClient, type QueryKey } from '@tanstack/react-query';
 import { keys, stale } from './keys.ts';
 import { acceptTimerState } from './timerHooks.ts';
-import type { TimerState } from './types.ts';
+import type { TimeEntry, TimerState } from './types.ts';
 
-const state = (revision: number): TimerState => ({
+const state = (revision: number, running_entry: TimeEntry | null = null): TimerState => ({
   revision,
   server_time: '2026-10-27T10:00:00.000Z',
-  running_entry: null,
+  running_entry,
   pause: null,
   pomodoro: null,
   discarded_pomodoro: null,
+});
+
+const running = (id: number): TimeEntry => ({
+  id,
+  workspace_id: 1,
+  project_id: null,
+  task_id: null,
+  billable: false,
+  start: '2026-10-27T09:00:00.000Z',
+  stop: null,
+  duration: -1,
+  description: `Entry ${id}`,
+  tags: [],
+  tag_ids: [],
+  at: '2026-10-27T09:00:00.000Z',
+  server_deleted_at: null,
+  all_day: false,
 });
 
 const derived: QueryKey[] = [keys.entries, keys.report, keys.trash, keys.projects, keys.tasks, keys.tags];
@@ -34,9 +51,9 @@ test('entry writes and timer changes share one policy that covers project and ta
     assert.ok(writes.has(key), `entry writes refresh ${String(key)}`);
     assert.ok(changes.has(key), `timer changes refresh ${String(key)}`);
   }
-  // A timer state carries the running entry and itself, so only an entry write refetches them.
-  assert.ok(writes.has(keys.current) && writes.has(keys.timer));
-  assert.ok(!changes.has(keys.current) && !changes.has(keys.timer));
+  // A timer state carries the running entry, so only an entry write refetches it.
+  assert.ok(writes.has(keys.timer));
+  assert.ok(!changes.has(keys.timer));
 });
 
 test('a state that moved on marks everything derived from entries stale, totals included', () => {
@@ -53,4 +70,22 @@ test('a state at the cached revision or older marks nothing stale', () => {
   acceptTimerState(qc, state(1));
   acceptTimerState(qc, state(0));
   for (const key of derived) assert.equal(invalidated(qc, key), false, String(key));
+});
+
+test('the running entry lives only in the timer state, so an older reply cannot bring back a replaced entry', () => {
+  const qc = seeded();
+  acceptTimerState(qc, state(3, running(9)));
+  acceptTimerState(qc, state(2, running(8)));
+  assert.equal(qc.getQueryData<TimerState>(keys.timer)?.running_entry?.id, 9);
+  acceptTimerState(qc, state(4));
+  assert.equal(qc.getQueryData<TimerState>(keys.timer)?.running_entry, null);
+  assert.deepEqual(
+    qc
+      .getQueryCache()
+      .findAll()
+      .map(query => query.queryKey[0])
+      .filter(key => key === 'current'),
+    [],
+    'no second cache holds a running entry',
+  );
 });

@@ -41,6 +41,7 @@ export function ProjectEditor({ project, onClose }: { project: Project | null; o
   const save = useAction<ProjectBody, Project>({
     mutationFn: body => (project ? projectRequests.update(wid, project.id, body) : projectRequests.create(wid, body)),
     invalidate: stale.projectSaved,
+    movesTimer: true,
     success: saved => (project ? t('manage.saved', { name: saved.name }) : t('manage.created', { name: saved.name })),
     onSuccess: onClose,
   });

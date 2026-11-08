@@ -1,9 +1,9 @@
 import type { Mutation, QueryClient } from '@tanstack/react-query';
-import { ApiError } from './client.ts';
+import { ApiError, RequestTimeoutError } from './client.ts';
 import { DecodeError } from './decode.ts';
 import { timerStateReply } from './replies.ts';
 import { clockOffset } from './serverClock.ts';
-import type { TimeEntry, TimerState } from './types.ts';
+import type { TimerState } from './types.ts';
 import { t } from '../i18n/messages.ts';
 
 /** What the views show when another device changed the timer before this action reached the server. */
@@ -51,8 +51,6 @@ export function timerStateOf(value: unknown): TimerState {
 /** What to write into the caches for an arriving state. */
 export interface TimerUpdate {
   state: TimerState;
-  /** The running entry, for the current-entry cache. */
-  current: TimeEntry | null;
   /** The clock offset taken at arrival, or null if the state's server time is unreadable. */
   offset: number | null;
   /** True when the state moved past a cached one, so lists built from entries are out of date. */
@@ -72,7 +70,6 @@ export function planTimerUpdate(
   if (cached && incoming.revision < cached.revision) return null;
   return {
     state: incoming,
-    current: incoming.running_entry,
     offset: clockOffset(incoming.server_time, receivedAt),
     changed: cached !== undefined && incoming.revision > cached.revision,
   };
@@ -81,33 +78,40 @@ export function planTimerUpdate(
 /**
  * Turns a failed timer request into the error the views show. A 409 whose body is a timer state
  * is a conflict, and the state rides along so it can replace the stale one. A request that never
- * got a reply (fetch rejects with a TypeError) is offline. Anything else is returned unchanged.
+ * got a reply (fetch rejects with a TypeError) is offline, and so is one that got none within its
+ * deadline: either may have reached the server, so both leave the timer unknown until the next
+ * read of its state. Anything else is returned unchanged.
  */
 export function explainTimerActionError(error: unknown): unknown {
   if (error instanceof ApiError && error.status === 409 && isTimerState(error.body)) {
     return new TimerActionError('conflict', error.body);
   }
-  if (error instanceof TypeError) return new TimerActionError('offline');
+  if (error instanceof TypeError || error instanceof RequestTimeoutError) return new TimerActionError('offline');
   return error;
 }
 
-/** The mutation key of every timer action, so waiting for other writes can leave them out. */
-export const TIMER_ACTION_KEY = ['timerAction'] as const;
+/**
+ * Mutation meta for a write that can move the timer revision: any entry write, and an edit of what
+ * the running entry shows (its project, client, task or tags) or an import. Timer actions wait for
+ * these writes and for no others, so a preference, profile or admin save never holds one up.
+ * Timer actions themselves are not marked, so an action never waits for itself.
+ */
+export const MOVES_TIMER = { movesTimer: true } as const;
 
-function isOtherWrite(mutation: Mutation<unknown, Error, unknown, unknown>): boolean {
-  return mutation.state.status === 'pending' && mutation.options.mutationKey?.[0] !== TIMER_ACTION_KEY[0];
+function isPendingTimerWrite(mutation: Mutation<unknown, Error, unknown, unknown>): boolean {
+  return mutation.state.status === 'pending' && mutation.options.meta?.movesTimer === true;
 }
 
 /**
- * Waits until no write other than a timer action is in flight, and says whether it had to wait. An
- * edit of the running entry moves the revision, so an action that reads the revision while that
- * edit is pending would send a stale one and conflict with this tab's own edit. A write held until
- * the browser is back online would release the action only then, so the action fails at once with
- * a `TimerActionError` of kind `offline`, as one sent without a connection does.
+ * Waits until no write marked `MOVES_TIMER` is in flight, and says whether it had to wait. An edit
+ * of the running entry moves the revision, so an action that reads the revision while that edit is
+ * pending would send a stale one and conflict with this tab's own edit. Such a write held until the
+ * browser is back online would release the action only then, so the action fails at once with a
+ * `TimerActionError` of kind `offline`, as one sent without a connection does.
  */
 export function settleOtherWrites(qc: QueryClient): Promise<boolean> {
   const cache = qc.getMutationCache();
-  const others = () => cache.getAll().filter(isOtherWrite);
+  const others = () => cache.getAll().filter(isPendingTimerWrite);
   const held = () => others().some(mutation => mutation.state.isPaused);
   if (held()) return Promise.reject(new TimerActionError('offline'));
   if (others().length === 0) return Promise.resolve(false);

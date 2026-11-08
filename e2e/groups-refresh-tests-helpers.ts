@@ -164,13 +164,16 @@ export async function setVisibility(page: Page, state: 'hidden' | 'visible'): Pr
   }, state);
 }
 
-/** Counts the GET requests the page sends for the running timer and for the history list. */
-export function countPolls(page: Page): { current: number; history: number } {
-  const counts = { current: 0, history: 0 };
+/**
+ * Counts the GET requests the page sends for the timer state, which carries the running entry, and
+ * for the history list.
+ */
+export function countPolls(page: Page): { timer: number; history: number } {
+  const counts = { timer: 0, history: 0 };
   page.on('request', req => {
     if (req.method() !== 'GET') return;
     const path = new URL(req.url()).pathname;
-    if (path === '/api/v9/me/time_entries/current') counts.current++;
+    if (path === '/api/app/timer') counts.timer++;
     else if (path === '/api/v9/me/time_entries') counts.history++;
   });
   return counts;

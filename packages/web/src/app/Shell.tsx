@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Redirect, Route, Switch, useLocation } from 'wouter';
 import { version } from '../../../../package.json';
 import { useMe } from '../api/account.ts';
-import { useCurrentEntry } from '../api/entries.ts';
+import { useCurrentEntry } from '../api/timerHooks.ts';
 import { Brand } from '../components/Brand.tsx';
 import { ErrorBoundary } from '../components/ErrorBoundary.tsx';
 import { Icon } from '../components/Icon.tsx';

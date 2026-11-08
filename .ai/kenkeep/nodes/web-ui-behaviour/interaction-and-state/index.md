@@ -15,6 +15,7 @@ _None._
 - Open [**Arrow keys: arrowTarget for roving tabindex; global shortcuts yield**](practice-keyboard-arrow-keys-roving-tabindex-and-own-arrows.md) to learn about: Option groups move focus with arrowTarget and one tab stop; global arrow shortcuts skip defaultPrevented events and \[data-own-arrows\] targets. #web #a11y #keyboard #react #reports
 - Open [**Timer bar pickers return focus to the description without opening suggestions**](practice-timer-bar-pickers-return-focus-without-opening-suggestions.md) to learn about: Closing the project or tag picker focuses the description through quietFocus; every focus clears the pending 150 ms blur hide; typing reopens suggestions. #web #timer #focus #a11y
 - Open [**Clipboard copy needs a fallback on plain HTTP**](practice-clipboard-copy-needs-http-fallback.md) to learn about: navigator.clipboard exists only on HTTPS or localhost; copy code falls back to a hidden textarea, then asks the user to copy by hand. #web #clipboard #self-hosting
+- Open [**Web requests: deadlines, cancel signals and ordered preference saves**](practice-web-request-deadlines-cancel-signals-and-ordered-preference-saves.md) to learn about: Every request has a read, write or transfer deadline; GET queries forward TanStack's signal; preference saves share one scope and undo only their own fields. #web #tanstack-query #network
 
 ## Components (what exists)
 - Open [**Entry fields: EntryFields.tsx and useEntryFields.ts**](map-web-entry-fields-entryfields-tsx-and-useentryfields-ts.md) to learn about: Draft-driven description, suggestions, project/task and tag pickers and billable toggle; the parent decides what an edit writes. #web #timer #components #react #focus
@@ -25,8 +26,8 @@ _None._
 
 ### #web
 - Open [**Bulk bar sticks under the timer bar through --timer-bar-height**](../../web-ui-styling-and-layout/shell-and-layout/practice-timer-bar-height-drives-sticky-bulk-bar.md) — TimerBar writes --timer-bar-height on <html>; .bulk-bar sticks at it; phones zero it while entries are selected.
-- Open [**Week calendar hour height lives in three places**](../../web-ui-styling-and-layout/calendar/practice-week-calendar-hour-height-agrees-in-three-places.md) — HOUR_HEIGHT, the 48px hour lines in styles.css and HOUR in the e2e calendar helpers must match.
 - Open [**Calendar lanes follow stored spans; zero-length markers draw on top**](../../web-ui-styling-and-layout/calendar/practice-calendar-lanes-follow-stored-spans-and-zero-length-markers-draw-on-top.md) — assignLanes clusters on stored spans, shorter first; thin blocks, markers and drags stack 3, 4, 5; blocks under a marker are drawn taller.
+- Open [**Week calendar hour height lives in three places**](../../web-ui-styling-and-layout/calendar/practice-week-calendar-hour-height-agrees-in-three-places.md) — HOUR_HEIGHT, the 48px hour lines in styles.css and HOUR in the e2e calendar helpers must match.
 ### #a11y
 - Open [**UI text: the typed message catalog, t() and tx(), and Intl formatting**](map-web-message-catalog-and-intl-formatting.md) — Every user-facing string is a key in packages/web/src/i18n/en/<feature>.ts, read with t or tx; dates use Intl pinned to en, numbers the browser locale.
 - Open [**Loading, error, empty and field-error states use the shared components**](map-web-page-state-and-field-error-components.md) — PageState.tsx (Loading, LoadError, BusyRegion), EmptyState.tsx and FieldError.tsx with useFieldErrors; error toasts are role=alert too.
@@ -67,12 +68,16 @@ _None._
 - Open [**UI text: the typed message catalog, t() and tx(), and Intl formatting**](map-web-message-catalog-and-intl-formatting.md) — Every user-facing string is a key in packages/web/src/i18n/en/<feature>.ts, read with t or tx; dates use Intl pinned to en, numbers the browser locale.
 ### #keyboard
 - Open [**Arrow keys: arrowTarget for roving tabindex; global shortcuts yield**](practice-keyboard-arrow-keys-roving-tabindex-and-own-arrows.md) — Option groups move focus with arrowTarget and one tab stop; global arrow shortcuts skip defaultPrevented events and \[data-own-arrows\] targets.
+### #network
+- Open [**Web requests: deadlines, cancel signals and ordered preference saves**](practice-web-request-deadlines-cancel-signals-and-ordered-preference-saves.md) — Every request has a read, write or transfer deadline; GET queries forward TanStack's signal; preference saves share one scope and undo only their own fields.
 ### #reports
 - Open [**Web app report endpoints under /api/app/report**](../../api-and-data/reports-and-totals/map-app-report-endpoints.md) — Web app reports are built server-side by /api/app/report/* with workspace rounding; only the summary tab fetches groupings.
 - Open [**styles.css orders the cascade and owns the colour tokens**](../../web-ui-styling-and-layout/theme-and-tokens/practice-styles-css-loads-last-and-owns-colour-tokens.md) — styles.css imports every sheet in cascade order, page sheets first; page CSS uses its tokens and no colour literals.
 - Open [**Report totals wrap as a flex row; an Amount figure never breaks**](../../web-ui-styling-and-layout/shell-and-layout/practice-report-totals-wrap-as-a-flex-row-amount-figures-never-break.md) — Tiles share --tile-basis (220px, 160px at 760px and below); Amount sizes to its nowrap figures. The visual baselines show no Amount tile.
 ### #self-hosting
 - Open [**Clipboard copy needs a fallback on plain HTTP**](practice-clipboard-copy-needs-http-fallback.md) — navigator.clipboard exists only on HTTPS or localhost; copy code falls back to a hidden textarea, then asks the user to copy by hand.
+### #tanstack-query
+- Open [**Web requests: deadlines, cancel signals and ordered preference saves**](practice-web-request-deadlines-cancel-signals-and-ordered-preference-saves.md) — Every request has a read, write or transfer deadline; GET queries forward TanStack's signal; preference saves share one scope and undo only their own fields.
 ### #theme
 - Open [**Theme: light-dark() tokens, data-theme and the cached theme**](../../web-ui-styling-and-layout/theme-and-tokens/practice-theme-tokens-data-theme-and-cached-theme.md) — Tokens are light-dark() on :root; \[data-theme\] sets only color-scheme; theme-boot.js applies the cached theme before first paint.
 - Open [**End web sessions through endSession and logOut in lib/session.ts**](practice-end-sessions-through-lib-session.md) — Logout clears the Query cache and cached theme even on failure, then reloads; a 403 from /me ends the session once per sign-in.

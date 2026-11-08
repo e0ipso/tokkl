@@ -37,6 +37,7 @@ export function ClientsPage() {
   const archive = useAction<Client>({
     mutationFn: client => clientRequests.archive(wid, client.id),
     invalidate: stale.clients,
+    movesTimer: true,
     success: (_result, client) => t('manage.clientArchived', { name: client.name }),
     onSuccess: (_result, client) => {
       // The dialog had focus and would give it back to the row's menu button. When the row leaves
@@ -52,6 +53,7 @@ export function ClientsPage() {
   const restore = useAction<Client>({
     mutationFn: client => clientRequests.restore(wid, client.id),
     invalidate: stale.clients,
+    movesTimer: true,
     success: (_result, client) => t('manage.clientRestored', { name: client.name }),
     // The menu button that ran the action had focus; keep it in the list unless the user has moved on.
     onSuccess: (_result, client) => {
@@ -61,6 +63,7 @@ export function ClientsPage() {
   const remove = useAction<Client>({
     mutationFn: client => clientRequests.remove(wid, client.id),
     invalidate: stale.clients,
+    movesTimer: true,
     success: (_result, client) => t('manage.deletedNamed', { name: client.name }),
     onSuccess: (_result, client) => {
       closeModalThen(

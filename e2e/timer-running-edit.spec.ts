@@ -156,13 +156,22 @@ test('the clock keeps ticking and a refetch keeps what is being typed into the r
   await expect.poll(() => clock.textContent(), { timeout: 5_000 }).not.toBe(before);
   await expect(description).toBeFocused();
 
-  // Another device tags the entry. A focus refetch brings that in without wiping the typing.
+  // Another device tags the entry. The pushed timer state brings that in without wiping the typing.
   const remote = await page.request.put(`/api/v9/workspaces/${api.workspaceId}/time_entries/${running.id}`, {
     headers: { 'X-Tokkl-CSRF': '1' },
     data: { tags: ['remote'] },
   });
   expect(remote.ok()).toBe(true);
-  const refetched = page.waitForResponse(response => response.url().includes('/time_entries/current') && response.ok());
+  await expect(timer.getByRole('button', { name: 'Tags' })).toHaveAttribute('title', 'remote');
+  await expect(description).toHaveValue('Focus block');
+  await expect(description).toBeFocused();
+
+  // So does a focus refetch of the timer state, which carries the running entry. A state is fresh
+  // for a second (`staleTime` in useTimerState), so the focus waits that out.
+  await page.waitForTimeout(1_100);
+  const refetched = page.waitForResponse(
+    response => new URL(response.url()).pathname === '/api/app/timer' && response.ok(),
+  );
   await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')));
   await refetched;
   await expect(timer.getByRole('button', { name: 'Tags' })).toHaveAttribute('title', 'remote');

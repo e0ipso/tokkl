@@ -11,7 +11,7 @@ export function useTags() {
   const wid = useWid();
   return useQuery({
     queryKey: keys.tags,
-    queryFn: () => api.get(wsPath(wid, 'tags'), { decode: tagListReply }),
+    queryFn: ({ signal }) => api.get(wsPath(wid, 'tags'), { signal, decode: tagListReply }),
     enabled: wid > 0,
   });
 }

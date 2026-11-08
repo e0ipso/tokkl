@@ -5,12 +5,12 @@ import { coversPreviousRange } from './entriesPlaceholder.ts';
 import { invalidate } from './invalidate.ts';
 import { keys, stale } from './keys.ts';
 import { APP, V9, wsPath } from './paths.ts';
-import { entryBoundsReply, entryListReply, runningEntryReply, timeEntryReply } from './replies.ts';
+import { entryBoundsReply, entryListReply, timeEntryReply } from './replies.ts';
 import { TIMER_ENTRY_OPTIONS, attemptTimerRequest } from './timerOutcome.ts';
-import { useTimerStreaming } from './timerStreaming.ts';
+import { MOVES_TIMER } from './timerState.ts';
 import type { BulkPatchResult, PatchOperation, TimeEntry, TimeEntryInput } from './types.ts';
 
-/** Time entries: lists, the running entry, writes and the trash. */
+/** Time entries: lists, writes and the trash. The running entry comes from the timer state (timerHooks.ts). */
 
 /**
  * Entries that started from startDate to endDate, both "YYYY-MM-DD" in the account timezone. When
@@ -21,8 +21,9 @@ import type { BulkPatchResult, PatchOperation, TimeEntry, TimeEntryInput } from 
 export function useEntries(startDate: string, endDate: string) {
   return useQuery({
     queryKey: [...keys.entries, startDate, endDate],
-    queryFn: () =>
+    queryFn: ({ signal }) =>
       api.get(`${V9}/me/time_entries?start_date=${startDate}&end_date=${endDate}&meta=true`, {
+        signal,
         decode: entryListReply,
       }),
     refetchInterval: 60_000,
@@ -31,27 +32,20 @@ export function useEntries(startDate: string, endDate: string) {
   });
 }
 
-/** The running entry. While the timer stream is up it is written from each state, so it does not poll. */
-export function useCurrentEntry() {
-  const streaming = useTimerStreaming();
-  return useQuery({
-    queryKey: keys.current,
-    queryFn: () => api.get(`${V9}/me/time_entries/current?meta=true`, { decode: runningEntryReply }),
-    refetchInterval: streaming ? false : 30_000,
-  });
-}
-
 export function useEntryBounds() {
   return useQuery({
     queryKey: [...keys.report, 'bounds'],
-    queryFn: () => api.get(`${APP}/bounds`, { decode: entryBoundsReply }),
+    queryFn: ({ signal }) => api.get(`${APP}/bounds`, { signal, decode: entryBoundsReply }),
     refetchInterval: 60_000,
   });
 }
 
 /** Deleted entries, newest deletion first. The server returns at most 1000. */
 export function useTrash() {
-  return useQuery({ queryKey: keys.trash, queryFn: () => api.get(`${APP}/trash`, { decode: entryListReply }) });
+  return useQuery({
+    queryKey: keys.trash,
+    queryFn: ({ signal }) => api.get(`${APP}/trash`, { signal, decode: entryListReply }),
+  });
 }
 
 /** Entry reads and writes outside the hooks below, such as opening one entry from a report row. */
@@ -75,13 +69,18 @@ function useInvalidateEntries() {
 export function useCreateEntry() {
   const wid = useWid();
   const onSuccess = useInvalidateEntries();
-  return useMutation({ mutationFn: (input: TimeEntryInput) => entryRequests.create(wid, input), onSuccess });
+  return useMutation({
+    meta: MOVES_TIMER,
+    mutationFn: (input: TimeEntryInput) => entryRequests.create(wid, input),
+    onSuccess,
+  });
 }
 
 export function useUpdateEntry() {
   const wid = useWid();
   const onSuccess = useInvalidateEntries();
   return useMutation({
+    meta: MOVES_TIMER,
     mutationFn: ({ id, ...input }: TimeEntryInput & { id: number }) => entryRequests.update(wid, id, input),
     onSuccess,
   });
@@ -96,6 +95,7 @@ export function useStartEntry() {
   const onSuccess = useInvalidateEntries();
   return useMutation({
     ...TIMER_ENTRY_OPTIONS,
+    meta: MOVES_TIMER,
     mutationFn: (input: TimeEntryInput) => attemptTimerRequest(() => entryRequests.create(wid, input)),
     onSuccess,
   });
@@ -107,6 +107,7 @@ export function useStopEntry() {
   const onSuccess = useInvalidateEntries();
   return useMutation({
     ...TIMER_ENTRY_OPTIONS,
+    meta: MOVES_TIMER,
     mutationFn: (input: number | { id: number; stop: string }) => {
       const id = typeof input === 'number' ? input : input.id;
       return attemptTimerRequest(() =>
@@ -123,12 +124,13 @@ export function useStopEntry() {
 export function useDeleteEntry() {
   const wid = useWid();
   const onSuccess = useInvalidateEntries();
-  return useMutation({ mutationFn: (id: number) => entryRequests.remove(wid, id), onSuccess });
+  return useMutation({ meta: MOVES_TIMER, mutationFn: (id: number) => entryRequests.remove(wid, id), onSuccess });
 }
 
 export function useRestoreEntry() {
   const onSuccess = useInvalidateEntries();
   return useMutation({
+    meta: MOVES_TIMER,
     mutationFn: (id: number) => api.post<TimeEntry>(`${APP}/time_entries/${id}/restore`),
     onSuccess,
   });
@@ -139,6 +141,7 @@ export function useBulkPatch() {
   const wid = useWid();
   const onSuccess = useInvalidateEntries();
   return useMutation({
+    meta: MOVES_TIMER,
     mutationFn: ({ ids, operations }: { ids: number[]; operations: PatchOperation[] }) =>
       api.patch<BulkPatchResult>(wsPath(wid, 'time_entries', ids.join(',')), operations),
     onSuccess,
@@ -159,6 +162,7 @@ export interface SplitSpans {
 export function useSplitEntry() {
   const onSettled = useInvalidateEntries();
   return useMutation({
+    meta: MOVES_TIMER,
     mutationFn: async ({ entry, halves }: { entry: TimeEntry; halves: SplitSpans }) => {
       const { second } = await api.post<{ first: TimeEntry; second: TimeEntry }>(
         `${APP}/time_entries/${entry.id}/split`,

@@ -221,6 +221,8 @@ declare global {
     timerTraffic: number;
     /** Every timer event stream the page opened. */
     timerStreams: EventSource[];
+    /** Requests the page has sent through fetch and not yet had a whole reply to. */
+    fetchesInFlight: number;
   }
 }
 
@@ -244,12 +246,18 @@ export async function watchTimerTraffic(page: Page): Promise<void> {
         });
       }
     };
+    window.fetchesInFlight = 0;
     const nativeFetch = window.fetch;
     window.fetch = async function (this: unknown, ...args: Parameters<typeof fetch>) {
-      const response = await nativeFetch.apply(this, args);
-      if (/^\/api\/app\/(timer|pomodoro)(\/(pause|resume|discard|next|end))?$/.test(new URL(response.url).pathname))
-        window.timerTraffic++;
-      return response;
+      window.fetchesInFlight++;
+      try {
+        const response = await nativeFetch.apply(this, args);
+        if (/^\/api\/app\/(timer|pomodoro)(\/(pause|resume|discard|next|end))?$/.test(new URL(response.url).pathname))
+          window.timerTraffic++;
+        return response;
+      } finally {
+        window.fetchesInFlight--;
+      }
     };
   });
 }
@@ -263,10 +271,23 @@ const KEEP_ALIVE_MS = 25_000;
  * every open stream. One jump past the app's one-minute silence timeout would make it give the
  * stream up, and the state the new stream sends would set the clock offset back to the server's
  * time. The clock belongs to the browser context, so every page of it moves and gets the events.
- * Needs `watchTimerTraffic` on the pages that stream.
+ * Each step also waits until no page has a request in flight: the fake clock drives
+ * `AbortSignal.timeout` too, so a jump longer than a request deadline (20 s for a read, see
+ * `DEADLINE_MS` in packages/web/src/api/client.ts) would time out a request the server is still
+ * answering. Needs `watchTimerTraffic` on the pages that stream.
  */
 export async function fastForwardStreaming(page: Page, ms: number): Promise<void> {
+  const pages = () => page.context().pages();
   for (let left = ms; left > 0; left -= KEEP_ALIVE_MS) {
+    await expect
+      .poll(
+        async () => {
+          const counts = await Promise.all(pages().map(open => open.evaluate(() => window.fetchesInFlight ?? 0)));
+          return counts.reduce((sum, count) => sum + count, 0);
+        },
+        { timeout: 15_000 },
+      )
+      .toBe(0);
     await page.clock.fastForward(Math.min(left, KEEP_ALIVE_MS));
     await Promise.all(
       page

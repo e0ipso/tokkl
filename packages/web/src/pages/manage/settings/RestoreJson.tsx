@@ -18,6 +18,7 @@ export function RestoreJson() {
   const [result, setResult] = useState<JsonRestoreResult | null>(null);
   const run = useAction<{ text: string; dryRun: boolean }, JsonRestoreResult>({
     mutationFn: ({ text, dryRun }) => transferRequests.restoreJson(text, dryRun),
+    movesTimer: true,
     onSuccess: (restored, { dryRun }) => {
       setResult(restored);
       if (!dryRun) {

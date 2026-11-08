@@ -1,6 +1,5 @@
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
-import { useCurrentEntry } from '../../api/entries.ts';
-import { useServerNow } from '../../api/timerHooks.ts';
+import { useCurrentEntry, useServerNow } from '../../api/timerHooks.ts';
 import type { TimeEntry } from '../../api/types.ts';
 import { EntryFields, type EntryFieldsHandle } from '../../components/EntryFields.tsx';
 import { Loading } from '../../components/PageState.tsx';

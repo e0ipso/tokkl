@@ -13,7 +13,7 @@ export function useProjects() {
   const wid = useWid();
   return useQuery({
     queryKey: keys.projects,
-    queryFn: () => api.get(`${wsPath(wid, 'projects')}?active=both`, { decode: projectListReply }),
+    queryFn: ({ signal }) => api.get(`${wsPath(wid, 'projects')}?active=both`, { signal, decode: projectListReply }),
     enabled: wid > 0,
   });
 }
@@ -23,7 +23,7 @@ export function useTasks() {
   const wid = useWid();
   return useQuery({
     queryKey: keys.tasks,
-    queryFn: () => api.get(`${V9}/me/tasks?include_not_active=true`, { decode: taskListReply }),
+    queryFn: ({ signal }) => api.get(`${V9}/me/tasks?include_not_active=true`, { signal, decode: taskListReply }),
     enabled: wid > 0,
   });
 }
@@ -36,8 +36,8 @@ export function useProjectTasks(projectId: number | null) {
   const wid = useWid();
   return useQuery({
     queryKey: [...keys.tasks, 'project', projectId],
-    queryFn: () =>
-      api.get(`${wsPath(wid, 'projects', projectId ?? 0, 'tasks')}?active=both`, { decode: taskListReply }),
+    queryFn: ({ signal }) =>
+      api.get(`${wsPath(wid, 'projects', projectId ?? 0, 'tasks')}?active=both`, { signal, decode: taskListReply }),
     enabled: wid > 0 && projectId !== null,
   });
 }

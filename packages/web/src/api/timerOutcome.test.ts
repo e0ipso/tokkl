@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { QueryClient, onlineManager } from '@tanstack/react-query';
-import { ApiError } from './client.ts';
+import { ApiError, RequestTimeoutError } from './client.ts';
 import { TIMER_ENTRY_OPTIONS, attemptTimerRequest, createTimerOutcome, isUncertain } from './timerOutcome.ts';
 import { TIMER_OFFLINE_MESSAGE, TimerActionError } from './timerState.ts';
 import type { TimeEntry, TimerState } from './types.ts';
@@ -97,6 +97,17 @@ test('after a lost write, a start goes out when the server runs what the user sa
   assert.equal(await stopped.outcome.mayStart(4), false);
   stopped.outcome.failed(new TimerActionError('offline'));
   assert.equal(await stopped.outcome.mayStart(4), true);
+});
+
+test('a start that timed out leaves the timer unknown, and the next start reads the state first', async () => {
+  const { outcome, reads } = tracked(state(running(9)));
+  const late = attemptTimerRequest(() => Promise.reject(new RequestTimeoutError('POST', '/api/v9/time_entries')));
+  await assert.rejects(late, (error: unknown) => {
+    outcome.failed(error);
+    return isUncertain(error);
+  });
+  assert.equal(await outcome.mayStart(null), false, 'the start landed after all');
+  assert.equal(reads(), 1);
 });
 
 test('a read that fails keeps the timer unknown and fails the start as offline', async () => {

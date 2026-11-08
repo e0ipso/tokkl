@@ -1,10 +1,9 @@
-import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { queryOptions, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { api } from './client.ts';
 import { invalidate } from './invalidate.ts';
 import { keys, stale } from './keys.ts';
 import { getClockOffset, serverNow, setClockOffset } from './serverClock.ts';
 import {
-  TIMER_ACTION_KEY,
   TimerActionError,
   explainTimerActionError,
   timerStateOf,
@@ -14,7 +13,7 @@ import {
 } from './timerState.ts';
 import { createTimerOutcome, type TimerOutcome } from './timerOutcome.ts';
 import { useTimerStreaming } from './timerStreaming.ts';
-import type { TimeEntryInput, TimerState } from './types.ts';
+import type { TimeEntry, TimeEntryInput, TimerState } from './types.ts';
 import { useNow } from '../lib/clock.ts';
 
 const POLL_MS = 30_000;
@@ -22,8 +21,8 @@ const timerPath = '/api/app/timer';
 const pomodoroPath = '/api/app/pomodoro';
 
 /**
- * Takes a state into the caches: the timer, the running entry and the clock offset. A state older
- * than the cached one is dropped and the cached state is returned. When the state moved past the
+ * Takes a state into the caches: the timer, which carries the running entry, and the clock offset.
+ * A state older than the cached one is dropped and the cached state is returned. When the state moved past the
  * cached one, everything derived from entries refetches (`stale.timerChanged`), project and task
  * totals included, because the change started, stopped or discarded entries. Every source of
  * states (stream, poll, action reply, conflict) goes through here.
@@ -33,14 +32,13 @@ export function acceptTimerState(qc: QueryClient, state: TimerState): TimerState
   const update = planTimerUpdate(cached, state, Date.now());
   if (!update) return cached ?? state;
   qc.setQueryData(keys.timer, update.state);
-  qc.setQueryData(keys.current, update.current);
   if (update.offset !== null) setClockOffset(update.offset);
   if (update.changed) void invalidate(qc, stale.timerChanged);
   return update.state;
 }
 
-async function readTimerState(qc: QueryClient): Promise<TimerState> {
-  return acceptTimerState(qc, await api.get(timerPath, { decode: timerStateOf }));
+async function readTimerState(qc: QueryClient, signal?: AbortSignal): Promise<TimerState> {
+  return acceptTimerState(qc, await api.get(timerPath, { signal, decode: timerStateOf }));
 }
 
 const outcomes = new WeakMap<QueryClient, TimerOutcome>();
@@ -63,18 +61,32 @@ export function useTimerOutcome(): TimerOutcome {
  * The server-owned timer state. It polls every 30 s only while the stream is down, and refetches
  * on window focus. The stream, the poll and every action write through `acceptTimerState`.
  */
-export function useTimerState() {
-  const qc = useQueryClient();
-  const streaming = useTimerStreaming();
-  return useQuery({
+function timerQuery(qc: QueryClient, streaming: boolean) {
+  return queryOptions({
     queryKey: keys.timer,
-    queryFn: () => readTimerState(qc),
+    queryFn: ({ signal }) => readTimerState(qc, signal),
     refetchInterval: streaming ? false : POLL_MS,
     // Views mounting together share one read; focus still refetches once a second has passed.
     staleTime: 1000,
     // A 403 here means the credential is gone; /me decides what the app shows then.
     meta: { sessionProbe: true },
   });
+}
+
+export function useTimerState() {
+  const qc = useQueryClient();
+  return useQuery(timerQuery(qc, useTimerStreaming()));
+}
+
+const runningEntryOf = (state: TimerState): TimeEntry | null => state.running_entry;
+
+/**
+ * The running entry, read from the timer state. It has no query of its own, so a slow reply from
+ * another endpoint can never put back an entry that a newer state replaced.
+ */
+export function useCurrentEntry() {
+  const qc = useQueryClient();
+  return useQuery({ ...timerQuery(qc, useTimerStreaming()), select: runningEntryOf });
 }
 
 /**
@@ -91,7 +103,10 @@ export function useServerNow(intervalMs = 1000): Date {
  * moves the revision, so the action waits for it and reads the state again (see `revisionToSend`).
  */
 async function currentRevision(qc: QueryClient): Promise<number> {
-  const seen = await qc.ensureQueryData({ queryKey: keys.timer, queryFn: () => readTimerState(qc) });
+  const seen = await qc.ensureQueryData({
+    queryKey: keys.timer,
+    queryFn: ({ signal }) => readTimerState(qc, signal),
+  });
   if (!(await settleOtherWrites(qc))) return seen.revision;
   return revisionToSend(seen, await readTimerState(qc));
 }
@@ -101,7 +116,7 @@ async function currentRevision(qc: QueryClient): Promise<number> {
  * them until the connection returns and then send them late; they fail at once instead, with the
  * offline message.
  */
-const actionOptions = { mutationKey: TIMER_ACTION_KEY, networkMode: 'always' } as const;
+const actionOptions = { networkMode: 'always' } as const;
 
 /**
  * Posts a timer action. The reply is the new state; a reply that is not a whole state fails the

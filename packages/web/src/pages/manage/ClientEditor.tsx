@@ -19,6 +19,7 @@ export function ClientEditor({ client, onClose }: { client: Client | null; onClo
   const save = useAction<ClientBody, Client>({
     mutationFn: body => (client ? clientRequests.update(wid, client.id, body) : clientRequests.create(wid, body)),
     invalidate: stale.clients,
+    movesTimer: true,
     success: saved => (client ? t('manage.saved', { name: saved.name }) : t('manage.created', { name: saved.name })),
     onSuccess: onClose,
   });

@@ -11,18 +11,24 @@ import type { AdminAccount, CreatedInvite, InstanceSettings, Invite, PasswordRes
 const ADMIN = `${APP}/admin`;
 
 export function useAdminUsers() {
-  return useQuery({ queryKey: keys.adminUsers, queryFn: () => api.get<AdminAccount[]>(`${ADMIN}/users`) });
+  return useQuery({
+    queryKey: keys.adminUsers,
+    queryFn: ({ signal }) => api.get<AdminAccount[]>(`${ADMIN}/users`, { signal }),
+  });
 }
 
 export function useAdminInvites() {
-  return useQuery({ queryKey: keys.adminInvites, queryFn: () => api.get<Invite[]>(`${ADMIN}/invites`) });
+  return useQuery({
+    queryKey: keys.adminInvites,
+    queryFn: ({ signal }) => api.get<Invite[]>(`${ADMIN}/invites`, { signal }),
+  });
 }
 
 /** The instance settings. Pass `enabled` false to hold the request, as until the users list proves admin access. */
 export function useInstanceSettings(enabled = true) {
   return useQuery({
     queryKey: keys.adminSettings,
-    queryFn: () => api.get<InstanceSettings>(`${ADMIN}/settings`),
+    queryFn: ({ signal }) => api.get<InstanceSettings>(`${ADMIN}/settings`, { signal }),
     enabled,
   });
 }

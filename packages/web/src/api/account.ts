@@ -1,14 +1,19 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { mutationOptions, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { api } from './client.ts';
 import { keys } from './keys.ts';
 import { V9, wsPath } from './paths.ts';
+import { createPreferenceSaves, type PreferenceSaves } from './preferenceSaves.ts';
 import { meReply, workspaceReply } from './replies.ts';
 import type { Me, Preferences, Workspace } from './types.ts';
 
 /** The signed-in account: /me, its preferences and its workspace. */
 
 export function useMe() {
-  return useQuery({ queryKey: keys.me, queryFn: () => api.get(`${V9}/me`, { decode: meReply }), staleTime: 60_000 });
+  return useQuery({
+    queryKey: keys.me,
+    queryFn: ({ signal }) => api.get(`${V9}/me`, { signal, decode: meReply }),
+    staleTime: 60_000,
+  });
 }
 
 /** The account's workspace id. Only call below the auth gate, where /me has loaded. */
@@ -20,35 +25,59 @@ export function useWid(): number {
 export function usePreferences() {
   return useQuery({
     queryKey: keys.preferences,
-    queryFn: () => api.get<Preferences>(`${V9}/me/preferences`),
+    queryFn: ({ signal }) => api.get<Preferences>(`${V9}/me/preferences`, { signal }),
     staleTime: 60_000,
   });
 }
 
-/** Saves preference changes, showing them at once and rolling back when the save fails. */
-export function useSavePreferences() {
-  const qc = useQueryClient();
-  return useMutation({
+const preferenceSaves = new WeakMap<QueryClient, PreferenceSaves>();
+
+function savesOf(qc: QueryClient): PreferenceSaves {
+  let saves = preferenceSaves.get(qc);
+  if (!saves) {
+    saves = createPreferenceSaves();
+    preferenceSaves.set(qc, saves);
+  }
+  return saves;
+}
+
+const sendPreferences = (changes: Partial<Preferences>) => api.post<Preferences>(`${V9}/me/preferences`, changes);
+
+/**
+ * Saving preference changes: shown at once, sent one at a time in the order made, and on failure
+ * only the failed save's own changes are dropped (see `PreferenceSaves`).
+ */
+export function savePreferencesOptions(qc: QueryClient, send = sendPreferences) {
+  const show = (preferences: Preferences | undefined) => {
+    if (preferences) qc.setQueryData(keys.preferences, preferences);
+  };
+  return mutationOptions({
     // Views that read preferences wait for this key's saves before trusting the cache.
     mutationKey: keys.preferences,
-    mutationFn: (changes: Partial<Preferences>) => api.post<Preferences>(`${V9}/me/preferences`, changes),
-    onMutate: changes => {
-      const previous = qc.getQueryData<Preferences>(keys.preferences);
-      if (previous) qc.setQueryData(keys.preferences, { ...previous, ...changes });
-      return { previous };
+    // One save at a time, so the server applies them in order and the replies arrive in order.
+    scope: { id: 'preferences' },
+    mutationFn: send,
+    onMutate: (changes: Partial<Preferences>) => {
+      const { save, shown } = savesOf(qc).begin(qc.getQueryData<Preferences>(keys.preferences), changes);
+      show(shown);
+      return { save };
     },
     onError: (_error, _changes, context) => {
-      if (context?.previous) qc.setQueryData(keys.preferences, context.previous);
+      if (context) show(savesOf(qc).failed(context.save));
     },
-    onSuccess: data => qc.setQueryData(keys.preferences, data),
+    onSuccess: (data, _changes, context) => show(savesOf(qc).succeeded(context.save, data)),
   });
+}
+
+export function useSavePreferences() {
+  return useMutation(savePreferencesOptions(useQueryClient()));
 }
 
 export function useWorkspace() {
   const wid = useWid();
   return useQuery({
     queryKey: keys.workspace,
-    queryFn: () => api.get(wsPath(wid), { decode: workspaceReply }),
+    queryFn: ({ signal }) => api.get(wsPath(wid), { signal, decode: workspaceReply }),
     enabled: wid > 0,
     staleTime: 60_000,
   });
