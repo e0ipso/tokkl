@@ -7,6 +7,7 @@
 #include "soundchoices.h"
 
 #include <QCryptographicHash>
+#include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QHash>
@@ -164,6 +165,34 @@ private Q_SLOTS:
         SoundChoices none(nullptr, key);
         QVERIFY(!none.choose(TransitionKind::WorkToShortRest, QStringLiteral("long-rest-to-work")));
         QCOMPARE(none.chosen(TransitionKind::WorkToShortRest), defaultSound(TransitionKind::WorkToShortRest));
+    }
+
+    // QSettings keeps the first error it meets. A choice that fails keeps
+    // the sound stored before, and one made once the cause is gone is stored
+    // and announced.
+    void aChoiceAfterAFailedOneIsStored()
+    {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        const QString file = dir.filePath(QStringLiteral("choices.conf"));
+        QSettings settings(file, QSettings::IniFormat);
+        SoundChoices choices(&settings, [](TransitionKind kind) {
+            return QStringLiteral("Sounds/") + transitionKindName(kind);
+        });
+        QSignalSpy changed(&choices, &SoundChoices::changed);
+        // A directory stands where the file would go.
+        QVERIFY(QDir().mkpath(file));
+        QVERIFY(!choices.choose(TransitionKind::WorkToShortRest, QStringLiteral("long-rest-to-work")));
+        QCOMPARE(choices.chosen(TransitionKind::WorkToShortRest), defaultSound(TransitionKind::WorkToShortRest));
+        QCOMPARE(changed.size(), 0);
+
+        QVERIFY(QDir(file).removeRecursively());
+        QVERIFY(choices.choose(TransitionKind::WorkToShortRest, QStringLiteral("long-rest-to-work")));
+        QCOMPARE(changed.size(), 1);
+        QCOMPARE(choices.chosen(TransitionKind::WorkToShortRest), QStringLiteral("long-rest-to-work"));
+        QFile written(file);
+        QVERIFY(written.open(QIODevice::ReadOnly));
+        QVERIFY(written.readAll().contains("workToShortRest=long-rest-to-work"));
     }
 
 private:

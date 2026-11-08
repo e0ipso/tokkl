@@ -2,6 +2,7 @@
 
 #include "logging.h"
 #include "pomodorosounds.h"
+#include "settingswrite.h"
 
 #include <utility>
 
@@ -32,15 +33,8 @@ bool SoundChoices::choose(TransitionKind kind, const QString &soundId)
     }
     const QString name = key(kind);
     const QVariant before = m_settings->value(name);
-    m_settings->setValue(name, soundId);
-    m_settings->sync();
-    if (m_settings->status() != QSettings::NoError) {
+    if (!writeSettings(*m_settings, {{name, soundId}})) {
         qCWarning(lcAlarm) << "Could not save the sound choice to" << m_settings->fileName();
-        if (before.isValid()) {
-            m_settings->setValue(name, before);
-        } else {
-            m_settings->remove(name);
-        }
         return false;
     }
     if (before.toString() != soundId) {
