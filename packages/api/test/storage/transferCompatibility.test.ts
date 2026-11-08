@@ -5,7 +5,7 @@ import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createTransactionRunner } from '../../src/storage/transactions.ts';
 import { createTransferRepositories } from '../../src/storage/repositories/transfers.ts';
 import { createImportOperations } from '../../src/services/importJson.ts';
-import { assembleJsonExport, assembleCsvExport } from '../../src/services/exports.ts';
+import { assembleJsonExport, assembleCsvExport } from '../fixtures/exportOracle.ts';
 import { buildJsonExport, buildCsvExport } from '../fixtures/exports.ts';
 import { createTimerPublication } from '../../src/services/timerPublication.ts';
 import { deleteTimeEntry } from '../../src/domain/timeEntries.ts';
@@ -147,7 +147,8 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         assert.equal(out.time_entries.find(e => e.description === 'all day')?.start, '2026-10-24T22:00:00+00:00');
         assert.ok(!out.time_entries.some(e => e.description === 'trash'));
         const projection = await runner.readSnapshot(ctx => ctx.transfers.exportAccount(user.id));
-        assert.deepEqual(assembleJsonExport(structuredClone(projection)), out);
+        // `out` is the body a client parses, so the copy goes through the same JSON text.
+        assert.deepEqual(JSON.parse(JSON.stringify(assembleJsonExport(structuredClone(projection)))), out);
         assert.equal(assembleCsvExport(structuredClone(projection), {}), await buildCsvExport(runner, user.id, {}));
         const removed = projection.entries[0]!;
         await runner.transaction(ctx => deleteTimeEntry(ctx, user.id, user.defaultWorkspaceId, removed.id, publish));

@@ -1,6 +1,7 @@
 import { initializeDatabase } from '../../../src/storage/migrations.ts';
 import { createTransactionRunner } from '../../../src/storage/transactions.ts';
 import { createReportRepositories } from '../../../src/storage/repositories/reports.ts';
+import { createTransferRepositories } from '../../../src/storage/repositories/transfers.ts';
 import { ReportRunner } from '../../../src/services/reportRunner.ts';
 import { disposableBackend } from './disposableBackend.ts';
 import { entryAccount, entryTimerFactory } from './entry-timer.ts';
@@ -10,6 +11,7 @@ try {
   const operations = createTransactionRunner(c, db => ({
     ...entryTimerFactory('sqlite')(db),
     ...createReportRepositories(db, 'sqlite'),
+    ...createTransferRepositories(db, 'sqlite'),
   }));
   const user = await operations.transaction(r => r.users.createAccount(entryAccount('idle')));
   const runner = new ReportRunner(fixture.config, operations);

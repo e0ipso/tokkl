@@ -1,7 +1,7 @@
 import type { DurationFormat } from '@tokkl/types';
 import { formatDuration } from '@tokkl/common/duration';
 import { addDays, dateKey, parseDateKey, startOfDay, zonedParts, pad2 } from '@tokkl/common/time';
-import type { AccountExportProjection, User } from '../storage/domain.ts';
+import type { AccountExportProjection, EntryDetails, User } from '../storage/domain.ts';
 import { getPreferences } from '../domain/accountValues.ts';
 import {
   serializeClient,
@@ -19,24 +19,45 @@ export const EXPORT_FORMAT = 'tokkl-export';
 export const LEGACY_EXPORT_FORMAT = 'timetrack-export';
 const EXPORT_FORMAT_VERSION = 1;
 type ExportUser = Omit<User, 'passwordHash' | 'apiToken'>;
-/** Pure assembly, also callable inside the report worker after snapshot collection. */
-export function assembleJsonExport(data: AccountExportProjection, exportedAt = new Date().toISOString()) {
+/** An account export without its entries: the part read in one go before the entries stream. */
+export type ExportHead = Omit<AccountExportProjection, 'entries'>;
+
+/**
+ * The JSON export a piece at a time: `opening`, then each batch of entries (newest first) through
+ * `entries`, then `closing`. The pieces concatenate into `JSON.stringify` of the whole export.
+ */
+export function jsonExportWriter(head: ExportHead, exportedAt: string) {
   // The serializers select public fields; credentials are absent from the input projection.
-  const publicUser = { ...data.user, passwordHash: '', apiToken: '' };
-  const workspaces = new Map(data.workspaces.map(w => [w.id, w]));
-  const memberships = new Map(data.memberships.map(m => [m.workspaceId, m.role]));
-  return {
+  const publicUser = { ...head.user, passwordHash: '', apiToken: '' };
+  const workspaces = new Map(head.workspaces.map(w => [w.id, w]));
+  const memberships = new Map(head.memberships.map(m => [m.workspaceId, m.role]));
+  const whole = JSON.stringify({
     format: EXPORT_FORMAT,
     version: EXPORT_FORMAT_VERSION,
     exported_at: exportedAt,
     user: serializeUser(publicUser, { includeToken: false }),
     preferences: getPreferences(publicUser),
-    workspaces: data.workspaces.map(w => serializeWorkspace(w, memberships.get(w.id))),
-    clients: data.clients.map(serializeClient),
-    projects: data.projects.map(p => serializeProject(p, workspaces.get(p.workspaceId)!.defaultCurrency)),
-    tasks: data.tasks.map(serializeTask),
-    tags: data.tags.map(serializeTag),
-    time_entries: data.entries.map(e => serializeTimeEntry(e, { meta: true, user: publicUser })),
+    workspaces: head.workspaces.map(w => serializeWorkspace(w, memberships.get(w.id))),
+    clients: head.clients.map(serializeClient),
+    projects: head.projects.map(p => serializeProject(p, workspaces.get(p.workspaceId)!.defaultCurrency)),
+    tasks: head.tasks.map(serializeTask),
+    tags: head.tags.map(serializeTag),
+    time_entries: [],
+  });
+  const closing = ']}';
+  let written = false;
+  return {
+    /** Everything up to the entries' opening bracket. */
+    opening: whole.slice(0, -closing.length),
+    /** The entries of one batch, with the comma that joins them to the batch before. */
+    entries(batch: EntryDetails[]): string {
+      if (!batch.length) return '';
+      const text = batch.map(e => JSON.stringify(serializeTimeEntry(e, { meta: true, user: publicUser }))).join(',');
+      const joined = written ? `,${text}` : text;
+      written = true;
+      return joined;
+    },
+    closing,
   };
 }
 export const CSV_COLUMNS = [
@@ -99,35 +120,44 @@ export function togglCsvLines(items: CsvItem[], user: CsvUser, durationFormat: D
 export function toTogglCsv(items: CsvItem[], user: CsvUser, durationFormat: DurationFormat = 'improved'): string {
   return togglCsvHeader() + togglCsvLines(items, user, durationFormat);
 }
-export function assembleCsvExport(
-  data: AccountExportProjection,
+/**
+ * The CSV export a piece at a time: `header`, then each batch of entries (oldest first) through
+ * `entries`. Only stopped entries that start inside `range`, read as days in the user's time zone,
+ * are written. An invalid range fails here, before anything is written.
+ */
+export function csvExportWriter(
+  user: CsvUser,
   range: { from?: string; to?: string },
   durationFormat: DurationFormat = 'improved',
-): string {
+) {
   let from: string | undefined, to: string | undefined;
   if (range.from) {
     if (!parseDateKey(range.from)) throw invalidInput('Invalid start_date: expected YYYY-MM-DD');
-    from = startOfDay(range.from, data.user.timezone).toISOString();
+    from = startOfDay(range.from, user.timezone).toISOString();
   }
   if (range.to) {
     if (!parseDateKey(range.to)) throw invalidInput('Invalid end_date: expected YYYY-MM-DD');
-    to = startOfDay(addDays(range.to, 1), data.user.timezone).toISOString();
+    to = startOfDay(addDays(range.to, 1), user.timezone).toISOString();
   }
-  const items: CsvItem[] = [];
-  for (const e of [...data.entries].reverse())
-    if (e.stop && (!from || e.start >= from) && (!to || e.start < to)) {
-      items.push({
-        clientName: e.client?.name ?? null,
-        projectName: e.project?.name ?? null,
-        taskName: e.task?.name ?? null,
-        description: e.description,
-        billable: e.billable,
-        start: e.start,
-        stop: e.stop,
-        seconds: Math.floor((Date.parse(e.stop) - Date.parse(e.start)) / 1000),
-        tags: e.tags.map(t => t.name),
-        allDay: e.allDay,
-      });
-    }
-  return toTogglCsv(items, data.user, durationFormat);
+  return {
+    header: togglCsvHeader(),
+    entries(batch: EntryDetails[]): string {
+      const items: CsvItem[] = [];
+      for (const e of batch)
+        if (e.stop && (!from || e.start >= from) && (!to || e.start < to))
+          items.push({
+            clientName: e.client?.name ?? null,
+            projectName: e.project?.name ?? null,
+            taskName: e.task?.name ?? null,
+            description: e.description,
+            billable: e.billable,
+            start: e.start,
+            stop: e.stop,
+            seconds: Math.floor((Date.parse(e.stop) - Date.parse(e.start)) / 1000),
+            tags: e.tags.map(t => t.name),
+            allDay: e.allDay,
+          });
+      return togglCsvLines(items, user, durationFormat);
+    },
+  };
 }

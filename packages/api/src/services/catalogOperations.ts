@@ -29,10 +29,10 @@ import {
   updateTask,
   type CatalogTimerEffects,
 } from '../domain/catalogs.ts';
+import type { EntryContext, EntryTransactions } from '../domain/entryAccess.ts';
 import { noWorkspaceAccess } from '../domain/membership.ts';
 import { createCatalogTimerEffects } from '../domain/timerEffects.ts';
 import type { TimerPublication } from '../domain/timerSettlement.ts';
-import type { Storage, TransactionContext } from '../storage/contracts.ts';
 import type { Client, Id, ProjectSummary, Tag, TaskSummary } from '../storage/domain.ts';
 
 export interface CatalogOperations {
@@ -55,9 +55,13 @@ export interface CatalogOperations {
 }
 
 /** `storage` checks the member's credential around each transaction. */
-export function createCatalogOperations(storage: Storage, memberId: Id, publish: TimerPublication): CatalogOperations {
+export function createCatalogOperations(
+  storage: EntryTransactions,
+  memberId: Id,
+  publish: TimerPublication,
+): CatalogOperations {
   /** Runs `work` under the workspace guard and the guards of every timer it may change. */
-  function write<T>(wid: Id, work: (ctx: TransactionContext, effects: CatalogTimerEffects) => Promise<T>) {
+  function write<T>(wid: Id, work: (ctx: EntryContext, effects: CatalogTimerEffects) => Promise<T>) {
     return storage.transaction(async ctx => {
       await ctx.lockWorkspaces([wid]);
       if (!(await ctx.workspaces.forMember(memberId, wid))) throw noWorkspaceAccess();

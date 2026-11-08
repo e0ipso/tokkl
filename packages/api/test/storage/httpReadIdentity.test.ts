@@ -1,15 +1,16 @@
 import assert from 'node:assert/strict';
 import { test, type TestContext } from 'node:test';
-import type { Worker } from 'node:worker_threads';
 import type { ReadOnlyRepositories, Storage } from '../../src/storage/contracts.ts';
 import type { Backend } from '../../src/storage/config.ts';
 import { createStorage } from '../../src/storage/index.ts';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createApp } from '../../src/app.ts';
+import { ReportRunner } from '../../src/services/reportRunner.ts';
 import { createAccountEntryEffects } from '../../src/domain/timerEffects.ts';
 import { withBodies } from '../fixtures/accountBodies.ts';
 import { testConfig } from '../helpers.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
+import { trackedWorkers } from './support/reportWorkers.ts';
 import { gate, serveInvariant } from './support/invariantHttp.ts';
 
 const password = 'correct horse battery';
@@ -40,7 +41,13 @@ function holdAuthentication(t: TestContext, storage: Storage, token: string) {
 test('SQLite authenticated reads reject a replacement account with reused IDs', { timeout: 60000 }, async t => {
   const fixture = await disposableBackend('sqlite');
   const storage = createStorage(await initializeDatabase(fixture.config));
-  const app = createApp({ storage, config: { ...testConfig(), storage: fixture.config }, setup: { code: null } });
+  const workers = trackedWorkers();
+  const app = createApp({
+    storage,
+    config: { ...testConfig(), storage: fixture.config },
+    setup: { code: null },
+    reports: new ReportRunner(fixture.config, storage, { startWorker: workers.startWorker }),
+  });
   const server = await serveInvariant(app),
     services = app.locals.services;
   const accounts = withBodies(services.accounts, storage);
@@ -117,7 +124,13 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
   test(`${backend}: deferred reads and reports recheck credentials and admin access`, { timeout: 180000 }, async t => {
     const fixture = await disposableBackend(backend);
     const storage = createStorage(await initializeDatabase(fixture.config));
-    const app = createApp({ storage, config: { ...testConfig(), storage: fixture.config }, setup: { code: null } });
+    const workers = trackedWorkers();
+    const app = createApp({
+      storage,
+      config: { ...testConfig(), storage: fixture.config },
+      setup: { code: null },
+      reports: new ReportRunner(fixture.config, storage, { startWorker: workers.startWorker }),
+    });
     const server = await serveInvariant(app),
       services = app.locals.services;
     const accounts = withBodies(services.accounts, storage);
@@ -147,7 +160,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
       const warm = await server.request('POST', '/api/app/report/entries', range, token);
       assert.equal(warm.status, 200);
       await warm.json();
-      const worker = (services.reports as unknown as { worker: Worker }).worker;
+      const worker = workers.latest();
       const post = worker.postMessage.bind(worker),
         entered = gate();
       let held: unknown;
@@ -198,7 +211,13 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
 test('SQLite queued HTTP reports reject a replacement account with reused IDs', { timeout: 30000 }, async t => {
   const fixture = await disposableBackend('sqlite');
   const storage = createStorage(await initializeDatabase(fixture.config));
-  const app = createApp({ storage, config: { ...testConfig(), storage: fixture.config }, setup: { code: null } });
+  const workers = trackedWorkers();
+  const app = createApp({
+    storage,
+    config: { ...testConfig(), storage: fixture.config },
+    setup: { code: null },
+    reports: new ReportRunner(fixture.config, storage, { startWorker: workers.startWorker }),
+  });
   const server = await serveInvariant(app),
     services = app.locals.services;
   const accounts = withBodies(services.accounts, storage);
@@ -220,7 +239,7 @@ test('SQLite queued HTTP reports reject a replacement account with reused IDs', 
       const warm = await server.request('POST', path, range, old.apiToken);
       assert.equal(warm.status, 200);
       await warm.json();
-      const worker = (services.reports as unknown as { worker: Worker }).worker;
+      const worker = workers.latest();
       const post = worker.postMessage.bind(worker),
         entered = gate();
       let held: unknown;

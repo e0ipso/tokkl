@@ -6,7 +6,7 @@
 import { MAX_DURATION_SECONDS } from '@tokkl/common/duration';
 import { snapInstant } from '@tokkl/common/snap';
 import { dateKey, startOfDay } from '@tokkl/common/time';
-import type { EntryInput } from '../storage/contracts.ts';
+import type { EntriesRepository, EntryInput, SettingsReader } from '../storage/contracts.ts';
 import type { EntryDetails, Id, TimeEntry, User } from '../storage/domain.ts';
 import { ApplicationError, conflict, invalidInput } from '../lib/errors.ts';
 import { isoSeconds } from '../lib/values.ts';
@@ -42,7 +42,12 @@ function assertWorkspace(sent: EntryFields, wid: Id): void {
 const stored = (date: Date) => new Date(isoSeconds(date)).toISOString();
 
 /** Caller holds the user's guard. This helper does not acquire a workspace guard. */
-export async function reanchorNoTimeEntries(ctx: EntryContext, userId: Id, fromZone: string, toZone: string) {
+export async function reanchorNoTimeEntries(
+  ctx: { entries: Pick<EntriesRepository, 'listAllDay' | 'update'> },
+  userId: Id,
+  fromZone: string,
+  toZone: string,
+) {
   for (const row of await ctx.entries.listAllDay(userId)) {
     const old = new Date(row.start),
       duration = seconds(new Date(row.stop!)) - seconds(old);
@@ -56,7 +61,12 @@ export async function reanchorNoTimeEntries(ctx: EntryContext, userId: Id, fromZ
 }
 
 /** Stops `entry` at `at` on the resolution grid. One too short to keep is discarded: false. */
-export async function stopEntryAt(ctx: EntryContext, user: User, entry: TimeEntry, at: Date): Promise<boolean> {
+export async function stopEntryAt(
+  ctx: { settings: Pick<SettingsReader, 'read'>; entries: Pick<EntriesRepository, 'update'> },
+  user: User,
+  entry: TimeEntry,
+  at: Date,
+): Promise<boolean> {
   const resolution = await entryResolution(ctx),
     start = new Date(entry.start);
   const snapped = snapToResolution(resolution, user, start, at < start ? start : at);

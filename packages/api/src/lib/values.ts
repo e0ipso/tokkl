@@ -2,6 +2,7 @@
  * Readers for loosely typed JSON values. The command parsers build on these, so every field of one
  * kind is refused with the same message wherever it arrives.
  */
+import { instantMilliseconds, isFiniteNumber, isSafeInteger } from '@tokkl/common/validators';
 import { invalidInput } from './errors.ts';
 
 /** A JSON object from a request body or an import file, before it is parsed. */
@@ -13,36 +14,13 @@ export function togglTime(iso: string | null | undefined): string | null {
   return `${iso.slice(0, 19)}+00:00`;
 }
 
-/** RFC 3339 date-time with seconds and an explicit "Z" or numeric offset (upper-case T and Z only). */
-const RFC3339 = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|[+-](\d{2}):(\d{2}))$/;
-
-/** True when the fields name a real calendar date and time of day, so 2026-02-30 is not rolled into March. */
-function isRealDateTime(parts: number[]): boolean {
-  const [year, month, day, hour, minute, second] = parts as [number, number, number, number, number, number];
-  const date = new Date(0);
-  date.setUTCFullYear(year, month - 1, day);
-  return (
-    date.getUTCFullYear() === year &&
-    date.getUTCMonth() === month - 1 &&
-    date.getUTCDate() === day &&
-    hour <= 23 &&
-    minute <= 59 &&
-    second <= 59
-  );
-}
-
 /**
  * Parses an RFC 3339 timestamp and truncates it to whole seconds. Timestamps without a zone,
  * impossible dates and non-string values are rejected rather than guessed.
  */
 export function parseInstant(value: unknown, field: string): Date {
-  const invalid = () => invalidInput(`Invalid ${field}: expected an RFC 3339 timestamp`);
-  const match = typeof value === 'string' ? RFC3339.exec(value) : null;
-  if (!match) throw invalid();
-  const [offsetHours, offsetMinutes] = [match[7], match[8]].map(part => Number(part ?? 0)) as [number, number];
-  if (!isRealDateTime(match.slice(1, 7).map(Number)) || offsetHours > 23 || offsetMinutes > 59) throw invalid();
-  const ms = Date.parse(value as string);
-  if (Number.isNaN(ms)) throw invalid();
+  const ms = instantMilliseconds(value);
+  if (ms === null) throw invalidInput(`Invalid ${field}: expected an RFC 3339 timestamp`);
   return new Date(Math.floor(ms / 1000) * 1000);
 }
 
@@ -53,7 +31,7 @@ export function isoSeconds(date: Date): string {
 export function optionalId(value: unknown, field: string): number | null | undefined {
   if (value === undefined) return undefined;
   if (value === null || value === 0) return null;
-  if (typeof value === 'number' && Number.isSafeInteger(value) && value > 0) return value;
+  if (isSafeInteger(value) && value > 0) return value;
   if (typeof value === 'string' && /^\d+$/.test(value)) return Number(value);
   throw invalidInput(`Invalid ${field}`);
 }
@@ -74,7 +52,7 @@ export function optionalString(value: unknown, field: string, maxLength: number)
 export function optionalNumber(value: unknown, field: string): number | null | undefined {
   if (value === undefined) return undefined;
   if (value === null) return null;
-  if (typeof value === 'number' && Number.isFinite(value) && value >= 0) return value;
+  if (isFiniteNumber(value) && value >= 0) return value;
   throw invalidInput(`Invalid ${field}: expected a non-negative number`);
 }
 
@@ -99,7 +77,7 @@ export function requireName(value: unknown, field: string, maxLength: number): s
 /** Parses "1,2,3" path segments into ids. */
 export function parseIdList(value: string, limit = 100): number[] {
   const ids = value.split(',').map(part => Number(part.trim()));
-  if (ids.length === 0 || ids.some(id => !Number.isSafeInteger(id) || id <= 0)) {
+  if (ids.length === 0 || ids.some(id => !isSafeInteger(id) || id <= 0)) {
     throw invalidInput('Invalid ID list');
   }
   if (ids.length > limit) throw invalidInput(`At most ${limit} IDs per request`);
@@ -108,7 +86,7 @@ export function parseIdList(value: string, limit = 100): number[] {
 
 export function parseId(value: string | string[] | undefined): number {
   const id = typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : NaN;
-  if (!Number.isSafeInteger(id) || id <= 0) throw invalidInput('Invalid ID');
+  if (!isSafeInteger(id) || id <= 0) throw invalidInput('Invalid ID');
   return id;
 }
 

@@ -2,6 +2,7 @@ import type { OperationContext } from '../storage/contracts.ts';
 import { protectEntryOperation, type EntryRepositories } from '../domain/entryAccess.ts';
 import { memberWorkspace, noWorkspaceAccess } from '../domain/membership.ts';
 import { StorageConflict } from '../storage/errors.ts';
+import { RequestCancelled } from '../lib/errors.ts';
 
 /** Errors an import reports; the rest are counted in the totals only. */
 export const MAX_IMPORT_ERRORS = 100;
@@ -40,6 +41,21 @@ export async function protectImport(ctx: OperationContext<EntryRepositories>, us
   await memberWorkspace(ctx, userId, locked.defaultWorkspaceId);
   return locked;
 }
+/** Throws once the request that started the import has gone away. */
+export function checkCancelled(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) throw new RequestCancelled('Import cancelled');
+}
+
+/**
+ * Checks the request before every hook has run and again just before COMMIT, so an import whose
+ * request went away rolls back whole instead of committing what it wrote so far.
+ */
+export function cancelBeforeCommit(ctx: OperationContext<EntryRepositories>, signal: AbortSignal | undefined): void {
+  if (!signal) return;
+  checkCancelled(signal);
+  ctx.readAtCommit(async () => checkCancelled(signal));
+}
+
 export function importError(error: unknown, fallback: string): string {
   if (error instanceof StorageConflict && ['serialization', 'deadlock', 'busy'].includes(error.kind)) throw error;
   return error instanceof Error ? error.message : fallback;

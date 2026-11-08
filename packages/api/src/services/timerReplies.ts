@@ -22,6 +22,8 @@ async function presented(work: Promise<TimerView>): Promise<TimerState> {
 export function presentTimerOperations(operations: TimerOperations): PresentedTimerOperations {
   return {
     getTimerState: (...args) => presented(operations.getTimerState(...args)),
+    startTimer: (...args) => presented(operations.startTimer(...args)),
+    stopTimer: (...args) => presented(operations.stopTimer(...args)),
     startPomodoro: (...args) => presented(operations.startPomodoro(...args)),
     nextPomodoroPhase: (...args) => presented(operations.nextPomodoroPhase(...args)),
     endPomodoro: (...args) => presented(operations.endPomodoro(...args)),
