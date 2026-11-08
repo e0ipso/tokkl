@@ -103,29 +103,41 @@ async function currentRevision(qc: QueryClient): Promise<number> {
 }
 
 /**
- * Brings the timer state up to date after a timer write whose outcome is unknown, before the next
- * one goes out. If the state moved past the one cached, the lost write may have landed: the read
- * state is adopted and the write fails with a conflict, as a Start or Stop at a stale revision
- * does. A read that fails leaves the outcome unknown, and the write does not go out.
+ * What a timer write does when the state moved past the cached one after a write whose outcome is
+ * unknown: `refuse` fails it with a conflict, because the lost write may have landed and the user
+ * acted on a state that is gone; `adopt` only takes the new state, for an edit that names the
+ * entry it changes, which the server refuses itself once that entry stopped.
  */
-async function reconcileTimer(qc: QueryClient): Promise<void> {
+export type TimerWriteGuard = 'refuse' | 'adopt';
+
+/**
+ * Brings the timer state up to date after a timer write whose outcome is unknown, before the next
+ * one goes out. The read state is adopted. If it moved past the one cached and `guard` is
+ * `refuse`, the write fails with a conflict, as a Start or Stop at a stale revision does. A read
+ * that fails leaves the outcome unknown, and the write does not go out.
+ */
+async function reconcileTimer(qc: QueryClient, guard: TimerWriteGuard): Promise<void> {
   if (!isTimerUnknown(qc)) return;
   const seen = qc.getQueryData<TimerState>(keys.timer);
   const fresh = await readTimerState(qc);
   clearTimerUnknown(qc);
-  if (seen && fresh.revision !== seen.revision) throw new TimerActionError('conflict', fresh);
+  if (guard === 'refuse' && seen && fresh.revision !== seen.revision) throw new TimerActionError('conflict', fresh);
 }
 
 /**
  * Sends a write that can start, stop or change what the timer shows: a timer action, the finished
  * entry typed into the idle bar, an edit of the running entry or its discard. A write that fails
  * with an unknown outcome (`isOutcomeUnknown`), such as a 502 or an unreadable reply, marks the
- * timer unknown, and the next such write reads the state first (`reconcileTimer`). The v9 writes
- * carry no revision, so without that read a retry after a write that landed would apply twice.
- * Errors pass through as they are.
+ * timer unknown, and the next such write reads the state first (`reconcileTimer`, with `guard`).
+ * The v9 writes carry no revision, so without that read a retry after a write that landed would
+ * apply twice. Errors pass through as they are.
  */
-export async function timerWrite<T>(qc: QueryClient, request: () => Promise<T>): Promise<T> {
-  await reconcileTimer(qc);
+export async function timerWrite<T>(
+  qc: QueryClient,
+  request: () => Promise<T>,
+  guard: TimerWriteGuard = 'refuse',
+): Promise<T> {
+  await reconcileTimer(qc, guard);
   try {
     return await request();
   } catch (error) {
@@ -142,9 +154,10 @@ async function explainedTimerWrite<T>(
   qc: QueryClient,
   request: () => Promise<T>,
   explain: (error: unknown) => unknown,
+  guard: TimerWriteGuard = 'refuse',
 ): Promise<T> {
   try {
-    return await timerWrite(qc, request);
+    return await timerWrite(qc, request, guard);
   } catch (error) {
     const explained = explain(error);
     if (explained instanceof TimerActionError && explained.state) acceptTimerState(qc, explained.state);
@@ -205,53 +218,38 @@ function useRevisionAction(path: string) {
   });
 }
 
-/** What an edit of the running entry can change. Its start and workspace never change this way. */
+/**
+ * What an edit of the running entry can change: its labels, and its start, which the entry editor
+ * moves. Its workspace never changes this way.
+ */
 export type RunningEntryChanges = Pick<
   TimeEntryInput,
-  'description' | 'project_id' | 'task_id' | 'billable' | 'tags' | 'tag_ids'
+  'description' | 'project_id' | 'task_id' | 'billable' | 'tags' | 'tag_ids' | 'start'
 >;
 
-/** Posts one running-entry edit at the revision `revision` gives, and takes the reply into the caches. */
-function postRunningEdit(
-  qc: QueryClient,
-  changes: RunningEntryChanges,
-  revision: () => Promise<number>,
-): Promise<TimerState> {
-  return explainedTimerWrite(
-    qc,
-    async () =>
-      acceptTimerState(
-        qc,
-        await api.post(`${timerPath}/edit`, { ...changes, revision: await revision() }, { decode: timerStateOf }),
-      ),
-    explainTimerConflict,
-  );
-}
-
 /**
- * Edits running entry `id` at the cached revision, and takes the reply, the new state, into the
- * caches. Tags sent replace the entry's tags, and a null project or task clears it. The server
- * answers with a conflict when the timer moved on; the conflict's state replaces the cached one.
- *
- * An edit only sets fields, so it is safe to apply again to the same entry. When the conflict's
- * state still runs entry `id`, only the revision moved (another device tagged the entry, say), and
- * the edit goes out once more at the new revision, so what the user typed is not lost. When that
- * state runs another entry or none, or the second try conflicts too, the edit fails with the
- * conflict; it never lands on an entry the user did not edit. A request that got no reply keeps its
- * own error, as an edit of a stopped entry does.
+ * Edits running entry `id` through `POST /api/app/timer/edit`, and takes the reply, the new state,
+ * into the caches. Tags sent replace the entry's tags, and a null project or task clears it. The
+ * edit names the entry (`entry_id`), not a revision, so a change that moved the revision without
+ * stopping the entry, such as another device tagging it, does not refuse it. Once entry `id` no
+ * longer runs, the server answers with a conflict, whose state replaces the cached one, and the
+ * edit never lands on an entry the user did not edit. A request that got no reply keeps its own
+ * error, as an edit of a stopped entry does, and leaves the timer unknown like any timer write;
+ * after another write's unknown outcome the edit only adopts the state it reads (`adopt`), since
+ * the server checks the entry.
  *
  * Unlike an action it does not wait for other writes that move the timer: callers send it as one
  * of them (`MOVES_TIMER`), in the running entry's scope (`updateRunningEntry` in entries.ts), so it
- * would wait for itself, and the edit before it in that scope has already moved the cached revision.
+ * would wait for itself.
  */
-export async function editRunningEntry(qc: QueryClient, id: number, changes: RunningEntryChanges): Promise<TimerState> {
-  try {
-    return await postRunningEdit(qc, changes, async () => (await seenState(qc)).revision);
-  } catch (error) {
-    const current = error instanceof TimerActionError && error.kind === 'conflict' ? error.state : null;
-    if (current?.running_entry?.id !== id) throw error;
-    return postRunningEdit(qc, changes, () => Promise.resolve(current.revision));
-  }
+export function editRunningEntry(qc: QueryClient, id: number, changes: RunningEntryChanges): Promise<TimerState> {
+  return explainedTimerWrite(
+    qc,
+    async () =>
+      acceptTimerState(qc, await api.post(`${timerPath}/edit`, { ...changes, entry_id: id }, { decode: timerStateOf })),
+    explainTimerConflict,
+    'adopt',
+  );
 }
 
 /** Fields of a timer start: the new entry's fields and when it starts (now if left out). */

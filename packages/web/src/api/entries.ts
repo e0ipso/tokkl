@@ -106,8 +106,8 @@ function inEntryScope<T>(qc: QueryClient, id: number, write: () => Promise<T>, o
 
 /**
  * Sends an edit of entry `update.id` as a v9 update, in that entry's scope (`entryScope`). Edits of
- * stopped entries go this way, and so does a running entry's edit in the entry editor: it can move
- * the start, which `/api/app/timer/edit` never changes.
+ * stopped entries go this way; edits of the running entry go through the timer
+ * (`updateRunningEntry`).
  */
 export function updateEntry(qc: QueryClient, wid: number, { id, ...input }: EntryUpdate): Promise<TimeEntry> {
   return inEntryScope(
@@ -122,9 +122,9 @@ export function updateEntry(qc: QueryClient, wid: number, { id, ...input }: Entr
 export type RunningEntryUpdate = RunningEntryChanges & { id: number };
 
 /**
- * Sends an edit of the running entry through the timer (`editRunningEntry` in timerHooks.ts), at
- * the revision this tab saw, in the entry's scope, so it stays in order with the other edits of
- * it. The reply is the new timer state, and a conflict hands over the server's.
+ * Sends an edit of the running entry through the timer (`editRunningEntry` in timerHooks.ts),
+ * naming the entry, in the entry's scope, so it stays in order with the other edits of it. The
+ * reply is the new timer state, and a conflict, once the entry stopped, hands over the server's.
  */
 export function updateRunningEntry(qc: QueryClient, { id, ...changes }: RunningEntryUpdate): Promise<TimerState> {
   return inEntryScope(qc, id, () => editRunningEntry(qc, id, changes));

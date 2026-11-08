@@ -1,5 +1,11 @@
 import { useRef, useState } from 'react';
-import { useCreateEntry, useDeleteEntry, useRestoreEntry, useUpdateEntry } from '../api/entries.ts';
+import {
+  useCreateEntry,
+  useDeleteEntry,
+  useRestoreEntry,
+  useUpdateEntry,
+  useUpdateRunningEntry,
+} from '../api/entries.ts';
 import { useProjects } from '../api/projects.ts';
 import { useSettings } from '../api/settings.ts';
 import type { TimeEntry } from '../api/types.ts';
@@ -40,6 +46,7 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
   const tagButton = useRef<HTMLButtonElement>(null);
   const { data: projects = [] } = useProjects();
   const update = useUpdateEntry();
+  const updateRunning = useUpdateRunningEntry();
   const create = useCreateEntry();
   const remove = useDeleteEntry();
   const restore = useRestoreEntry();
@@ -53,7 +60,9 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
       const timeChanges = times.changes(fields.validate);
       if (!timeChanges) return;
       try {
-        await update.mutateAsync({ id: entry.id, ...draft, ...timeChanges });
+        // The running entry saves through the timer, which takes its labels and a moved start.
+        if (running) await updateRunning.mutateAsync({ id: entry.id, ...draft, start: timeChanges.start });
+        else await update.mutateAsync({ id: entry.id, ...draft, ...timeChanges });
         onClose();
       } catch (error) {
         toast.error(error);
