@@ -1799,6 +1799,18 @@ TestCase {
             locked: true
         });
         closeMenu();
+
+        // A connection failure shows as a symbol on the panel; the screen
+        // reader hears it, and why, in the description.
+        verify(button.Accessible.description.indexOf("Connected") < 0, "a ready connection goes unsaid: " + button.Accessible.description);
+        fixture.advance(31000);
+        fixture.failNetwork(waitFor("GET", "/app/timer"));
+        tryCompare(button.timer, "status", TokklTimer.Stale);
+        verify(fixture.session.active, "the last known session stays");
+        verify(button.words.detailText.length > 0);
+        const description = button.Accessible.description;
+        verify(description.indexOf("Offline, showing the last known state") >= 0, description);
+        verify(description.indexOf(button.words.detailText) >= 0, description);
     }
 
     function test_endSessionIsRefusedWhenTheSessionMovedOn() {

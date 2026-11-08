@@ -91,6 +91,15 @@ QtObject {
         }
     }
 
+    // The connection's state and, when there is one, why it is not ready;
+    // empty while ready.
+    readonly property string connectionText: {
+        if (timer.status === TokklTimer.Ready) {
+            return "";
+        }
+        return detailText.length > 0 ? i18nc("@info:status", "%1 · %2", statusText, detailText) : statusText;
+    }
+
     // The project name for the menu title, including the archived project of
     // the running or paused entry.
     readonly property string projectText: {

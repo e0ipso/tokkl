@@ -101,8 +101,17 @@ MouseArea {
         }
         return button.words.pomodoroMode ? button.words.withMode(i18nc("@action:button", "Start a Pomodoro session")) : i18nc("@action:button", "Start the Tokkl timer");
     }
-    // The session's line has no project, so the description names it.
-    Accessible.description: button.words.showsSession ? button.words.withMessage(button.words.projectText) : button.words.summary
+    // The session's line has no project or connection state, so the
+    // description names them: a failing connection otherwise shows only as
+    // the state symbol.
+    Accessible.description: {
+        if (!button.words.showsSession) {
+            return button.words.summary;
+        }
+        const connection = button.words.connectionText;
+        const text = connection.length > 0 ? i18nc("@info:status", "%1 · %2", button.words.projectText, connection) : button.words.projectText;
+        return button.words.withMessage(text);
+    }
     Accessible.focusable: true
     Accessible.onPressAction: {
         if (button.activate()) {
