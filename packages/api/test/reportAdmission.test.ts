@@ -364,13 +364,109 @@ test('a slot queues work only for the account that reserved it', async t => {
       slot.report(3, { kind: 'detailed-csv', filter: WEEKLY.filter } as never, output),
     ),
   ];
-  const seen = await postedJobs(posted, 2);
-  for (const job of seen) job.worker.finish(job.id);
-  const third = await postedJobs(posted, 3);
-  third[2]!.worker.finish(third[2]!.id);
+  for (const job of await postedJobs(posted, 3)) job.worker.finish(job.id);
   await Promise.all(jobs);
   assert.deepEqual(
     posted.map(job => job.work.userId),
     [7, 7, 7],
   );
+});
+
+/** Reports for `users`, one each, that settle with their error or undefined. */
+const reportsFor = (runner: ReportRunner, users: number[]) =>
+  users.map(user =>
+    runReport(runner, user, 1, WEEKLY as never).then(
+      () => undefined,
+      (error: Error) => error,
+    ),
+  );
+const exportsFor = (runner: ReportRunner, users: number[]) =>
+  users.map(user =>
+    runExport(runner, user, EXPORT, async () => {}).then(
+      () => undefined,
+      (error: Error) => error,
+    ),
+  );
+/** Lets every pending callback run, so a job that would start has started. */
+const quiet = async () => {
+  for (let i = 0; i < 20; i++) await new Promise(resolve => setImmediate(resolve));
+};
+
+test('a lane runs up to its concurrency at once, so one slow job holds only its own worker', async t => {
+  const { startWorker, posted, workers } = fakeReportWorkers();
+  const runner = new ReportRunner(WORKER, UNUSED, { startWorker });
+  t.after(() => runner.close());
+
+  const downloads = exportsFor(runner, [1, 2, 3, 4]);
+  await postedJobs(posted, 3);
+  await quiet();
+  assert.deepEqual(
+    posted.map(job => job.work.userId),
+    [1, 2, 3],
+    'three downloads run while the fourth waits',
+  );
+  assert.equal(workers.length, 3);
+  // The first download stays slow; the second ends and the fourth takes its worker.
+  posted[1]!.worker.finish(posted[1]!.id);
+  await postedJobs(posted, 4);
+  assert.equal(posted[3]!.worker, posted[1]!.worker);
+  for (const job of posted.slice(2)) job.worker.finish(job.id);
+
+  const reports = reportsFor(runner, [5, 6, 7]);
+  await postedJobs(posted, 6);
+  await quiet();
+  assert.deepEqual(
+    posted.slice(4).map(job => job.work.userId),
+    [5, 6],
+    'two reports run while the third waits',
+  );
+  assert.equal(workers.length, 5);
+  for (const job of posted.slice(4)) job.worker.finish(job.id);
+  await postedJobs(posted, 7);
+  posted[6]!.worker.finish(posted[6]!.id);
+  posted[0]!.worker.finish(posted[0]!.id);
+  assert.deepEqual(await Promise.all([...downloads, ...reports]), Array(7).fill(undefined));
+});
+
+test('a freed worker goes to the account served longest ago, and shares still count running jobs', async t => {
+  const { startWorker, posted } = fakeReportWorkers();
+  const runner = new ReportRunner(WORKER, UNUSED, { startWorker, maxQueue: 8, maxPerUser: 3, concurrency: 2 });
+  t.after(() => runner.close());
+  const mine = reportsFor(runner, [1, 1, 1]);
+  await postedJobs(posted, 2);
+  const theirs = reportsFor(runner, [2]);
+  const full = await runReport(runner, 1, 1, WEEKLY as never).catch((error: Error) => error);
+  assert.match(String(full), /Report queue is full/, 'two running and one queued are the whole share');
+  posted[0]!.worker.finish(posted[0]!.id);
+  await postedJobs(posted, 3);
+  assert.equal(posted[2]!.work.userId, 2, 'the other account goes before the third job of the first');
+  for (const job of posted.slice(1)) job.worker.finish(job.id);
+  await postedJobs(posted, 4);
+  posted[3]!.worker.finish(posted[3]!.id);
+  assert.deepEqual(await Promise.all([...mine, ...theirs]), Array(4).fill(undefined));
+});
+
+test('a lane starts one worker at a time, and a crash fails only the job on that worker', async t => {
+  const { startWorker, posted, workers } = fakeReportWorkers();
+  const runner = new ReportRunner(WORKER, UNUSED, { startWorker });
+  t.after(() => runner.close());
+  const [first, second] = reportsFor(runner, [1, 2]);
+  assert.equal(workers.length, 1, 'the second worker waits until the first is up');
+  await postedJobs(posted, 2);
+  assert.equal(workers.length, 2);
+  posted[0]!.worker.emit('exit', 1);
+  assert.match(String(await first), /Report worker stopped/);
+  posted[1]!.worker.finish(posted[1]!.id);
+  assert.equal(await second, undefined);
+});
+
+test('a lane runs at least one job and at most its queue at once', () => {
+  for (const concurrency of [0, 1.5, 17])
+    assert.throws(() => new ReportRunner(INLINE, UNUSED, { maxQueue: 16, concurrency }), /Invalid report concurrency/);
+  assert.throws(
+    () => new ReportRunner(INLINE, UNUSED, { downloads: { maxQueue: 2, concurrency: 3 } }),
+    /Invalid download concurrency/,
+  );
+  // A short queue lowers the default instead of refusing it.
+  assert.doesNotThrow(() => new ReportRunner(INLINE, UNUSED, { maxQueue: 1, downloads: { maxQueue: 1 } }));
 });

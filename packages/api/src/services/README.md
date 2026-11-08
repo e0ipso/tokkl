@@ -5,7 +5,7 @@ report runner and its worker, imports and exports. `application.ts` binds the do
 and checks the signed-in credential around each operation. `app.ts` builds the report runner and
 passes it in as a `ReportExecutor`. Reports and exports reserve a place in its queue before they
 read anything, and each account may hold only its share of the places. `reportRunner.ts` admits,
-cancels and orders the jobs; `reportExecution.ts` runs the chosen one, in the worker (start,
+cancels and orders the jobs and runs a few at once per lane; `reportExecution.ts` runs each chosen one, in the worker (start,
 messages, crash recovery, shutdown) or inline for in-memory SQLite. Account exports are jobs too (`exportJobs.ts`): they read the
 entries a batch at a time in the job's snapshot and stream each piece to the response, never
 holding the history whole. A report job reads and

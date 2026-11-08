@@ -53,8 +53,12 @@ export function fakeReportWorkers() {
   return { startWorker, workers, posted };
 }
 
-/** Resolves once the posted jobs reach `count`. */
+/** Resolves once the posted jobs reach `count`; fails after a second without them. */
 export async function postedJobs(posted: PostedJob[], count: number): Promise<PostedJob[]> {
-  while (posted.length < count) await new Promise(resolve => setImmediate(resolve));
+  const deadline = Date.now() + 1000;
+  while (posted.length < count) {
+    if (Date.now() > deadline) throw new Error(`${posted.length} jobs posted, not ${count}`);
+    await new Promise(resolve => setImmediate(resolve));
+  }
   return posted;
 }
