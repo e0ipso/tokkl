@@ -19,11 +19,12 @@ export const TIMER1_XML_FILE = 'org.tokkl.Timer1.xml';
 export const AUTH_MODES = ['token', 'password'];
 
 // The oldest tokkl-timerd the extension supports, by the InterfaceVersion it
-// publishes. Version 1 publishes Actions, Presentation, PomodoroLengthLimits
-// and the Request methods, and version 2 ChosenProjectLabel; the extension
-// relies on all of them. A
-// service below it, or one without InterfaceVersion (tokkl-timerd 2.1.0 and
-// older), gets no menu of its own: the menu says to update tokkl-timerd
+// publishes. Version 2 is the first released one, and publishes Actions,
+// Presentation, PomodoroLengthLimits, ChosenProjectLabel and the Request
+// methods; the extension relies on all of them. Version 1 was never
+// released: only development builds published it. A service below the
+// floor, or one without InterfaceVersion (tokkl-timerd 2.1.0 and older),
+// gets no menu of its own: the menu says to update tokkl-timerd
 // (describeStatus()) and sends it nothing. desktop/gnome/README.md states the
 // same floor.
 export const OLDEST_SUPPORTED_INTERFACE_VERSION = 2;
