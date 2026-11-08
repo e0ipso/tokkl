@@ -75,6 +75,7 @@ PlasmoidItem {
         timer: root.timer
         session: root.pomodoro.session
         lengthsSave: root.lengthsSave
+        alarm: root.alarm
     }
 
     // Keep the timer inline in the panel. Plasma does not select a compact

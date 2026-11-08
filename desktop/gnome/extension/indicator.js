@@ -232,9 +232,13 @@ export const TokklIndicator = GObject.registerClass(
                 longRestEvery: this._property('LongRestEvery', 0),
                 upcomingPhase: this._property('UpcomingPhase', ''),
                 sessionMessage: this._property('SessionMessage', ''),
+                alarmError: this._property('AlarmError', ''),
                 // Which items show and can be chosen; a service from before
                 // Actions publishes none, and legacyactions.js stands in.
                 actions: this._property('Actions', null),
+                // Which parts the time's words show; a service from before
+                // Presentation publishes none, and legacyPresentation() stands in.
+                presentation: this._property('Presentation', null),
                 actionError: this._actionError,
             };
         }
@@ -251,6 +255,7 @@ export const TokklIndicator = GObject.registerClass(
 
             this._words = words;
             this._time = {
+                status: state.status,
                 running: state.running,
                 paused: state.paused,
                 startTime: state.startTime,
@@ -259,6 +264,7 @@ export const TokklIndicator = GObject.registerClass(
                 // The panel counts the phase down while a session is active, in
                 // either mode.
                 session: state.sessionActive ? state : null,
+                presentation: state.status !== null ? state.presentation : null,
             };
             this._ticking = state.running || state.sessionActive;
             this._hourglass.visible = state.pomodoroMode;

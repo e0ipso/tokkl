@@ -861,6 +861,18 @@ await step('Start session in the menu starts a session and clears the message', 
     await waitFor('the session ended', () => timerProperty('SessionActive') === false);
 });
 
+await step('a sound that did not play shows in the menu once no other message does', async () => {
+    const alarmError = 'No alarm sound: Connection refused';
+    mockSet('AlarmError', new GLib.Variant('s', alarmError));
+    await waitFor(
+        'the alarm error',
+        () => shell(`${button}._messageItem.label.text`) === alarmError || shell(`${button}._messageItem.label.text`),
+    );
+    if (shell(`${button}._messageItem.visible`) !== true) throw new Error('the alarm error is hidden');
+    mockSet('AlarmError', new GLib.Variant('s', ''));
+    await waitFor('no message', () => shell(`${button}._messageItem.visible`) === false);
+});
+
 await step('Start session is disabled while the service cannot start one', async () => {
     mockSet('Status', new GLib.Variant('s', 'busy'));
     await waitFor('Start session disabled', () => !sensitive('_startSessionItem') || 'sensitive');

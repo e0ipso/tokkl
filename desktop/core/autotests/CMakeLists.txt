@@ -28,6 +28,7 @@ endfunction()
 tokkl_core_test(api apitest.cpp)
 tokkl_core_test(apiclient apiclienttest.cpp tokklcorefakes)
 tokkl_core_test(connection connectiontest.cpp tokklcorefakes)
+tokkl_core_test(cooldown cooldowntest.cpp)
 tokkl_core_test(sessioncredentials sessioncredentialstest.cpp tokklcorefakes)
 tokkl_core_test(networktransport networktransporttest.cpp)
 # The User-Agent check needs the version the transport sends.
@@ -49,6 +50,10 @@ list(JOIN TOKKL_POMODORO_SOUND_FILES "|" _sound_files)
 target_compile_definitions(pomodorosoundstest PRIVATE
     TOKKL_SOUNDS_README="${_sounds_readme}"
     TOKKL_POMODORO_SOUND_FILES="${_sound_files}")
+tokkl_core_test(statuspresentation statuspresentationtest.cpp)
+# The fixture the GNOME extension's tests read too.
+target_compile_definitions(statuspresentationtest PRIVATE
+    TOKKL_STATUS_FIXTURE="${CMAKE_CURRENT_SOURCE_DIR}/statuspresentation.json")
 tokkl_core_test(hourglassglyph hourglassglyphtest.cpp)
 # The glyph's masters in assets/ and the companions' copies of it, from
 # desktop/, the core's parent.

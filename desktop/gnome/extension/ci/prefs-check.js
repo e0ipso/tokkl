@@ -202,6 +202,29 @@ await step('token sign-in sends no email, and an empty token keeps the saved one
     await answered();
 });
 
+await step('a secret typed for one connection is dropped when the URL, method or email changes', async () => {
+    form.secret.text = 'typed-for-example';
+    form.url.text = 'https://other.example.com';
+    if (form.secret.text !== '') throw new Error('a new URL kept the secret');
+    form.url.text = 'https://tokkl.example.com';
+    form.secret.text = 'typed-for-token';
+    form.mode.selected = 1;
+    if (form.secret.text !== '') throw new Error('a new sign-in method kept the secret');
+    form.secret.text = 'typed-for-me';
+    form.email.text = 'you@example.com';
+    if (form.secret.text !== '') throw new Error('a new email kept the secret');
+    form.email.text = 'me@example.com';
+    form.mode.selected = 0;
+    // A secret typed after the change stays and goes to the connection shown.
+    form.secret.text = 'typed-again';
+    const before = mockCalls().length;
+    form.connect.emit('clicked');
+    await waitFor('Configure', () => mockCalls().length > before);
+    await answered();
+    if (sameCall(lastCall(), ['Configure', 'https://tokkl.example.com', 'token', '', 'typed-again']) !== true)
+        throw new Error(`Configure got ${JSON.stringify(lastCall())}`);
+});
+
 await step('a refused configuration keeps the form and the saved settings', async () => {
     const before = mockCalls().length;
     form.url.text = 'http://insecure.example.com';
@@ -210,6 +233,17 @@ await step('a refused configuration keeps the form and the saved settings', asyn
     await waitFor('Configure', () => mockCalls().length > before);
     await answered();
     if (form.secret.text !== 'token-value') throw new Error('the secret was cleared after an error');
+    if (settings.get_string('instance-url') !== 'https://tokkl.example.com')
+        throw new Error(`instance-url changed to ${settings.get_string('instance-url')}`);
+});
+
+await step('a replaced configuration keeps the saved settings', async () => {
+    const before = mockCalls().length;
+    form.url.text = 'https://replaced.example.com';
+    form.secret.text = 'token-value';
+    form.connect.emit('clicked');
+    await waitFor('Configure', () => mockCalls().length > before);
+    await answered();
     if (settings.get_string('instance-url') !== 'https://tokkl.example.com')
         throw new Error(`instance-url changed to ${settings.get_string('instance-url')}`);
 });

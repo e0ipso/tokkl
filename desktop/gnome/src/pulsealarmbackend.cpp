@@ -143,6 +143,9 @@ PulseAlarmBackend::PulseAlarmBackend(const QString &applicationName, QObject *pa
     // Across threads, so queued to this object's thread.
     connect(m_alarm, &PulseStream::failed, this, &PulseAlarmBackend::errorOccurred);
     connect(m_preview, &PulseStream::failed, this, &PulseAlarmBackend::errorOccurred);
+    connect(this, &PulseAlarmBackend::errorOccurred, this, [this](const QString &message) {
+        reportFailure(message);
+    });
 }
 
 PulseAlarmBackend::~PulseAlarmBackend()

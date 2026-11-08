@@ -21,8 +21,9 @@
 // silence a ringing alarm. The stream connects when a sound starts and
 // disconnects when it ends, so a silent service holds no connection and a
 // sound server restarted in between is found again. A server that refuses,
-// or a file that cannot be read, is reported through errorOccurred and
-// leaves the service running without sound.
+// or a file that cannot be read, is reported through errorOccurred and to
+// the AlarmOutput failure handler, and leaves the service running without
+// sound.
 
 #include "alarmoutput.h"
 #include "wavfile.h"

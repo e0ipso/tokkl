@@ -269,6 +269,18 @@ SettingsWindow::SettingsWindow(Transport *transport,
             preview(kind);
         });
     }
+    m_soundError = noteLabel();
+    m_soundError->hide();
+    pomodoroForm->addRow(QString(), m_soundError);
+    if (m_alarm) {
+        const auto showFailure = [this] {
+            const QString failure = m_alarm ? m_alarm->failure() : QString();
+            m_soundError->setText(failure);
+            m_soundError->setVisible(!failure.isEmpty());
+        };
+        connect(m_alarm, &PomodoroAlarm::failureChanged, this, showFailure);
+        showFailure();
+    }
 
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Close);
     m_saveButton = buttons->button(QDialogButtonBox::Save);

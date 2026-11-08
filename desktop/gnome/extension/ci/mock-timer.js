@@ -4,7 +4,9 @@
 // records every method call. A second interface, org.tokkl.Timer1Mock,
 // lets the check read the calls, change properties, start a session as
 // another device would, have the server refuse the next request, act as a
-// service from before the Request methods, and stop the mock.
+// service from before the Request methods, and stop the mock. Configure
+// with an address that contains "replaced" fails as a call a later one
+// replaced.
 //
 //   gjs -m mock-timer.js /path/to/org.tokkl.Timer1.xml
 
@@ -51,6 +53,7 @@ const types = {
     PomodoroLengthLimits: 'a{sa{si}}',
     Sounds: 'a{ss}',
     SoundChoices: 'aa{sv}',
+    AlarmError: 's',
     PomodoroMode: 'b',
     ModeLocked: 'b',
     SessionActive: 'b',
@@ -65,6 +68,7 @@ const types = {
     SessionMessage: 's',
     CanStartSession: 'b',
     Actions: 'a{sa{sv}}',
+    Presentation: 'a{sv}',
 };
 
 const state = {
@@ -107,6 +111,7 @@ const state = {
         { id: 'work-to-long-rest', label: 'Four slow falling notes' },
         { id: 'long-rest-to-work', label: 'Fast high run' },
     ],
+    AlarmError: '',
     PomodoroMode: false,
     ModeLocked: false,
     SessionActive: false,
@@ -121,6 +126,7 @@ const state = {
     RingingTransition: '',
     SessionMessage: '',
     Actions: {},
+    Presentation: {},
 };
 
 // The lengths on the Tokkl server behind the service. RefreshPreferences
@@ -156,6 +162,13 @@ function variant(name) {
                 label: new GLib.Variant('s', choice.label),
             })),
         );
+    }
+    if (name === 'Presentation') {
+        return new GLib.Variant('a{sv}', {
+            summary: new GLib.Variant('as', state.Presentation.summary),
+            menuLine: new GLib.Variant('as', state.Presentation.menuLine),
+            mark: new GLib.Variant('s', state.Presentation.mark),
+        });
     }
     if (name === 'Actions') {
         return new GLib.Variant(
@@ -198,6 +211,25 @@ function actionsOf() {
     };
 }
 
+// The parts of the button's words as the service publishes them from the
+// core's rules with the GNOME policy.
+function presentationOf() {
+    const status = state.Status;
+    const detail =
+        status === 'unconfigured' || (!['ready', 'loading', 'busy'].includes(status) && state.ErrorString)
+            ? ['detail']
+            : [];
+    const mark =
+        { ready: 'none', loading: 'pending', busy: 'pending', unconfigured: 'unconfigured' }[status] ?? 'alert';
+    if (state.SessionActive)
+        return { summary: ['session', 'project', 'connection', ...detail], menuLine: ['session'], mark };
+    return {
+        summary: ['activity', 'project', 'connection', ...detail, ...(state.PomodoroMode ? ['pomodoroMode'] : [])],
+        menuLine: state.Paused ? ['activity', 'connection'] : ['connection'],
+        mark,
+    };
+}
+
 function set(values) {
     for (const [name, value] of Object.entries(values)) {
         if (state[name] === value) continue;
@@ -221,7 +253,12 @@ function set(values) {
         return;
     }
     const actions = actionsOf();
-    if (JSON.stringify(actions) !== JSON.stringify(state.Actions)) set({ Actions: actions });
+    if (JSON.stringify(actions) !== JSON.stringify(state.Actions)) {
+        set({ Actions: actions });
+        return;
+    }
+    const presentation = presentationOf();
+    if (JSON.stringify(presentation) !== JSON.stringify(state.Presentation)) set({ Presentation: presentation });
 }
 
 const now = () => Math.floor(Date.now() / 1000);
@@ -349,6 +386,14 @@ class Timer1 {
         calls.push(['Configure', instanceUrl, authMode, email, secret]);
         if (!instanceUrl.startsWith('https://'))
             throw new GLib.Error(Gio.DBusError, Gio.DBusError.INVALID_ARGS, 'Enter an https:// URL.');
+        // As the service answers a call that a later one replaced while the
+        // keyring saved its secret. GJS sends a thrown error whose name has a
+        // dot under that name.
+        if (instanceUrl.includes('replaced')) {
+            const error = new Error('A later connection change replaced these settings.');
+            error.name = 'org.tokkl.Timer1.Error.Superseded';
+            throw error;
+        }
     }
 
     SetPomodoroMode(pomodoro) {
@@ -449,6 +494,7 @@ class Timer1 {
 }
 
 state.Actions = actionsOf();
+state.Presentation = presentationOf();
 const implementation = new Timer1();
 for (const name of Object.keys(types))
     Object.defineProperty(implementation, name, { get: () => variant(name).deepUnpack() });

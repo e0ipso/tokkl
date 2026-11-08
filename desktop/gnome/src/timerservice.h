@@ -15,6 +15,7 @@
 #include <QDBusContext>
 #include <QList>
 #include <QMap>
+#include <QMetaProperty>
 #include <QObject>
 #include <QPointer>
 #include <QString>
@@ -67,12 +68,14 @@ class TimerService : public QObject, protected QDBusContext
     Q_PROPERTY(QString RingingTransition READ ringingTransition)
     Q_PROPERTY(QString SessionMessage READ sessionMessage)
     Q_PROPERTY(QMap<QString, QVariantMap> Actions READ actions)
+    Q_PROPERTY(QVariantMap Presentation READ presentation)
     Q_PROPERTY(QMap<QString, int> PomodoroLengths READ pomodoroLengths)
     Q_PROPERTY(bool PomodoroLengthsEditable READ pomodoroLengthsEditable)
     Q_PROPERTY(QMap<QString, QString> PomodoroLengthErrors READ pomodoroLengthErrors)
     Q_PROPERTY(QMap<QString, QMap<QString, int>> PomodoroLengthLimits READ pomodoroLengthLimits)
     Q_PROPERTY(QMap<QString, QString> Sounds READ sounds)
     Q_PROPERTY(QList<QVariantMap> SoundChoices READ soundCatalogue)
+    Q_PROPERTY(QString AlarmError READ alarmError)
 
 public:
     static const QString serviceName;
@@ -108,7 +111,7 @@ public:
     bool registerOn(QDBusConnection bus);
 
     // The alarm PreviewSound plays on, which the service does not own.
-    // Without one, PreviewSound is refused.
+    // Without one, PreviewSound is refused. AlarmError follows its failure.
     void setAlarm(PomodoroAlarm *alarm);
 
     bool running() const;
@@ -143,6 +146,9 @@ public:
     QString sessionMessage() const;
     // MenuActionStates with the GNOME policy, as the menu reads them.
     QMap<QString, QVariantMap> actions() const;
+    // StatusPresentation with the GNOME policy, as the button's words read
+    // it.
+    QVariantMap presentation() const;
     QMap<QString, int> pomodoroLengths() const;
     bool pomodoroLengthsEditable() const;
     QMap<QString, QString> pomodoroLengthErrors() const;
@@ -150,6 +156,8 @@ public:
     QMap<QString, QMap<QString, int>> pomodoroLengthLimits() const;
     QMap<QString, QString> sounds() const;
     QList<QVariantMap> soundCatalogue() const;
+    // PomodoroAlarm::failure(), empty without an alarm.
+    QString alarmError() const;
 
 public Q_SLOTS:
     // The org.tokkl.Timer1 methods, called by the generated adaptor.
@@ -187,25 +195,38 @@ private:
     void onWriteFinished(bool ok, const QString &message);
 
     // The properties in groups that change together. Each core signal marks
-    // the groups it can change, and only those are read again.
+    // the groups it can change (watch()), and only those are read again.
     enum Group : unsigned {
         TimerGroup = 1u << 0, // the entry, chain, choice, indicator and status
         ProjectsGroup = 1u << 1,
         SessionGroup = 1u << 2,
-        ActionsGroup = 1u << 3, // reads both the timer and the session
+        ActionsGroup = 1u << 3, // Actions and Presentation, which read both the timer and the session
         LengthsGroup = 1u << 4,
         SoundsGroup = 1u << 5,
         FixedGroup = 1u << 6, // never changes while the service runs
         AllGroups = (1u << 7) - 1,
     };
 
-    QVariantMap timerProperties() const;
-    QVariantMap projectProperties() const;
-    QVariantMap sessionProperties() const;
-    QVariantMap actionProperties() const;
-    QVariantMap lengthProperties() const;
-    QVariantMap soundProperties() const;
-    QVariantMap fixedProperties() const;
+    // A published property: its name on the bus, its group and the
+    // Q_PROPERTY its value is read through.
+    struct Published {
+        QString name;
+        unsigned group;
+        QMetaProperty meta;
+    };
+    using Publication = QList<Published>;
+    // Every org.tokkl.Timer1 property, from the table in timerservice.cpp.
+    static const Publication &publication();
+    // Marks groups whenever one of sender's signals fires.
+    template<typename Sender, typename... Signals>
+    void watch(unsigned groups, Sender *sender, Signals... signals)
+    {
+        (connect(sender, signals, this,
+                 [this, groups] {
+                     mark(groups);
+                 }),
+         ...);
+    }
     // The values of the given groups, as the adaptor reads them.
     QVariantMap read(unsigned groups) const;
     // Marks the groups and publishes them when the event loop next runs.

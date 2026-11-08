@@ -3,6 +3,7 @@
 
 #include "alarmoutput.h"
 #include "pomodoroalarm.h"
+#include "statuspresentation.h"
 #include "apitypes.h"
 #include "configurationadapter.h"
 #include "connection.h"
@@ -341,6 +342,12 @@ public:
     void stop() override
     {
         calls.append(QStringLiteral("stop"));
+    }
+
+    // As a sound server that refused the last sound.
+    void fail(const QString &reason)
+    {
+        reportFailure(reason);
     }
 };
 
@@ -730,12 +737,14 @@ private Q_SLOTS:
             {QStringLiteral("RingingTransition"), QStringLiteral("s read")},
             {QStringLiteral("SessionMessage"), QStringLiteral("s read")},
             {QStringLiteral("Actions"), QStringLiteral("a{sa{sv}} read")},
+            {QStringLiteral("Presentation"), QStringLiteral("a{sv} read")},
             {QStringLiteral("PomodoroLengths"), QStringLiteral("a{si} read")},
             {QStringLiteral("PomodoroLengthsEditable"), QStringLiteral("b read")},
             {QStringLiteral("PomodoroLengthErrors"), QStringLiteral("a{ss} read")},
             {QStringLiteral("PomodoroLengthLimits"), QStringLiteral("a{sa{si}} read")},
             {QStringLiteral("Sounds"), QStringLiteral("a{ss} read")},
             {QStringLiteral("SoundChoices"), QStringLiteral("aa{sv} read")},
+            {QStringLiteral("AlarmError"), QStringLiteral("s read")},
         };
         QCOMPARE(timer.properties, properties);
         const QMap<QString, QStringList> methods{
@@ -1351,6 +1360,38 @@ private Q_SLOTS:
         QCOMPARE(settings.value(QStringLiteral("instanceUrl")).toString(), expected);
     }
 
+    // Over the bus, the replaced call says so: its settings were never
+    // applied, so a client must not keep them as accepted.
+    void replacedConfigureFailsAsSuperseded()
+    {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        FakeTransport transport;
+        HeldStore store;
+        FakeClock clock;
+        Daemon daemon(&transport, &store, dir.filePath(QStringLiteral("tokkl-timerd.conf")), &clock);
+        QVERIFY(daemon.service.registerOn(QDBusConnection(serviceBus)));
+        const auto configure = [](const QString &url, const QString &secret) {
+            QDBusMessage message = QDBusMessage::createMethodCall(TimerService::serviceName, TimerService::objectPath, TimerService::interfaceName, QStringLiteral("Configure"));
+            message.setArguments({url, QStringLiteral("token"), QString(), secret});
+            return QDBusConnection(clientBus).asyncCall(message);
+        };
+        const QString other = QStringLiteral("https://b.example.test");
+        QDBusPendingCall first = configure(instanceUrl, QStringLiteral("tok-a"));
+        QTRY_COMPARE(store.held.size(), 1);
+        QDBusPendingCall second = configure(other, QStringLiteral("tok-b"));
+        QTRY_COMPARE(store.held.size(), 2);
+
+        store.finish(1);
+        store.finish(0);
+        QTRY_VERIFY(first.isFinished() && second.isFinished());
+        QCOMPARE(second.reply().type(), QDBusMessage::ReplyMessage);
+        QCOMPARE(first.reply().type(), QDBusMessage::ErrorMessage);
+        QCOMPARE(first.reply().errorName(), ConfigurationAdapter::supersededError);
+        QVERIFY(!first.reply().errorMessage().isEmpty());
+        QCOMPARE(daemon.connection.instanceUrl(), parseInstanceUrl(other).base.toString());
+    }
+
     // A second instance cannot take the name, as tokkl-timerd then exits.
     void secondInstanceRefused()
     {
@@ -1687,6 +1728,40 @@ private Q_SLOTS:
         QCOMPARE(last.value(QStringLiteral("startSession")).value(QStringLiteral("visible")).toBool(), true);
     }
 
+    // Presentation carries the core's StatusPresentation with the GNOME
+    // policy, and its changes reach the bus like any other property's.
+    void presentationFollowsTheCore()
+    {
+        Fixture f;
+        QVERIFY(f.start());
+        const auto parts = [](const QVariantMap &presentation, const char *key) {
+            return presentation.value(QString::fromLatin1(key)).toStringList();
+        };
+        QVariantMap shown = qdbus_cast<QVariantMap>(f.get(QStringLiteral("Presentation")));
+        QCOMPARE(parts(shown, "summary"),
+                 (QStringList{QStringLiteral("activity"), QStringLiteral("project"), QStringLiteral("connection"), QStringLiteral("detail")}));
+        QCOMPARE(parts(shown, "menuLine"), QStringList{QStringLiteral("connection")});
+        QCOMPARE(shown.value(QStringLiteral("mark")).toString(), QStringLiteral("unconfigured"));
+
+        QVERIFY(f.connect());
+        QCOMPARE(f.service->presentation(), StatusPresentation::of(StatusInput::of(f.daemon->timer, &f.daemon->session), StatusPolicy::gnome()).toVariantMap());
+        shown = qdbus_cast<QVariantMap>(f.get(QStringLiteral("Presentation")));
+        QCOMPARE(parts(shown, "summary"), (QStringList{QStringLiteral("activity"), QStringLiteral("project"), QStringLiteral("connection")}));
+        QCOMPARE(shown.value(QStringLiteral("mark")).toString(), QStringLiteral("none"));
+        QVERIFY(QTest::qWaitFor([&f] {
+            const QVariantList published = f.recorder.valuesOf(QStringLiteral("Presentation"));
+            return !published.isEmpty() && qdbus_cast<QVariantMap>(published.last()).value(QStringLiteral("mark")).toString() == QLatin1String("none");
+        }));
+
+        // Pomodoro mode joins the summary.
+        QCOMPARE(f.result(QStringLiteral("SetPomodoroMode"), {QVariant(true)}).toBool(), true);
+        QVERIFY(QTest::qWaitFor([&f] {
+            const QVariantList published = f.recorder.valuesOf(QStringLiteral("Presentation"));
+            return !published.isEmpty()
+                && qdbus_cast<QVariantMap>(published.last()).value(QStringLiteral("summary")).toStringList().contains(QStringLiteral("pomodoroMode"));
+        }));
+    }
+
     // Activate: in Timer mode, and while an entry runs or a chain is
     // paused, it toggles the timer (start, pause, resume); in Pomodoro mode
     // it starts a session, is ignored while that waits for the server or
@@ -1903,6 +1978,35 @@ private Q_SLOTS:
         }
         QVERIFY(f.restart());
         QCOMPARE(qdbus_cast<StringMap>(f.get(QStringLiteral("Sounds"))), chosen);
+    }
+
+    // A sound the output could not play, or whose file is missing, shows in
+    // AlarmError until the next sound starts.
+    void alarmErrorTellsWhyNoSoundPlayed()
+    {
+        Fixture f;
+        QVERIFY(f.start());
+        QCOMPARE(f.get(QStringLiteral("AlarmError")).toString(), QString());
+        FakeAlarmOutput output;
+        PomodoroAlarm alarm(&f.daemon->session, &output, &f.daemon->sounds, bundledSoundsDir());
+        f.service->setAlarm(&alarm);
+        QCOMPARE(f.result(QStringLiteral("PreviewSound"), {QStringLiteral("short-rest-to-work")}).toBool(), true);
+        output.fail(QStringLiteral("Connection refused"));
+        QCOMPARE(f.get(QStringLiteral("AlarmError")).toString(), QStringLiteral("No alarm sound: Connection refused"));
+        QTRY_VERIFY(f.recorder.valuesOf(QStringLiteral("AlarmError")).contains(QStringLiteral("No alarm sound: Connection refused")));
+
+        // The next sound starts afresh.
+        QCOMPARE(f.result(QStringLiteral("PreviewSound"), {QStringLiteral("work-to-long-rest")}).toBool(), true);
+        QCOMPARE(f.get(QStringLiteral("AlarmError")).toString(), QString());
+
+        // A file that is not there plays nothing and says so.
+        QTemporaryDir empty;
+        QVERIFY(empty.isValid());
+        alarm.setSoundsDirectory(empty.path());
+        QCOMPARE(f.result(QStringLiteral("PreviewSound"), {QStringLiteral("work-to-long-rest")}).toBool(), true);
+        QCOMPARE(output.calls.size(), 2);
+        const QString missing = f.get(QStringLiteral("AlarmError")).toString();
+        QVERIFY2(missing.startsWith(QStringLiteral("No alarm sound: ")) && missing.contains(empty.path()), qPrintable(missing));
     }
 
     // The alarm loops the file of the sound chosen for the ringing

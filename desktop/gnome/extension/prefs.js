@@ -17,6 +17,7 @@ import { ExtensionPreferences, gettext as _ } from 'resource:///org/gnome/Shell/
 import { lengthLimits } from './legacylimits.js';
 import { AUTH_MODES, describeStatus } from './timer1.js';
 import { cachedProperty, createTimer1Proxy, serviceRunning } from './timer1proxy.js';
+import { TypedSecret, connectionIdentity } from './typedsecret.js';
 
 function toastError(window, error) {
     Gio.DBusError.strip_remote_error(error);
@@ -316,7 +317,17 @@ class ConnectionGroup {
         this._secret = new Adw.PasswordEntryRow();
         this.group.add(this._secret);
 
-        this._modes.connect('notify::selected', () => this._syncMode());
+        // A secret typed for one instance, sign-in method or email is
+        // cleared when one of them changes, and has to be typed again.
+        this._typedSecret = new TypedSecret();
+        this._secret.connect('changed', () => this._typedSecret.edited(this._secret.text, this._identity()));
+        this._url.connect('changed', () => this._dropStaleSecret());
+        this._email.connect('changed', () => this._dropStaleSecret());
+
+        this._modes.connect('notify::selected', () => {
+            this._syncMode();
+            this._dropStaleSecret();
+        });
         this._syncMode();
 
         this._connect = new Gtk.Button({
@@ -339,6 +350,14 @@ class ConnectionGroup {
         this._secret.title = password ? _('Password') : _('API token');
     }
 
+    _identity() {
+        return connectionIdentity(this._url.text, AUTH_MODES[this._modes.selected], this._email.text);
+    }
+
+    _dropStaleSecret() {
+        if (this._typedSecret.staleFor(this._secret.text, this._identity())) this._secret.text = '';
+    }
+
     _configure() {
         if (!this._proxy) return;
         const mode = AUTH_MODES[this._modes.selected];
@@ -348,6 +367,10 @@ class ConnectionGroup {
         const address = mode === 'password' ? values.email : '';
         this._proxy.ConfigureRemote(values.url, mode, address, this._secret.text, (result, error) => {
             this._connect.sensitive = true;
+            // Only settings the service applied are kept. That leaves out a
+            // call a later one replaced before its settings were applied
+            // (org.tokkl.Timer1.Error.Superseded): the later call's settings
+            // are the service's.
             if (error) {
                 toastError(this._window, error);
                 return;

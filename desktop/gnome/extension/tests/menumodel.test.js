@@ -165,6 +165,18 @@ test('a failed call shows its message, ahead of the session message', () => {
     assert.deepEqual(menuFor({ actionError: '' }).message, { text: '', visible: false });
 });
 
+test('a sound that did not play shows after the other messages', () => {
+    const alarmError = 'No alarm sound: Connection refused';
+    assert.deepEqual(menuFor({ alarmError }).message, { text: alarmError, visible: true });
+    assert.equal(menuFor({ alarmError, sessionMessage: 'Too short to save' }).message.text, 'Too short to save');
+    assert.equal(
+        menuFor({ alarmError, actionError: 'The timer service did not answer.' }).message.text,
+        'The timer service did not answer.',
+    );
+    // A service from before AlarmError leaves it out.
+    assert.deepEqual(menuFor({ alarmError: undefined }).message, { text: '', visible: false });
+});
+
 test("a refused request's words show once, also when ErrorString holds them", () => {
     const refused = 'Project is archived';
     const state = serviceState({ status: 'error', actionError: refused });
@@ -195,7 +207,15 @@ test('the project choices start with No project and check the chosen one', () =>
 });
 
 const ready = describeStatus('ready', '', identity);
-const stopped = { running: false, paused: false, startTime: 0, chainSeconds: 0, pomodoroMode: false, session: null };
+const stopped = {
+    status: 'ready',
+    running: false,
+    paused: false,
+    startTime: 0,
+    chainSeconds: 0,
+    pomodoroMode: false,
+    session: null,
+};
 
 test('a running chain shows its total on the button and in the name', () => {
     const time = { ...stopped, running: true, startTime: 1000, chainSeconds: 600 };
@@ -216,7 +236,7 @@ test('a paused chain leads the status line with its total', () => {
 
 test('a stopped timer names the status, its detail and Pomodoro mode', () => {
     const offline = describeStatus('stale', 'No network', identity);
-    const shown = describeTime({ ...stopped, pomodoroMode: true }, offline, '', 0, identity);
+    const shown = describeTime({ ...stopped, status: 'stale', pomodoroMode: true }, offline, '', 0, identity);
     assert.equal(shown.button, '0:00!');
     assert.equal(shown.accessibleName, 'Stopped · Offline, showing the last known state · No network · Pomodoro mode');
 });

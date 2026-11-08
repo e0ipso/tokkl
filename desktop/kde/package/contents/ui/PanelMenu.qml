@@ -107,7 +107,7 @@ PlasmaComponents.Menu {
     PlasmaComponents.MenuItem {
         id: stateItem
         enabled: false
-        text: menu.words.showsSession ? menu.words.sessionText : i18nc("@item:inmenu running state, elapsed time, connection state", "%1 %2 · %3", menu.words.runText, menu.timer.elapsedText, menu.words.statusText)
+        text: menu.words.menuLine
         Accessible.description: menu.words.detailText
     }
 

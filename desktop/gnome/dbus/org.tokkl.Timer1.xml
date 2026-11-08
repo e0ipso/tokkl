@@ -164,6 +164,25 @@
     <property name="SoundChoices" type="aa{sv}" access="read">
       <annotation name="org.qtproject.QtDBus.QtTypeName" value="QList&lt;QVariantMap&gt;"/>
     </property>
+    <!-- Which parts a client's words for the state show, in order, as the
+         core's StatusPresentation decides them with the GNOME policy:
+         summary (as) for the button's accessible name and menuLine (as) for
+         the menu's status line, each a list of "activity", "session",
+         "project", "connection", "detail", "pomodoroMode" and "message";
+         and mark (s), how the button's time ends: "none", "pending",
+         "alert" or "unconfigured". A client turns the keys into its own
+         words and leaves out a part it has no words for. A service from
+         before this property has none: a client then decides the parts as
+         it did before. -->
+    <property name="Presentation" type="a{sv}" access="read">
+      <annotation name="org.qtproject.QtDBus.QtTypeName" value="QVariantMap"/>
+    </property>
+    <!-- Why the last alarm sound did not play, a ring's or a
+         PreviewSound's, in words for the user: a missing file, or a sound
+         server that refused it. Empty when it played. It stays after the
+         ring ends, until the next ring or preview starts. A service from
+         before this property has none. -->
+    <property name="AlarmError" type="s" access="read"/>
 
     <!-- Start a new entry on ChosenProject with Billable. Returns false
          when nothing was sent: an entry runs, a chain is paused, a session
@@ -241,7 +260,11 @@
          account. Fails with org.freedesktop.DBus.Error.InvalidArgs for
          unusable settings, and with org.tokkl.Timer1.Error.CredentialStore
          when the store refuses the secret; the settings then stay as they
-         were. -->
+         were. Fails with org.tokkl.Timer1.Error.Superseded when another
+         Configure call came while the store saved this one's secret: the
+         later call's settings are the ones applied, and this call's never
+         were, so a client must not keep them as accepted. A service from
+         before that error answered such a call with success. -->
     <method name="Configure">
       <arg name="instanceUrl" type="s" direction="in"/>
       <arg name="authMode" type="s" direction="in"/>

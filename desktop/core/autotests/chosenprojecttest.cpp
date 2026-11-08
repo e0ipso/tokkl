@@ -1,11 +1,13 @@
-// ChosenProject on its own: what the menu and the panel indicator show of
-// the chosen project, and when it reads a project the list lacks.
-// timercontrollertest covers it through the controller.
+// ChosenProject on its own, with ProjectLoader's read of a project the list
+// lacks: what the menu and the panel indicator show of the chosen project,
+// and when the project is read. timercontrollertest covers both through the
+// controller.
 
 #include "chosenproject.h"
 #include "connection.h"
 #include "fakes.h"
 #include "projectcatalog.h"
+#include "projectloader.h"
 
 #include <QSignalSpy>
 #include <QTest>
@@ -30,9 +32,7 @@ struct Fixture {
         return true;
     }};
     std::optional<qint64> chosen;
-    ChosenProject project{&catalog, [this] {
-                              return chosen;
-                          }};
+    ChosenProject project{&catalog};
 
     bool connectAndList()
     {
@@ -49,10 +49,22 @@ struct Fixture {
         return connection.isConnected() && catalog.listKnown();
     }
 
-    void choose(std::optional<qint64> id, bool ofEntry)
+    // What the loader does for a choice: reads the project when the list
+    // lacks it, then has it shown.
+    void choose(std::optional<qint64> id, bool ofEntry, Connection *readVia)
     {
         chosen = id;
-        project.update(id, ofEntry, &connection, workspace);
+        if (id) {
+            ProjectLoader::lookUp(catalog, readVia, *id, workspace, [this](qint64 projectId) {
+                return chosen == projectId;
+            });
+        }
+        project.show(id, ofEntry);
+    }
+
+    void choose(std::optional<qint64> id, bool ofEntry)
+    {
+        choose(id, ofEntry, &connection);
     }
 
     qsizetype projectReads(qint64 id) const
@@ -166,8 +178,7 @@ private Q_SLOTS:
         Fixture f;
         QVERIFY(f.connectAndList());
         const qsizetype before = f.transport.requests.size();
-        f.chosen = 33;
-        f.project.update(33, true, nullptr, workspace);
+        f.choose(33, true, nullptr);
         QCOMPARE(f.transport.requests.size(), before);
         QCOMPARE(f.project.indicator().state, State::Pending);
     }

@@ -2,6 +2,7 @@
 
 #include "connection.h"
 #include "menuactions.h"
+#include "pomodoroalarm.h"
 #include "pomodorosession.h"
 #include "statuswords.h"
 #include "timercoordinator.h"
@@ -13,17 +14,19 @@
 namespace Tokkl
 {
 
-StatusMenu::StatusMenu(TimerModel *timer, TimerCoordinator *actions, PomodoroSession *session, QObject *parent)
+StatusMenu::StatusMenu(TimerModel *timer, TimerCoordinator *actions, PomodoroSession *session, PomodoroAlarm *alarm, QObject *parent)
     : QObject(parent)
     , m_timer(timer)
     , m_actions(actions)
     , m_session(session)
+    , m_alarm(alarm)
     , m_menu(std::make_unique<QMenu>())
 {
     m_stateAction = m_menu->addAction(QString());
     m_stateAction->setEnabled(false);
 
-    // The session's message, such as a pomodoro too short to save.
+    // The session's message, such as a pomodoro too short to save, or why
+    // the alarm was silent.
     m_messageAction = m_menu->addAction(QString());
     m_messageAction->setEnabled(false);
 
@@ -134,6 +137,9 @@ StatusMenu::StatusMenu(TimerModel *timer, TimerCoordinator *actions, PomodoroSes
             connect(m_session, signal, this, &StatusMenu::refresh);
         }
     }
+    if (m_alarm) {
+        connect(m_alarm, &PomodoroAlarm::failureChanged, this, &StatusMenu::refresh);
+    }
     refresh();
 }
 
@@ -171,13 +177,12 @@ void StatusMenu::refreshState()
     if (!m_timer) {
         return;
     }
-    const QString detail = StatusWords::detailText(*m_timer);
-    if (m_session && StatusWords::showsSession(*m_timer, *m_session)) {
-        m_stateAction->setText(StatusWords::sessionLine(*m_timer, *m_session));
+    if (m_session) {
+        m_stateAction->setText(StatusWords::menuLine(*m_timer, *m_session));
     } else {
         m_stateAction->setText(tr("%1 %2 · %3").arg(StatusWords::runText(*m_timer), m_timer->elapsedText(), StatusWords::statusText(m_timer->status())));
     }
-    m_stateAction->setToolTip(detail);
+    m_stateAction->setToolTip(StatusWords::detailText(*m_timer));
 }
 
 void StatusMenu::refreshSession(const MenuActionStates &actions)
@@ -191,7 +196,10 @@ void StatusMenu::refreshSession(const MenuActionStates &actions)
     m_pomodoroModeAction->setEnabled(actions.mode.enabled);
     m_pomodoroModeAction->setChecked(m_session && m_session->pomodoroMode());
 
-    const QString message = m_session ? m_session->message() : QString();
+    QString message = m_session ? m_session->message() : QString();
+    if (message.isEmpty() && m_alarm) {
+        message = m_alarm->failure();
+    }
     m_messageAction->setText(message);
     m_messageAction->setVisible(!message.isEmpty());
 }

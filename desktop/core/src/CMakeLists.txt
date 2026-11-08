@@ -57,6 +57,8 @@ add_library(tokklcore STATIC
     projectcatalog.h
     projectchoices.cpp
     projectchoices.h
+    projectloader.cpp
+    projectloader.h
     sessioncredentials.cpp
     sessioncredentials.h
     sessionstate.h
@@ -64,6 +66,8 @@ add_library(tokklcore STATIC
     settingswrite.h
     soundchoices.cpp
     soundchoices.h
+    statuspresentation.cpp
+    statuspresentation.h
     timeractions.h
     timercontroller.cpp
     timercontroller.h

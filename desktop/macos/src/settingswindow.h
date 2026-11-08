@@ -152,6 +152,8 @@ private:
     // A failed read, or a refused save that names no field.
     QLabel *m_pomodoroError;
     std::array<QComboBox *, 4> m_soundBoxes;
+    // Why the last alarm sound, a preview's or a ring's, did not play.
+    QLabel *m_soundError;
     std::array<QPushButton *, 4> m_previewButtons;
 };
 

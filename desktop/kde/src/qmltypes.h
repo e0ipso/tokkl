@@ -19,6 +19,7 @@
 #include "pomodorosession.h"
 #include "pomodorosoundcatalogue.h"
 #include "pomodorostore.h"
+#include "statuspresentation.h"
 #include "timercontroller.h"
 
 #include <QtQml/qqmlregistration.h>
@@ -81,6 +82,14 @@ struct TokklMenuActionsForeign {
     Q_GADGET
     QML_FOREIGN(Tokkl::MenuActions)
     QML_NAMED_ELEMENT(TokklMenuActions)
+};
+
+// Which parts the panel's words for the timer and the session show, in
+// order, from the core's rules with the KDE panel's policy.
+struct TokklStatusPartsForeign {
+    Q_GADGET
+    QML_FOREIGN(Tokkl::StatusParts)
+    QML_NAMED_ELEMENT(TokklStatusParts)
 };
 
 // Pomodoro mode. TokklPomodoro builds the session and the preferences

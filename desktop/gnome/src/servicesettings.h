@@ -26,10 +26,11 @@ class ServiceSettings : public QObject
 public:
     struct Outcome {
         enum class Kind {
-            Saved, // or replaced by a later configure() while the store wrote
+            Saved,
             Invalid, // the address, sign-in method or email cannot be used
             StoreRefused, // the credential store did not keep the secret
             NotWritten, // the settings file could not be written
+            Superseded, // a later configure() came while the store wrote; its settings win
         };
         Kind kind = Kind::Saved;
         QString message; // for the user, empty for Saved
@@ -47,7 +48,8 @@ public:
     // gives them to the connection. An empty secret keeps the one the store
     // holds for that account. Nothing changes when the call is invalid, the
     // store refuses the secret or the file cannot be written; when a later
-    // call comes while the store writes, the later settings win. done runs
+    // call comes while the store writes, the later settings win and this
+    // call ends Superseded, its settings never applied. done runs
     // at once for an invalid call or an empty secret, otherwise once the
     // store answers.
     void configure(const QString &instanceUrl, const QString &authMode, const QString &email, const QString &secret, Done done);

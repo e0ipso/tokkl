@@ -37,12 +37,86 @@ public:
     virtual bool workspaceLost() const = 0;
 };
 
+// How TimerCoordinator changes what a TimerModel shows, apart from what the
+// panels read. Each change is one operation that sends every notification
+// it causes; the coordinator emits none of the model's signals. The model
+// implements it for its subclass, TimerController, which hands it to the
+// coordinator, so a panel holding a TimerModel can only read.
+class TimerModelUpdates
+{
+public:
+    virtual ~TimerModelUpdates() = default;
+
+    // Reads the state, the connection and the clock (for elapsed time and
+    // ticks) from now on. Not owned. Announces nothing: connectionReplaced()
+    // does once the coordinator follows the new client.
+    virtual void bind(TimerStateClient *client, Clock *clock) = 0;
+    virtual Clock *clock() const = 0;
+    // The state the client accepted; none without a client.
+    virtual const std::optional<TimerState> &heldState() const = 0;
+    // The connection may read the workspace now.
+    virtual bool readable() const = 0;
+
+    // Another state client, or none: announces the connection and the next
+    // start's choice.
+    virtual void connectionReplaced() = 0;
+    // The connection's account, workspace or state changed: announces the
+    // context and the status.
+    virtual void contextUpdated() = 0;
+    // What the actions do (TimerActivity) changed: announces the status.
+    virtual void activityChanged() = 0;
+
+    // Shows the state held. The next-start defaults the change asks for
+    // apply before the panels hear of it; then the change, the elapsed time
+    // and the status are announced.
+    virtual void showState() = 0;
+    // The server's reply to a stop or edit from here that ended the entry
+    // shown. It names the project the server stopped, which another device
+    // may have changed since the last state; the state that shows the stop
+    // takes it for the next-start default. It counts only for the stop of
+    // the entry it names.
+    virtual void entryEnded(const TimeEntry &reply) = 0;
+    // A new context: the projects, the next start's choice and a stop reply
+    // are forgotten and every answer on its way is dropped. Then shows the
+    // state held and announces the context and the status.
+    virtual void resetContext() = 0;
+    // The workspace was lost: its projects and the next start's choice are
+    // forgotten, the state shows without the workspace's data, and the
+    // status is announced.
+    virtual void forgetWorkspace() = 0;
+
+    // The project and billable flag of the next start.
+    virtual NextStartSelection::Choice nextStart() const = 0;
+    // A start or resume is on its way: a default that answers later no
+    // longer replaces the next start's choice, and a pick lasts only until
+    // it.
+    virtual void startSent() = 0;
+    // The choice for a project the menu offers, or none for anything else;
+    // see NextStartSelection::forProject().
+    virtual std::optional<NextStartSelection::Choice> choiceFor(const QVariant &projectId) const = 0;
+    // A pick by the user, which no default replaces until the next start or
+    // stop.
+    virtual void pick(const NextStartSelection::Choice &choice) = 0;
+    virtual void pickProjectId(const QVariant &projectId) = 0;
+    virtual void pickBillable(bool billable) = 0;
+    // Asks for the last entry's project after the next state.
+    virtual void wantLastEntry() = 0;
+
+    // Where the reads of ProjectLoader land: the workspace's projects and
+    // the one read on its own, and the next start's choice with its
+    // last-entry default. Each tells the model of a change itself.
+    virtual ProjectCatalog &catalog() = 0;
+    virtual NextStartSelection &selection() = 0;
+    // Shows the chosen project and the indicator as the catalog knows them.
+    virtual void showChosenProject() = 0;
+};
+
 // What a panel shows of the timer: the running entry of the connection's
 // validated account and workspace, its elapsed time, the pause chain, the
 // projects, the project and billable flag chosen for the next start, and a
-// status. Panels only read it. TimerCoordinator binds it to a
-// TimerStateClient and drives it through the section below marked as its;
-// the panels act through the coordinator.
+// status. Its public interface only reads. TimerCoordinator binds it to a
+// TimerStateClient and changes it through TimerModelUpdates; the panels act
+// through the coordinator.
 //
 // What it shows is derived from one timer state, the one the client
 // accepted, and from nothing else. Elapsed time is recomputed on every clock
@@ -53,12 +127,13 @@ public:
 // chain or entry in another workspace is not shown, and neither is anything
 // of a workspace the coordinator lost access to.
 //
-// The model resolves the projects it names: ProjectCatalog keeps what is
-// known of the workspace's projects, and ChosenProject reads the chosen one
-// on its own when the list lacks it, so the menu and the indicator can name
-// it. NextStartSelection holds the next start's choice, and the model
-// applies its defaults as the states it shows ask for them.
-class TimerModel : public QObject
+// The model shows the projects it names and starts no read: ProjectCatalog
+// keeps what is known of the workspace's projects, ChosenProject shows the
+// chosen one from it, and ProjectLoader, the coordinator's, reads the list,
+// a chosen project the list lacks and the last entry into them.
+// NextStartSelection holds the next start's choice, and the model applies
+// its defaults as the states it shows ask for them.
+class TimerModel : public QObject, protected TimerModelUpdates
 {
     Q_OBJECT
 
@@ -207,65 +282,6 @@ public:
 
     static QString formatElapsed(qint64 seconds);
 
-    // ----- driven by TimerCoordinator ---------------------------------------
-    //
-    // The coordinator binds the model to a state client and tells it when
-    // the context or the workspace changes, what its writes did and what
-    // the user picked. The model owns the project catalog and the next
-    // start's selection, and keeps both in step with the state it shows.
-    // Panels only read the model.
-
-    // Reads the state, the connection and the clock (for elapsed time and
-    // ticks) from now on. Not owned.
-    void bind(TimerStateClient *client, Clock *clock);
-    Clock *clock() const;
-    // The state the client accepted; none without a client.
-    const std::optional<TimerState> &heldState() const;
-    // The connection may read the workspace now.
-    bool readable() const;
-
-    // Shows the state held. The next-start defaults the change asks for
-    // apply before the panels hear of it; then the change is announced and
-    // elapsed time and the chosen project follow.
-    void showState();
-    // The server's reply to a stop or edit from here that ended the entry
-    // shown. It names the project the server stopped, which another device
-    // may have changed since the last state; the state that shows the stop
-    // takes it for the next-start default. It counts only for the stop of
-    // the entry it names.
-    void entryEnded(const TimeEntry &reply);
-    // A new context: the projects, the next start's choice and a stop reply
-    // are forgotten and every answer on its way is dropped. Then shows the
-    // state held.
-    void resetContext();
-    // The workspace was lost: its projects and the next start's choice are
-    // forgotten, and the state shows without the workspace's data.
-    void forgetWorkspace();
-    // Reads the workspace's projects, when readable().
-    void fetchProjects();
-
-    // The project and billable flag of the next start.
-    NextStartSelection::Choice nextStart() const;
-    // A start or resume is on its way: a default that answers later no
-    // longer replaces the next start's choice, and a pick lasts only until
-    // it.
-    void startSent();
-    // The choice for a project the menu offers, or none for anything else;
-    // see NextStartSelection::forProject().
-    std::optional<NextStartSelection::Choice> choiceFor(const QVariant &projectId) const;
-    // A pick by the user, which no default replaces until the next start or
-    // stop.
-    void pick(const NextStartSelection::Choice &choice);
-    void pickProjectId(const QVariant &projectId);
-    void pickBillable(bool billable);
-    // Asks for the last entry's project after the next state.
-    void wantLastEntry();
-    // After a state: when the last entry was asked for, reads its project
-    // for the next start, unless a session is active, an entry runs or the
-    // workspace cannot be read. The answer applies only while the
-    // workspace is kept and nothing runs.
-    void readLastEntryIfWanted();
-
 Q_SIGNALS:
     // A read of the workspace's projects answered 403: the account may have
     // lost the workspace. The coordinator decides.
@@ -292,6 +308,29 @@ protected:
     explicit TimerModel(QObject *parent = nullptr);
     void setActivity(const TimerActivity *activity);
 
+    // TimerModelUpdates, for the subclass to hand to the coordinator.
+    void bind(TimerStateClient *client, Clock *clock) override;
+    Clock *clock() const override;
+    const std::optional<TimerState> &heldState() const override;
+    bool readable() const override;
+    void connectionReplaced() override;
+    void contextUpdated() override;
+    void activityChanged() override;
+    void showState() override;
+    void entryEnded(const TimeEntry &reply) override;
+    void resetContext() override;
+    void forgetWorkspace() override;
+    NextStartSelection::Choice nextStart() const override;
+    void startSent() override;
+    std::optional<NextStartSelection::Choice> choiceFor(const QVariant &projectId) const override;
+    void pick(const NextStartSelection::Choice &choice) override;
+    void pickProjectId(const QVariant &projectId) override;
+    void pickBillable(bool billable) override;
+    void wantLastEntry() override;
+    ProjectCatalog &catalog() override;
+    NextStartSelection &selection() override;
+    void showChosenProject() override;
+
 private:
     // What a new state changed in the view, between stage() and publish().
     struct Change {
@@ -311,13 +350,9 @@ private:
     Change stage();
     // The next-start defaults a change asks for.
     void applyDefaults(const Change &change);
-    // Announces what stage() changed, and updates elapsed time and the
-    // chosen project.
+    // Announces what stage() changed, and updates elapsed time.
     void publish(const Change &change);
     void onProjectReadFailed(const ApiError &error);
-    // Reads the chosen project when projects lacks it, then updates
-    // entryProject and the indicator.
-    void resolveProject();
     void updateElapsed();
     void updateProjectChoices();
 

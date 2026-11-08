@@ -1,5 +1,7 @@
 #include "statuswords.h"
 
+#include "statuspresentation.h"
+
 #include <QCoreApplication>
 #include <QStringList>
 
@@ -101,31 +103,6 @@ QString projectText(const TimerModel &timer)
     return tr("Unknown project");
 }
 
-QString summary(const TimerModel &timer)
-{
-    QStringList parts{tr("%1 %2").arg(runText(timer), timer.elapsedText()), projectText(timer), statusText(timer.status())};
-    const QString detail = detailText(timer);
-    if (!detail.isEmpty()) {
-        parts.append(detail);
-    }
-    return parts.join(QStringLiteral(" · "));
-}
-
-QString menuBarTitle(const TimerModel &timer)
-{
-    switch (timer.status()) {
-    case TimerModel::Unconfigured:
-        return tr("Tokkl");
-    case TimerModel::Ready:
-        return timer.elapsedText();
-    case TimerModel::Loading:
-    case TimerModel::Busy:
-        return tr("%1 …").arg(timer.elapsedText());
-    default:
-        return tr("%1 !").arg(timer.elapsedText());
-    }
-}
-
 QString actionName(const TimerModel &timer)
 {
     if (timer.isRunning()) {
@@ -164,41 +141,75 @@ QString sessionText(const PomodoroSession &session)
         .arg(phaseName(session.phase()), time, QString::number(session.pomodoroNumber()), QString::number(session.longRestEvery()));
 }
 
-QString sessionLine(const TimerModel &timer, const PomodoroSession &session)
-{
-    const QString text = sessionText(session);
-    if (timer.status() == TimerModel::Ready) {
-        return text;
-    }
-    return tr("%1 · %2").arg(text, statusText(timer.status()));
-}
-
 bool showsSession(const TimerModel &timer, const PomodoroSession &session)
 {
     return session.isActive() && !timer.isRunning() && !timer.isPaused();
 }
 
+namespace
+{
+StatusPresentation presentation(const TimerModel &timer, const PomodoroSession &session)
+{
+    return StatusPresentation::of(StatusInput::of(timer, &session), StatusPolicy::macos());
+}
+
+// The words of the parts, joined by " · ".
+QString render(const QList<StatusPart> &parts, const TimerModel &timer, const PomodoroSession &session)
+{
+    QStringList words;
+    for (const StatusPart part : parts) {
+        switch (part) {
+        case StatusPart::Activity:
+            words.append(tr("%1 %2").arg(runText(timer), timer.elapsedText()));
+            break;
+        case StatusPart::Session:
+            words.append(sessionText(session));
+            break;
+        case StatusPart::Project:
+            words.append(projectText(timer));
+            break;
+        case StatusPart::Connection:
+            words.append(statusText(timer.status()));
+            break;
+        case StatusPart::Detail:
+            words.append(detailText(timer));
+            break;
+        case StatusPart::PomodoroMode:
+            words = QStringList{tr("%1 · Pomodoro mode").arg(words.join(QStringLiteral(" · ")))};
+            break;
+        case StatusPart::Message:
+            // The menu shows the session's message on a line of its own.
+            break;
+        }
+    }
+    return words.join(QStringLiteral(" · "));
+}
+}
+
 QString summary(const TimerModel &timer, const PomodoroSession &session)
 {
-    if (showsSession(timer, session)) {
-        return sessionLine(timer, session);
-    }
-    return session.pomodoroMode() ? tr("%1 · Pomodoro mode").arg(summary(timer)) : summary(timer);
+    return render(presentation(timer, session).summary, timer, session);
+}
+
+QString menuLine(const TimerModel &timer, const PomodoroSession &session)
+{
+    return render(presentation(timer, session).menuLine, timer, session);
 }
 
 QString menuBarTitle(const TimerModel &timer, const PomodoroSession &session)
 {
-    if (!showsSession(timer, session)) {
-        return menuBarTitle(timer);
+    const QString time = showsSession(timer, session) ? session.countdownText() : timer.elapsedText();
+    switch (presentation(timer, session).mark) {
+    case StatusMark::None:
+        return time;
+    case StatusMark::Pending:
+        return tr("%1 …").arg(time);
+    case StatusMark::Alert:
+        return tr("%1 !").arg(time);
+    case StatusMark::Unconfigured:
+        return tr("Tokkl");
     }
-    switch (timer.status()) {
-    case TimerModel::Stale:
-    case TimerModel::AuthenticationBlocked:
-    case TimerModel::Error:
-        return tr("%1 !").arg(session.countdownText());
-    default:
-        return session.countdownText();
-    }
+    return time;
 }
 
 QString itemName(const TimerModel &timer, const PomodoroSession &session)

@@ -18,15 +18,18 @@ class SoundChoices;
 // output.
 //
 // The files are the four bundled WAVs in soundsDirectory(). A sound whose
-// file is not there plays nothing and is logged.
+// file is not there plays nothing. That, and a sound the output reports it
+// could not play, is logged and shows in failure() for the panels to tell
+// the user.
 class PomodoroAlarm : public QObject
 {
     Q_OBJECT
 
 public:
-    // Owns none of them. A null output plays nothing. An alarm already
-    // ringing starts at once.
+    // Owns none of them; the output must outlive the alarm. A null output
+    // plays nothing. An alarm already ringing starts at once.
     PomodoroAlarm(PomodoroSession *session, AlarmOutput *output, SoundChoices *choices, const QString &soundsDirectory, QObject *parent = nullptr);
+    ~PomodoroAlarm() override;
 
     QString soundsDirectory() const;
     void setSoundsDirectory(const QString &directory);
@@ -38,9 +41,21 @@ public:
     // for an id or file that is not there.
     bool preview(const QString &soundId);
 
+    // Why the last sound the alarm tried did not play, in words for the
+    // user; empty when it played. It stays after the ring ends, until the
+    // next ring or preview starts.
+    QString failure() const;
+
+Q_SIGNALS:
+    void failureChanged();
+
 private:
     // Starts, switches or stops the loop to match the session.
     void update();
+    void setFailure(const QString &failure);
+    // The file of a sound id, or empty, with the failure set, when it is
+    // not there.
+    QString soundToPlay(const QString &soundId);
 
     QPointer<PomodoroSession> m_session;
     AlarmOutput *m_output;
@@ -48,6 +63,7 @@ private:
     QString m_directory;
     // The file that loops; empty while nothing rings.
     QString m_looping;
+    QString m_failure;
 };
 
 }

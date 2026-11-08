@@ -31,6 +31,9 @@ namespace Tokkl
 // ringing turns false, or until the sound effect reports an error, which Qt
 // Multimedia does for a file it cannot read and for a machine without an
 // audio output device. previewing follows the preview sound effect itself.
+// error says why the last ring or preview did not play, a missing file or
+// that error, in words for the user; it is empty when it played and stays
+// after the ring ends, until the next ring or preview starts.
 //
 // Each ring and each preview gets a sound effect of its own, destroyed once
 // it stops. A stopped effect keeps its audio stream open, paused, for as long
@@ -50,6 +53,7 @@ class AlarmPlayer : public QObject
     // The file preview() last played, until the next preview.
     Q_PROPERTY(QUrl previewSource READ previewSource NOTIFY previewChanged)
     Q_PROPERTY(bool previewing READ isPreviewing NOTIFY previewChanged)
+    Q_PROPERTY(QString error READ error NOTIFY errorChanged)
 
 public:
     explicit AlarmPlayer(QObject *parent = nullptr);
@@ -69,6 +73,7 @@ public:
     bool loops() const;
     QUrl previewSource() const;
     bool isPreviewing() const;
+    QString error() const;
 
     // Plays the sound once, stopping an earlier preview. An id the catalogue
     // does not have, or a file that is missing, is ignored.
@@ -83,6 +88,7 @@ Q_SIGNALS:
     void sourceChanged();
     void playingChanged();
     void previewChanged();
+    void errorChanged();
 
 private:
     // Starts, switches or stops the alarm to match the properties.
@@ -93,6 +99,11 @@ private:
     QUrl locate(const QString &soundId) const;
     void setSource(const QUrl &url);
     void setPlaying(bool playing);
+    void setError(const QString &error);
+    // The error of a sound whose file is not there.
+    static QString missingError(const QString &soundId);
+    // The error of a sound effect that reports it cannot play.
+    static QString effectError(const QUrl &url);
 
     bool m_ringing = false;
     QString m_transition;
@@ -101,6 +112,7 @@ private:
     QUrl m_source;
     bool m_playing = false;
     QUrl m_previewSource;
+    QString m_error;
     // Children of the player; null between rings and between previews.
     QSoundEffect *m_alarm = nullptr;
     QSoundEffect *m_preview = nullptr;

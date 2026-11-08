@@ -19,6 +19,7 @@ class MenuBarAppTest;
 namespace Tokkl
 {
 
+class PomodoroAlarm;
 class PomodoroSession;
 class TimerCoordinator;
 class TimerModel;
@@ -41,7 +42,8 @@ class TimerModel;
 // Next phase and End session show whenever a session is active, in either
 // mode, and the state line then names the phase. The line under it shows the
 // session's message when there is one, such as a pomodoro too short to save
-// or why an action failed. Start session shows in Pomodoro mode while no
+// or why an action failed, and otherwise why the last alarm sound did not
+// play. Start session shows in Pomodoro mode while no
 // session is active and no timer runs or is paused, and is disabled until a
 // state has been read and while an action is unsettled. Pomodoro mode is
 // locked while a timer runs or is paused, or a session is active.
@@ -59,9 +61,10 @@ class StatusMenu : public QObject
     Q_OBJECT
 
 public:
-    // Uses the timer and the session, which it does not own.
-    // Shows timer and acts through actions; none of the three is owned.
-    StatusMenu(TimerModel *timer, TimerCoordinator *actions, PomodoroSession *session, QObject *parent = nullptr);
+    // Shows timer and acts through actions; none of them is owned. The
+    // alarm, when there is one, gives the message of a sound that did not
+    // play.
+    StatusMenu(TimerModel *timer, TimerCoordinator *actions, PomodoroSession *session, PomodoroAlarm *alarm = nullptr, QObject *parent = nullptr);
     ~StatusMenu() override;
 
     QMenu *menu() const;
@@ -92,6 +95,7 @@ private:
     QPointer<TimerModel> m_timer;
     QPointer<TimerCoordinator> m_actions;
     QPointer<PomodoroSession> m_session;
+    QPointer<PomodoroAlarm> m_alarm;
     std::unique_ptr<QMenu> m_menu;
     QMenu *m_projectMenu = nullptr;
     QAction *m_stateAction = nullptr;

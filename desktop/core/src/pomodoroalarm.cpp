@@ -16,6 +16,12 @@ PomodoroAlarm::PomodoroAlarm(PomodoroSession *session, AlarmOutput *output, Soun
     , m_choices(choices)
     , m_directory(soundsDirectory)
 {
+    if (m_output) {
+        m_output->setFailureHandler([this](const QString &reason) {
+            qCWarning(lcAlarm).noquote() << "The alarm sound did not play:" << reason;
+            setFailure(tr("No alarm sound: %1").arg(reason));
+        });
+    }
     if (m_session) {
         connect(m_session, &PomodoroSession::ringingChanged, this, &PomodoroAlarm::update);
     }
@@ -23,6 +29,13 @@ PomodoroAlarm::PomodoroAlarm(PomodoroSession *session, AlarmOutput *output, Soun
         connect(m_choices, &SoundChoices::changed, this, &PomodoroAlarm::update);
     }
     update();
+}
+
+PomodoroAlarm::~PomodoroAlarm()
+{
+    if (m_output) {
+        m_output->setFailureHandler({});
+    }
 }
 
 QString PomodoroAlarm::soundsDirectory() const
@@ -49,27 +62,49 @@ bool PomodoroAlarm::preview(const QString &soundId)
     if (!m_output) {
         return false;
     }
-    const QString file = locate(soundId);
+    setFailure(QString());
+    const QString file = soundToPlay(soundId);
     if (file.isEmpty()) {
-        qCWarning(lcAlarm) << "The sound" << soundId << "is not in" << m_directory;
         return false;
     }
     m_output->playOnce(file);
     return true;
 }
 
+QString PomodoroAlarm::failure() const
+{
+    return m_failure;
+}
+
+void PomodoroAlarm::setFailure(const QString &failure)
+{
+    if (failure == m_failure) {
+        return;
+    }
+    m_failure = failure;
+    Q_EMIT failureChanged();
+}
+
+QString PomodoroAlarm::soundToPlay(const QString &soundId)
+{
+    const QString file = locate(soundId);
+    if (file.isEmpty()) {
+        qCWarning(lcAlarm) << "The sound" << soundId << "is not in" << m_directory;
+        setFailure(tr("No alarm sound: the file for %1 is not in %2").arg(soundId, m_directory));
+    }
+    return file;
+}
+
 void PomodoroAlarm::update()
 {
-    QString file;
+    QString soundId;
     if (m_session && m_session->isRinging()) {
         if (const std::optional<TransitionKind> kind = parseTransitionKind(m_session->ringingTransition())) {
-            const QString soundId = m_choices ? m_choices->chosen(*kind) : defaultSound(*kind);
-            file = locate(soundId);
-            if (file.isEmpty()) {
-                qCWarning(lcAlarm) << "The alarm sound" << soundId << "is not in" << m_directory;
-            }
+            soundId = m_choices ? m_choices->chosen(*kind) : defaultSound(*kind);
         }
     }
+    // A ring whose file is missing plays nothing and says so.
+    const QString file = soundId.isEmpty() ? QString() : soundToPlay(soundId);
     if (file == m_looping) {
         return;
     }
@@ -80,6 +115,7 @@ void PomodoroAlarm::update()
     if (file.isEmpty()) {
         m_output->stop();
     } else {
+        setFailure(QString());
         m_output->loop(file);
     }
 }
