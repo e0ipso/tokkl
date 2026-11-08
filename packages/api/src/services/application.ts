@@ -35,7 +35,7 @@ import { createEntryOperations } from './entryOperations.ts';
 import { credentialCheck, credentialKey } from './streamCredentials.ts';
 import { startMaintenance } from './maintenance.ts';
 import { createTimerDelivery } from './timerDelivery.ts';
-import { presentTimerOperations } from './timerReplies.ts';
+import { bindTimerUser, presentTimerOperations, type SignedInTimerOperations } from './timerReplies.ts';
 import type { EventStreamResponse, TimerStreamOptions } from './timerStreams.ts';
 
 export interface ApplicationServiceOptions {
@@ -197,8 +197,11 @@ export function createApplicationServices({
     /** Preferences take only the user's guard, so their credential check runs before and after. */
     preferencesFor: (authentication: Authentication) =>
       createPreferenceOperations(guardedTransactions(storage, authentication)),
-    timersFor: (authentication: Authentication) =>
-      presentTimerOperations(createTimerOperations(guardedRunner(storage, authentication), publish)),
+    timersFor: (authentication: Authentication): SignedInTimerOperations =>
+      bindTimerUser(
+        presentTimerOperations(createTimerOperations(guardedRunner(storage, authentication), publish)),
+        authentication.user.id,
+      ),
     importsFor: (authentication: Authentication) =>
       createImportOperations(guardedTransactions(storage, authentication), publish),
     entriesFor: (authentication: Authentication) =>
