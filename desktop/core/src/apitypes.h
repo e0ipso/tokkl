@@ -167,6 +167,9 @@ struct Project {
     QString color;
     bool active = true;
     bool billable = false;
+    // When the server last changed it (the v9 at field); invalid when the
+    // answer has none. ProjectCatalog reads the changes since the newest.
+    QDateTime at;
 
     QVariantMap toVariantMap() const;
     bool operator==(const Project &other) const = default;

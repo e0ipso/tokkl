@@ -299,6 +299,39 @@ private Q_SLOTS:
         QVERIFY(!archived->active);
     }
 
+    void projectChangesAreOnePageArchivedIncluded()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f, 3, 42));
+        std::optional<ApiResult<QList<Project>>> received;
+        const QDateTime since(QDate(2026, 10, 16), QTime(8, 59, 30, 500), QTimeZone::UTC);
+        f.connection.fetchProjectChanges(since, [&received](const ApiResult<QList<Project>> &result) {
+            received = result;
+        });
+        // Whole seconds, and no active filter, so an archival shows.
+        QCOMPARE(path(f.transport.requests.last()),
+                 QStringLiteral("/tokkl/api/v9/workspaces/42/projects?since=%1&page=1&per_page=200").arg(since.toSecsSinceEpoch()));
+        f.transport.respondLast(FakeTransport::answer(200,
+                                                      R"([{"id":5,"workspace_id":42,"name":"Kept","active":true,"at":"2026-10-16T09:00:00+00:00"},)"
+                                                      R"({"id":6,"workspace_id":42,"name":"Gone","active":false,"at":"2026-10-16T09:00:01.250Z"},)"
+                                                      R"({"id":7,"workspace_id":9,"name":"Other","active":true}])"));
+        QVERIFY(received && received->ok());
+        // Another workspace's project is never merged.
+        QCOMPARE(received->value->size(), 2);
+        QCOMPARE(received->value->at(0).at, QDateTime(QDate(2026, 10, 16), QTime(9, 0), QTimeZone::UTC));
+        QVERIFY(!received->value->at(1).active);
+        QCOMPARE(received->value->at(1).at, QDateTime(QDate(2026, 10, 16), QTime(9, 0, 1, 250), QTimeZone::UTC));
+
+        // A project without a readable change time still counts, without one.
+        received.reset();
+        f.connection.fetchProjectChanges(since, [&received](const ApiResult<QList<Project>> &result) {
+            received = result;
+        });
+        f.transport.respondLast(FakeTransport::answer(200, R"([{"id":5,"workspace_id":42,"name":"Kept","at":"yesterday"}])"));
+        QVERIFY(received && received->ok());
+        QVERIFY(!received->value->at(0).at.isValid());
+    }
+
     // The three settings round-trip through a settings file and reach the
     // connection; a file without a method reads as token sign-in.
     void settingsRoundTrip()

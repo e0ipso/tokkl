@@ -4,6 +4,7 @@
 
 #include "connection.h"
 #include "fakes.h"
+#include "projectcatalog.h"
 #include "timercontroller.h"
 #include "timerstateclient.h"
 
@@ -113,6 +114,36 @@ QByteArray projectPage(int first, int count, qint64 workspace)
 }
 
 const QString startedAt = QStringLiteral("2026-10-16T08:58:55Z"); // 65 s before the fake clock
+
+// A project of workspace 7 as the v9 list answers it, with at, the time the
+// server last changed it.
+QJsonObject stampedProject(qint64 id, const QString &name, const QString &color, bool active, const QDateTime &at)
+{
+    return QJsonObject{{QStringLiteral("id"), id},
+                       {QStringLiteral("workspace_id"), 7},
+                       {QStringLiteral("name"), name},
+                       {QStringLiteral("color"), color},
+                       {QStringLiteral("active"), active},
+                       {QStringLiteral("billable"), false},
+                       {QStringLiteral("at"), at.toUTC().toString(Qt::ISODateWithMs)}};
+}
+
+QByteArray stampedBody(const QList<QJsonObject> &projects)
+{
+    QJsonArray array;
+    for (const QJsonObject &project : projects) {
+        array.append(project);
+    }
+    return QJsonDocument(array).toJson(QJsonDocument::Compact);
+}
+
+// The query of a whole read of the list's first page, and of a read of the
+// changes since a time.
+const QString fullListQuery = QStringLiteral("active=true&page=1&per_page=200");
+QString changesQuery(const QDateTime &since)
+{
+    return QStringLiteral("since=%1&page=1&per_page=200").arg(since.toSecsSinceEpoch());
+}
 
 // An entry of project 11 with the fields a resume copies. The project's
 // default is billable, the entry is not. A duration makes it stopped, with
@@ -304,7 +335,8 @@ class TimerControllerTest : public QObject
                                qint64 workspace = 7,
                                const QByteArray &current = entryBody(5, 7, startedAt),
                                const QJsonValue &pause = QJsonValue::Null,
-                               const QJsonValue &pomodoro = QJsonValue::Null)
+                               const QJsonValue &pomodoro = QJsonValue::Null,
+                               const QByteArray &projects = QByteArray())
     {
         f.store.secrets.insert(credentialKey(parseInstanceUrl(url), AuthMode::Token, QString()), token);
         const qsizetype before = f.transport.requests.size();
@@ -316,12 +348,12 @@ class TimerControllerTest : public QObject
         }
         f.respond(before, FakeTransport::answer(200, meBody(userId, workspace)));
         const qsizetype read = f.last("GET", statePath);
-        const qsizetype projects = f.last("GET", "/projects");
-        if (!f.unanswered(read) || !f.unanswered(projects)) {
+        const qsizetype projectsRead = f.last("GET", "/projects");
+        if (!f.unanswered(read) || !f.unanswered(projectsRead)) {
             return false;
         }
         f.respond(read, f.stateAnswer(current, pause, pomodoro));
-        f.respond(projects, FakeTransport::answer(200, projectsBody(workspace)));
+        f.respond(projectsRead, FakeTransport::answer(200, projects.isEmpty() ? projectsBody(workspace) : projects));
         return f.timer.isConnected();
     }
 
@@ -2570,6 +2602,167 @@ private Q_SLOTS:
         f.respond(f.last("GET", "/projects"), FakeTransport::answer(200, "[" + json(projectObject(11, 7, QStringLiteral("#06aaf5"))) + "," + json(projectObject(12, 7, QStringLiteral("#9e5bd9"))) + "]"));
         QCOMPARE(changed.count(), 1);
         QCOMPARE(f.timer.projectChoicesVariant().size(), 2);
+    }
+
+    // The projects as the menu lists them: id, name and colour.
+    static QStringList listed(const Fixture &f)
+    {
+        QStringList projects;
+        for (const QVariant &project : f.timer.projects()) {
+            const QVariantMap map = project.toMap();
+            projects.append(QStringLiteral("%1 %2 %3")
+                                .arg(map.value(QStringLiteral("id")).toLongLong())
+                                .arg(map.value(QStringLiteral("name")).toString(), map.value(QStringLiteral("color")).toString()));
+        }
+        return projects;
+    }
+
+    static QString query(const Fixture &f, qsizetype request)
+    {
+        return f.transport.requests.at(request).url.query();
+    }
+
+    void refreshesReadOnlyTheChangedProjects()
+    {
+        Fixture f;
+        const QByteArray current = entryBody(5, 7, startedAt);
+        const QDateTime alphaAt = f.clock.now().addSecs(-3600);
+        const QDateTime betaAt = f.clock.now().addSecs(-600);
+        QVERIFY(connectAccount(f,
+                               instanceA,
+                               3,
+                               7,
+                               current,
+                               QJsonValue::Null,
+                               QJsonValue::Null,
+                               stampedBody({stampedProject(11, QStringLiteral("Alpha"), QStringLiteral("#06aaf5"), true, alphaAt),
+                                            stampedProject(12, QStringLiteral("Beta"), QStringLiteral("#112233"), true, betaAt)})));
+        QCOMPARE(listed(f), (QStringList{QStringLiteral("11 Alpha #06aaf5"), QStringLiteral("12 Beta #112233")}));
+
+        // A refresh asks for what changed since the newest change, less the
+        // margin. Beta was recoloured and Alpha archived.
+        f.timer.refresh();
+        f.answerState(current);
+        const qsizetype changes = f.last("GET", "/projects");
+        QVERIFY(f.unanswered(changes));
+        QCOMPARE(query(f, changes), changesQuery(betaAt.addMSecs(-ProjectCatalog::changesMarginMs)));
+        const QDateTime recolouredAt = f.clock.now();
+        QSignalSpy changed(&f.timer, &TimerController::projectsChanged);
+        f.respond(changes,
+                  FakeTransport::answer(200,
+                                        stampedBody({stampedProject(11, QStringLiteral("Alpha"), QStringLiteral("#06aaf5"), false, recolouredAt),
+                                                     stampedProject(12, QStringLiteral("Beta"), QStringLiteral("#445566"), true, recolouredAt)})));
+        QCOMPARE(listed(f), QStringList{QStringLiteral("12 Beta #445566")});
+        QCOMPARE(changed.count(), 1);
+        QCOMPARE(f.last("GET", "/projects"), changes);
+
+        // Waking from sleep reads the changes since the newest one merged.
+        f.timer.resumed();
+        f.answerState(current);
+        const qsizetype nothing = f.last("GET", "/projects");
+        QVERIFY(f.unanswered(nothing));
+        QCOMPARE(query(f, nothing), changesQuery(recolouredAt.addMSecs(-ProjectCatalog::changesMarginMs)));
+        f.respond(nothing, FakeTransport::answer(200, "[]"));
+        QCOMPARE(listed(f), QStringList{QStringLiteral("12 Beta #445566")});
+        QCOMPARE(f.last("GET", "/projects"), nothing);
+    }
+
+    void changesWithAnUnknownPlaceReadTheWholeList_data()
+    {
+        QTest::addColumn<QByteArray>("changes");
+        const QDateTime at(QDate(2026, 10, 16), QTime(8, 59), QTimeZone::UTC);
+        QTest::newRow("new project") << stampedBody({stampedProject(13, QStringLiteral("Gamma"), QStringLiteral("#778899"), true, at)});
+        QTest::newRow("renamed project") << stampedBody({stampedProject(11, QStringLiteral("Aardvark"), QStringLiteral("#06aaf5"), true, at)});
+        QList<QJsonObject> page;
+        for (int id = 100; id < 100 + Connection::projectPageSize; ++id) {
+            page.append(stampedProject(id, QStringLiteral("P%1").arg(id), QStringLiteral("#778899"), false, at));
+        }
+        QTest::newRow("full page") << stampedBody(page);
+    }
+
+    void changesWithAnUnknownPlaceReadTheWholeList()
+    {
+        QFETCH(QByteArray, changes);
+        Fixture f;
+        const QByteArray current = entryBody(5, 7, startedAt);
+        const QDateTime at = f.clock.now().addSecs(-600);
+        QVERIFY(connectAccount(f,
+                               instanceA,
+                               3,
+                               7,
+                               current,
+                               QJsonValue::Null,
+                               QJsonValue::Null,
+                               stampedBody({stampedProject(11, QStringLiteral("Alpha"), QStringLiteral("#06aaf5"), true, at)})));
+
+        f.timer.refresh();
+        f.answerState(current);
+        const qsizetype delta = f.last("GET", "/projects");
+        QCOMPARE(query(f, delta), changesQuery(at.addMSecs(-ProjectCatalog::changesMarginMs)));
+        f.respond(delta, FakeTransport::answer(200, changes));
+        // Nothing of the changes shows before the whole list arrives.
+        QCOMPARE(listed(f), QStringList{QStringLiteral("11 Alpha #06aaf5")});
+        const qsizetype full = f.last("GET", "/projects");
+        QVERIFY(full > delta);
+        QCOMPARE(query(f, full), fullListQuery);
+        f.respond(full,
+                  FakeTransport::answer(200,
+                                        stampedBody({stampedProject(11, QStringLiteral("Alpha"), QStringLiteral("#06aaf5"), true, at),
+                                                     stampedProject(13, QStringLiteral("Gamma"), QStringLiteral("#778899"), true, at)})));
+        QCOMPARE(listed(f), (QStringList{QStringLiteral("11 Alpha #06aaf5"), QStringLiteral("13 Gamma #778899")}));
+        QCOMPARE(f.last("GET", "/projects"), full);
+    }
+
+    void wholeProjectListIsReadAgainWhenInDoubt()
+    {
+        Fixture f;
+        const QByteArray current = entryBody(5, 7, startedAt);
+        const QDateTime at = f.clock.now().addSecs(-600);
+        const QByteArray stamped = stampedBody({stampedProject(11, QStringLiteral("Alpha"), QStringLiteral("#06aaf5"), true, at)});
+        QVERIFY(connectAccount(f, instanceA, 3, 7, current, QJsonValue::Null, QJsonValue::Null, stamped));
+        auto refreshed = [&f, &current] {
+            f.timer.refresh();
+            f.answerState(current);
+            return f.last("GET", "/projects");
+        };
+
+        // An explicit reconnect trusts no merged list.
+        f.timer.reconnect();
+        f.answerState(current);
+        qsizetype read = f.last("GET", "/projects");
+        QVERIFY(f.unanswered(read));
+        QCOMPARE(query(f, read), fullListQuery);
+        f.respond(read, FakeTransport::answer(200, stamped));
+        read = refreshed();
+        QCOMPARE(query(f, read), changesQuery(at.addMSecs(-ProjectCatalog::changesMarginMs)));
+        f.respond(read, FakeTransport::answer(200, "[]"));
+
+        // A whole read an hour old is read again: a deleted project leaves
+        // no change behind.
+        f.clock.advance(ProjectCatalog::fullListMaxAgeMs);
+        read = refreshed();
+        QCOMPARE(query(f, read), fullListQuery);
+        f.respond(read, FakeTransport::answer(200, "[]"));
+        QVERIFY(listed(f).isEmpty());
+
+        // An empty list has no newest change to start from.
+        read = refreshed();
+        QCOMPARE(query(f, read), fullListQuery);
+        f.respond(read, FakeTransport::answer(200, stamped));
+
+        // A project without a change time, as a server that sends none
+        // answers, reads the whole list every time.
+        read = refreshed();
+        QCOMPARE(query(f, read), changesQuery(at.addMSecs(-ProjectCatalog::changesMarginMs)));
+        QJsonObject unstamped = stampedProject(11, QStringLiteral("Alpha"), QStringLiteral("#000000"), true, at);
+        unstamped.remove(QStringLiteral("at"));
+        f.respond(read, FakeTransport::answer(200, stampedBody({unstamped})));
+        QCOMPARE(listed(f), QStringList{QStringLiteral("11 Alpha #000000")});
+        read = refreshed();
+        QCOMPARE(query(f, read), fullListQuery);
+        f.respond(read, FakeTransport::answer(200, projectsBody(7)));
+        read = refreshed();
+        QCOMPARE(query(f, read), fullListQuery);
     }
 
     void stateClientCanBeReplaced()

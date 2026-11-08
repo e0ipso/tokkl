@@ -43,7 +43,7 @@ struct Fixture {
             return false;
         }
         transport.respond(0, FakeTransport::answer(200, meBody));
-        catalog.fetch(&connection);
+        catalog.fetch(&connection, QDateTime(), ProjectCatalog::ListRead::Full);
         transport.respondLast(FakeTransport::answer(200, projectsBody));
         return connection.isConnected() && catalog.listKnown();
     }

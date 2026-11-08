@@ -75,7 +75,7 @@ struct Fixture {
 
     void loadProjects()
     {
-        catalog.fetch(&connection);
+        catalog.fetch(&connection, QDateTime(), ProjectCatalog::ListRead::Full);
         transport.respondLast(FakeTransport::answer(200, projectsBody));
     }
 };

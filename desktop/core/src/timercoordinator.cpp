@@ -146,11 +146,11 @@ void TimerCoordinator::onConnectionChanged()
     if (m_model->isConnected()) {
         if (!m_loaded) {
             m_loaded = true;
-            fetchProjects();
+            fetchProjects(ProjectCatalog::ListRead::Full);
         } else if (state == Connection::Connected && m_lastState != Connection::Connected) {
             // Back from a connectivity failure or a cooldown. The state
             // client reads the state itself.
-            fetchProjects();
+            fetchProjects(ProjectCatalog::ListRead::Changes);
         }
     }
     m_lastState = state;
@@ -412,11 +412,16 @@ void TimerCoordinator::loseWorkspace(const ApiError &error)
 
 void TimerCoordinator::refresh()
 {
+    refreshState();
+    fetchProjects(ProjectCatalog::ListRead::Changes);
+}
+
+void TimerCoordinator::refreshState()
+{
     TimerStateClient *client = m_model->stateClient();
     if (client && m_catalog->readable()) {
         client->refresh();
     }
-    fetchProjects();
 }
 
 void TimerCoordinator::resumed()
@@ -424,7 +429,7 @@ void TimerCoordinator::resumed()
     if (TimerStateClient *client = m_model->stateClient()) {
         client->resumed();
     }
-    fetchProjects();
+    fetchProjects(ProjectCatalog::ListRead::Changes);
 }
 
 void TimerCoordinator::reconnect()
@@ -448,14 +453,16 @@ void TimerCoordinator::reconnect()
     if (m_model->isConnected()) {
         // The account stays bound through revalidation; no state change
         // would trigger the reload. The state that answers also replaces an
-        // automatic next-start default with the last entry's project.
-        refresh();
+        // automatic next-start default with the last entry's project. A
+        // reconnect the user asks for trusts no list merged from changes.
+        refreshState();
+        fetchProjects(ProjectCatalog::ListRead::Full);
     }
 }
 
-void TimerCoordinator::fetchProjects()
+void TimerCoordinator::fetchProjects(ProjectCatalog::ListRead read)
 {
-    m_loader->fetchProjects();
+    m_loader->fetchProjects(read);
 }
 
 void TimerCoordinator::setError(const QString &error)
