@@ -177,12 +177,31 @@ test('a preference the views read that has the wrong shape fails the reply, nami
 });
 
 test('the status, invite and reset link checks and the admin lists decode their replies', () => {
-  const status = { setup_required: false, api_version: 1, capabilities: ['timer-actions', 'timer-edit'] };
+  const limit = { min: 1, max: 60, default: 5 };
+  const pomodoro_limits = {
+    work_minutes: { min: 1, max: 180, default: 25 },
+    short_rest_minutes: limit,
+    long_rest_minutes: limit,
+    long_rest_every: limit,
+  };
+  const status = {
+    setup_required: false,
+    api_version: 1,
+    capabilities: ['timer-actions', 'timer-edit'],
+    pomodoro_limits,
+  };
   assert.deepEqual(appStatusReply(status), status);
   const current = { ...status, capabilities: ['pomodoro-revision', 'pause-revision', 'timer-edit-entry'] };
   assert.deepEqual(appStatusReply(current), current);
   assert.throws(() => appStatusReply({ ...status, setup_required: 'no' }), at('reply.setup_required'));
   assert.throws(() => appStatusReply({ ...status, capabilities: ['teleport'] }), at('reply.capabilities[0]'));
+  const { pomodoro_limits: _, ...withoutLimits } = status;
+  assert.throws(() => appStatusReply(withoutLimits), at('reply.pomodoro_limits'));
+  assert.throws(
+    () =>
+      appStatusReply({ ...status, pomodoro_limits: { ...pomodoro_limits, long_rest_every: { ...limit, max: 1.5 } } }),
+    at('reply.pomodoro_limits.long_rest_every.max'),
+  );
   assert.deepEqual(inviteCheckReply({ role: 'admin' }), { role: 'admin' });
   assert.throws(() => inviteCheckReply({ role: 'owner' }), at('reply.role'));
   assert.deepEqual(resetCheckReply({ email: 'a@example.com' }), { email: 'a@example.com' });

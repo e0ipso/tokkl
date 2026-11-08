@@ -216,7 +216,10 @@ export async function independentReportServer(ctx: TestContext): Promise<TestCon
   return serve(await reopenDatabase(ctx.db), ctx.user);
 }
 
-/** The API version and capabilities this server names next to `setup_required` in GET /api/app/status. */
+/**
+ * What GET /api/app/status names next to `setup_required`: the API version, the capabilities and
+ * the Pomodoro limits.
+ */
 export const SERVER_API = {
   api_version: 1,
   capabilities: [
@@ -227,4 +230,10 @@ export const SERVER_API = {
     'pause-revision',
     'timer-edit-entry',
   ],
+  pomodoro_limits: {
+    work_minutes: { min: 1, max: 180, default: 25 },
+    short_rest_minutes: { min: 1, max: 60, default: 5 },
+    long_rest_minutes: { min: 1, max: 60, default: 15 },
+    long_rest_every: { min: 1, max: 12, default: 4 },
+  },
 } as const;

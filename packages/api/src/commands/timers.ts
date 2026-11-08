@@ -1,5 +1,6 @@
 /** Timer action bodies, parsed into commands. */
 import { POMODORO_SESSION_CONFIG_RANGES, type PomodoroSessionConfig } from '@tokkl/common/pomodoroSession';
+import type { PomodoroLimits } from '@tokkl/types';
 import type { EditTimer, StartPomodoro, StartTimer } from '../domain/timers.ts';
 import { invalidInput } from '../lib/errors.ts';
 import { optionalId, parseInstant, type JsonBody } from '../lib/values.ts';
@@ -10,7 +11,7 @@ const LENGTH_FIELDS = {
   shortRestMinutes: 'short_rest_minutes',
   longRestMinutes: 'long_rest_minutes',
   longRestEvery: 'long_rest_every',
-} as const satisfies Record<keyof PomodoroSessionConfig, string>;
+} as const satisfies Record<keyof PomodoroSessionConfig, keyof PomodoroLimits>;
 
 function readLengths(body: JsonBody): Partial<PomodoroSessionConfig> {
   const lengths: Partial<PomodoroSessionConfig> = {};

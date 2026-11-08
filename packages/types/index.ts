@@ -433,6 +433,23 @@ export interface JsonRestoreResult {
  */
 export interface AppStatus extends ServerApi {
   setup_required: boolean;
+  /** The Pomodoro session lengths `POST /api/app/pomodoro` and the preferences accept. */
+  pomodoro_limits: PomodoroLimits;
+}
+
+/** The inclusive range of whole numbers one Pomodoro length accepts, and the length a new account starts with. */
+export interface PomodoroLimit {
+  min: number;
+  max: number;
+  default: number;
+}
+
+/** One limit per length, named as `POST /api/app/pomodoro` names the length. */
+export interface PomodoroLimits {
+  work_minutes: PomodoroLimit;
+  short_rest_minutes: PomodoroLimit;
+  long_rest_minutes: PomodoroLimit;
+  long_rest_every: PomodoroLimit;
 }
 
 /** POST /api/app/admin/invites: the new invite, with the only copy of its link. */

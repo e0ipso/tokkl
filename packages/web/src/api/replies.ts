@@ -22,6 +22,8 @@ import type {
   InstanceSettings,
   Invite,
   Me,
+  PomodoroLimit,
+  PomodoroLimits,
   Preferences,
   Project,
   Report,
@@ -48,6 +50,8 @@ import type {
 
 const role = oneOf('admin', 'user');
 
+const pomodoroLimit = object<PomodoroLimit>({ min: integer, max: integer, default: integer });
+
 /** GET /api/app/status. */
 export const appStatusReply: Decoder<AppStatus> = object<AppStatus>({
   setup_required: boolean,
@@ -56,6 +60,12 @@ export const appStatusReply: Decoder<AppStatus> = object<AppStatus>({
   capabilities: array(
     oneOf('app-preferences', 'timer-actions', 'timer-edit', 'pomodoro-revision', 'pause-revision', 'timer-edit-entry'),
   ),
+  pomodoro_limits: object<PomodoroLimits>({
+    work_minutes: pomodoroLimit,
+    short_rest_minutes: pomodoroLimit,
+    long_rest_minutes: pomodoroLimit,
+    long_rest_every: pomodoroLimit,
+  }),
 });
 
 /** GET /api/app/invites/:token: the role the invite grants. */

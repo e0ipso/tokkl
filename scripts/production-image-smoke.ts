@@ -15,6 +15,13 @@ assert.equal(
 const image = args[1];
 assert.ok(image && !image.startsWith('-'), 'A built production image is required');
 const backends = ['sqlite', 'postgres', 'mysql', 'mariadb'] as const;
+/** The Pomodoro limits GET /api/app/status names. */
+const POMODORO_LIMITS = {
+  work_minutes: { min: 1, max: 180, default: 25 },
+  short_rest_minutes: { min: 1, max: 60, default: 5 },
+  long_rest_minutes: { min: 1, max: 60, default: 15 },
+  long_rest_every: { min: 1, max: 12, default: 4 },
+};
 assert.ok(
   args.length === 2 || (args.length === 4 && args[2] === '--backend' && backends.some(b => b === args[3])),
   'Invalid backend selection',
@@ -224,6 +231,7 @@ for (const backend of backends.filter(b => !args[3] || b === args[3])) {
         'pause-revision',
         'timer-edit-entry',
       ],
+      pomodoro_limits: POMODORO_LIMITS,
     });
     const setup = await fetch(base + '/api/app/setup', {
       method: 'POST',
@@ -359,6 +367,7 @@ for (const backend of backends.filter(b => !args[3] || b === args[3])) {
         'pause-revision',
         'timer-edit-entry',
       ],
+      pomodoro_limits: POMODORO_LIMITS,
     });
     assert.equal((await json<{ id: number }>('/api/v9/me')).id, me.id);
     assert.equal((await json<{ running_entry: { id: number } }>('/api/app/timer')).running_entry.id, running.id);

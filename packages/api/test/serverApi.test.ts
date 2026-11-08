@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { ServerApi, ServerCapability } from '@tokkl/types';
-import { setup, type TestContext } from './helpers.ts';
+import type { AppStatus, ServerApi, ServerCapability, TimerState } from '@tokkl/types';
+import { SERVER_API, setup, type TestContext } from './helpers.ts';
 
 /**
  * A request whose status tells a server with the capability from one without it: a 404 for a
@@ -53,4 +53,35 @@ test('GET /api/app/status names the API version and the capabilities this server
     'pause-revision': 409,
     'timer-edit-entry': 409,
   });
+});
+
+test('GET /api/app/status names the Pomodoro limits a session start enforces', async () => {
+  const ctx = await setup();
+  const { pomodoro_limits: limits } = (await ctx.json<AppStatus>('GET', '/api/app/status')).body;
+  assert.deepEqual(limits, SERVER_API.pomodoro_limits);
+  for (const [field, { min, max }] of Object.entries(limits)) {
+    for (const value of [min - 1, max + 1]) {
+      const refused = await ctx.json('POST', '/api/app/pomodoro', { [field]: value });
+      assert.equal(refused.status, 400, `${field} ${value}`);
+      assert.equal(refused.body, `Invalid ${field}: expected an integer from ${min} to ${max}`);
+    }
+    for (const value of [min, max]) {
+      const started = await ctx.json<TimerState>('POST', '/api/app/pomodoro', { [field]: value });
+      assert.equal(started.status, 200, `${field} ${value}`);
+      await ctx.json('POST', '/api/app/pomodoro/end', { revision: started.body.revision });
+    }
+  }
+  // A new account starts from the defaults.
+  const { body: idle } = await ctx.json<TimerState>('GET', '/api/app/timer');
+  const session = await ctx.json<TimerState>('POST', '/api/app/pomodoro', { revision: idle.revision });
+  const pomodoro = session.body.pomodoro!;
+  assert.deepEqual(
+    [pomodoro.work_minutes, pomodoro.short_rest_minutes, pomodoro.long_rest_minutes, pomodoro.long_rest_every],
+    [
+      limits.work_minutes.default,
+      limits.short_rest_minutes.default,
+      limits.long_rest_minutes.default,
+      limits.long_rest_every.default,
+    ],
+  );
 });

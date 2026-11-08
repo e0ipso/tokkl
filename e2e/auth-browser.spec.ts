@@ -34,6 +34,12 @@ const FRESH_STATUS = {
     'pause-revision',
     'timer-edit-entry',
   ],
+  pomodoro_limits: {
+    work_minutes: { min: 1, max: 180, default: 25 },
+    short_rest_minutes: { min: 1, max: 60, default: 5 },
+    long_rest_minutes: { min: 1, max: 60, default: 15 },
+    long_rest_every: { min: 1, max: 12, default: 4 },
+  },
 };
 
 // Failed setup and login in the browser, and what logout leaves behind.

@@ -12,7 +12,8 @@ import { readJson } from '../http/request.ts';
 import { streamDownload } from '../http/download.ts';
 import { getPreferences } from '../domain/accountValues.ts';
 import { parsePreferenceChanges } from '../commands/accounts.ts';
-import { presentServerApi } from '../presenters/serverApi.ts';
+import { presentPomodoroLimits, presentServerApi } from '../presenters/serverApi.ts';
+import type { AppStatus } from '@tokkl/types';
 
 export type AppRouteDeps = Pick<
   Deps,
@@ -24,9 +25,14 @@ export function appRoutes(deps: AppRouteDeps): Router {
   const app = createRouter(),
     auth = deps.auth.requireAuth;
   // The status reply also names this server's API version and capabilities, so a client picks its
-  // routes from them, and never from a 404.
+  // routes from them, and never from a 404, and the Pomodoro lengths the server accepts.
   app.get('/status', async (_req, res) => {
-    res.json({ setup_required: await sessions.setupRequired(), ...presentServerApi() });
+    const status: AppStatus = {
+      setup_required: await sessions.setupRequired(),
+      ...presentServerApi(),
+      pomodoro_limits: presentPomodoroLimits(),
+    };
+    res.json(status);
   });
   app.post('/setup', sessions.firstAdmin);
   app.get('/invites/:token', sessions.inviteInfo);
