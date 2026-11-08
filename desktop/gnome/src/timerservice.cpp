@@ -11,6 +11,7 @@
 #include "pomodorosounds.h"
 #include "projectchoices.h"
 #include "soundchoices.h"
+#include "statuspresentation.h"
 #include "timercoordinator.h"
 #include "timermodel.h"
 #include "timerstateclient.h"
@@ -359,6 +360,11 @@ QMap<QString, QVariantMap> TimerService::actions() const
     return actions;
 }
 
+QVariantMap TimerService::presentation() const
+{
+    return StatusPresentation::of(StatusInput::of(*m_timer, m_session), StatusPolicy::gnome()).toVariantMap();
+}
+
 QMap<QString, int> TimerService::pomodoroLengths() const
 {
     return {
@@ -648,6 +654,7 @@ const TimerService::Publication &TimerService::publication()
         {"RingingTransition", SessionGroup},
         {"SessionMessage", SessionGroup},
         {"Actions", ActionsGroup},
+        {"Presentation", ActionsGroup},
         {"PomodoroLengths", LengthsGroup},
         {"PomodoroLengthsEditable", LengthsGroup},
         {"PomodoroLengthErrors", LengthsGroup},

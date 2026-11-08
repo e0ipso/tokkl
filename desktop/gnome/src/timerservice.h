@@ -68,6 +68,7 @@ class TimerService : public QObject, protected QDBusContext
     Q_PROPERTY(QString RingingTransition READ ringingTransition)
     Q_PROPERTY(QString SessionMessage READ sessionMessage)
     Q_PROPERTY(QMap<QString, QVariantMap> Actions READ actions)
+    Q_PROPERTY(QVariantMap Presentation READ presentation)
     Q_PROPERTY(QMap<QString, int> PomodoroLengths READ pomodoroLengths)
     Q_PROPERTY(bool PomodoroLengthsEditable READ pomodoroLengthsEditable)
     Q_PROPERTY(QMap<QString, QString> PomodoroLengthErrors READ pomodoroLengthErrors)
@@ -145,6 +146,9 @@ public:
     QString sessionMessage() const;
     // MenuActionStates with the GNOME policy, as the menu reads them.
     QMap<QString, QVariantMap> actions() const;
+    // StatusPresentation with the GNOME policy, as the button's words read
+    // it.
+    QVariantMap presentation() const;
     QMap<QString, int> pomodoroLengths() const;
     bool pomodoroLengthsEditable() const;
     QMap<QString, QString> pomodoroLengthErrors() const;
@@ -196,7 +200,7 @@ private:
         TimerGroup = 1u << 0, // the entry, chain, choice, indicator and status
         ProjectsGroup = 1u << 1,
         SessionGroup = 1u << 2,
-        ActionsGroup = 1u << 3, // reads both the timer and the session
+        ActionsGroup = 1u << 3, // Actions and Presentation, which read both the timer and the session
         LengthsGroup = 1u << 4,
         SoundsGroup = 1u << 5,
         FixedGroup = 1u << 6, // never changes while the service runs

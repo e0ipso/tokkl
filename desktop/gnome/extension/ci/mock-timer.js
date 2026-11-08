@@ -68,6 +68,7 @@ const types = {
     SessionMessage: 's',
     CanStartSession: 'b',
     Actions: 'a{sa{sv}}',
+    Presentation: 'a{sv}',
 };
 
 const state = {
@@ -125,6 +126,7 @@ const state = {
     RingingTransition: '',
     SessionMessage: '',
     Actions: {},
+    Presentation: {},
 };
 
 // The lengths on the Tokkl server behind the service. RefreshPreferences
@@ -160,6 +162,13 @@ function variant(name) {
                 label: new GLib.Variant('s', choice.label),
             })),
         );
+    }
+    if (name === 'Presentation') {
+        return new GLib.Variant('a{sv}', {
+            summary: new GLib.Variant('as', state.Presentation.summary),
+            menuLine: new GLib.Variant('as', state.Presentation.menuLine),
+            mark: new GLib.Variant('s', state.Presentation.mark),
+        });
     }
     if (name === 'Actions') {
         return new GLib.Variant(
@@ -202,6 +211,25 @@ function actionsOf() {
     };
 }
 
+// The parts of the button's words as the service publishes them from the
+// core's rules with the GNOME policy.
+function presentationOf() {
+    const status = state.Status;
+    const detail =
+        status === 'unconfigured' || (!['ready', 'loading', 'busy'].includes(status) && state.ErrorString)
+            ? ['detail']
+            : [];
+    const mark =
+        { ready: 'none', loading: 'pending', busy: 'pending', unconfigured: 'unconfigured' }[status] ?? 'alert';
+    if (state.SessionActive)
+        return { summary: ['session', 'project', 'connection', ...detail], menuLine: ['session'], mark };
+    return {
+        summary: ['activity', 'project', 'connection', ...detail, ...(state.PomodoroMode ? ['pomodoroMode'] : [])],
+        menuLine: state.Paused ? ['activity', 'connection'] : ['connection'],
+        mark,
+    };
+}
+
 function set(values) {
     for (const [name, value] of Object.entries(values)) {
         if (state[name] === value) continue;
@@ -225,7 +253,12 @@ function set(values) {
         return;
     }
     const actions = actionsOf();
-    if (JSON.stringify(actions) !== JSON.stringify(state.Actions)) set({ Actions: actions });
+    if (JSON.stringify(actions) !== JSON.stringify(state.Actions)) {
+        set({ Actions: actions });
+        return;
+    }
+    const presentation = presentationOf();
+    if (JSON.stringify(presentation) !== JSON.stringify(state.Presentation)) set({ Presentation: presentation });
 }
 
 const now = () => Math.floor(Date.now() / 1000);
@@ -461,6 +494,7 @@ class Timer1 {
 }
 
 state.Actions = actionsOf();
+state.Presentation = presentationOf();
 const implementation = new Timer1();
 for (const name of Object.keys(types))
     Object.defineProperty(implementation, name, { get: () => variant(name).deepUnpack() });

@@ -3,6 +3,7 @@
 
 #include "alarmoutput.h"
 #include "pomodoroalarm.h"
+#include "statuspresentation.h"
 #include "apitypes.h"
 #include "configurationadapter.h"
 #include "connection.h"
@@ -736,6 +737,7 @@ private Q_SLOTS:
             {QStringLiteral("RingingTransition"), QStringLiteral("s read")},
             {QStringLiteral("SessionMessage"), QStringLiteral("s read")},
             {QStringLiteral("Actions"), QStringLiteral("a{sa{sv}} read")},
+            {QStringLiteral("Presentation"), QStringLiteral("a{sv} read")},
             {QStringLiteral("PomodoroLengths"), QStringLiteral("a{si} read")},
             {QStringLiteral("PomodoroLengthsEditable"), QStringLiteral("b read")},
             {QStringLiteral("PomodoroLengthErrors"), QStringLiteral("a{ss} read")},
@@ -1724,6 +1726,40 @@ private Q_SLOTS:
         }));
         const auto last = qdbus_cast<QMap<QString, QVariantMap>>(f.recorder.valuesOf(QStringLiteral("Actions")).last());
         QCOMPARE(last.value(QStringLiteral("startSession")).value(QStringLiteral("visible")).toBool(), true);
+    }
+
+    // Presentation carries the core's StatusPresentation with the GNOME
+    // policy, and its changes reach the bus like any other property's.
+    void presentationFollowsTheCore()
+    {
+        Fixture f;
+        QVERIFY(f.start());
+        const auto parts = [](const QVariantMap &presentation, const char *key) {
+            return presentation.value(QString::fromLatin1(key)).toStringList();
+        };
+        QVariantMap shown = qdbus_cast<QVariantMap>(f.get(QStringLiteral("Presentation")));
+        QCOMPARE(parts(shown, "summary"),
+                 (QStringList{QStringLiteral("activity"), QStringLiteral("project"), QStringLiteral("connection"), QStringLiteral("detail")}));
+        QCOMPARE(parts(shown, "menuLine"), QStringList{QStringLiteral("connection")});
+        QCOMPARE(shown.value(QStringLiteral("mark")).toString(), QStringLiteral("unconfigured"));
+
+        QVERIFY(f.connect());
+        QCOMPARE(f.service->presentation(), StatusPresentation::of(StatusInput::of(f.daemon->timer, &f.daemon->session), StatusPolicy::gnome()).toVariantMap());
+        shown = qdbus_cast<QVariantMap>(f.get(QStringLiteral("Presentation")));
+        QCOMPARE(parts(shown, "summary"), (QStringList{QStringLiteral("activity"), QStringLiteral("project"), QStringLiteral("connection")}));
+        QCOMPARE(shown.value(QStringLiteral("mark")).toString(), QStringLiteral("none"));
+        QVERIFY(QTest::qWaitFor([&f] {
+            const QVariantList published = f.recorder.valuesOf(QStringLiteral("Presentation"));
+            return !published.isEmpty() && qdbus_cast<QVariantMap>(published.last()).value(QStringLiteral("mark")).toString() == QLatin1String("none");
+        }));
+
+        // Pomodoro mode joins the summary.
+        QCOMPARE(f.result(QStringLiteral("SetPomodoroMode"), {QVariant(true)}).toBool(), true);
+        QVERIFY(QTest::qWaitFor([&f] {
+            const QVariantList published = f.recorder.valuesOf(QStringLiteral("Presentation"));
+            return !published.isEmpty()
+                && qdbus_cast<QVariantMap>(published.last()).value(QStringLiteral("summary")).toStringList().contains(QStringLiteral("pomodoroMode"));
+        }));
     }
 
     // Activate: in Timer mode, and while an entry runs or a chain is

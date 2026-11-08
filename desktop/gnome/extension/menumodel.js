@@ -134,13 +134,54 @@ export function projectChoices(projects, chosenProject, label, _, incomplete = f
     return choices;
 }
 
+// How the button's time ends for each mark of the Presentation property.
+const MARKS = { none: '', pending: '…', alert: '!', unconfigured: '!' };
+
+/**
+ * @typedef {object} Presentation the Presentation property: which parts
+ *     the button's accessible name (summary) and the menu's status line
+ *     (menuLine) show, in order, and how the button's time ends (mark)
+ * @property {string[]} summary
+ * @property {string[]} menuLine
+ * @property {string} mark
+ */
+
+/**
+ * The Presentation a service from before that property leaves the
+ * extension to decide, by the rules the extension had: the core's
+ * StatusPolicy::gnome(). The accessible name always names the project and
+ * the connection, its detail when there is one, and outside a session the
+ * Pomodoro mode. The status line is the session's line during a session,
+ * and otherwise the connection, after the paused total while paused.
+ *
+ * @param {{status: string|null, paused: boolean, pomodoroMode: boolean, session: object|null}} time
+ *     status is the Status property, null when nothing owns the bus name
+ * @param {{detail: string}} words describeStatus()
+ * @returns {Presentation}
+ */
+export function legacyPresentation(time, words) {
+    const detail = words.detail ? ['detail'] : [];
+    const mark =
+        { ready: 'none', loading: 'pending', busy: 'pending', unconfigured: 'unconfigured' }[time.status] ?? 'alert';
+    if (time.session) return { summary: ['session', 'project', 'connection', ...detail], menuLine: ['session'], mark };
+    return {
+        summary: ['activity', 'project', 'connection', ...detail, ...(time.pomodoroMode ? ['pomodoroMode'] : [])],
+        menuLine: time.paused ? ['activity', 'connection'] : ['connection'],
+        mark,
+    };
+}
+
 /**
  * The time on the button, the menu's status line and the button's
  * accessible name. During a session they show the phase's countdown instead
  * of the timer. Elapsed time is the chain total: what the chain's paused
  * entries stored plus the running entry's own time, frozen while paused.
+ * Which parts the line and the name show, and how the time ends, is the
+ * service's Presentation, or legacyPresentation() without it.
  *
  * @param {object} time
+ * @param {string|null} time.status the Status property, null when nothing
+ *     owns the bus name
  * @param {boolean} time.running
  * @param {boolean} time.paused
  * @param {number} time.startTime the LocalStartTime property: the start on
@@ -149,6 +190,7 @@ export function projectChoices(projects, chosenProject, label, _, incomplete = f
  * @param {boolean} time.pomodoroMode
  * @param {{phase: string, plannedEnd: number, pomodoroNumber: number, longRestEvery: number}|null} time.session
  *     the session's properties while one is active
+ * @param {Presentation|null} [time.presentation] the Presentation property
  * @param {{text: string, detail: string, mark: string}} words describeStatus()
  * @param {string} indicatorLabel the project indicator's accessible name
  * @param {number} nowSeconds the current Unix time in seconds
@@ -156,34 +198,37 @@ export function projectChoices(projects, chosenProject, label, _, incomplete = f
  * @returns {{button: string, status: string, accessibleName: string}}
  */
 export function describeTime(time, words, indicatorLabel, nowSeconds, _) {
-    let button, timer, status;
+    const presentation = time.presentation ?? legacyPresentation(time, words);
+    let shown, activity;
     if (time.session) {
-        button = `${countdown(time.session.plannedEnd, nowSeconds).text}${words.mark}`;
-        timer = status = sessionLine(time.session, nowSeconds, _);
+        shown = countdown(time.session.plannedEnd, nowSeconds).text;
+        activity = '';
     } else {
         const running = time.running ? elapsedSeconds(time.startTime, nowSeconds) : 0;
-        const elapsed = formatElapsed(time.chainSeconds + running);
-        button = `${elapsed}${words.mark}`;
-        timer = _('Stopped');
-        status = words.text;
-        if (time.running) {
-            // Translators: %s is the elapsed time as H:MM.
-            timer = fill(_('Running %s'), elapsed);
-        } else if (time.paused) {
-            // Translators: %s is the paused total as H:MM.
-            timer = fill(_('Paused %s'), elapsed);
-            // While paused the line leads with the chain total, then the
-            // connection state, as the KDE and macOS menus do.
-            // Translators: %1$s is the paused total as H:MM, %2$s the
-            // connection state, such as Connected.
-            status = fill(_('Paused %1$s · %2$s'), elapsed, words.text);
-        }
+        shown = formatElapsed(time.chainSeconds + running);
+        activity = _('Stopped');
+        // Translators: %s is the elapsed time as H:MM.
+        if (time.running) activity = fill(_('Running %s'), shown);
+        // Translators: %s is the paused total as H:MM.
+        else if (time.paused) activity = fill(_('Paused %s'), shown);
     }
-
-    const parts = [timer];
-    if (indicatorLabel) parts.push(indicatorLabel);
-    parts.push(words.text);
-    if (words.detail) parts.push(words.detail);
-    if (time.pomodoroMode && !time.session) parts.push(_('Pomodoro mode'));
-    return { button, status, accessibleName: parts.join(' · ') };
+    const texts = {
+        activity,
+        session: time.session ? sessionLine(time.session, nowSeconds, _) : '',
+        project: indicatorLabel,
+        connection: words.text,
+        detail: words.detail,
+        pomodoroMode: _('Pomodoro mode'),
+    };
+    // The parts' words, those with any, joined by " · ".
+    const render = parts =>
+        parts
+            .map(part => texts[part] ?? '')
+            .filter(text => text)
+            .join(' · ');
+    return {
+        button: `${shown}${MARKS[presentation.mark] ?? ''}`,
+        status: render(presentation.menuLine),
+        accessibleName: render(presentation.summary),
+    };
 }
