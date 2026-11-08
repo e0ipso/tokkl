@@ -65,6 +65,10 @@ gnome-extensions enable tokkl@canpicasoft.com
 
 To upgrade, install the new zip, then log out and in. To remove it, run `gnome-extensions uninstall tokkl@canpicasoft.com`.
 
+### Supported service versions
+
+The extension updates from extensions.gnome.org and the service from a package, so a new extension often talks to an older `tokkl-timerd`. The oldest service it supports is InterfaceVersion 0: a `tokkl-timerd` from before the `InterfaceVersion` property, 2.1.0 or older. `OLDEST_SUPPORTED_INTERFACE_VERSION` in `extension/timer1.js` states the same floor. For such a service the extension decides the menu's actions (`legacyactions.js`), the time's words (`legacyPresentation()` in `menumodel.js`) and the Pomodoro length limits (`legacylimits.js`) itself, and sends Start, Stop, Pause and Resume by the plain methods (`timerrequests.js`). InterfaceVersion 1 publishes all of these. Once no supported distribution ships a service older than InterfaceVersion 1, the floor goes up to 1 and those fallbacks are deleted in the same change; the extension's tests fail while one outlives the floor.
+
 ## Connect to Tokkl
 
 Open the extension's settings from its menu (Settings), from the Extensions app, or with `gnome-extensions prefs tokkl@canpicasoft.com`. Enter the instance URL, for example `https://tokkl.example.com`, choose API token or email and password, enter the secret and press Connect. The values go to the service's `Configure` method. The service checks them, saves the secret in the keyring and connects; the Timer service row then shows the result.

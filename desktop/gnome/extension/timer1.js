@@ -18,9 +18,34 @@ export const TIMER1_XML_FILE = 'org.tokkl.Timer1.xml';
 // The values of Configure's authMode argument.
 export const AUTH_MODES = ['token', 'password'];
 
-// The first InterfaceVersion that publishes each property the extension has
+// The oldest tokkl-timerd the extension supports, by the InterfaceVersion it
+// publishes. 0 is a service from before that property: tokkl-timerd 2.1.0
+// and older, which publishes none of PUBLISHED_SINCE and has no Request
+// methods. Every fallback for such a service exists only while this is 0:
+// legacyactions.js, legacylimits.js, legacyPresentation() in menumodel.js
+// and the plain methods in timerrequests.js. Raise this to 1 once no
+// supported distribution ships a tokkl-timerd older than the release that
+// publishes InterfaceVersion 1, and delete those fallbacks in the same
+// change; the extension's tests fail while a fallback outlives the floor.
+// desktop/gnome/README.md states the same floor.
+export const OLDEST_SUPPORTED_INTERFACE_VERSION = 0;
+
+// The first InterfaceVersion that publishes each member the extension has
 // a fallback for. A service with an InterfaceVersion publishes all of them.
-const PUBLISHED_SINCE = { Actions: 1, Presentation: 1, PomodoroLengthLimits: 1 };
+const PUBLISHED_SINCE = { Actions: 1, Presentation: 1, PomodoroLengthLimits: 1, RequestMethods: 1 };
+
+/**
+ * Whether the service has RequestStart, RequestStop, RequestPause and
+ * RequestResume, by its InterfaceVersion: they came with version 1, and a
+ * service from before the property has none of them.
+ *
+ * @param {number} interfaceVersion the InterfaceVersion property, 0 for a
+ *     service without it
+ * @returns {boolean}
+ */
+export function hasRequestMethods(interfaceVersion) {
+    return interfaceVersion >= PUBLISHED_SINCE.RequestMethods;
+}
 
 /**
  * Whether the service publishes a property the extension has a fallback

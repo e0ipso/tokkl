@@ -7,12 +7,13 @@
 // anything else.
 //
 // The extension updates from extensions.gnome.org while the service comes
-// from a package, so a new extension often talks to an older service that
-// has only the plain methods and answers UnknownMethod. The request then
-// goes by the plain method, as it did before, for as long as that service
-// owns the name. Remove the fallback once services without the Request
-// methods are no longer supported. Nothing here imports from GNOME Shell,
-// so Node runs its tests.
+// from a package, so a new extension often talks to an older service. The
+// Request methods came with InterfaceVersion 1 (hasRequestMethods() in
+// timer1.js); a service below it gets the plain method, as it did before.
+// Delete that path when OLDEST_SUPPORTED_INTERFACE_VERSION in timer1.js
+// becomes 1. Nothing here imports from GNOME Shell, so Node runs its tests.
+
+import { hasRequestMethods } from './timer1.js';
 
 /**
  * @typedef {(method: string, done: (reply: any[] | null, error: any) => void) => void} Call
@@ -23,13 +24,12 @@
 export class TimerRequests {
     /**
      * @param {Call} call
-     * @param {(error: any) => boolean} isUnknownMethod whether a call failed
-     *     because the service has no such method
+     * @param {() => number} interfaceVersion the service's InterfaceVersion
+     *     now, 0 for a service without it
      */
-    constructor(call, isUnknownMethod) {
+    constructor(call, interfaceVersion) {
         this._call = call;
-        this._isUnknownMethod = isUnknownMethod;
-        this._plainOnly = false;
+        this._interfaceVersion = interfaceVersion;
         /** @type {Map<number, (ok: boolean, error: string) => void>} */
         this._waiting = new Map();
     }
@@ -47,16 +47,11 @@ export class TimerRequests {
      */
     send(action, handlers = {}) {
         const sent = handlers.sent ?? (() => {});
-        if (this._plainOnly) {
-            this._sendPlain(action, sent);
+        if (!hasRequestMethods(this._interfaceVersion())) {
+            this._call(action, (reply, error) => sent(error ? null : Boolean(reply[0]), error));
             return;
         }
         this._call(`Request${action}`, (reply, error) => {
-            if (error && this._isUnknownMethod(error)) {
-                this._plainOnly = true;
-                this._sendPlain(action, sent);
-                return;
-            }
             if (error) {
                 sent(null, error);
                 return;
@@ -82,16 +77,8 @@ export class TimerRequests {
         done(ok, error);
     }
 
-    /**
-     * Another service owns the name, or none does: its requests are gone,
-     * and the next one finds out again which methods it has.
-     */
+    /** Another service owns the name, or none does: its requests are gone. */
     reset() {
         this._waiting.clear();
-        this._plainOnly = false;
-    }
-
-    _sendPlain(action, sent) {
-        this._call(action, (reply, error) => sent(error ? null : Boolean(reply[0]), error));
     }
 }

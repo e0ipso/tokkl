@@ -7,9 +7,9 @@
 // PomodoroLengthLimits, from the shared core's rules (publishes() in
 // timer1.js), and these are not used for it.
 //
-// Remove this module once every supported tokkl-timerd publishes
-// InterfaceVersion; the rows then need a placeholder range only until the
-// service is reached.
+// Delete this module when OLDEST_SUPPORTED_INTERFACE_VERSION in timer1.js
+// becomes 1; the rows then need a placeholder range only until the service
+// is reached.
 
 /** @typedef {{min: number, max: number, default: number}} LengthLimit */
 

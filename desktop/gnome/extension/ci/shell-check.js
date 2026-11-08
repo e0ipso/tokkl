@@ -962,17 +962,18 @@ await step('a session started on another device shows in Timer mode', async () =
     await waitFor('0:00', () => label() === '0:00' || label());
 });
 
-await step('a service without the Request methods gets the plain Start and Stop', async () => {
+await step('a service without InterfaceVersion gets the plain Start and Stop', async () => {
     actAsOlderService(true);
+    const version = () => shell(`${button}._proxy.get_cached_property('InterfaceVersion')?.unpack()`);
+    await waitFor('InterfaceVersion 0', () => version() === 0 || version());
     let before = mockCalls().length;
     shell(`${button}._toggleItem.activate(null)`);
     await waitFor('Start', () => (mockCalls().length > before && lastCall()[0] === 'Start') || mockCalls());
     await waitFor('Running', () => timerProperty('Running') === true);
     const first = mockCalls().slice(before);
-    if (JSON.stringify(first) !== JSON.stringify([['RequestStart'], ['Start']]))
-        throw new Error(`Start sent ${JSON.stringify(first)}`);
+    // The version decides: no Request method is tried first.
+    if (JSON.stringify(first) !== JSON.stringify([['Start']])) throw new Error(`Start sent ${JSON.stringify(first)}`);
     if (shell(`${button}._messageItem.visible`)) throw new Error('the fallback showed a message');
-    // The menu remembers that this service has no requests.
     await waitFor('Stop', () => toggleItem() === 'Stop' || toggleItem());
     before = mockCalls().length;
     shell(`${button}._toggleItem.activate(null)`);
@@ -981,6 +982,7 @@ await step('a service without the Request methods gets the plain Start and Stop'
     const second = mockCalls().slice(before);
     if (JSON.stringify(second) !== JSON.stringify([['Stop']])) throw new Error(`Stop sent ${JSON.stringify(second)}`);
     actAsOlderService(false);
+    await waitFor('InterfaceVersion 1', () => version() === 1 || version());
     await waitFor('0:00', () => label() === '0:00' || label());
 });
 

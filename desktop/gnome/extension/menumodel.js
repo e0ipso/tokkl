@@ -151,10 +151,11 @@ const MARKS = { none: '', pending: '…', alert: '!', unconfigured: '!' };
  * extension to decide, by the rules the extension had: the core's
  * StatusPolicy::gnome(). Also the words with no service. A service that
  * publishes InterfaceVersion 1 or later publishes Presentation (publishes()
- * in timer1.js); remove the older-service use once every supported
- * tokkl-timerd publishes InterfaceVersion. The accessible name always names the project and
- * the connection, its detail when there is one, and outside a session the
- * Pomodoro mode. The status line is the session's line during a session,
+ * in timer1.js). Delete the older-service use when
+ * OLDEST_SUPPORTED_INTERFACE_VERSION in timer1.js becomes 1; keep only what
+ * the button shows with no service (status null). The accessible name
+ * always names the project and the connection, its detail when there is
+ * one, and outside a session the Pomodoro mode. The status line is the session's line during a session,
  * and otherwise the connection, after the paused total while paused.
  *
  * @param {{status: string|null, paused: boolean, pomodoroMode: boolean, session: object|null}} time

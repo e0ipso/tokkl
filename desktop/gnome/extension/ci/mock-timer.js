@@ -4,7 +4,8 @@
 // records every method call. A second interface, org.tokkl.Timer1Mock,
 // lets the check read the calls, change properties, start a session as
 // another device would, have the server refuse the next request, act as a
-// service from before the Request methods, and stop the mock. Configure
+// service from before InterfaceVersion and the Request methods, and stop
+// the mock. Configure
 // with an address that contains "replaced" fails as a call a later one
 // replaced.
 //
@@ -140,7 +141,8 @@ let timer = null;
 let lastRequest = 0;
 // The server's words for the next request it refuses, or null.
 let refusal = null;
-// The Request methods answer UnknownMethod, as before they existed.
+// InterfaceVersion is 0 and the Request methods answer UnknownMethod, as
+// before they existed.
 let olderService = false;
 
 function variant(name) {
@@ -519,6 +521,7 @@ const mock = Gio.DBusExportedObject.wrapJSObject(mockXml, {
     },
     ActAsOlderService: older => {
         olderService = older;
+        set({ InterfaceVersion: older ? 0 : 1 });
     },
     Quit: () => GLib.idle_add(GLib.PRIORITY_DEFAULT, () => loop.quit()),
 });

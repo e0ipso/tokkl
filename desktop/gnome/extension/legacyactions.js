@@ -6,9 +6,9 @@
 // InterfaceVersion 1 or later publishes Actions, from the shared core's
 // rules (publishes() in timer1.js), and these are not used for it.
 //
-// Remove the older-service rules once every supported tokkl-timerd
-// publishes InterfaceVersion; keep only what the menu shows with no
-// service (status null).
+// Delete the older-service rules when OLDEST_SUPPORTED_INTERFACE_VERSION in
+// timer1.js becomes 1; keep only what the menu shows with no service
+// (status null).
 
 /**
  * The Actions an older service would have meant, from the properties it
