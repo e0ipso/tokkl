@@ -165,10 +165,11 @@ test('the idle bar edits its draft without writing an entry, and Start takes eve
   const oncall = await api.createTask(ops, 'On call');
   await page.reload();
 
-  // Entry reads (the list and the current-entry poll) are fine; any write before Start is not.
+  // Entry reads (the list and the timer state) are fine; any write before Start is not.
   const entryWrites: string[] = [];
   page.on('request', request => {
-    if (request.method() !== 'GET' && /\/time_entries\b/.test(new URL(request.url()).pathname)) {
+    const path = new URL(request.url()).pathname;
+    if (request.method() !== 'GET' && (/\/time_entries\b/.test(path) || path.startsWith('/api/app/timer/'))) {
       entryWrites.push(`${request.method()} ${new URL(request.url()).pathname}`);
     }
   });
@@ -213,5 +214,5 @@ test('the idle bar edits its draft without writing an entry, and Start takes eve
     tags: ['handover'],
     billable: false,
   });
-  expect(entryWrites).toEqual([`POST /api/v9/workspaces/${api.workspaceId}/time_entries`]);
+  expect(entryWrites).toEqual(['POST /api/app/timer/start']);
 });

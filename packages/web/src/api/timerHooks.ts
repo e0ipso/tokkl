@@ -11,7 +11,6 @@ import {
   revisionToSend,
   settleOtherWrites,
 } from './timerState.ts';
-import { createTimerOutcome, type TimerOutcome } from './timerOutcome.ts';
 import { useTimerStreaming } from './timerStreaming.ts';
 import type { TimeEntry, TimeEntryInput, TimerState } from './types.ts';
 import { useNow } from '../lib/clock.ts';
@@ -39,22 +38,6 @@ export function acceptTimerState(qc: QueryClient, state: TimerState): TimerState
 
 async function readTimerState(qc: QueryClient, signal?: AbortSignal): Promise<TimerState> {
   return acceptTimerState(qc, await api.get(timerPath, { signal, decode: timerStateOf }));
-}
-
-const outcomes = new WeakMap<QueryClient, TimerOutcome>();
-
-/**
- * Whether the last Start, Continue or Stop left the timer unknown, shared by every view on this
- * client so a remounted timer bar still reads the state before its next start.
- */
-export function useTimerOutcome(): TimerOutcome {
-  const qc = useQueryClient();
-  let outcome = outcomes.get(qc);
-  if (!outcome) {
-    outcome = createTimerOutcome(() => readTimerState(qc));
-    outcomes.set(qc, outcome);
-  }
-  return outcome;
 }
 
 /**
@@ -144,6 +127,54 @@ function useRevisionAction(path: string) {
   return useMutation<TimerState, Error, void>({
     ...actionOptions,
     mutationFn: async () => postAction(qc, path, { revision: await currentRevision(qc) }),
+  });
+}
+
+/** Fields of a timer start: the new entry's fields and when it starts (now if left out). */
+export interface StartTimerInput extends Pick<TimeEntryInput, 'description' | 'project_id' | 'task_id' | 'billable'> {
+  tags?: string[];
+  tag_ids?: number[];
+  workspace_id?: number;
+  start?: string;
+  created_with?: string;
+}
+
+/**
+ * Starts the timer at the cached revision, and takes the reply into the caches. A running entry
+ * stops at the new start, as Continue and favorites want, and a pause chain or Pomodoro session
+ * ends. A start after a write that got no reply cannot add a second entry: if that write landed,
+ * the revision moved, and the server answers with a conflict carrying its state.
+ */
+export async function startTimer(qc: QueryClient, input: StartTimerInput): Promise<TimerState> {
+  return postAction(qc, `${timerPath}/start`, {
+    created_with: 'tokkl-web',
+    ...input,
+    revision: await currentRevision(qc),
+  });
+}
+
+/**
+ * Stops the running entry at `stop` (now if left out), at the cached revision, and takes the reply
+ * into the caches. The server answers with a conflict when the timer moved on, to nothing running
+ * among others.
+ */
+export async function stopTimer(qc: QueryClient, stop?: string): Promise<TimerState> {
+  return postAction(qc, `${timerPath}/stop`, { revision: await currentRevision(qc), stop });
+}
+
+export function useStartTimer() {
+  const qc = useQueryClient();
+  return useMutation<TimerState, Error, StartTimerInput>({
+    ...actionOptions,
+    mutationFn: input => startTimer(qc, input),
+  });
+}
+
+export function useStopTimer() {
+  const qc = useQueryClient();
+  return useMutation<TimerState, Error, { stop?: string }>({
+    ...actionOptions,
+    mutationFn: ({ stop }) => stopTimer(qc, stop),
   });
 }
 

@@ -7,6 +7,7 @@ import {
   TIMER_CONFLICT_MESSAGE,
   TIMER_OFFLINE_MESSAGE,
   TimerActionError,
+  attemptTimerRequest,
   explainTimerActionError,
   isTimerState,
   planTimerUpdate,
@@ -185,6 +186,19 @@ test('a 409 carrying a state explains itself and hands the state over; other fai
   assert.equal(explainTimerActionError(bad), bad);
   const unknown = new RangeError('x');
   assert.equal(explainTimerActionError(unknown), unknown);
+});
+
+test('a typed entry that got no reply fails with the offline message; other failures pass through', async () => {
+  await assert.rejects(
+    attemptTimerRequest(() => Promise.reject(new TypeError('Failed to fetch'))),
+    error => error instanceof TimerActionError && error.kind === 'offline' && error.message === TIMER_OFFLINE_MESSAGE,
+  );
+  const refused = new ApiError(400, 'Bad request');
+  await assert.rejects(
+    attemptTimerRequest(() => Promise.reject(refused)),
+    error => error === refused,
+  );
+  assert.equal(await attemptTimerRequest(() => Promise.resolve(5)), 5);
 });
 
 /**

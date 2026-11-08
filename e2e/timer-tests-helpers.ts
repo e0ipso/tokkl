@@ -181,7 +181,7 @@ export function expectSnapped(saved: Pick<EntryView, 'start' | 'stop'>, exactSta
   expect((instant(saved.stop) - start) % step).toBe(0);
 }
 
-const STOP_REQUEST = /\/time_entries\/\d+\/stop(?:\?|$)/;
+const STOP_REQUEST = /\/api\/app\/timer\/stop$/;
 
 /**
  * Holds the answer to the next stop request, as a slow network would: the server stops the entry
@@ -211,7 +211,7 @@ export async function holdNextStop(
     await gate;
     return route.fulfill({ response });
   });
-  const sent = page.waitForRequest(request => request.method() === 'PATCH' && STOP_REQUEST.test(request.url()));
+  const sent = page.waitForRequest(request => request.method() === 'POST' && STOP_REQUEST.test(request.url()));
   return { sent, release, stops };
 }
 
@@ -252,7 +252,11 @@ export async function watchTimerTraffic(page: Page): Promise<void> {
       window.fetchesInFlight++;
       try {
         const response = await nativeFetch.apply(this, args);
-        if (/^\/api\/app\/(timer|pomodoro)(\/(pause|resume|discard|next|end))?$/.test(new URL(response.url).pathname))
+        if (
+          /^\/api\/app\/(timer|pomodoro)(\/(start|stop|pause|resume|discard|next|end))?$/.test(
+            new URL(response.url).pathname,
+          )
+        )
           window.timerTraffic++;
         return response;
       } finally {

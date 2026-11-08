@@ -1,9 +1,11 @@
 import { useRef, useState, type RefObject } from 'react';
 import { formatDuration, parseDuration } from '@tokkl/common/duration';
-import { useDeleteEntry, useRestoreEntry, useStartEntry, useStopEntry, useUpdateEntry } from '../api/entries.ts';
-import { useDiscardPause, usePauseTimer, useResumeTimer, useTimerOutcome } from '../api/timerHooks.ts';
+import { useAddTypedEntry, useDeleteEntry, useRestoreEntry, useUpdateEntry } from '../api/entries.ts';
+import { getClockOffset, serverNow } from '../api/serverClock.ts';
+import { useSettings } from '../api/settings.ts';
+import { useDiscardPause, usePauseTimer, useResumeTimer, useStartTimer, useStopTimer } from '../api/timerHooks.ts';
 import type { TimeEntry } from '../api/types.ts';
-import { entrySeconds } from '../lib/snapping.ts';
+import { entrySeconds, snappedSeconds } from '../lib/snapping.ts';
 import type { EntryFieldsHandle } from './EntryFields.tsx';
 import { useFieldErrors } from './FieldError.tsx';
 import { useToast } from './Toast.tsx';
@@ -14,13 +16,11 @@ import { t } from '../i18n/messages.ts';
 /**
  * Start, Stop, Pause, Resume and Discard for the timer bar, and the idle bar's duration field.
  *
- * The server owns the running entry, the pause chain and the Pomodoro session: every action goes
- * through a v9 write or a timer action. Pause, Resume and Stop while paused wait for the server's
- * answer, and nothing else starts or stops an entry until it arrives, so two writes never race.
- * Start, Continue and Stop are tried at once, online or not, like the timer actions. Any of these
- * writes that may have been saved without this tab seeing the result (no reply, a 5xx, a reply it
- * cannot read) leaves the timer unknown, and the next start reads the timer state before it takes
- * its start time.
+ * The server owns the running entry, the pause chain and the Pomodoro session: Start, Stop, Pause,
+ * Resume and Stop while paused are timer actions, and Discard and a typed duration are v9 writes.
+ * The timer actions wait for the server's answer, and nothing else starts or stops an entry until
+ * it arrives, so two writes never race. Start and Stop send the revision the bar shows, so one
+ * after a write that got no reply is refused with the server's state if that write landed.
  */
 export function useTimerBarActions({
   current,
@@ -33,33 +33,34 @@ export function useTimerBarActions({
   running: ReturnType<typeof useRunningDraft>;
   fields: RefObject<EntryFieldsHandle | null>;
 }) {
-  const create = useStartEntry();
+  const settings = useSettings();
+  const startTimer = useStartTimer();
+  const addTyped = useAddTypedEntry();
   const update = useUpdateEntry();
-  const stopEntry = useStopEntry();
+  const stopTimer = useStopTimer();
   const remove = useDeleteEntry();
   const restore = useRestoreEntry();
   const pauseTimer = usePauseTimer();
   const resumeTimer = useResumeTimer();
   const discardPause = useDiscardPause();
-  const outcome = useTimerOutcome();
   const toast = useToast();
   const [timerDuration, setTimerDuration] = useState('');
   const timerErrors = useFieldErrors<'duration'>();
   const chainBusy = pauseTimer.isPending || resumeTimer.isPending || discardPause.isPending;
-  // Set synchronously, so a second click in the same frame sees it before `create.isPending` does.
+  // Set synchronously, so a second click in the same frame sees it before `isPending` does.
   const starting = useRef(false);
   const { draft, setDraft } = running;
 
   /**
-   * Starts `from` and returns the created entry, or null when nothing was created. Continue and
+   * Starts `from` and returns the started or saved entry, or null when nothing was. Continue and
    * favorites pass `replace`: the server then stops the running entry at the new entry's start,
    * keeping exactly one running entry. A duration typed into the idle bar saves a finished entry
    * that ends now instead.
    */
   const start = async (from: EntryDraft = draft, { replace = false } = {}): Promise<TimeEntry | null> => {
     // A double click or key repeat must not start two entries before the first one shows up.
-    if (starting.current || create.isPending || chainBusy) return null;
-    if (current && (!replace || stopEntry.isPending || remove.isPending)) return null;
+    if (starting.current || startTimer.isPending || addTyped.isPending || chainBusy) return null;
+    if (current && (!replace || stopTimer.isPending || remove.isPending)) return null;
     // An empty duration starts a running timer; text that does not parse is an error, not empty.
     const typed = !current && timerDuration.trim() !== '';
     const seconds = typed ? parseDuration(timerDuration) : null;
@@ -70,28 +71,26 @@ export function useTimerBarActions({
     starting.current = true;
     try {
       fields.current?.hideSuggestions();
-      // After a write that got no reply, the server may already run another entry; the read shows it.
-      if (!(await outcome.mayStart(current?.id ?? null))) return null;
-      let saved: TimeEntry;
+      let saved: TimeEntry | null;
       if (seconds !== null && seconds > 0) {
         const stop = new Date();
-        saved = await create.mutateAsync({
+        const entry = await addTyped.mutateAsync({
           ...from,
           start: new Date(stop.getTime() - seconds * 1000).toISOString(),
           stop: stop.toISOString(),
         });
         // The server snaps the entry to the time resolution, so the toast shows what it stored.
-        toast.show(t('entries.added', { duration: formatDuration(entrySeconds(saved, stop)) }));
+        toast.show(t('entries.added', { duration: formatDuration(entrySeconds(entry, stop)) }));
         setDraft(EMPTY_DRAFT);
+        saved = entry;
       } else {
         const startAt = new Date();
         running.markOwnStart(startAt, draft);
-        saved = await create.mutateAsync({ ...from, start: startAt.toISOString(), duration: -1 });
+        saved = (await startTimer.mutateAsync({ ...from, start: startAt.toISOString() })).running_entry;
       }
       setTimerDuration('');
       return saved;
     } catch (error) {
-      outcome.failed(error);
       running.forgetOwnStart();
       toast.error(error);
       return null;
@@ -113,8 +112,9 @@ export function useTimerBarActions({
   };
 
   /**
-   * Stop on a running entry is a v9 stop; the server ends the pause chain when the stopped entry
-   * is its clone. Stop while paused ends the chain on the server: every entry is already stopped.
+   * Stop on a running entry stops it at the server's current time, as this tab's clock knows it;
+   * the server ends the pause chain when the stopped entry is its clone. Stop while paused ends the
+   * chain on the server: every entry is already stopped.
    */
   const stop = async () => {
     if (chainBusy) return;
@@ -123,37 +123,37 @@ export function useTimerBarActions({
       try {
         await discardPause.mutateAsync();
       } catch (error) {
-        outcome.failed(error);
         toast.error(error);
       }
       return;
     }
     if (!(await saveDescription())) return;
-    let stopped: TimeEntry;
+    const stoppedAt = serverNow(Date.now(), getClockOffset());
     try {
-      stopped = await stopEntry.mutateAsync(current.id);
+      await stopTimer.mutateAsync({ stop: stoppedAt.toISOString() });
     } catch (error) {
-      outcome.failed(error);
       toast.error(error);
       return;
     }
-    // The server keeps no entry that rounds to zero at the time resolution: it went to the trash.
-    if (stopped.server_deleted_at) {
+    // The server keeps no entry that rounds to zero at the time resolution: it goes to the trash.
+    // The reply is the timer state, so the bar works that out from the start it showed, which the
+    // revision vouches for, and the stop it sent.
+    if (snappedSeconds(new Date(current.start), stoppedAt, settings) === 0) {
+      const { id } = current;
       toast.show(t('timer.tooShort'), {
-        action: { label: t('common.undo'), run: () => restore.mutate(stopped.id) },
+        action: { label: t('common.undo'), run: () => restore.mutate(id) },
       });
     }
   };
 
   /** Pauses the running entry on the server. A failure leaves the entry running; the toast says why. */
   const pause = async () => {
-    if (!current || chainBusy || stopEntry.isPending || remove.isPending) return;
+    if (!current || chainBusy || stopTimer.isPending || remove.isPending) return;
     try {
       if (!(await saveDescription())) return;
       await pauseTimer.mutateAsync();
       setTimerDuration('');
     } catch (error) {
-      outcome.failed(error);
       toast.error(error);
     }
   };
@@ -164,7 +164,6 @@ export function useTimerBarActions({
     try {
       await resumeTimer.mutateAsync();
     } catch (error) {
-      outcome.failed(error);
       toast.error(error);
     }
   };

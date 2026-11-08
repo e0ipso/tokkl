@@ -25,14 +25,6 @@ export class TimerActionError extends Error {
   }
 }
 
-/** A 2xx reply whose body is not a whole timer state. The server may still have applied the action. */
-export class UnreadableTimerStateError extends Error {
-  constructor() {
-    super(t('timer.unreadableState'));
-    this.name = 'UnreadableTimerStateError';
-  }
-}
-
 /**
  * Whether `value` is a whole timer state: the revision and server time, and the running entry,
  * pause chain, session and discarded pomodoro each null or of their full shape.
@@ -52,7 +44,7 @@ export function isTimerState(value: unknown): value is TimerState {
  * fails its request the way a failed request does.
  */
 export function timerStateOf(value: unknown): TimerState {
-  if (!isTimerState(value)) throw new UnreadableTimerStateError();
+  if (!isTimerState(value)) throw new Error(t('timer.unreadableState'));
   return value;
 }
 
@@ -96,6 +88,19 @@ export function explainTimerActionError(error: unknown): unknown {
   }
   if (error instanceof TypeError || error instanceof RequestTimeoutError) return new TimerActionError('offline');
   return error;
+}
+
+/**
+ * Runs a request that writes the timer outside the timer actions, such as the finished entry typed
+ * into the idle bar. A request that got no reply fails with the offline `TimerActionError`, as a
+ * timer action does; other failures pass through.
+ */
+export async function attemptTimerRequest<T>(request: () => Promise<T>): Promise<T> {
+  try {
+    return await request();
+  } catch (error) {
+    throw explainTimerActionError(error);
+  }
 }
 
 /**
