@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
+import { chooseCsv, openSettings, recentDate, transferFixture } from './transfer-tests-helpers.ts';
 
 // Canaries for the runtimeErrors fixture. Each one provokes a failure, checks that verify() rejects
 // with it, then empties the list so the fixture's own verify() at teardown passes. Only these
@@ -8,13 +9,25 @@ import { login } from './helpers.ts';
 
 test('an error hidden by ErrorBoundary fails the scenario', async ({ page, runtimeErrors }, testInfo) => {
   await login(page);
-  // A malformed favorites preference makes the timer page throw while rendering.
-  await page.route('**/api/v9/me/preferences', route =>
-    route.request().method() === 'GET'
-      ? route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ favorites: 5 }) })
-      : route.continue(),
+  await openSettings(page);
+  // Every GET reply is decoded, so a malformed one fails its query instead of a render. A Toggl CSV
+  // preview reply is a write reply the settings page renders unchecked: one whose `skipped` is not
+  // a list makes the import summary throw while rendering.
+  const preview = {
+    dry_run: true,
+    rows: 1,
+    created: 1,
+    skipped_duplicates: 0,
+    created_projects: [],
+    created_clients: [],
+    errors: [],
+    users: [],
+    skipped: 5,
+  };
+  await page.route(/\/api\/app\/import\/toggl-csv\?dry_run=true$/, route =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(preview) }),
   );
-  await page.reload();
+  await chooseCsv(page, transferFixture('toggl-detailed.csv', { RECENT_DATE: recentDate() }));
   // The error page is an alert with the page's h1 and a way back.
   const alert = page
     .getByRole('alert')
