@@ -7,8 +7,12 @@ import com.canpicasoft.tokkl.backend
 // Words for the timer's and the Pomodoro session's state, shared by the
 // panel item, its menu and the tooltip. Every state has its own text, so
 // nothing depends on color. The session is the server's, so it shows in
-// either mode, whichever device started it.
+// either mode, whichever device started it. Which parts the summary and
+// the menu's state line show, and in what order, is the core's
+// (TokklStatusParts); this gives each part its words.
 QtObject {
+    id: words
+
     required property TokklTimer timer
     // Null until the backend has built it, which reads as Timer mode.
     property TokklPomodoroSession session: null
@@ -118,18 +122,49 @@ QtObject {
         return project ? projectLabel(project) : i18nc("@item:inmenu", "Unknown project");
     }
 
+    readonly property TokklStatusParts parts: TokklStatusParts {
+        timer: words.timer
+        session: words.session
+        hasMessage: words.messageText.length > 0
+    }
+
     // One line for the tooltip and the accessible description. It names the
     // project, so the panel's project indicator is never the only sign of it.
     // During a session it is the session's line.
-    readonly property string summary: {
-        if (showsSession) {
-            return withMessage(sessionText);
+    readonly property string summary: render(parts.summary)
+    // The menu's state line: the run state, the elapsed time and the
+    // connection's state, or the session's line.
+    readonly property string menuLine: render(parts.menuLine)
+
+    // The words of the parts, joined by " · ".
+    function render(keys: var): string {
+        let shown = [];
+        for (const key of keys) {
+            switch (key) {
+            case "activity":
+                shown.push(i18nc("@info:status running state and elapsed time", "%1 %2", runText, timer.elapsedText));
+                break;
+            case "session":
+                shown.push(sessionText);
+                break;
+            case "project":
+                shown.push(projectText);
+                break;
+            case "connection":
+                shown.push(statusText);
+                break;
+            case "detail":
+                shown.push(detailText);
+                break;
+            case "pomodoroMode":
+                shown = [i18nc("@info:status", "%1 · Pomodoro mode", shown.join(" · "))];
+                break;
+            case "message":
+                shown = [i18nc("@info:status", "%1 · %2", shown.join(" · "), messageText)];
+                break;
+            }
         }
-        const parts = [i18nc("@info:status running state and elapsed time", "%1 %2", runText, timer.elapsedText), projectText, statusText];
-        if (detailText.length > 0) {
-            parts.push(detailText);
-        }
-        return withMessage(withMode(parts.join(" · ")));
+        return shown.filter(text => text.length > 0).join(" · ");
     }
 
     // The text, followed by the session's message when there is one.
