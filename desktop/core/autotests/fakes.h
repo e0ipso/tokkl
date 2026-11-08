@@ -10,6 +10,8 @@
 #include <QDateTime>
 #include <algorithm>
 #include <QHash>
+#include <QJsonArray>
+#include <QJsonObject>
 #include <QTimeZone>
 #include <QList>
 #include <QPointer>
@@ -19,6 +21,28 @@
 inline QString testClientName()
 {
     return QStringLiteral("tokkl-test");
+}
+
+// What a current server announces in GET /api/v9/me, for a test to insert
+// into its /me object. A /me without it is a server from before the
+// announcement, which has none of the /api/app routes it names.
+inline QJsonObject currentServerApi()
+{
+    return QJsonObject{
+        {QStringLiteral("api_version"), 1},
+        {QStringLiteral("capabilities"),
+         QJsonArray{QStringLiteral("app-preferences"), QStringLiteral("timer-actions"), QStringLiteral("timer-edit"), QStringLiteral("pomodoro-revision")}},
+    };
+}
+
+// object with currentServerApi() added.
+inline QJsonObject withCurrentServerApi(QJsonObject object)
+{
+    const QJsonObject api = currentServerApi();
+    for (auto it = api.begin(); it != api.end(); ++it) {
+        object.insert(it.key(), it.value());
+    }
+    return object;
 }
 
 class FakeReply : public Tokkl::PendingReply

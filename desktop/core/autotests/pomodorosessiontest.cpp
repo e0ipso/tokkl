@@ -36,17 +36,19 @@ const QByteArray endPath = "/app/pomodoro/end";
 const QByteArray timerStartPath = "/app/timer/start";
 const QString tooShort = QStringLiteral("This pomodoro was too short to save.");
 
-QByteArray meBody()
+// The account on a current server, or with current false on a server from
+// before the capabilities.
+QByteArray meBody(bool current = true)
 {
-    return QJsonDocument(QJsonObject{
-                             {QStringLiteral("id"), 3},
-                             {QStringLiteral("email"), QStringLiteral("bea@example.test")},
-                             {QStringLiteral("fullname"), QStringLiteral("Bea")},
-                             {QStringLiteral("timezone"), QStringLiteral("UTC")},
-                             {QStringLiteral("default_workspace_id"), 7},
-                             {QStringLiteral("beginning_of_week"), 1},
-                         })
-        .toJson(QJsonDocument::Compact);
+    const QJsonObject me{
+        {QStringLiteral("id"), 3},
+        {QStringLiteral("email"), QStringLiteral("bea@example.test")},
+        {QStringLiteral("fullname"), QStringLiteral("Bea")},
+        {QStringLiteral("timezone"), QStringLiteral("UTC")},
+        {QStringLiteral("default_workspace_id"), 7},
+        {QStringLiteral("beginning_of_week"), 1},
+    };
+    return QJsonDocument(current ? withCurrentServerApi(me) : me).toJson(QJsonDocument::Compact);
 }
 
 QString iso(const QDateTime &time)

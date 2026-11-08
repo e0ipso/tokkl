@@ -27,17 +27,19 @@ const QByteArray stopPath = "/app/timer/stop";
 // The v9 route of a server from before the app's start and stop.
 const QByteArray v9StartPath = "/v9/workspaces/7/time_entries";
 
-QByteArray meBody(qint64 id, qint64 workspace)
+// The account on a current server, or with current false on a server from
+// before the capabilities, which has no app start, stop or edit.
+QByteArray meBody(qint64 id, qint64 workspace, bool current = true)
 {
-    return QJsonDocument(QJsonObject{
-                             {QStringLiteral("id"), id},
-                             {QStringLiteral("email"), QStringLiteral("bea@example.test")},
-                             {QStringLiteral("fullname"), QStringLiteral("Bea")},
-                             {QStringLiteral("timezone"), QStringLiteral("UTC")},
-                             {QStringLiteral("default_workspace_id"), workspace},
-                             {QStringLiteral("beginning_of_week"), 1},
-                         })
-        .toJson(QJsonDocument::Compact);
+    const QJsonObject me{
+        {QStringLiteral("id"), id},
+        {QStringLiteral("email"), QStringLiteral("bea@example.test")},
+        {QStringLiteral("fullname"), QStringLiteral("Bea")},
+        {QStringLiteral("timezone"), QStringLiteral("UTC")},
+        {QStringLiteral("default_workspace_id"), workspace},
+        {QStringLiteral("beginning_of_week"), 1},
+    };
+    return QJsonDocument(current ? withCurrentServerApi(me) : me).toJson(QJsonDocument::Compact);
 }
 
 QJsonObject entryObject(qint64 id, qint64 workspace, const QString &start, bool running = true, std::optional<qint64> project = std::nullopt)
@@ -210,6 +212,9 @@ class TimerControllerTest : public QObject
         TimerController timer{&clock};
         QSet<qsizetype> answered;
         qint64 revision = 0; // of the last state built
+        // connectAccount() answers /me as a server from before the
+        // capabilities.
+        bool olderServer = false;
 
         Fixture()
         {
@@ -311,7 +316,7 @@ class TimerControllerTest : public QObject
             })) {
             return false;
         }
-        f.respond(before, FakeTransport::answer(200, meBody(userId, workspace)));
+        f.respond(before, FakeTransport::answer(200, meBody(userId, workspace, !f.olderServer)));
         const qsizetype read = f.last("GET", statePath);
         const qsizetype projects = f.last("GET", "/projects");
         if (!f.unanswered(read) || !f.unanswered(projects)) {
@@ -363,21 +368,16 @@ class TimerControllerTest : public QObject
     }
 
     // The start sent last names a project the server no longer has: the app
-    // route answers 404, and so does the v9 route asked after it.
+    // route answers 404, a refusal that sends nothing else.
     static bool refuseStart(Fixture &f)
     {
-        const QByteArray missing = "\"Project not found\"";
         const qsizetype post = f.last("POST", startPath);
         if (!f.unanswered(post)) {
             return false;
         }
-        f.respond(post, FakeTransport::answer(404, missing));
-        const qsizetype v9 = f.last("POST", v9StartPath);
-        if (!f.unanswered(v9)) {
-            return false;
-        }
-        f.respond(v9, FakeTransport::answer(404, missing));
-        return true;
+        const qsizetype others = f.otherRequests();
+        f.respond(post, FakeTransport::answer(404, "\"Project not found\""));
+        return f.otherRequests() == others;
     }
 
 private Q_SLOTS:
@@ -750,18 +750,18 @@ private Q_SLOTS:
         QCOMPARE(f.find("POST", startPath).size(), 1);
     }
 
-    // A server from before /api/app/timer/start and /stop answers 404: the
-    // start goes to the v9 route, whose reply is an entry, so the state
-    // that shows it comes from a read. Later starts and stops of the
-    // generation go to v9 at once; a new generation asks the app route
-    // again.
+    // A server that does not announce timer-actions gets the v9 start,
+    // whose reply is an entry, so the state that shows it comes from a
+    // read, and the v9 stop. The app routes are never tried on it. Another
+    // account on a current server gets the app routes.
     void olderServerGetsTheV9Writes()
     {
         Fixture f;
+        f.olderServer = true;
         QVERIFY(connectAccount(f, instanceA, 3, 7, "null"));
         QVERIFY(f.timer.chooseProject(11));
         QVERIFY(f.timer.start());
-        f.respond(f.last("POST", startPath), FakeTransport::answer(404, "\"Not found\""));
+        QVERIFY(f.find("POST", startPath).isEmpty());
         QVERIFY(f.timer.isBusy());
         const qsizetype post = f.last("POST", v9StartPath);
         QVERIFY(f.unanswered(post));
@@ -780,8 +780,8 @@ private Q_SLOTS:
         QVERIFY(f.timer.isRunning());
         QVERIFY(!f.timer.isBusy());
 
-        // The stop goes to v9 at once, and its reply names the project the
-        // server stopped: none, as the web cleared it since the last read.
+        // The stop goes to v9, and its reply names the project the server
+        // stopped: none, as the web cleared it since the last read.
         QVERIFY(f.timer.stop());
         QCOMPARE(f.find("POST", stopPath).size(), 0);
         const qsizetype stop = f.last("PATCH", "/v9/workspaces/7/time_entries/21/stop");
@@ -791,13 +791,32 @@ private Q_SLOTS:
         QVERIFY(f.answerState("null"));
         QVERIFY(!f.timer.isRunning());
         QVERIFY(f.timer.selectedProjectId().isNull());
-        QCOMPARE(f.find("POST", startPath).size(), 1);
+        QVERIFY(f.find("POST", startPath).isEmpty());
 
-        // Another account: the app route is asked first again.
+        // Another account on a current server: the app route.
+        f.olderServer = false;
         QVERIFY(connectAccount(f, instanceB, 4, 7, "null"));
         QVERIFY(f.timer.start());
-        QCOMPARE(f.find("POST", startPath).size(), 2);
+        QCOMPARE(f.find("POST", startPath).size(), 1);
         QCOMPARE(f.find("POST", v9StartPath).size(), 1);
+    }
+
+    // On a current server a 404 from the app stop, an entry or workspace
+    // gone, is a refusal: nothing goes to v9, a read shows what the server
+    // has, and the next stop asks the app route again.
+    void notFoundOnTheAppStopIsARefusal()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f));
+        QVERIFY(f.timer.stop());
+        f.respond(f.last("POST", stopPath), FakeTransport::answer(404, "\"Time entry not found\""));
+        QVERIFY(f.find("PATCH", "/stop").isEmpty());
+        QVERIFY(!f.timer.isBusy());
+        QCOMPARE(f.timer.errorString(), QStringLiteral("Time entry not found"));
+        QVERIFY(f.answerState(entryBody(5, 7, startedAt)));
+        QVERIFY(f.timer.stop());
+        QCOMPARE(f.find("POST", stopPath).size(), 2);
+        QVERIFY(f.find("PATCH", "/stop").isEmpty());
     }
 
     void pauseAndResumeKeepTheChainTotal()
@@ -1048,14 +1067,13 @@ private Q_SLOTS:
         QVERIFY(refuseStart(f));
         QVERIFY(f.answerState("null"));
         QCOMPARE(f.timer.errorString(), QStringLiteral("Project not found"));
-        // Both routes answered 404, so the app route stays the first one
-        // asked.
+        // The 404 was a refusal: the app route stays the one asked.
         QVERIFY(f.timer.start());
         QCOMPARE(f.timer.errorString(), QString());
         QCOMPARE(f.find("POST", startPath).size(), 3);
         f.respond(f.last("POST", startPath), f.stateAnswer(entryBody(21, 7, clockText(f.clock.now()))));
         QVERIFY(f.timer.isRunning());
-        QCOMPARE(f.find("POST", v9StartPath).size(), 2);
+        QVERIFY(f.find("POST", v9StartPath).isEmpty());
         QCOMPARE(f.timer.errorString(), QString());
         QCOMPARE(f.timer.status(), TimerController::Ready);
     }
@@ -1700,9 +1718,9 @@ private Q_SLOTS:
         QFETCH(int, status);
         QFETCH(QByteArray, body);
         Fixture f;
+        f.olderServer = true;
         QVERIFY(connectAccount(f));
         QVERIFY(f.timer.stop());
-        f.respond(f.last("POST", stopPath), FakeTransport::answer(404, "\"Not found\""));
         f.respond(f.last("PATCH", "/v9/workspaces/7/time_entries/5/stop"), FakeTransport::answer(status, body));
         QVERIFY(!f.timer.isBusy());
         QVERIFY(!f.timer.errorString().isEmpty());
@@ -1712,7 +1730,7 @@ private Q_SLOTS:
         f.respond(read, f.stateAnswer());
         QVERIFY(!f.timer.isRunning());
         QVERIFY(f.timer.errorString().isEmpty());
-        QCOMPARE(f.find("POST", stopPath).size(), 1);
+        QVERIFY(f.find("POST", stopPath).isEmpty());
         QCOMPARE(f.find("PATCH", "/stop").size(), 1);
         QVERIFY(f.timer.canWrite());
     }

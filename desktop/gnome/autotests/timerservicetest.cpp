@@ -112,8 +112,9 @@ QJsonObject projectObject(qint64 id, const QString &name, const QString &color, 
     };
 }
 
-// The answers of the instance to the reads the core sends.
-const QByteArray meBody = json(QJsonObject{
+// The answers of the instance to the reads the core sends, as a current
+// server gives them.
+const QByteArray meBody = json(withCurrentServerApi(QJsonObject{
     {QStringLiteral("id"), 3},
     {QStringLiteral("email"), QStringLiteral("bea@example.test")},
     {QStringLiteral("fullname"), QStringLiteral("Bea")},
@@ -121,7 +122,7 @@ const QByteArray meBody = json(QJsonObject{
     {QStringLiteral("default_workspace_id"), 7},
     {QStringLiteral("beginning_of_week"), 1},
     {QStringLiteral("time_resolution_minutes"), 1},
-});
+}));
 const QByteArray projectsBody = json(QJsonArray{
     projectObject(11, QStringLiteral("Alpha"), QStringLiteral("#06aaf5"), true),
     projectObject(12, QStringLiteral("Beta"), QStringLiteral("#d94182"), false),

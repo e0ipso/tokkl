@@ -228,7 +228,7 @@ QString soundFile(const QString &id)
 QByteArray meBody()
 {
     return QByteArrayLiteral(
-        R"({"id":3,"email":"bea@example.test","fullname":"Bea","timezone":"UTC","default_workspace_id":7,"beginning_of_week":1})");
+        R"({"id":3,"email":"bea@example.test","fullname":"Bea","timezone":"UTC","default_workspace_id":7,"beginning_of_week":1,"api_version":1,"capabilities":["app-preferences","timer-actions","timer-edit","pomodoro-revision"]})");
 }
 
 // The running entry that started at startedAt.

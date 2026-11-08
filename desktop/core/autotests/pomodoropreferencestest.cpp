@@ -22,16 +22,18 @@ const QString shortRestKey = QStringLiteral("pomodoro_break_interval_in_minutes"
 const QString longRestKey = QStringLiteral("pomodoro_long_break_interval_in_minutes");
 const QString everyKey = QStringLiteral("pomodoro_long_break_every");
 
-QByteArray meBody(qint64 id, qint64 workspace)
+// The account on a current server, or with current false on a server from
+// before the capabilities, which has no /api/app/me/preferences.
+QByteArray meBody(qint64 id, qint64 workspace, bool current = true)
 {
-    return QJsonDocument(QJsonObject{
-                             {QStringLiteral("id"), id},
-                             {QStringLiteral("email"), QStringLiteral("bea@example.test")},
-                             {QStringLiteral("fullname"), QStringLiteral("Bea")},
-                             {QStringLiteral("timezone"), QStringLiteral("UTC")},
-                             {QStringLiteral("default_workspace_id"), workspace},
-                         })
-        .toJson(QJsonDocument::Compact);
+    const QJsonObject me{
+        {QStringLiteral("id"), id},
+        {QStringLiteral("email"), QStringLiteral("bea@example.test")},
+        {QStringLiteral("fullname"), QStringLiteral("Bea")},
+        {QStringLiteral("timezone"), QStringLiteral("UTC")},
+        {QStringLiteral("default_workspace_id"), workspace},
+    };
+    return QJsonDocument(current ? withCurrentServerApi(me) : me).toJson(QJsonDocument::Compact);
 }
 
 // The whole preferences object the server answers with, including a key of
@@ -91,12 +93,12 @@ class PomodoroPreferencesTest : public QObject
 
     // Configure the instance and answer /me. Leaves the preferences read the
     // connection triggers unanswered.
-    static bool connectAccount(Fixture &f, const QString &url, qint64 userId, qint64 workspace)
+    static bool connectAccount(Fixture &f, const QString &url, qint64 userId, qint64 workspace, bool current = true)
     {
         if (!configure(f, url)) {
             return false;
         }
-        f.transport.respondLast(FakeTransport::answer(200, meBody(userId, workspace)));
+        f.transport.respondLast(FakeTransport::answer(200, meBody(userId, workspace, current)));
         return f.connection.state() == Connection::Connected;
     }
 
@@ -210,16 +212,14 @@ private Q_SLOTS:
         QCOMPARE(f.preferences.errorString(), QStringLiteral("Invalid pomodoro_long_break_every: expected an integer from 1 to 12"));
     }
 
-    // A server from before /api/app/me/preferences answers 404 there. The
-    // read and the save then go to v9 for the rest of the generation, with
-    // no second probe, and a refusal without the header is still read from
-    // its message. A new generation asks the app path again.
-    void olderServerFallsBackToV9()
+    // A server that does not announce app-preferences gets the read and the
+    // save through v9, and the app path is never asked. A refusal without
+    // the header is still read from its message.
+    void olderServerUsesV9()
     {
         Fixture f;
-        QVERIFY(connectAccount(f, instanceA, 3, 7));
-        QVERIFY(f.lastIs("GET", QStringLiteral("/api/app/me/preferences")));
-        f.transport.respondLast(FakeTransport::answer(404, message("Not found")));
+        QVERIFY(connectAccount(f, instanceA, 3, 7, false));
+        QCOMPARE(f.transport.requests.size(), 2);
         QVERIFY(f.lastIs("GET", QStringLiteral("/api/v9/me/preferences")));
         QVERIFY(f.preferences.errorString().isEmpty());
         f.transport.respondLast(FakeTransport::answer(200, preferencesBody({30, 5, 15, 4})));
@@ -240,18 +240,36 @@ private Q_SLOTS:
         QCOMPARE(f.preferences.longRestMinutesError(), QStringLiteral("Invalid pomodoro_long_break_interval_in_minutes: expected an integer from 1 to 60"));
         QVERIFY(f.preferences.errorString().isEmpty());
 
-        // A save the app path refuses as missing goes to v9 as well.
+        // Another account on a current server: the app path.
         QVERIFY(connectAccount(f, instanceB, 3, 7));
         QVERIFY(f.lastIs("GET", QStringLiteral("/tokkl/api/app/me/preferences")));
         f.transport.respondLast(FakeTransport::answer(200, preferencesBody({25, 5, 15, 4})));
         QVERIFY(f.preferences.save(26, 5, 15, 4));
         QVERIFY(f.lastIs("POST", QStringLiteral("/tokkl/api/app/me/preferences")));
-        f.transport.respondLast(FakeTransport::answer(404, message("Not found")));
-        QVERIFY(f.lastIs("POST", QStringLiteral("/tokkl/api/v9/me/preferences")));
         QCOMPARE(f.lastBody(), (QJsonObject{{workKey, 26}}));
         f.transport.respondLast(FakeTransport::answer(200, preferencesBody({26, 5, 15, 4})));
         QCOMPARE(f.preferences.config(), (PomodoroConfig{26, 5, 15, 4}));
         QVERIFY(!f.preferences.isSaving());
+    }
+
+    // On a current server a 404 from the app path is a refusal like any
+    // other: nothing goes to v9, and the next request asks the app path.
+    void notFoundOnTheAppPathIsARefusal()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f, instanceA, 3, 7));
+        f.transport.respondLast(FakeTransport::answer(200, preferencesBody({25, 5, 15, 4})));
+        const qsizetype before = f.transport.requests.size();
+        QVERIFY(f.preferences.save(26, 5, 15, 4));
+        QVERIFY(f.lastIs("POST", QStringLiteral("/api/app/me/preferences")));
+        f.transport.respondLast(FakeTransport::answer(404, message("Not found")));
+        QCOMPARE(f.transport.requests.size(), before + 1);
+        QVERIFY(!f.preferences.isSaving());
+        QCOMPARE(f.preferences.config(), (PomodoroConfig{25, 5, 15, 4}));
+
+        f.preferences.refresh();
+        QCOMPARE(f.transport.requests.size(), before + 2);
+        QVERIFY(f.lastIs("GET", QStringLiteral("/api/app/me/preferences")));
     }
 
     void keepsTheLengthsReadWhileUnreachable()

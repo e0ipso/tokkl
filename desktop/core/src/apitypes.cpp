@@ -84,7 +84,30 @@ std::optional<Me> decodeMe(const QJsonValue &value)
     // the account.
     const std::optional<qint64> resolution = integer(object.value(QLatin1String("time_resolution_minutes")));
     me.timeResolutionMinutes = resolution && isTimeResolution(*resolution) ? int(*resolution) : 1;
+    me.server = decodeServerApi(object);
     return me;
+}
+
+ServerApi decodeServerApi(const QJsonObject &me)
+{
+    // An announcement it cannot read leaves the account usable, with the
+    // routes of a server from before it.
+    ServerApi server;
+    server.version = integer(me.value(QLatin1String("api_version"))).value_or(0);
+    const QJsonArray names = me.value(QLatin1String("capabilities")).toArray();
+    for (const QJsonValue &name : names) {
+        const QString text = name.toString();
+        if (text == QLatin1String("app-preferences")) {
+            server.appPreferences = true;
+        } else if (text == QLatin1String("timer-actions")) {
+            server.timerActions = true;
+        } else if (text == QLatin1String("timer-edit")) {
+            server.timerEdit = true;
+        } else if (text == QLatin1String("pomodoro-revision")) {
+            server.pomodoroRevision = true;
+        }
+    }
+    return server;
 }
 
 std::optional<Project> decodeProject(const QJsonValue &value)

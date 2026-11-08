@@ -87,6 +87,8 @@ public:
     quint64 generation() const;
 
     std::optional<Me> account() const;
+    // What the bound account's server announced; none without an account.
+    ServerApi server() const;
     QVariantMap accountMap() const;
     qint64 workspaceId() const;
     // The instance, account and workspace of the validated account as one
@@ -108,15 +110,14 @@ public:
     // first, with project metadata (GET /me/time_entries?meta=true).
     void fetchRecentEntries(Callback<QList<ListedEntry>> done = {});
     // The v9 start and stop of a running entry. startTimer() and
-    // stopTimer() use them on a server without the app routes.
+    // stopTimer() use them on a server without timer-actions.
     void startEntry(const StartEntry &entry, Callback<TimeEntry> done = {});
     void stopEntry(qint64 entryId, Callback<TimeEntry> done = {});
     void updateEntry(qint64 entryId, const TimeEntryUpdate &update, Callback<TimeEntry> done = {});
     // The Pomodoro lengths of the account preferences, through
     // /api/app/me/preferences, whose refusals name the refused key in
-    // Tokkl-Error-Field. A server from before that route answers 404; the
-    // request then goes to /api/v9/me/preferences, and so does every later
-    // one of this generation.
+    // Tokkl-Error-Field, on a server that announces app-preferences, and
+    // through /api/v9/me/preferences on one that does not.
     void fetchPreferences(Callback<PomodoroConfig> done = {});
     // Posts only the lengths the update sets, on the same path as
     // fetchPreferences(). done gets the lengths the server holds
@@ -139,13 +140,11 @@ public:
     // Start a running entry and stop the running one through POST
     // /api/app/timer/start and /api/app/timer/stop, like the actions above:
     // a 409 brings the server's state when the timer changed since
-    // revision, or for a stop when nothing runs. A server from before those
-    // routes answers 404: the write then goes to startEntry() or
-    // stopEntry(entryId), whose reply is the entry (TimerActionResult::entry)
-    // rather than the state, and so does every later start and stop of this
-    // generation. When the v9 route answers 404 as well, the app route was
-    // there and refused the write (a project or entry gone), so the next
-    // write tries it again.
+    // revision, or for a stop when nothing runs. On a server that does not
+    // announce timer-actions the write goes to startEntry() or
+    // stopEntry(entryId) instead, whose reply is the entry
+    // (TimerActionResult::entry) rather than the state. A 404 from either
+    // route is a refusal like any other and is never sent again elsewhere.
     void startTimer(qint64 revision, const StartEntry &entry, ActionCallback done = {});
     void stopTimer(qint64 revision, qint64 entryId, ActionCallback done = {});
     // Opens GET /api/app/timer/events, or returns nullptr without a bound
@@ -187,23 +186,11 @@ private:
     void fetchProjectPage(const std::shared_ptr<ProjectPages> &pages);
     QUrl api(const QString &path) const;
     QUrl app(const QString &path) const;
-    // The preferences go through v9 in this generation.
-    bool preferencesThroughV9() const;
-    // Sends a preferences request through the app path, or through v9 once
-    // the app path answered 404 in this generation.
+    // Sends a preferences request on the route the server announces.
     void preferencesCall(const QByteArray &method, const QByteArray &body, ApiAccess access, Callback<PomodoroConfig> done);
-    // A start or stop through /api/app + path, or through v9 once that
-    // answered 404 in this generation; see startTimer().
-    using V9Write = std::function<void(Connection &, Callback<TimeEntry>)>;
-    void timerWrite(const QString &path, const QByteArray &body, V9Write v9, ActionCallback done);
 
     const QString m_clientName;
     AuthSession m_session;
-    // The generation in which /api/app/me/preferences answered 404.
-    std::optional<quint64> m_v9PreferencesGeneration;
-    // The generation in which /api/app/timer/start or /stop answered 404
-    // and the v9 route did not.
-    std::optional<quint64> m_v9TimerWritesGeneration;
 };
 
 }

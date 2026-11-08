@@ -409,10 +409,12 @@ pause chain and the session all come from it.
   description and the selected project and billable choice. Stop sends `POST
   /api/app/timer/stop` with the revision shown. Both answer with the timer
   state, and with a 409 and the server's state when another device changed
-  the timer first. A server without those routes answers 404, and the widget
-  then sends the v9 calls for the rest of the connection: `POST
+  the timer first. `GET /api/v9/me` names what the server offers in
+  `capabilities`; on a server that does not announce `timer-actions` the
+  widget sends the v9 calls instead: `POST
   /api/v9/workspaces/{wid}/time_entries` with `duration: -1`, and `PATCH
-  /api/v9/workspaces/{wid}/time_entries/{id}/stop`.
+  /api/v9/workspaces/{wid}/time_entries/{id}/stop`. A 404 from either route
+  is a refusal, never a reason to send the write again elsewhere.
 - Pause (`POST /api/app/timer/pause`) asks the server to stop the running
   entry and keep a chain: the entry's description, project, task, tags and
   billable flag, and the seconds it stored. Resume (`POST
