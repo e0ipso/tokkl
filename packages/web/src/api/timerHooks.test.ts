@@ -6,6 +6,7 @@ import { ApiError, UnparsableReplyError, api } from './client.ts';
 import {
   acceptTimerState,
   attemptTimerRequest,
+  pauseTimer,
   startPomodoro,
   startTimer,
   stopTimer,
@@ -159,6 +160,22 @@ test('Stop posts the stop time at the cached revision; a 409 hands over the curr
   await stopTimer(qc);
   assert.deepEqual(sent[1]?.body, { revision: 4 });
   assert.equal(qc.getQueryData<TimerState>(keys.timer)?.running_entry, null);
+});
+
+test('Pause posts at the cached revision; a 409 hands over the current state', async t => {
+  const qc = seeded();
+  qc.setQueryData(keys.timer, state(3, running(5)));
+  const { fetch, sent } = answering({ status: 409, body: state(4, running(6)) }, { status: 200, body: state(5) });
+  t.mock.method(globalThis, 'fetch', fetch);
+  await assert.rejects(
+    pauseTimer(qc),
+    (error: unknown) => error instanceof TimerActionError && error.kind === 'conflict',
+  );
+  assert.deepEqual(sent[0], { path: '/api/app/timer/pause', method: 'POST', body: { revision: 3 } });
+  assert.equal(qc.getQueryData<TimerState>(keys.timer)?.running_entry?.id, 6, 'the conflict state is adopted');
+  await pauseTimer(qc);
+  assert.deepEqual(sent[1]?.body, { revision: 4 });
+  assert.equal(qc.getQueryData<TimerState>(keys.timer)?.revision, 5);
 });
 
 test('a Pomodoro start posts at the cached revision; a 409 hands over the current state', async t => {

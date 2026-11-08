@@ -179,7 +179,7 @@ const actionOptions = { networkMode: 'always' } as const;
 async function postAction(
   qc: QueryClient,
   path: string,
-  body: () => Promise<Record<string, unknown> | undefined>,
+  body: () => Promise<Record<string, unknown>>,
 ): Promise<TimerState> {
   return attemptTimerRequest(qc, async () =>
     acceptTimerState(qc, await api.post(path, await body(), { decode: timerStateOf })),
@@ -349,13 +349,18 @@ export function useEndPomodoro() {
   return useRevisionAction(`${pomodoroPath}/end`);
 }
 
-/** Pauses the running timer. Pause needs no revision: the server pauses whatever runs. */
+/**
+ * Pauses the running timer at the cached revision, and takes the reply into the caches. When the
+ * timer moved on, such as another device starting another entry, the server answers with a
+ * conflict carrying its state instead of pausing what the user did not see.
+ */
+export function pauseTimer(qc: QueryClient): Promise<TimerState> {
+  return postAction(qc, `${timerPath}/pause`, async () => ({ revision: await currentRevision(qc) }));
+}
+
 export function usePauseTimer() {
   const qc = useQueryClient();
-  return useMutation<TimerState, Error, void>({
-    ...actionOptions,
-    mutationFn: () => postAction(qc, `${timerPath}/pause`, async () => undefined),
-  });
+  return useMutation<TimerState, Error, void>({ ...actionOptions, mutationFn: () => pauseTimer(qc) });
 }
 
 /** Resumes the paused chain, at the cached revision. */
