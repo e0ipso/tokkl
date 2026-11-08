@@ -230,6 +230,20 @@ struct ReceivedRequest {
     }
 };
 
+// The pomodoro_limits a current server announces.
+QJsonObject pomodoroLimits()
+{
+    const auto limit = [](int max, int value) {
+        return QJsonObject{{QStringLiteral("min"), 1}, {QStringLiteral("max"), max}, {QStringLiteral("default"), value}};
+    };
+    return QJsonObject{
+        {QStringLiteral("work_minutes"), limit(180, 25)},
+        {QStringLiteral("short_rest_minutes"), limit(60, 5)},
+        {QStringLiteral("long_rest_minutes"), limit(60, 15)},
+        {QStringLiteral("long_rest_every"), limit(12, 4)},
+    };
+}
+
 // Answers the Tokkl API calls a connection makes, as user 3 in workspace 7,
 // and records every request with its body.
 class TokklServer : public QObject
@@ -309,6 +323,7 @@ private:
                                                  QStringLiteral("pause-revision"),
                                                  QStringLiteral("timer-edit-entry"),
                                                  QStringLiteral("idempotency-keys")}},
+                                     {QStringLiteral("pomodoro_limits"), pomodoroLimits()},
                                  })
                        .toJson(QJsonDocument::Compact);
         } else if (request.method == "POST" && request.path.endsWith("/api/app/timer/start")) {

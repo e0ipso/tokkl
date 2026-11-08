@@ -148,9 +148,12 @@
     </property>
     <!-- The range and default of each length the server accepts, keyed as
          PomodoroLengths, each with min, max and default (i), so a settings
-         pane offers what SetPomodoroLengths can save. It does not change
-         while the service runs. A service from before this property has
-         none: a client then keeps the limits it had built in. -->
+         pane offers what SetPomodoroLengths can save. They are the
+         pomodoro_limits the server announces, and change when another
+         server announces other ones. Before any server announced them,
+         each range is 1 to 999 and the defaults are those of
+         PomodoroLengths without an account; the lengths cannot be saved
+         then. -->
     <property name="PomodoroLengthLimits" type="a{sa{si}}" access="read">
       <annotation name="org.qtproject.QtDBus.QtTypeName" value="QMap&lt;QString,QMap&lt;QString,int&gt;&gt;"/>
     </property>

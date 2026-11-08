@@ -26,15 +26,14 @@ struct PomodoroRange {
     {
         return value >= min && value <= max;
     }
+
+    bool operator==(const PomodoroRange &other) const = default;
 };
 
-// The account's Pomodoro lengths, which a session keeps from its start.
+// The account's Pomodoro lengths, which a session keeps from its start. The
+// values here show only until a server answers; the server's
+// pomodoro_limits (PomodoroLimits) name its own defaults and ranges.
 struct PomodoroConfig {
-    static constexpr PomodoroRange workMinutesRange{1, 180};
-    static constexpr PomodoroRange shortRestMinutesRange{1, 60};
-    static constexpr PomodoroRange longRestMinutesRange{1, 60};
-    static constexpr PomodoroRange longRestEveryRange{1, 12};
-
     // Phase lengths in whole minutes.
     int workMinutes = 25;
     int shortRestMinutes = 5;
@@ -42,10 +41,41 @@ struct PomodoroConfig {
     // A long rest follows every this many ended work phases.
     int longRestEvery = 4;
 
-    // True when every value is inside its range.
-    bool isValid() const;
-
     bool operator==(const PomodoroConfig &other) const = default;
+};
+
+// The PomodoroConfig fields that GET and POST /api/app/me/preferences hold,
+// one key each.
+enum class PomodoroField {
+    WorkMinutes,
+    ShortRestMinutes,
+    LongRestMinutes,
+    LongRestEvery,
+};
+
+// The range and default of each Pomodoro length a server accepts, as GET
+// /api/app/status announces them in pomodoro_limits. The server checks every
+// saved length against them; the client takes them from there and keeps no
+// copy.
+struct PomodoroLimits {
+    PomodoroRange workMinutes;
+    PomodoroRange shortRestMinutes;
+    PomodoroRange longRestMinutes;
+    PomodoroRange longRestEvery;
+    PomodoroConfig defaults;
+
+    PomodoroRange range(PomodoroField field) const;
+    // One map per length, keyed workMinutes, shortRestMinutes,
+    // longRestMinutes and longRestEvery, with min, max and default.
+    QVariantMap toVariantMap() const;
+
+    // For a settings field that shows a length before any server announced
+    // its limits, and cannot be edited then: every range is 1 to 999, wide
+    // enough for what a field shows, and the defaults are PomodoroConfig's.
+    // Nothing is checked against it.
+    static PomodoroLimits placeholder();
+
+    bool operator==(const PomodoroLimits &other) const = default;
 };
 
 enum class PhaseKind {
@@ -83,6 +113,9 @@ struct ServerApi {
     // The capability names as announced, also the ones this client does not
     // know.
     QStringList capabilities;
+    // The Pomodoro lengths it accepts; none when the status had no readable
+    // pomodoro_limits.
+    std::optional<PomodoroLimits> pomodoroLimits;
 
     // The server is ServerFloor or newer.
     bool isSupported() const;
@@ -100,6 +133,7 @@ struct ServerApi {
 //   "timer-edit-entry": POST /api/app/timer/edit names the running entry.
 //   "idempotency-keys": the timer and Pomodoro starts take an
 //   Idempotency-Key.
+// The same status also carries pomodoro_limits, which the client needs too.
 // Against an older server no account binds, and the connection says the
 // server needs an update.
 struct ServerFloor {
@@ -268,19 +302,10 @@ struct PomodoroStart {
     std::optional<bool> billable;
 };
 
-// The PomodoroConfig fields that GET and POST /api/v9/me/preferences hold,
-// one key each.
-enum class PomodoroField {
-    WorkMinutes,
-    ShortRestMinutes,
-    LongRestMinutes,
-    LongRestEvery,
-};
-
 // The preference key of field, such as "pomodoro_focus_interval_in_minutes".
 QString pomodoroPreferenceKey(PomodoroField field);
 
-// Pomodoro lengths to change with POST /api/v9/me/preferences. Unset fields
+// Pomodoro lengths to change with POST /api/app/me/preferences. Unset fields
 // are left out of the request. The server merges the posted keys into the
 // stored preferences, so it keeps the unset ones and every other client's.
 struct PomodoroConfigUpdate {
@@ -377,9 +402,10 @@ public:
 // Decoders for the API's bare JSON bodies. Each returns nullopt when the
 // value does not have the expected shape.
 std::optional<Me> decodeMe(const QJsonValue &value);
-// The api_version and capabilities of a GET /api/app/status object. Never
-// fails: a field missing or unreadable reads as not announced, which leaves
-// the server below ServerFloor.
+// The api_version, capabilities and pomodoro_limits of a GET
+// /api/app/status object. Never fails: a field missing or unreadable reads
+// as not announced, which leaves the server below ServerFloor. A limit reads
+// only with integers where 1 <= min <= default <= max.
 ServerApi decodeServerApi(const QJsonObject &status);
 std::optional<Project> decodeProject(const QJsonValue &value);
 std::optional<QList<Project>> decodeProjects(const QJsonValue &value);
@@ -389,9 +415,10 @@ std::optional<QList<TimeEntry>> decodeTimeEntries(const QJsonValue &value);
 std::optional<std::optional<TimeEntry>> decodeCurrentEntry(const QJsonValue &value);
 std::optional<QList<ListedEntry>> decodeListedEntries(const QJsonValue &value);
 // The Pomodoro lengths in a preferences object. As on the server, a value
-// that is missing, not an integer or out of its range reads as its default,
-// one key at a time. nullopt only for a value that is not an object.
-std::optional<PomodoroConfig> decodePomodoroPreferences(const QJsonValue &value);
+// that is missing, not an integer or outside its range in limits reads as
+// its default there, one key at a time. nullopt only for a value that is not
+// an object.
+std::optional<PomodoroConfig> decodePomodoroPreferences(const QJsonValue &value, const PomodoroLimits &limits);
 // Every field of the state and of what it holds must have its type, and a
 // running entry must run; nullopt otherwise. The running entry, pause,
 // session and discarded pomodoro must be present; null means none.

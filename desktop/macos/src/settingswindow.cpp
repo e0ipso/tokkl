@@ -126,21 +126,6 @@ int lengthOf(const PomodoroConfig &config, PomodoroField field)
     }
     return 0;
 }
-
-PomodoroRange lengthRange(PomodoroField field)
-{
-    switch (field) {
-    case PomodoroField::WorkMinutes:
-        return PomodoroConfig::workMinutesRange;
-    case PomodoroField::ShortRestMinutes:
-        return PomodoroConfig::shortRestMinutesRange;
-    case PomodoroField::LongRestMinutes:
-        return PomodoroConfig::longRestMinutesRange;
-    case PomodoroField::LongRestEvery:
-        return PomodoroConfig::longRestEveryRange;
-    }
-    return {};
-}
 }
 
 SettingsWindow::SettingsWindow(Transport *transport,
@@ -218,9 +203,7 @@ SettingsWindow::SettingsWindow(Transport *transport,
     auto *pomodoroForm = new QFormLayout(pomodoro);
     const std::array<QString, 4> lengthLabels{tr("Work:"), tr("Short rest:"), tr("Long rest:"), tr("Long rest every:")};
     for (const PomodoroField field : lengthFields) {
-        const PomodoroRange range = lengthRange(field);
         QSpinBox *box = field == PomodoroField::LongRestEvery ? new PomodoroCountBox : new QSpinBox;
-        box->setRange(range.min, range.max);
         if (field != PomodoroField::LongRestEvery) {
             box->setSuffix(tr(" min"));
         }
@@ -231,6 +214,7 @@ SettingsWindow::SettingsWindow(Transport *transport,
         pomodoroForm->addRow(lengthLabels.at(index(field)), box);
         pomodoroForm->addRow(QString(), error);
     }
+    applyLimits();
     m_lengthsNote = noteLabel();
     m_lengthsNote->setText(tr("These are the lengths last read. Changing them needs a connection to the Tokkl server."));
     pomodoroForm->addRow(QString(), m_lengthsNote);
@@ -321,6 +305,7 @@ SettingsWindow::SettingsWindow(Transport *transport,
     connect(m_loginToggle, &QCheckBox::toggled, this, &SettingsWindow::onLoginToggled);
 
     if (m_preferences) {
+        connect(m_preferences, &PomodoroPreferences::limitsChanged, this, &SettingsWindow::applyLimits);
         connect(m_preferences, &PomodoroPreferences::changed, this, [this] {
             loadLengths(true);
         });
@@ -493,6 +478,15 @@ void SettingsWindow::onLoginToggled(bool enabled)
     if (!error.isEmpty()) {
         m_loginNote->setText(error);
         m_loginNote->setVisible(true);
+    }
+}
+
+void SettingsWindow::applyLimits()
+{
+    const PomodoroLimits limits = m_preferences ? m_preferences->pomodoroLimits() : PomodoroLimits::placeholder();
+    for (const PomodoroField field : lengthFields) {
+        const PomodoroRange range = limits.range(field);
+        m_lengthBoxes.at(index(field))->setRange(range.min, range.max);
     }
 }
 

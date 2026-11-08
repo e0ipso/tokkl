@@ -1857,9 +1857,15 @@ private Q_SLOTS:
     {
         Fixture f;
         QVERIFY(f.start());
-        const QDBusArgument argument = f.get(QStringLiteral("PomodoroLengthLimits")).value<QDBusArgument>();
-        const QMap<QString, IntMap> limits = qdbus_cast<QMap<QString, IntMap>>(argument);
-        const QVariantMap core = PomodoroPreferences::limits();
+        const auto published = [&f] {
+            return qdbus_cast<QMap<QString, IntMap>>(f.get(QStringLiteral("PomodoroLengthLimits")).value<QDBusArgument>());
+        };
+        // Before a server announced any, the core's placeholder.
+        QCOMPARE(published().value(QStringLiteral("work")).value(QStringLiteral("max")), PomodoroLimits::placeholder().workMinutes.max);
+        QVERIFY(f.connect());
+        QTRY_COMPARE(published().value(QStringLiteral("work")).value(QStringLiteral("max")), 180);
+        const QMap<QString, IntMap> limits = published();
+        const QVariantMap core = decodeServerApi(currentServerApi()).pomodoroLimits->toVariantMap();
         const StringMap names{
             {QStringLiteral("work"), QStringLiteral("workMinutes")},
             {QStringLiteral("shortRest"), QStringLiteral("shortRestMinutes")},
@@ -1876,8 +1882,8 @@ private Q_SLOTS:
             };
             QCOMPARE(limits.value(it.key()), expected);
         }
-        QCOMPARE(limits.value(QStringLiteral("work")).value(QStringLiteral("max")), PomodoroConfig::workMinutesRange.max);
-        QCOMPARE(limits.value(QStringLiteral("longRestEvery")).value(QStringLiteral("default")), PomodoroConfig().longRestEvery);
+        QCOMPARE(limits.value(QStringLiteral("longRestEvery")).value(QStringLiteral("default")), 4);
+        QVERIFY(f.recorder.valuesOf(QStringLiteral("PomodoroLengthLimits")).size() >= 1);
     }
 
     void pomodoroLengthsOverTheBus()

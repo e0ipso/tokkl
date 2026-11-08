@@ -25,8 +25,9 @@ inline QString testClientName()
 }
 
 // What a current server announces in GET /api/app/status besides
-// setup_required. A server from before the announcement sends neither field
-// and has none of the /api/app routes it names.
+// setup_required: its API, and the Pomodoro limits the server keeps today.
+// A server from before the announcement sends none of it and has none of
+// the /api/app routes it names.
 inline QJsonObject currentServerApi()
 {
     return QJsonObject{
@@ -39,6 +40,13 @@ inline QJsonObject currentServerApi()
                     QStringLiteral("pause-revision"),
                     QStringLiteral("timer-edit-entry"),
                     QStringLiteral("idempotency-keys")}},
+        {QStringLiteral("pomodoro_limits"),
+         QJsonObject{
+             {QStringLiteral("work_minutes"), QJsonObject{{QStringLiteral("min"), 1}, {QStringLiteral("max"), 180}, {QStringLiteral("default"), 25}}},
+             {QStringLiteral("short_rest_minutes"), QJsonObject{{QStringLiteral("min"), 1}, {QStringLiteral("max"), 60}, {QStringLiteral("default"), 5}}},
+             {QStringLiteral("long_rest_minutes"), QJsonObject{{QStringLiteral("min"), 1}, {QStringLiteral("max"), 60}, {QStringLiteral("default"), 15}}},
+             {QStringLiteral("long_rest_every"), QJsonObject{{QStringLiteral("min"), 1}, {QStringLiteral("max"), 12}, {QStringLiteral("default"), 4}}},
+         }},
     };
 }
 

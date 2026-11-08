@@ -115,14 +115,40 @@ class PomodoroPreferencesTest : public QObject
     }
 
 private Q_SLOTS:
-    // The settings pages read the ranges and defaults from here.
-    void limitsAreTheConfigs()
+    // The settings pages read the ranges and defaults from here: the
+    // placeholder until a server announces its pomodoro_limits, then the
+    // server's, which also give the defaults shown and the reading of a
+    // value out of range. They stay while the connection is gone.
+    void limitsFollowTheServer()
     {
-        const QVariantMap limits = PomodoroPreferences::limits();
-        QCOMPARE(limits.value(QStringLiteral("workMinutes")).toMap().value(QStringLiteral("max")).toInt(), PomodoroConfig::workMinutesRange.max);
-        QCOMPARE(limits.value(QStringLiteral("shortRestMinutes")).toMap().value(QStringLiteral("max")).toInt(), 60);
-        QCOMPARE(limits.value(QStringLiteral("longRestEvery")).toMap().value(QStringLiteral("default")).toInt(), 4);
-        QCOMPARE(limits.value(QStringLiteral("longRestMinutes")).toMap().value(QStringLiteral("min")).toInt(), 1);
+        Fixture f;
+        QSignalSpy limitsChanged(&f.preferences, &PomodoroPreferences::limitsChanged);
+        QCOMPARE(f.preferences.pomodoroLimits(), PomodoroLimits::placeholder());
+        QCOMPARE(f.preferences.limits().value(QStringLiteral("workMinutes")).toMap().value(QStringLiteral("max")).toInt(), 999);
+        QCOMPARE(f.preferences.config(), PomodoroConfig());
+
+        QJsonObject status = currentServerApi();
+        QJsonObject limits = status.value(QStringLiteral("pomodoro_limits")).toObject();
+        limits.insert(QStringLiteral("work_minutes"), QJsonObject{{QStringLiteral("min"), 5}, {QStringLiteral("max"), 240}, {QStringLiteral("default"), 30}});
+        status.insert(QStringLiteral("pomodoro_limits"), limits);
+        f.transport.status = FakeTransport::answer(200, QJsonDocument(status).toJson(QJsonDocument::Compact));
+        QVERIFY(connectAccount(f, instanceA, 3, 7));
+        QCOMPARE(limitsChanged.size(), 1);
+        const QVariantMap work = f.preferences.limits().value(QStringLiteral("workMinutes")).toMap();
+        QCOMPARE(work.value(QStringLiteral("min")).toInt(), 5);
+        QCOMPARE(work.value(QStringLiteral("max")).toInt(), 240);
+        QCOMPARE(work.value(QStringLiteral("default")).toInt(), 30);
+        QCOMPARE(f.preferences.limits().value(QStringLiteral("shortRestMinutes")).toMap().value(QStringLiteral("max")).toInt(), 60);
+        // The account's defaults are the server's until its lengths are read.
+        QCOMPARE(f.preferences.workMinutes(), 30);
+        f.transport.respondLast(FakeTransport::answer(200, preferencesBody({200, 5, 15, 4})));
+        QCOMPARE(f.preferences.workMinutes(), 200);
+
+        // Signed out: the last limits stay.
+        f.connection.setInstanceUrl(QString());
+        QTRY_COMPARE(f.connection.state(), Connection::Unconfigured);
+        QCOMPARE(f.preferences.limits().value(QStringLiteral("workMinutes")).toMap().value(QStringLiteral("max")).toInt(), 240);
+        QCOMPARE(limitsChanged.size(), 1);
     }
 
     void readsAndSavesOnlyChangedKeys()

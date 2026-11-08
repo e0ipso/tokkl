@@ -112,7 +112,8 @@ public:
     void fetchRecentEntries(Callback<QList<ListedEntry>> done = {});
     // The Pomodoro lengths of the account preferences, through
     // /api/app/me/preferences, whose refusals name the refused key in
-    // Tokkl-Error-Field.
+    // Tokkl-Error-Field. A length outside the server's pomodoro_limits reads
+    // as the server's default.
     void fetchPreferences(Callback<PomodoroConfig> done = {});
     // Posts only the lengths the update sets, on the same path as
     // fetchPreferences(). done gets the lengths the server holds
@@ -185,6 +186,8 @@ private:
     void fetchProjectPage(const std::shared_ptr<ProjectPages> &pages);
     QUrl api(const QString &path) const;
     QUrl app(const QString &path) const;
+    // Reads the preferences with the limits of the server bound.
+    ApiClient::Decoder<PomodoroConfig> preferencesDecoder() const;
 
     const QString m_clientName;
     AuthSession m_session;

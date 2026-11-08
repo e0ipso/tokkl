@@ -103,7 +103,7 @@ QStringList ServerFloor::capabilities()
 
 bool ServerApi::isSupported() const
 {
-    if (version < ServerFloor::apiVersion) {
+    if (version < ServerFloor::apiVersion || !pomodoroLimits) {
         return false;
     }
     const QStringList required = ServerFloor::capabilities();
@@ -112,9 +112,75 @@ bool ServerApi::isSupported() const
     });
 }
 
+namespace
+{
+// One length of pomodoro_limits: {min, max, default}.
+bool decodeLimit(const QJsonObject &limits, QLatin1String key, PomodoroRange &range, int &defaultValue)
+{
+    const QJsonObject limit = limits.value(key).toObject();
+    const std::optional<int> min = count(limit.value(QLatin1String("min")), 1);
+    const std::optional<int> max = count(limit.value(QLatin1String("max")), 1);
+    const std::optional<int> value = count(limit.value(QLatin1String("default")), 1);
+    if (!min || !max || !value || *min > *value || *value > *max) {
+        return false;
+    }
+    range = PomodoroRange{*min, *max};
+    defaultValue = *value;
+    return true;
+}
+
+std::optional<PomodoroLimits> decodePomodoroLimits(const QJsonValue &value)
+{
+    const QJsonObject object = value.toObject();
+    PomodoroLimits limits;
+    if (!decodeLimit(object, QLatin1String("work_minutes"), limits.workMinutes, limits.defaults.workMinutes)
+        || !decodeLimit(object, QLatin1String("short_rest_minutes"), limits.shortRestMinutes, limits.defaults.shortRestMinutes)
+        || !decodeLimit(object, QLatin1String("long_rest_minutes"), limits.longRestMinutes, limits.defaults.longRestMinutes)
+        || !decodeLimit(object, QLatin1String("long_rest_every"), limits.longRestEvery, limits.defaults.longRestEvery)) {
+        return std::nullopt;
+    }
+    return limits;
+}
+}
+
+PomodoroRange PomodoroLimits::range(PomodoroField field) const
+{
+    switch (field) {
+    case PomodoroField::WorkMinutes:
+        return workMinutes;
+    case PomodoroField::ShortRestMinutes:
+        return shortRestMinutes;
+    case PomodoroField::LongRestMinutes:
+        return longRestMinutes;
+    case PomodoroField::LongRestEvery:
+        return longRestEvery;
+    }
+    return {};
+}
+
+QVariantMap PomodoroLimits::toVariantMap() const
+{
+    const auto limit = [](PomodoroRange range, int value) {
+        return QVariantMap{{QStringLiteral("min"), range.min}, {QStringLiteral("max"), range.max}, {QStringLiteral("default"), value}};
+    };
+    return {
+        {QStringLiteral("workMinutes"), limit(workMinutes, defaults.workMinutes)},
+        {QStringLiteral("shortRestMinutes"), limit(shortRestMinutes, defaults.shortRestMinutes)},
+        {QStringLiteral("longRestMinutes"), limit(longRestMinutes, defaults.longRestMinutes)},
+        {QStringLiteral("longRestEvery"), limit(longRestEvery, defaults.longRestEvery)},
+    };
+}
+
+PomodoroLimits PomodoroLimits::placeholder()
+{
+    constexpr PomodoroRange any{1, 999};
+    return PomodoroLimits{any, any, any, any, PomodoroConfig()};
+}
+
 ServerApi decodeServerApi(const QJsonObject &status)
 {
     ServerApi server;
+    server.pomodoroLimits = decodePomodoroLimits(status.value(QLatin1String("pomodoro_limits")));
     server.version = integer(status.value(QLatin1String("api_version"))).value_or(0);
     const QJsonArray names = status.value(QLatin1String("capabilities")).toArray();
     for (const QJsonValue &name : names) {

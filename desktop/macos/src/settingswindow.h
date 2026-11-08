@@ -109,6 +109,8 @@ private:
     // it was last filled keeps what was typed, unless the lengths now
     // belong to another account.
     void loadLengths(bool keepEdits);
+    // The range of each length field: the server's, from the preferences.
+    void applyLimits();
     void updatePomodoro();
     void loadSounds();
     void preview(TransitionKind kind);

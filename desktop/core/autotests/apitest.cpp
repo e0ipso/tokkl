@@ -243,8 +243,14 @@ private Q_SLOTS:
         QTest::addColumn<QStringList>("capabilities");
         QTest::addColumn<bool>("supported");
 
+        const QByteArray limits = R"("pomodoro_limits":{"work_minutes":{"min":1,"max":180,"default":25},)"
+                                  R"("short_rest_minutes":{"min":1,"max":60,"default":5},"long_rest_minutes":{"min":1,"max":60,"default":15},)"
+                                  R"("long_rest_every":{"min":1,"max":12,"default":4}})";
         const QByteArray current = R"({"setup_required":false,"api_version":1,"capabilities":)"
-                                   R"(["app-preferences","timer-actions","timer-edit","pomodoro-revision","pause-revision","timer-edit-entry","idempotency-keys"]})";
+                                   R"(["app-preferences","timer-actions","timer-edit","pomodoro-revision","pause-revision","timer-edit-entry","idempotency-keys"],)"
+            + limits + "}";
+        const QByteArray withoutLimits = R"({"api_version":1,"capabilities":)"
+                                         R"(["app-preferences","timer-actions","pomodoro-revision","pause-revision","timer-edit-entry","idempotency-keys"]})";
         const QStringList all{QStringLiteral("app-preferences"),
                               QStringLiteral("timer-actions"),
                               QStringLiteral("timer-edit"),
@@ -254,6 +260,14 @@ private Q_SLOTS:
                               QStringLiteral("idempotency-keys")};
         QTest::newRow("older server") << 200 << QByteArray(R"({"setup_required":false})") << qint64(0) << QStringList() << false;
         QTest::newRow("current server") << 200 << current << qint64(1) << all << true;
+        QTest::newRow("no Pomodoro limits") << 200 << withoutLimits << qint64(1)
+                                            << QStringList{QStringLiteral("app-preferences"),
+                                                           QStringLiteral("timer-actions"),
+                                                           QStringLiteral("pomodoro-revision"),
+                                                           QStringLiteral("pause-revision"),
+                                                           QStringLiteral("timer-edit-entry"),
+                                                           QStringLiteral("idempotency-keys")}
+                                            << false;
         QTest::newRow("before pause revisions")
             << 200 << QByteArray(R"({"api_version":1,"capabilities":["app-preferences","timer-actions","timer-edit","pomodoro-revision"]})") << qint64(1)
             << QStringList{QStringLiteral("app-preferences"), QStringLiteral("timer-actions"), QStringLiteral("timer-edit"), QStringLiteral("pomodoro-revision")}
@@ -290,6 +304,63 @@ private Q_SLOTS:
         QCOMPARE(server.version, version);
         QCOMPARE(server.capabilities, capabilities);
         QCOMPARE(server.isSupported(), supported);
+    }
+
+    void pomodoroLimits_data()
+    {
+        QTest::addColumn<QByteArray>("limits");
+        QTest::addColumn<bool>("read");
+        const QByteArray rest = R"("short_rest_minutes":{"min":1,"max":60,"default":5},"long_rest_minutes":{"min":2,"max":90,"default":20},)"
+                                R"("long_rest_every":{"min":1,"max":12,"default":4})";
+        QTest::newRow("read") << QByteArray(R"({"work_minutes":{"min":5,"max":240,"default":30},)" + rest + "}") << true;
+        QTest::newRow("default below min") << QByteArray(R"({"work_minutes":{"min":5,"max":240,"default":4},)" + rest + "}") << false;
+        QTest::newRow("max below default") << QByteArray(R"({"work_minutes":{"min":5,"max":20,"default":30},)" + rest + "}") << false;
+        QTest::newRow("zero") << QByteArray(R"({"work_minutes":{"min":0,"max":240,"default":30},)" + rest + "}") << false;
+        QTest::newRow("not a number") << QByteArray(R"({"work_minutes":{"min":"5","max":240,"default":30},)" + rest + "}") << false;
+        QTest::newRow("a length missing") << QByteArray("{" + rest + "}") << false;
+        QTest::newRow("not an object") << QByteArray("[]") << false;
+    }
+
+    // pomodoro_limits reads only whole: every length with integers where
+    // 1 <= min <= default <= max.
+    void pomodoroLimits()
+    {
+        QFETCH(QByteArray, limits);
+        QFETCH(bool, read);
+        const ServerApi server = decodeServerApi(QJsonDocument::fromJson("{\"pomodoro_limits\":" + limits + "}").object());
+        QCOMPARE(server.pomodoroLimits.has_value(), read);
+        if (read) {
+            QCOMPARE(server.pomodoroLimits->workMinutes.min, 5);
+            QCOMPARE(server.pomodoroLimits->workMinutes.max, 240);
+            QCOMPARE(server.pomodoroLimits->defaults.workMinutes, 30);
+            QCOMPARE(server.pomodoroLimits->longRestMinutes.min, 2);
+            QCOMPARE(server.pomodoroLimits->range(PomodoroField::LongRestMinutes).max, 90);
+            QCOMPARE(server.pomodoroLimits->defaults.longRestMinutes, 20);
+            const QVariantMap map = server.pomodoroLimits->toVariantMap();
+            QCOMPARE(map.value(QStringLiteral("workMinutes")).toMap().value(QStringLiteral("max")).toInt(), 240);
+            QCOMPARE(map.value(QStringLiteral("longRestEvery")).toMap().value(QStringLiteral("default")).toInt(), 4);
+        }
+    }
+
+    // A length outside the limits reads as the limits' default, one key at
+    // a time.
+    void preferencesFollowTheLimits()
+    {
+        PomodoroLimits limits = PomodoroLimits::placeholder();
+        limits.workMinutes = PomodoroRange{5, 240};
+        limits.defaults.workMinutes = 30;
+        limits.longRestEvery = PomodoroRange{1, 6};
+        limits.defaults.longRestEvery = 3;
+        const std::optional<PomodoroConfig> config = decodePomodoroPreferences(
+            *parseJsonBody(R"({"pomodoro_focus_interval_in_minutes":200,"pomodoro_long_break_every":8,"pomodoro_break_interval_in_minutes":7})"),
+            limits);
+        QVERIFY(config);
+        QCOMPARE(config->workMinutes, 200);
+        QCOMPARE(config->longRestEvery, 3);
+        QCOMPARE(config->shortRestMinutes, 7);
+        QCOMPARE(config->longRestMinutes, PomodoroConfig().longRestMinutes);
+        const std::optional<PomodoroConfig> low = decodePomodoroPreferences(*parseJsonBody(R"({"pomodoro_focus_interval_in_minutes":4})"), limits);
+        QCOMPARE(low->workMinutes, 30);
     }
 
     // The floor names what the client relies on, in one place.

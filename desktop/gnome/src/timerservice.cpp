@@ -103,7 +103,7 @@ TimerService::TimerService(const Parts &parts, QObject *parent)
           &PomodoroSession::canStartSessionChanged,
           &PomodoroSession::ringingChanged,
           &PomodoroSession::messageChanged);
-    watch(m_preferences, &PomodoroPreferences::changed, &PomodoroPreferences::stateChanged);
+    watch(m_preferences, &PomodoroPreferences::changed, &PomodoroPreferences::stateChanged, &PomodoroPreferences::limitsChanged);
     watch(m_sounds, &SoundChoices::changed);
     connect(m_timer, &TimerModel::connectionChanged, this, &TimerService::followStateClient);
     followStateClient();
@@ -415,7 +415,7 @@ QMap<QString, QMap<QString, int>> TimerService::pomodoroLengthLimits() const
         {QStringLiteral("longRest"), QStringLiteral("longRestMinutes")},
         {QStringLiteral("longRestEvery"), QStringLiteral("longRestEvery")},
     };
-    const QVariantMap limits = PomodoroPreferences::limits();
+    const QVariantMap limits = m_preferences->limits();
     QMap<QString, QMap<QString, int>> published;
     for (const auto &[key, name] : keys) {
         const QVariantMap limit = limits.value(name).toMap();

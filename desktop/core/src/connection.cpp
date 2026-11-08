@@ -249,7 +249,7 @@ void Connection::fetchRecentEntries(Callback<QList<ListedEntry>> done)
 
 void Connection::fetchPreferences(Callback<PomodoroConfig> done)
 {
-    m_session.api().call<PomodoroConfig>("GET", app(QStringLiteral("/me/preferences")), QByteArray(), ApiAccess::Read, &decodePomodoroPreferences, std::move(done));
+    m_session.api().call<PomodoroConfig>("GET", app(QStringLiteral("/me/preferences")), QByteArray(), ApiAccess::Read, preferencesDecoder(), std::move(done));
 }
 
 void Connection::savePreferences(const PomodoroConfigUpdate &update, Callback<PomodoroConfig> done)
@@ -258,8 +258,18 @@ void Connection::savePreferences(const PomodoroConfigUpdate &update, Callback<Po
                                          app(QStringLiteral("/me/preferences")),
                                          encodePomodoroConfigUpdate(update),
                                          ApiAccess::Write,
-                                         &decodePomodoroPreferences,
+                                         preferencesDecoder(),
                                          std::move(done));
+}
+
+ApiClient::Decoder<PomodoroConfig> Connection::preferencesDecoder() const
+{
+    // A request goes out only with a bound account, whose server announced
+    // its limits.
+    const PomodoroLimits limits = server().pomodoroLimits.value_or(PomodoroLimits::placeholder());
+    return [limits](const QJsonValue &value) {
+        return decodePomodoroPreferences(value, limits);
+    };
 }
 
 ServerApi Connection::server() const
