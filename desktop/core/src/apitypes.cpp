@@ -5,6 +5,8 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 
+#include <algorithm>
+
 namespace Tokkl
 {
 
@@ -87,23 +89,103 @@ std::optional<Me> decodeMe(const QJsonValue &value)
     return me;
 }
 
+QStringList ServerFloor::capabilities()
+{
+    return {
+        QStringLiteral("app-preferences"),
+        QStringLiteral("timer-actions"),
+        QStringLiteral("pause-revision"),
+        QStringLiteral("pomodoro-revision"),
+        QStringLiteral("timer-edit-entry"),
+        QStringLiteral("idempotency-keys"),
+    };
+}
+
+bool ServerApi::isSupported() const
+{
+    if (version < ServerFloor::apiVersion || !pomodoroLimits) {
+        return false;
+    }
+    const QStringList required = ServerFloor::capabilities();
+    return std::all_of(required.cbegin(), required.cend(), [this](const QString &name) {
+        return capabilities.contains(name);
+    });
+}
+
+namespace
+{
+// One length of pomodoro_limits: {min, max, default}.
+bool decodeLimit(const QJsonObject &limits, QLatin1String key, PomodoroRange &range, int &defaultValue)
+{
+    const QJsonObject limit = limits.value(key).toObject();
+    const std::optional<int> min = count(limit.value(QLatin1String("min")), 1);
+    const std::optional<int> max = count(limit.value(QLatin1String("max")), 1);
+    const std::optional<int> value = count(limit.value(QLatin1String("default")), 1);
+    if (!min || !max || !value || *min > *value || *value > *max) {
+        return false;
+    }
+    range = PomodoroRange{*min, *max};
+    defaultValue = *value;
+    return true;
+}
+
+std::optional<PomodoroLimits> decodePomodoroLimits(const QJsonValue &value)
+{
+    const QJsonObject object = value.toObject();
+    PomodoroLimits limits;
+    if (!decodeLimit(object, QLatin1String("work_minutes"), limits.workMinutes, limits.defaults.workMinutes)
+        || !decodeLimit(object, QLatin1String("short_rest_minutes"), limits.shortRestMinutes, limits.defaults.shortRestMinutes)
+        || !decodeLimit(object, QLatin1String("long_rest_minutes"), limits.longRestMinutes, limits.defaults.longRestMinutes)
+        || !decodeLimit(object, QLatin1String("long_rest_every"), limits.longRestEvery, limits.defaults.longRestEvery)) {
+        return std::nullopt;
+    }
+    return limits;
+}
+}
+
+PomodoroRange PomodoroLimits::range(PomodoroField field) const
+{
+    switch (field) {
+    case PomodoroField::WorkMinutes:
+        return workMinutes;
+    case PomodoroField::ShortRestMinutes:
+        return shortRestMinutes;
+    case PomodoroField::LongRestMinutes:
+        return longRestMinutes;
+    case PomodoroField::LongRestEvery:
+        return longRestEvery;
+    }
+    return {};
+}
+
+QVariantMap PomodoroLimits::toVariantMap() const
+{
+    const auto limit = [](PomodoroRange range, int value) {
+        return QVariantMap{{QStringLiteral("min"), range.min}, {QStringLiteral("max"), range.max}, {QStringLiteral("default"), value}};
+    };
+    return {
+        {QStringLiteral("workMinutes"), limit(workMinutes, defaults.workMinutes)},
+        {QStringLiteral("shortRestMinutes"), limit(shortRestMinutes, defaults.shortRestMinutes)},
+        {QStringLiteral("longRestMinutes"), limit(longRestMinutes, defaults.longRestMinutes)},
+        {QStringLiteral("longRestEvery"), limit(longRestEvery, defaults.longRestEvery)},
+    };
+}
+
+PomodoroLimits PomodoroLimits::placeholder()
+{
+    constexpr PomodoroRange any{1, 999};
+    return PomodoroLimits{any, any, any, any, PomodoroConfig()};
+}
+
 ServerApi decodeServerApi(const QJsonObject &status)
 {
-    // An announcement it cannot read leaves the account usable, with the
-    // routes of a server from before it.
     ServerApi server;
+    server.pomodoroLimits = decodePomodoroLimits(status.value(QLatin1String("pomodoro_limits")));
     server.version = integer(status.value(QLatin1String("api_version"))).value_or(0);
     const QJsonArray names = status.value(QLatin1String("capabilities")).toArray();
     for (const QJsonValue &name : names) {
-        const QString text = name.toString();
-        if (text == QLatin1String("app-preferences")) {
-            server.appPreferences = true;
-        } else if (text == QLatin1String("timer-actions")) {
-            server.timerActions = true;
-        } else if (text == QLatin1String("timer-edit")) {
-            server.timerEdit = true;
-        } else if (text == QLatin1String("pomodoro-revision")) {
-            server.pomodoroRevision = true;
+        if (name.isString()) {
+            server.capabilities.append(name.toString());
         }
     }
     return server;
@@ -267,13 +349,6 @@ QJsonObject startEntryObject(const StartEntry &entry, qint64 workspaceId, const 
 }
 }
 
-QByteArray encodeStartEntry(const StartEntry &entry, qint64 workspaceId, const QString &createdWith)
-{
-    QJsonObject object = startEntryObject(entry, workspaceId, createdWith);
-    object.insert(QStringLiteral("duration"), -1);
-    return QJsonDocument(object).toJson(QJsonDocument::Compact);
-}
-
 QByteArray encodeTimerStart(qint64 revision, const StartEntry &entry, qint64 workspaceId, const QString &createdWith)
 {
     QJsonObject object = startEntryObject(entry, workspaceId, createdWith);
@@ -302,12 +377,12 @@ QByteArray encodeTimeEntryUpdate(const TimeEntryUpdate &update)
     return QJsonDocument(object).toJson(QJsonDocument::Compact);
 }
 
-QByteArray encodeTimerEdit(qint64 revision, const TimeEntryUpdate &update)
+QByteArray encodeTimerEdit(qint64 entryId, const TimeEntryUpdate &update)
 {
     QJsonObject object = QJsonDocument::fromJson(encodeTimeEntryUpdate(update)).object();
     // The running entry's start is the timer's, not an edit's.
     object.remove(QStringLiteral("start"));
-    object.insert(QStringLiteral("revision"), revision);
+    object.insert(QStringLiteral("entry_id"), entryId);
     return QJsonDocument(object).toJson(QJsonDocument::Compact);
 }
 

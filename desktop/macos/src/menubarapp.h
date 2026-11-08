@@ -8,7 +8,6 @@
 
 #include <memory>
 
-class MenuBarAppTest;
 class QSettings;
 
 namespace Tokkl
@@ -83,6 +82,7 @@ public:
     // settings window.
     void start();
 
+
 public Q_SLOTS:
     void showSettings();
     // Gives the connection the address, sign-in method and email in the
@@ -99,9 +99,6 @@ Q_SIGNALS:
     void quitRequested();
 
 private:
-    // The app's tests drive and read its parts.
-    friend class ::MenuBarAppTest;
-
     // A primary click on the item.
     void activate();
     void updateItem();
@@ -111,15 +108,18 @@ private:
     // The system clock when none was given; m_clock is the one in use.
     std::unique_ptr<Clock> m_ownClock;
     Clock *m_clock = nullptr;
-    std::unique_ptr<Connection> m_connection;
-    std::unique_ptr<SettingsPomodoroStore> m_pomodoroStore;
-    std::unique_ptr<TimerStateClient> m_stateClient;
-    std::unique_ptr<TimerController> m_timer;
-    std::unique_ptr<PomodoroPreferences> m_preferences;
-    std::unique_ptr<PomodoroSession> m_session;
-    std::unique_ptr<SoundChoices> m_sounds;
-    std::unique_ptr<PomodoroAlarm> m_alarm;
-    std::unique_ptr<StatusMenu> m_menu;
+    // The app's parts are its children; the destructor deletes the ones
+    // that use others first. The settings window is a top-level widget, so
+    // the app holds it apart.
+    Connection *m_connection;
+    SettingsPomodoroStore *m_pomodoroStore = nullptr;
+    TimerStateClient *m_stateClient;
+    TimerController *m_timer;
+    PomodoroPreferences *m_preferences = nullptr;
+    PomodoroSession *m_session = nullptr;
+    SoundChoices *m_sounds = nullptr;
+    PomodoroAlarm *m_alarm = nullptr;
+    StatusMenu *m_menu = nullptr;
     std::unique_ptr<SettingsWindow> m_settingsWindow;
 };
 

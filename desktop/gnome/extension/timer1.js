@@ -19,50 +19,24 @@ export const TIMER1_XML_FILE = 'org.tokkl.Timer1.xml';
 export const AUTH_MODES = ['token', 'password'];
 
 // The oldest tokkl-timerd the extension supports, by the InterfaceVersion it
-// publishes. 0 is a service from before that property: tokkl-timerd 2.1.0
-// and older, which publishes none of PUBLISHED_SINCE and has no Request
-// methods. Every fallback for such a service exists only while this is 0:
-// legacyactions.js, legacylimits.js, legacyPresentation() in menumodel.js
-// and the plain methods in timerrequests.js. Raise this to 1 once no
-// supported distribution ships a tokkl-timerd older than the release that
-// publishes InterfaceVersion 1, and delete those fallbacks in the same
-// change; the extension's tests fail while a fallback outlives the floor.
-// desktop/gnome/README.md states the same floor.
-export const OLDEST_SUPPORTED_INTERFACE_VERSION = 0;
-
-// The first InterfaceVersion that publishes each member the extension has
-// a fallback for. A service with an InterfaceVersion publishes all of them.
-const PUBLISHED_SINCE = { Actions: 1, Presentation: 1, PomodoroLengthLimits: 1, RequestMethods: 1 };
+// publishes. Version 1 publishes Actions, Presentation, PomodoroLengthLimits
+// and the Request methods, and version 2 ChosenProjectLabel; the extension
+// relies on all of them. A
+// service below it, or one without InterfaceVersion (tokkl-timerd 2.1.0 and
+// older), gets no menu of its own: the menu says to update tokkl-timerd
+// (describeStatus()) and sends it nothing. desktop/gnome/README.md states the
+// same floor.
+export const OLDEST_SUPPORTED_INTERFACE_VERSION = 2;
 
 /**
- * Whether the service has RequestStart, RequestStop, RequestPause and
- * RequestResume, by its InterfaceVersion: they came with version 1, and a
- * service from before the property has none of them.
+ * Whether the extension can use a service with this InterfaceVersion.
  *
  * @param {number} interfaceVersion the InterfaceVersion property, 0 for a
  *     service without it
  * @returns {boolean}
  */
-export function hasRequestMethods(interfaceVersion) {
-    return interfaceVersion >= PUBLISHED_SINCE.RequestMethods;
-}
-
-/**
- * Whether the service publishes a property the extension has a fallback
- * for (legacyactions.js, legacyPresentation() in menumodel.js,
- * legacylimits.js). A service with an InterfaceVersion says so by its
- * version; one from before InterfaceVersion is judged by whether the
- * property is there.
- *
- * @param {number} interfaceVersion the InterfaceVersion property, 0 for a
- *     service without it
- * @param {'Actions'|'Presentation'|'PomodoroLengthLimits'} property
- * @param {boolean} present the proxy holds the property
- * @returns {boolean}
- */
-export function publishes(interfaceVersion, property, present) {
-    if (interfaceVersion > 0 && property in PUBLISHED_SINCE) return interfaceVersion >= PUBLISHED_SINCE[property];
-    return present;
+export function supportsService(interfaceVersion) {
+    return interfaceVersion >= OLDEST_SUPPORTED_INTERFACE_VERSION;
 }
 
 /**
@@ -243,20 +217,27 @@ export function statusWords(status, errorString, _) {
 /**
  * The words for the service's state. status is the Status property, or null
  * when nothing owns the bus name; a value the extension does not know reads
- * as an error. See statusWords().
+ * as an error. A service older than OLDEST_SUPPORTED_INTERFACE_VERSION gets
+ * one line that asks for an update, whatever its Status. See statusWords().
  *
  * @param {string|null} status
  * @param {string} errorString the ErrorString property
  * @param {(text: string) => string} _ gettext
+ * @param {number} [interfaceVersion] the InterfaceVersion property, 0 for a
+ *     service without it
  * @returns {{text: string, detail: string, mark: string}}
  */
-export function describeStatus(status, errorString, _) {
+export function describeStatus(status, errorString, _, interfaceVersion = OLDEST_SUPPORTED_INTERFACE_VERSION) {
     if (status === null) {
         return {
             text: _('Timer service not running'),
             detail: _('Install tokkl-timerd, or check its log with journalctl --user -u tokkl-timerd.'),
             mark: '!',
         };
+    }
+    if (!supportsService(interfaceVersion)) {
+        // Translators: tokkl-timerd is the name of the timer service program.
+        return { text: _('This timer service is too old; update tokkl-timerd.'), detail: '', mark: '!' };
     }
     return statusWords(status, errorString, _) ?? statusWords('error', errorString, _);
 }
@@ -272,20 +253,23 @@ export function projectLabel(project) {
 }
 
 /**
- * The label of ChosenProject: "No project" for 0, the project's label when it
- * is in Projects, else its ChosenProjectName (a running entry's archived
- * project), and "Unavailable project" without a name (a project the instance
- * no longer has, or one still being read).
+ * The label of ChosenProject from the parts the service publishes in
+ * ChosenProjectLabel, as the KDE and macOS menus word them: "No project" for
+ * 0, "Unavailable project" for one the instance no longer has, "Unknown
+ * project" while it has no name, and otherwise "Name (Client)" with
+ * "(archived)" after it for an archived project.
  *
- * @param {Array<{id: number, name: string, clientName?: string}>} projects
- * @param {number} chosenProject
- * @param {string} chosenProjectName
+ * @param {number} chosenProject the ChosenProject property
+ * @param {{name?: string, client?: string, archived?: boolean, missing?: boolean}} label
+ *     the ChosenProjectLabel property
  * @param {(text: string) => string} _ gettext
  * @returns {string}
  */
-export function chosenProjectLabel(projects, chosenProject, chosenProjectName, _) {
+export function chosenProjectLabel(chosenProject, label, _) {
     if (!chosenProject) return _('No project');
-    const project = projects.find(candidate => candidate.id === chosenProject);
-    if (project) return projectLabel(project);
-    return chosenProjectName || _('Unavailable project');
+    if (label.missing) return _('Unavailable project');
+    if (!label.name) return _('Unknown project');
+    const named = projectLabel({ name: label.name, clientName: label.client });
+    // Translators: %s is the project's name, with its client in parentheses.
+    return label.archived ? fill(_('%s (archived)'), named) : named;
 }

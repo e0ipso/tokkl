@@ -16,7 +16,6 @@ class QPushButton;
 class QRadioButton;
 class QSettings;
 class QSpinBox;
-class MenuBarAppTest;
 
 namespace Tokkl
 {
@@ -65,6 +64,12 @@ public:
     // sound choices and alarm; the window owns none of them. loginItem may
     // be null: the toggle is hidden. With null preferences the lengths
     // cannot be edited; with a null alarm Preview plays nothing.
+    // Its fields have object names: url, urlNote, token, password, email,
+    // secret, storeError, saveError, test, testResult, login, monochrome,
+    // loginNote, save, lengthsNote, pomodoroError and soundError, and per
+    // length length:<key> and lengthError:<key> (pomodoroPreferenceKey()),
+    // per transition sound:<name> and preview:<name> (transitionKindName()).
+    // Its ConnectionSetup is a child.
     SettingsWindow(Transport *transport,
                    CredentialStore *store,
                    QSettings *settings,
@@ -95,9 +100,6 @@ Q_SIGNALS:
     void saved();
 
 private:
-    // The app's tests fill and read the fields.
-    friend class ::MenuBarAppTest;
-
     QString authMode() const;
     void onSaveFinished(bool close);
     void onAccountChanged();
@@ -109,6 +111,8 @@ private:
     // it was last filled keeps what was typed, unless the lengths now
     // belong to another account.
     void loadLengths(bool keepEdits);
+    // The range of each length field: the server's, from the preferences.
+    void applyLimits();
     void updatePomodoro();
     void loadSounds();
     void preview(TransitionKind kind);

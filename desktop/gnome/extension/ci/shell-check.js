@@ -45,6 +45,15 @@ const actAsOlderService = older =>
         null,
     );
 
+// The ChosenProjectLabel property.
+const labelVariant = label =>
+    new GLib.Variant('a{sv}', {
+        name: new GLib.Variant('s', label.name),
+        client: new GLib.Variant('s', label.client),
+        archived: new GLib.Variant('b', label.archived),
+        missing: new GLib.Variant('b', label.missing),
+    });
+
 const checks = steps();
 const { step } = checks;
 const { button, label, menuOpen, sensitive, indicator, pointAtButton, click, press } = panelButton(uuid);
@@ -446,15 +455,22 @@ await step('a running entry on an archived project is named by the indicator and
     mockSet('Running', new GLib.Variant('b', true));
     mockSet('ChosenProject', new GLib.Variant('x', 42));
     mockSet('ChosenProjectName', new GLib.Variant('s', 'Legacy'));
+    mockSet('ChosenProjectLabel', labelVariant({ name: 'Legacy', client: '', archived: true, missing: false }));
     mockSet('IndicatorColor', new GLib.Variant('s', '#2da608'));
-    await indicatorIs('a named dot', { kind: 'filled', round: true, color: '#2da608', accessibleName: 'Legacy' });
+    await indicatorIs('a named dot', {
+        kind: 'filled',
+        round: true,
+        color: '#2da608',
+        accessibleName: 'Legacy (archived)',
+    });
     const name = shell(`${button}.accessible_name`);
     if (!name.includes('Legacy') || name.includes('Unavailable project')) throw new Error(`button name: ${name}`);
     const title = shell(`${button}._projectMenu.label.text`);
-    if (title !== 'Project: Legacy (locked while running)') throw new Error(`title: ${title}`);
+    if (title !== 'Project: Legacy (archived) (locked while running)') throw new Error(`title: ${title}`);
     mockSet('Running', new GLib.Variant('b', false));
     mockSet('ChosenProject', new GLib.Variant('x', 7));
     mockSet('ChosenProjectName', new GLib.Variant('s', 'Website'));
+    mockSet('ChosenProjectLabel', labelVariant({ name: 'Website', client: 'Acme', archived: false, missing: false }));
     mockSet('IndicatorColor', new GLib.Variant('s', '#3366cc'));
     await indicatorIs('the still square', {
         kind: 'filled',
@@ -962,27 +978,27 @@ await step('a session started on another device shows in Timer mode', async () =
     await waitFor('0:00', () => label() === '0:00' || label());
 });
 
-await step('a service without InterfaceVersion gets the plain Start and Stop', async () => {
+await step('a service below the floor gets one line asking for an update and no calls', async () => {
     actAsOlderService(true);
     const version = () => shell(`${button}._proxy.get_cached_property('InterfaceVersion')?.unpack()`);
-    await waitFor('InterfaceVersion 0', () => version() === 0 || version());
-    let before = mockCalls().length;
-    shell(`${button}._toggleItem.activate(null)`);
-    await waitFor('Start', () => (mockCalls().length > before && lastCall()[0] === 'Start') || mockCalls());
-    await waitFor('Running', () => timerProperty('Running') === true);
-    const first = mockCalls().slice(before);
-    // The version decides: no Request method is tried first.
-    if (JSON.stringify(first) !== JSON.stringify([['Start']])) throw new Error(`Start sent ${JSON.stringify(first)}`);
-    if (shell(`${button}._messageItem.visible`)) throw new Error('the fallback showed a message');
-    await waitFor('Stop', () => toggleItem() === 'Stop' || toggleItem());
-    before = mockCalls().length;
-    shell(`${button}._toggleItem.activate(null)`);
-    await waitFor('Stop', () => (mockCalls().length > before && lastCall()[0] === 'Stop') || mockCalls());
-    await waitFor('Stopped', () => timerProperty('Running') === false);
-    const second = mockCalls().slice(before);
-    if (JSON.stringify(second) !== JSON.stringify([['Stop']])) throw new Error(`Stop sent ${JSON.stringify(second)}`);
-    actAsOlderService(false);
     await waitFor('InterfaceVersion 1', () => version() === 1 || version());
+    const outdated = 'This timer service is too old; update tokkl-timerd.';
+    await waitFor('the update line', () => statusLine() === outdated || statusLine());
+    await waitFor('the mark', () => label() === '0:00!' || label());
+    if (sensitive('_toggleItem') || sensitive('_projectMenu') || sensitive('_billableItem'))
+        throw new Error('a control stayed sensitive');
+    if (shell(`${button}._detailItem.visible`)) throw new Error('a detail showed');
+    if (shell(`${button}._messageItem.visible`)) throw new Error('a message showed');
+    const before = mockCalls().length;
+    shell(`${button}._toggleItem.activate(null)`);
+    shell(`${button}._activate()`);
+    await waitFor('the menu', () => menuOpen() === true);
+    await delay(300);
+    const sent = mockCalls().slice(before);
+    if (sent.length) throw new Error(`the older service got ${JSON.stringify(sent)}`);
+    shell(`${button}.menu.close()`);
+    actAsOlderService(false);
+    await waitFor('InterfaceVersion 2', () => version() === 2 || version());
     await waitFor('0:00', () => label() === '0:00' || label());
 });
 

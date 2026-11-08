@@ -1,13 +1,12 @@
 // The words the button's time, accessible name and status line show, from
-// the Presentation property or, for a service without it, from
-// legacyPresentation(), against the fixture the core's test reads too:
+// the Presentation property, against the fixture the core's test reads too:
 //   node --test 'desktop/gnome/extension/**/*.test.js'
 
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
-import { MARKS, describeTime, legacyPresentation, partTexts } from '../menumodel.js';
+import { MARKS, describeTime, partTexts } from '../menumodel.js';
 import { describeStatus, statusWords } from '../timer1.js';
 
 const identity = text => text;
@@ -40,23 +39,20 @@ test('every key of the core has words', () => {
     for (const status of keys.statuses) assert.ok(statusWords(status, '', identity), `status ${status}`);
 });
 
-test('a service without Presentation gets the parts of the GNOME policy', () => {
-    assert.ok(cases.length > 100);
-    for (const { input, gnome } of cases) {
-        assert.deepEqual(legacyPresentation(timeOf(input), wordsOf(input)), gnome, JSON.stringify(input));
-    }
-});
-
-test('the published Presentation and the fallback show the same words', () => {
-    for (const { input, gnome } of cases) {
-        const time = timeOf(input);
-        const words = wordsOf(input);
-        assert.deepEqual(
-            describeTime({ ...time, presentation: gnome }, words, 'Project Alpha', 1000, identity),
-            describeTime(time, words, 'Project Alpha', 1000, identity),
-            JSON.stringify(input),
-        );
-    }
+test('without a service the status line is the connection alone, and the time is marked', () => {
+    const time = {
+        ...timeOf({ status: null, paused: false, pomodoroMode: false, showsSession: false }),
+        presentation: null,
+    };
+    const words = describeStatus(null, '', identity);
+    assert.deepEqual(describeTime(time, words, 'No project', 1000, identity), {
+        button: '0:10!',
+        status: 'Timer service not running',
+        accessibleName:
+            'Stopped · No project · Timer service not running · Install tokkl-timerd, or check its log with journalctl --user -u tokkl-timerd.',
+    });
+    const outdated = describeStatus('ready', '', identity, 0);
+    assert.equal(describeTime(time, outdated, 'No project', 1000, identity).status, outdated.text);
 });
 
 test('each part has its words, and a part without any is left out', () => {

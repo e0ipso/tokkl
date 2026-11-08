@@ -26,15 +26,14 @@ struct PomodoroRange {
     {
         return value >= min && value <= max;
     }
+
+    bool operator==(const PomodoroRange &other) const = default;
 };
 
-// The account's Pomodoro lengths, which a session keeps from its start.
+// The account's Pomodoro lengths, which a session keeps from its start. The
+// values here show only until a server answers; the server's
+// pomodoro_limits (PomodoroLimits) name its own defaults and ranges.
 struct PomodoroConfig {
-    static constexpr PomodoroRange workMinutesRange{1, 180};
-    static constexpr PomodoroRange shortRestMinutesRange{1, 60};
-    static constexpr PomodoroRange longRestMinutesRange{1, 60};
-    static constexpr PomodoroRange longRestEveryRange{1, 12};
-
     // Phase lengths in whole minutes.
     int workMinutes = 25;
     int shortRestMinutes = 5;
@@ -42,10 +41,41 @@ struct PomodoroConfig {
     // A long rest follows every this many ended work phases.
     int longRestEvery = 4;
 
-    // True when every value is inside its range.
-    bool isValid() const;
-
     bool operator==(const PomodoroConfig &other) const = default;
+};
+
+// The PomodoroConfig fields that GET and POST /api/app/me/preferences hold,
+// one key each.
+enum class PomodoroField {
+    WorkMinutes,
+    ShortRestMinutes,
+    LongRestMinutes,
+    LongRestEvery,
+};
+
+// The range and default of each Pomodoro length a server accepts, as GET
+// /api/app/status announces them in pomodoro_limits. The server checks every
+// saved length against them; the client takes them from there and keeps no
+// copy.
+struct PomodoroLimits {
+    PomodoroRange workMinutes;
+    PomodoroRange shortRestMinutes;
+    PomodoroRange longRestMinutes;
+    PomodoroRange longRestEvery;
+    PomodoroConfig defaults;
+
+    PomodoroRange range(PomodoroField field) const;
+    // One map per length, keyed workMinutes, shortRestMinutes,
+    // longRestMinutes and longRestEvery, with min, max and default.
+    QVariantMap toVariantMap() const;
+
+    // For a settings field that shows a length before any server announced
+    // its limits, and cannot be edited then: every range is 1 to 999, wide
+    // enough for what a field shows, and the defaults are PomodoroConfig's.
+    // Nothing is checked against it.
+    static PomodoroLimits placeholder();
+
+    bool operator==(const PomodoroLimits &other) const = default;
 };
 
 enum class PhaseKind {
@@ -74,24 +104,41 @@ std::optional<TransitionKind> parseTransitionKind(QStringView name);
 bool isTimeResolution(qint64 minutes);
 
 // What the server's /api/app offers, as GET /api/app/status announces it in
-// api_version and capabilities. A server from before the announcement
-// sends neither and has none of the capabilities; names the client does not
-// know are ignored. The client picks its routes from these and never from
-// a 404, which a current server also answers for a missing project or
-// workspace.
+// api_version and capabilities. A server from before the announcement sends
+// neither. The client never picks a route from a 404, which a current
+// server also answers for a missing project or workspace.
 struct ServerApi {
     // 0 when the server announces no version.
     qint64 version = 0;
-    // "app-preferences": GET and POST /api/app/me/preferences.
-    bool appPreferences = false;
-    // "timer-actions": the revisioned start and stop under /api/app/timer.
-    bool timerActions = false;
-    // "timer-edit": POST /api/app/timer/edit.
-    bool timerEdit = false;
-    // "pomodoro-revision": POST /api/app/pomodoro checks a revision.
-    bool pomodoroRevision = false;
+    // The capability names as announced, also the ones this client does not
+    // know.
+    QStringList capabilities;
+    // The Pomodoro lengths it accepts; none when the status had no readable
+    // pomodoro_limits.
+    std::optional<PomodoroLimits> pomodoroLimits;
+
+    // The server is ServerFloor or newer.
+    bool isSupported() const;
 
     bool operator==(const ServerApi &other) const = default;
+};
+
+// The oldest Tokkl server this app supports, stated here and nowhere else:
+// the first release after 2.1.0. Its GET /api/app/status announces
+// api_version 1 and these capabilities, and the client relies on each:
+//   "app-preferences": GET and POST /api/app/me/preferences.
+//   "timer-actions": the revisioned start and stop under /api/app/timer.
+//   "pause-revision": POST /api/app/timer/pause checks a revision.
+//   "pomodoro-revision": POST /api/app/pomodoro checks a revision.
+//   "timer-edit-entry": POST /api/app/timer/edit names the running entry.
+//   "idempotency-keys": the timer and Pomodoro starts take an
+//   Idempotency-Key.
+// The same status also carries pomodoro_limits, which the client needs too.
+// Against an older server no account binds, and the connection says the
+// server needs an update.
+struct ServerFloor {
+    static constexpr qint64 apiVersion = 1;
+    static QStringList capabilities();
 };
 
 // GET /api/v9/me. The response also carries api_token, which is a credential
@@ -163,8 +210,7 @@ struct ListedEntry {
     bool projectBillable = false;
 };
 
-// A running entry to start: the body of POST /api/app/timer/start, or of POST
-// /workspaces/{wid}/time_entries on a server without that route. A task and
+// A running entry to start: the body of POST /api/app/timer/start. A task and
 // tags are sent only when set. Tags go by name, and the server creates a name
 // the workspace lacks.
 struct StartEntry {
@@ -176,9 +222,11 @@ struct StartEntry {
     QStringList tags;
 };
 
-// Fields to change with PUT /workspaces/{wid}/time_entries/{id}. Unset fields
-// are left out of the request, so the server keeps them. A project or task of
-// std::nullopt inside the outer optional is sent as null and clears it.
+// Fields to change on an entry, with POST /api/app/timer/edit for the
+// running one (encodeTimerEdit) or PUT /workspaces/{wid}/time_entries/{id}
+// (encodeTimeEntryUpdate). Unset fields are left out of the request, so the
+// server keeps them. A project or task of std::nullopt inside the outer
+// optional is sent as null and clears it.
 struct TimeEntryUpdate {
     std::optional<QString> description;
     std::optional<std::optional<qint64>> projectId;
@@ -254,19 +302,10 @@ struct PomodoroStart {
     std::optional<bool> billable;
 };
 
-// The PomodoroConfig fields that GET and POST /api/v9/me/preferences hold,
-// one key each.
-enum class PomodoroField {
-    WorkMinutes,
-    ShortRestMinutes,
-    LongRestMinutes,
-    LongRestEvery,
-};
-
 // The preference key of field, such as "pomodoro_focus_interval_in_minutes".
 QString pomodoroPreferenceKey(PomodoroField field);
 
-// Pomodoro lengths to change with POST /api/v9/me/preferences. Unset fields
+// Pomodoro lengths to change with POST /api/app/me/preferences. Unset fields
 // are left out of the request. The server merges the posted keys into the
 // stored preferences, so it keeps the unset ones and every other client's.
 struct PomodoroConfigUpdate {
@@ -287,7 +326,7 @@ struct ApiError {
         Network, // no HTTP answer
         Timeout,
         Server, // 5xx
-        RateLimited, // 429, or a cooldown from an earlier 429
+        RateLimited, // 429, or a cooldown from an earlier 429 or 503 (asksToWait())
         Forbidden, // 403
         Unauthorized, // 401
         Redirect, // 3xx; redirects are not followed
@@ -358,17 +397,15 @@ public:
     Outcome outcome = Outcome::Unknown;
     std::optional<TimerState> state; // for Applied and Conflict
     ApiError error; // Kind::None for Applied
-    // For an Applied start or stop that went to a v9 entry route instead,
-    // on a server without the app route: the entry it answered with, and
-    // no state.
-    std::optional<TimeEntry> entry;
 };
 
 // Decoders for the API's bare JSON bodies. Each returns nullopt when the
 // value does not have the expected shape.
 std::optional<Me> decodeMe(const QJsonValue &value);
-// The api_version and capabilities of a GET /api/app/status object. Never
-// fails: a field missing or unreadable reads as not announced.
+// The api_version, capabilities and pomodoro_limits of a GET
+// /api/app/status object. Never fails: a field missing or unreadable reads
+// as not announced, which leaves the server below ServerFloor. A limit reads
+// only with integers where 1 <= min <= default <= max.
 ServerApi decodeServerApi(const QJsonObject &status);
 std::optional<Project> decodeProject(const QJsonValue &value);
 std::optional<QList<Project>> decodeProjects(const QJsonValue &value);
@@ -378,9 +415,10 @@ std::optional<QList<TimeEntry>> decodeTimeEntries(const QJsonValue &value);
 std::optional<std::optional<TimeEntry>> decodeCurrentEntry(const QJsonValue &value);
 std::optional<QList<ListedEntry>> decodeListedEntries(const QJsonValue &value);
 // The Pomodoro lengths in a preferences object. As on the server, a value
-// that is missing, not an integer or out of its range reads as its default,
-// one key at a time. nullopt only for a value that is not an object.
-std::optional<PomodoroConfig> decodePomodoroPreferences(const QJsonValue &value);
+// that is missing, not an integer or outside its range in limits reads as
+// its default there, one key at a time. nullopt only for a value that is not
+// an object.
+std::optional<PomodoroConfig> decodePomodoroPreferences(const QJsonValue &value, const PomodoroLimits &limits);
 // Every field of the state and of what it holds must have its type, and a
 // running entry must run; nullopt otherwise. The running entry, pause,
 // session and discarded pomodoro must be present; null means none.
@@ -394,29 +432,34 @@ std::optional<QJsonValue> parseJsonBody(const QByteArray &body);
 // a bare JSON string.
 ApiError errorFromResponse(const HttpResponse &response);
 
+// The server asks the client to wait before it sends anything more: a 429,
+// or a 503 with Retry-After. The session's cooldown honours it. A 503
+// without the header is a plain server error.
+bool asksToWait(const HttpResponse &response);
+
 // The account in an answer to GET /api/v9/me, or why there is none. A 2xx
 // answer that is not an account is InvalidResponse, with a message that
 // points at the instance URL.
 ApiResult<Me> meFromResponse(const HttpResponse &response);
 
 // What an answer to GET /api/app/status announces. Anything but a 2xx JSON
-// object, such as a failure or an older server's 404, announces nothing.
+// object, such as an older server's 404, announces nothing.
 ServerApi serverApiFromResponse(const HttpResponse &response);
 
-// createdWith names the client that starts the entry. The v9 body carries
-// duration -1; the timer start carries the revision it applies to instead.
-QByteArray encodeStartEntry(const StartEntry &entry, qint64 workspaceId, const QString &createdWith);
+// createdWith names the client that starts the entry, and revision is the
+// state it applies to.
 QByteArray encodeTimerStart(qint64 revision, const StartEntry &entry, qint64 workspaceId, const QString &createdWith);
 QByteArray encodeTimeEntryUpdate(const TimeEntryUpdate &update);
 // POST /api/app/timer/edit: the fields update sets, apart from start, and
-// the revision the edit applies to.
-QByteArray encodeTimerEdit(qint64 revision, const TimeEntryUpdate &update);
+// the running entry the edit applies to. The server refuses it with a 409
+// only once that entry has stopped, whatever else changed since.
+QByteArray encodeTimerEdit(qint64 entryId, const TimeEntryUpdate &update);
 QByteArray encodePomodoroConfigUpdate(const PomodoroConfigUpdate &update);
 // {"revision":n}, for an action that applies only to the state it was sent
 // against.
 QByteArray encodeRevision(qint64 revision);
-// With a revision, the server starts the session only on the state the
+// The server starts the session only on the state at revision, the one the
 // user saw.
-QByteArray encodePomodoroStart(const PomodoroStart &start, qint64 workspaceId, const QString &createdWith, std::optional<qint64> revision = std::nullopt);
+QByteArray encodePomodoroStart(const PomodoroStart &start, qint64 workspaceId, const QString &createdWith, qint64 revision);
 
 }

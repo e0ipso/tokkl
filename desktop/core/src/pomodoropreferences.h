@@ -18,13 +18,15 @@ namespace Tokkl
 // The lengths are read each time the connection becomes Connected and on
 // refresh(). Without a usable connection the lengths last read for the
 // account show, and cannot be edited. Until a read answers for an account,
-// the defaults show. A session takes its lengths on the server, so these are
+// the defaults show: the server's from its pomodoro_limits, or
+// PomodoroConfig's before a server announced any. The range of each length
+// is the server's too, kept until another server announces its own, and
+// PomodoroLimits::placeholder() before the first. A session takes its lengths on the server, so these are
 // only for showing and editing.
 //
-// save() posts only the lengths that differ from the ones shown. A 400 that
-// names one of the four keys is that field's error: in its Tokkl-Error-Field
-// header, or in the message of a server that sends no such header. Any other
-// failure is the general error. A read issued while a save runs, or before one
+// save() posts only the lengths that differ from the ones shown. A 400 whose
+// Tokkl-Error-Field header names one of the four keys is that field's error.
+// Any other failure is the general error. A read issued while a save runs, or before one
 // started, does not replace what the save returned.
 //
 // Everything is tied to the connection's generation. A new one clears the
@@ -49,9 +51,8 @@ class PomodoroPreferences : public QObject
     // A failed read, or a failed save that names no field.
     Q_PROPERTY(QString errorString READ errorString NOTIFY stateChanged)
     // The range and default of each length, so settings pages do not repeat
-    // them: one map per length, keyed workMinutes, shortRestMinutes,
-    // longRestMinutes and longRestEvery, with min, max and default.
-    Q_PROPERTY(QVariantMap limits READ limits CONSTANT)
+    // them: PomodoroLimits::toVariantMap() of pomodoroLimits().
+    Q_PROPERTY(QVariantMap limits READ limits NOTIFY limitsChanged)
 
 public:
     // Uses the connection, which it does not own.
@@ -62,7 +63,8 @@ public:
     // it; empty while they are the defaults of no account. An edit made on
     // these lengths is meant for this account only.
     QString owner() const;
-    static QVariantMap limits();
+    PomodoroLimits pomodoroLimits() const;
+    QVariantMap limits() const;
     int workMinutes() const;
     int shortRestMinutes() const;
     int longRestMinutes() const;
@@ -89,6 +91,8 @@ public Q_SLOTS:
 Q_SIGNALS:
     // The lengths changed.
     void changed();
+    // Another server announced other limits.
+    void limitsChanged();
     // editable, saving or an error changed.
     void stateChanged();
     // A read of the current generation ended, also one the connection
@@ -100,6 +104,7 @@ private:
     void onGenerationChanged();
     // Shows the defaults when the connection's owner changed.
     void followOwner();
+    void followLimits();
     void fetch();
     void finishRead(const ApiResult<PomodoroConfig> &result, quint64 number, bool current);
     void finishSave(const ApiResult<PomodoroConfig> &result);
@@ -109,6 +114,7 @@ private:
 
     QPointer<Connection> m_connection;
     QString m_owner;
+    PomodoroLimits m_limits = PomodoroLimits::placeholder();
     PomodoroConfig m_config;
     // Connected with a validated account, as last seen. Reset by a new
     // generation, so the next account reads its lengths too.

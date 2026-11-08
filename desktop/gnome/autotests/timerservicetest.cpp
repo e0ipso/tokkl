@@ -722,6 +722,7 @@ private Q_SLOTS:
             {QStringLiteral("ProjectsIncomplete"), QStringLiteral("b read")},
             {QStringLiteral("ChosenProject"), QStringLiteral("x read")},
             {QStringLiteral("ChosenProjectName"), QStringLiteral("s read")},
+            {QStringLiteral("ChosenProjectLabel"), QStringLiteral("a{sv} read")},
             {QStringLiteral("Billable"), QStringLiteral("b read")},
             {QStringLiteral("Status"), QStringLiteral("s read")},
             {QStringLiteral("ErrorString"), QStringLiteral("s read")},
@@ -754,7 +755,7 @@ private Q_SLOTS:
         // fallbacks by.
         const QVariant version = f.get(QStringLiteral("InterfaceVersion"));
         QCOMPARE(version.metaType(), QMetaType::fromType<uint>());
-        QCOMPARE(version.toUInt(), 1u);
+        QCOMPARE(version.toUInt(), 2u);
         const QMap<QString, QStringList> methods{
             {QStringLiteral("Start"), {QStringLiteral("out b")}},
             {QStringLiteral("Stop"), {QStringLiteral("out b")}},
@@ -942,12 +943,11 @@ private Q_SLOTS:
         QCOMPARE(f.get(QStringLiteral("ChosenProject")).toLongLong(), 12);
 
         // Billable stays editable: one timer edit that carries only billable,
-        // against the revision shown.
+        // naming the running entry.
         QCOMPARE(f.result(QStringLiteral("SetBillable"), {QVariant(true)}).toBool(), true);
         const QList<qsizetype> updates = f.find("POST", "/app/timer/edit");
         QCOMPARE(updates.size(), 1);
-        QJsonObject expected = revisionBody(f.revision);
-        expected.insert(QStringLiteral("billable"), true);
+        const QJsonObject expected{{QStringLiteral("billable"), true}, {QStringLiteral("entry_id"), 5}};
         QCOMPARE(QJsonDocument::fromJson(f.transport.requests.at(updates.first()).body).object(), expected);
         QVERIFY(f.find("PUT", "/workspaces/7/time_entries/5").isEmpty());
         f.respond(updates.first(), FakeTransport::answer(200, f.change(entryObject(5, 12, true, true))));
@@ -1122,6 +1122,12 @@ private Q_SLOTS:
         }));
         QCOMPARE(f.get(QStringLiteral("IndicatorColor")).toString(), QStringLiteral("#2da608"));
         QCOMPARE(f.get(QStringLiteral("ChosenProjectName")).toString(), QStringLiteral("Legacy"));
+        // The label's parts say it is archived, so the extension words it
+        // as the KDE and macOS menus do.
+        const QVariantMap label = qdbus_cast<QVariantMap>(f.get(QStringLiteral("ChosenProjectLabel")));
+        QCOMPARE(label.value(QStringLiteral("name")).toString(), QStringLiteral("Legacy"));
+        QCOMPARE(label.value(QStringLiteral("archived")).toBool(), true);
+        QCOMPARE(label.value(QStringLiteral("missing")).toBool(), false);
         const QList<QVariantMap> projects = qdbus_cast<QList<QVariantMap>>(f.get(QStringLiteral("Projects")));
         for (const QVariantMap &project : projects) {
             QVERIFY(project.value(QStringLiteral("id")).toLongLong() != 99);
@@ -1151,11 +1157,12 @@ private Q_SLOTS:
         qint64 total = 0;
         qint64 running = 5;
         for (const qint64 seconds : {qint64(60), qint64(300)}) {
-            // Pause sends one request, and the entry stops when the server
-            // says so.
+            // Pause sends one request against the revision shown, and the
+            // entry stops when the server says so.
+            const qint64 pausedAt = f.revision;
             QCOMPARE(f.result(QStringLiteral("Pause")).toBool(), true);
             const QList<qsizetype> pauses = f.find("POST", "/timer/pause");
-            QCOMPARE(f.transport.requests.at(pauses.last()).body, QByteArray("{}"));
+            QCOMPARE(f.transport.requests.at(pauses.last()).body, json(revisionBody(pausedAt)));
             QCOMPARE(f.result(QStringLiteral("Pause")).toBool(), false);
             QVERIFY(f.find("PATCH", "/stop").isEmpty());
             total += seconds;
@@ -1857,9 +1864,15 @@ private Q_SLOTS:
     {
         Fixture f;
         QVERIFY(f.start());
-        const QDBusArgument argument = f.get(QStringLiteral("PomodoroLengthLimits")).value<QDBusArgument>();
-        const QMap<QString, IntMap> limits = qdbus_cast<QMap<QString, IntMap>>(argument);
-        const QVariantMap core = PomodoroPreferences::limits();
+        const auto published = [&f] {
+            return qdbus_cast<QMap<QString, IntMap>>(f.get(QStringLiteral("PomodoroLengthLimits")).value<QDBusArgument>());
+        };
+        // Before a server announced any, the core's placeholder.
+        QCOMPARE(published().value(QStringLiteral("work")).value(QStringLiteral("max")), PomodoroLimits::placeholder().workMinutes.max);
+        QVERIFY(f.connect());
+        QTRY_COMPARE(published().value(QStringLiteral("work")).value(QStringLiteral("max")), 180);
+        const QMap<QString, IntMap> limits = published();
+        const QVariantMap core = decodeServerApi(currentServerApi()).pomodoroLimits->toVariantMap();
         const StringMap names{
             {QStringLiteral("work"), QStringLiteral("workMinutes")},
             {QStringLiteral("shortRest"), QStringLiteral("shortRestMinutes")},
@@ -1876,8 +1889,8 @@ private Q_SLOTS:
             };
             QCOMPARE(limits.value(it.key()), expected);
         }
-        QCOMPARE(limits.value(QStringLiteral("work")).value(QStringLiteral("max")), PomodoroConfig::workMinutesRange.max);
-        QCOMPARE(limits.value(QStringLiteral("longRestEvery")).value(QStringLiteral("default")), PomodoroConfig().longRestEvery);
+        QCOMPARE(limits.value(QStringLiteral("longRestEvery")).value(QStringLiteral("default")), 4);
+        QVERIFY(f.recorder.valuesOf(QStringLiteral("PomodoroLengthLimits")).size() >= 1);
     }
 
     void pomodoroLengthsOverTheBus()
@@ -1904,7 +1917,9 @@ private Q_SLOTS:
         // Nothing else is sent while the save runs.
         QCOMPARE(f.result(QStringLiteral("SetPomodoroLengths"), {2, 1, 1, 2}).toBool(), false);
         const QString refused = QStringLiteral("Invalid pomodoro_focus_interval_in_minutes: expected an integer from 1 to 180");
-        f.respond(saves.first(), FakeTransport::answer(400, errorBody("Invalid pomodoro_focus_interval_in_minutes: expected an integer from 1 to 180")));
+        HttpResponse refusal = FakeTransport::answer(400, errorBody("Invalid pomodoro_focus_interval_in_minutes: expected an integer from 1 to 180"));
+        refusal.errorField = "pomodoro_focus_interval_in_minutes";
+        f.respond(saves.first(), refusal);
         const StringMap workError{{QStringLiteral("work"), refused}};
         QCOMPARE(qdbus_cast<StringMap>(f.get(QStringLiteral("PomodoroLengthErrors"))), workError);
         QCOMPARE(qdbus_cast<IntMap>(f.get(QStringLiteral("PomodoroLengths"))), lengthsMap(lengths));

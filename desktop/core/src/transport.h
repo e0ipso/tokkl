@@ -16,6 +16,10 @@ struct HttpRequest {
     QUrl url;
     QByteArray authorization; // full header value; never logged
     QByteArray body; // JSON, empty for none
+    // Sent as the Idempotency-Key header when not empty: the same key with
+    // the same request makes the server answer what the first one did
+    // instead of acting again.
+    QByteArray idempotencyKey;
 };
 
 struct HttpResponse {

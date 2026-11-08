@@ -25,7 +25,7 @@ const QByteArray listPath = "/me/time_entries";
 const QByteArray startPath = "/app/timer/start";
 const QByteArray stopPath = "/app/timer/stop";
 const QByteArray editPath = "/app/timer/edit";
-// The v9 route of a server from before the app's start and stop.
+// The v9 create route, which a start never uses.
 const QByteArray v9StartPath = "/v9/workspaces/7/time_entries";
 
 // The account. What its server announces comes from GET /api/app/status.
@@ -212,9 +212,6 @@ class TimerControllerTest : public QObject
         TimerController timer{&clock};
         QSet<qsizetype> answered;
         qint64 revision = 0; // of the last state built
-        // connectAccount() signs in to a server from before the
-        // capabilities.
-        bool olderServer = false;
 
         Fixture()
         {
@@ -309,7 +306,6 @@ class TimerControllerTest : public QObject
                                const QJsonValue &pause = QJsonValue::Null,
                                const QJsonValue &pomodoro = QJsonValue::Null)
     {
-        f.transport.status = f.olderServer ? FakeTransport::olderStatus() : FakeTransport::currentStatus();
         f.store.secrets.insert(credentialKey(parseInstanceUrl(url), AuthMode::Token, QString()), token);
         const qsizetype before = f.transport.requests.size();
         f.connection.setInstanceUrl(url);
@@ -338,15 +334,16 @@ class TimerControllerTest : public QObject
         }
     }
 
-    // A click pauses the running entry. The server answers with the paused
-    // chain, which now holds seconds.
+    // A click pauses the running entry against the revision shown. The
+    // server answers with the paused chain, which now holds seconds.
     static bool pauseEntry(Fixture &f, qint64 seconds)
     {
+        const QByteArray shown = json(QJsonObject{{QStringLiteral("revision"), f.revision}});
         if (!f.timer.isRunning() || !f.timer.toggle()) {
             return false;
         }
         const qsizetype post = f.last("POST", "/timer/pause");
-        if (!f.unanswered(post) || f.transport.requests.at(post).body != "{}") {
+        if (!f.unanswered(post) || f.transport.requests.at(post).body != shown) {
             return false;
         }
         f.respond(post, f.stateAnswer("null", pauseObject(true, seconds)));
@@ -414,8 +411,11 @@ private Q_SLOTS:
         QVERIFY(f.answerState("null"));
         QVERIFY(f.timer.chooseProject(QVariant::fromValue(nullptr)));
         QVERIFY(f.timer.chosenProjectDetails().isNull());
+        QCOMPARE(f.timer.chosenProjectLabel(), ProjectLabelParts());
         QVERIFY(f.timer.chooseProject(11));
         QCOMPARE(f.timer.chosenProjectDetails().toMap().value(QStringLiteral("id")).toLongLong(), 11);
+        QCOMPARE(f.timer.chosenProjectLabel().name, QStringLiteral("Alpha"));
+        QCOMPARE(f.timer.chosenProjectLabelVariant().value(QStringLiteral("name")).toString(), QStringLiteral("Alpha"));
     }
 
     void exposesContextAndEntry()
@@ -757,55 +757,30 @@ private Q_SLOTS:
         QCOMPARE(f.find("POST", startPath).size(), 1);
     }
 
-    // A server that does not announce timer-actions gets the v9 start,
-    // whose reply is an entry, so the state that shows it comes from a
-    // read, and the v9 stop. The app routes are never tried on it. Another
-    // account on a current server gets the app routes.
-    void olderServerGetsTheV9Writes()
+    // A server below the floor binds no account: the timer shows the
+    // connection's error, which asks for a server update, and no write or
+    // timer read goes out.
+    void olderServerIsTooOld()
     {
         Fixture f;
-        f.olderServer = true;
-        QVERIFY(connectAccount(f, instanceA, 3, 7, "null"));
-        QVERIFY(f.timer.chooseProject(11));
-        QVERIFY(f.timer.start());
-        QVERIFY(f.find("POST", startPath).isEmpty());
-        QVERIFY(f.timer.isBusy());
-        const qsizetype post = f.last("POST", v9StartPath);
-        QVERIFY(f.unanswered(post));
-        const QJsonObject body = QJsonDocument::fromJson(f.transport.requests.at(post).body).object();
-        QCOMPARE(body.value(QStringLiteral("duration")).toInt(), -1);
-        QCOMPARE(body.value(QStringLiteral("project_id")).toInteger(), 11);
-        QCOMPARE(body.value(QStringLiteral("created_with")).toString(), testClientName());
-        QVERIFY(!body.contains(QStringLiteral("revision")));
+        f.transport.status = FakeTransport::olderStatus();
+        f.store.secrets.insert(credentialKey(parseInstanceUrl(instanceA), AuthMode::Token, QString()), token);
+        f.connection.setInstanceUrl(instanceA);
+        QTRY_COMPARE(f.transport.requests.size(), 1);
+        f.respond(0, FakeTransport::answer(200, meBody(3, 7)));
+        QCOMPARE(f.timer.status(), TimerController::Error);
+        QCOMPARE(f.timer.errorString(), QStringLiteral("This Tokkl server is too old for this app; update the server."));
+        QVERIFY(!f.timer.isConnected());
+        QVERIFY(!f.timer.start());
+        QCOMPARE(f.transport.requests.size(), 1);
 
-        const qsizetype reads = f.stateReads();
-        f.respond(post, FakeTransport::answer(200, entryBody(21, 7, startedAt, true, 11)));
-        QVERIFY(f.timer.isBusy());
-        QVERIFY(!f.timer.isRunning());
-        QCOMPARE(f.stateReads(), reads + 1);
-        QVERIFY(f.answerState(entryBody(21, 7, startedAt, true, 11)));
-        QVERIFY(f.timer.isRunning());
-        QVERIFY(!f.timer.isBusy());
-
-        // The stop goes to v9, and its reply names the project the server
-        // stopped: none, as the web cleared it since the last read.
-        QVERIFY(f.timer.stop());
-        QCOMPARE(f.find("POST", stopPath).size(), 0);
-        const qsizetype stop = f.last("PATCH", "/v9/workspaces/7/time_entries/21/stop");
-        QVERIFY(f.unanswered(stop));
-        f.respond(stop, FakeTransport::answer(200, entryBody(21, 7, startedAt, false)));
-        QVERIFY(f.timer.isBusy());
-        QVERIFY(f.answerState("null"));
-        QVERIFY(!f.timer.isRunning());
-        QVERIFY(f.timer.chosenProjectId().isNull());
-        QVERIFY(f.find("POST", startPath).isEmpty());
-
-        // Another account on a current server: the app route.
-        f.olderServer = false;
-        QVERIFY(connectAccount(f, instanceB, 4, 7, "null"));
-        QVERIFY(f.timer.start());
-        QCOMPARE(f.find("POST", startPath).size(), 1);
-        QCOMPARE(f.find("POST", v9StartPath).size(), 1);
+        // Updated: a reconnect asks the server again and binds.
+        f.transport.status = FakeTransport::currentStatus();
+        f.timer.reconnect();
+        QTRY_COMPARE(f.transport.requests.size(), 2);
+        QCOMPARE(f.transport.statusRequests.size(), 2);
+        f.respond(1, FakeTransport::answer(200, meBody(3, 7)));
+        QVERIFY(f.timer.isConnected());
     }
 
     // On a current server a 404 from the app stop, an entry or workspace
@@ -843,7 +818,7 @@ private Q_SLOTS:
         QCOMPARE(f.find("POST", "/timer/pause").size(), 1);
         const qsizetype pause = f.last("POST", "/timer/pause");
         QCOMPARE(f.transport.requests.at(pause).url.path(), QStringLiteral("/api/app/timer/pause"));
-        QCOMPARE(f.transport.requests.at(pause).body, QByteArray("{}"));
+        QCOMPARE(f.transport.requests.at(pause).body, json(QJsonObject{{QStringLiteral("revision"), f.revision}}));
         QVERIFY(f.find("POST", stopPath).isEmpty());
         f.respond(pause, f.stateAnswer("null", pauseObject(true, 65)));
         QVERIFY(f.timer.isPaused());
@@ -1346,12 +1321,12 @@ private Q_SLOTS:
         QVERIFY(!f.timer.isBusy());
 
         // Billable still edits the running entry, with billable alone,
-        // against the revision shown.
+        // naming that entry.
         QVERIFY(f.timer.chooseBillable(true));
         const qsizetype edit = f.last("POST", editPath);
         QVERIFY(f.unanswered(edit));
         QCOMPARE(QJsonDocument::fromJson(f.transport.requests.at(edit).body).object(),
-                 QJsonObject({{QStringLiteral("billable"), true}, {QStringLiteral("revision"), f.revision}}));
+                 QJsonObject({{QStringLiteral("billable"), true}, {QStringLiteral("entry_id"), 5}}));
 
         // Stopped, the project is a choice again.
         f.respond(edit, f.stateAnswer(entryBody(5, 7, startedAt)));
@@ -1364,7 +1339,7 @@ private Q_SLOTS:
         QVERIFY(f.find("PUT", "/time_entries/5").isEmpty());
     }
 
-    // On a current server the billable edit goes through the timer and
+    // The billable edit goes through the timer, names the running entry and
     // answers with the state, which shows it at once: no v9 PUT, no read.
     void billableEditGoesThroughTheTimer()
     {
@@ -1376,7 +1351,7 @@ private Q_SLOTS:
         QVERIFY(!f.timer.chooseBillable(false));
         const qsizetype edit = f.last("POST", editPath);
         QCOMPARE(QJsonDocument::fromJson(f.transport.requests.at(edit).body).object(),
-                 QJsonObject({{QStringLiteral("billable"), true}, {QStringLiteral("revision"), f.revision}}));
+                 QJsonObject({{QStringLiteral("billable"), true}, {QStringLiteral("entry_id"), 5}}));
 
         QJsonObject edited = entryObject(5, 7, startedAt);
         edited.insert(QStringLiteral("billable"), true);
@@ -1388,46 +1363,30 @@ private Q_SLOTS:
         QVERIFY(f.find("PUT", "/time_entries/5").isEmpty());
     }
 
-    // A 409 whose state still runs the same entry: only the revision moved,
-    // so the edit is applied once more at the new revision. A second 409
-    // shows as a conflict and nothing more is sent.
-    void billableEditReappliesOnceForTheSameEntry_data()
+    // The edit names its entry, so a change elsewhere that leaves the entry
+    // running does not refuse it. A 409 comes only once that entry stopped:
+    // it shows as a conflict and nothing is sent again.
+    void billableEditAppliesAfterAChangeElsewhere()
     {
-        QTest::addColumn<bool>("secondApplies");
-        QTest::newRow("applied at the new revision") << true;
-        QTest::newRow("refused again") << false;
-    }
-
-    void billableEditReappliesOnceForTheSameEntry()
-    {
-        QFETCH(bool, secondApplies);
         Fixture f;
         QVERIFY(connectAccount(f));
+        // Another device moved the timer on; the entry still runs.
+        QVERIFY(f.push(entryBody(5, 7, startedAt)));
         QVERIFY(f.timer.chooseBillable(true));
-        f.respond(f.last("POST", editPath), FakeTransport::answer(409, f.nextState(entryBody(5, 7, startedAt))));
-        QVERIFY(f.timer.isBusy());
-        QCOMPARE(f.find("POST", editPath).size(), 2);
-        const qsizetype again = f.last("POST", editPath);
-        QCOMPARE(QJsonDocument::fromJson(f.transport.requests.at(again).body).object(),
-                 QJsonObject({{QStringLiteral("billable"), true}, {QStringLiteral("revision"), f.revision}}));
-
+        const qsizetype edit = f.last("POST", editPath);
+        QCOMPARE(QJsonDocument::fromJson(f.transport.requests.at(edit).body).object().value(QStringLiteral("entry_id")).toInteger(), 5);
+        QVERIFY(!QJsonDocument::fromJson(f.transport.requests.at(edit).body).object().contains(QStringLiteral("revision")));
         QJsonObject edited = entryObject(5, 7, startedAt);
         edited.insert(QStringLiteral("billable"), true);
-        if (secondApplies) {
-            f.respond(again, f.stateAnswer(json(edited)));
-            QVERIFY(f.timer.chosenBillable());
-            QVERIFY(f.timer.errorString().isEmpty());
-        } else {
-            f.respond(again, FakeTransport::answer(409, f.nextState(entryBody(5, 7, startedAt))));
-            QVERIFY(!f.timer.chosenBillable());
-            QCOMPARE(f.timer.errorString(), QStringLiteral("The timer changed on another device first."));
-        }
+        f.respond(edit, f.stateAnswer(json(edited)));
         QVERIFY(!f.timer.isBusy());
-        QCOMPARE(f.find("POST", editPath).size(), 2);
+        QVERIFY(f.timer.chosenBillable());
+        QVERIFY(f.timer.errorString().isEmpty());
+        QCOMPARE(f.find("POST", editPath).size(), 1);
     }
 
-    // A 409 whose state runs another entry, or none, is a conflict: the
-    // edit was for an entry that no longer runs, and it is not sent again.
+    // A 409 says the entry no longer runs, whatever runs now: a conflict,
+    // and the edit is not sent again.
     void billableEditConflictForAnotherEntry_data()
     {
         QTest::addColumn<QByteArray>("running");
@@ -1446,39 +1405,6 @@ private Q_SLOTS:
         QCOMPARE(f.timer.errorString(), QStringLiteral("The timer changed on another device first."));
         QCOMPARE(f.find("POST", editPath).size(), 1);
         QVERIFY(f.find("PUT", "/time_entries/5").isEmpty());
-    }
-
-    // On a server without timer-edit the billable edit is a v9 PUT whose
-    // reply is an entry. What the menu shows comes from the state a read
-    // sent after the reply brings, never from the reply.
-    void billableEditShowsTheStateAfterIt()
-    {
-        Fixture f;
-        f.olderServer = true;
-        QVERIFY(connectAccount(f));
-        QVERIFY(!f.timer.chosenBillable());
-        QVERIFY(f.timer.chooseBillable(true));
-        const qsizetype put = f.last("PUT", "/time_entries/5");
-        const qsizetype readsBefore = f.stateReads();
-
-        QJsonObject edited = entryObject(5, 7, startedAt);
-        edited.insert(QStringLiteral("billable"), true);
-        f.respond(put, FakeTransport::answer(200, json(edited)));
-        QVERIFY(f.timer.isBusy());
-        QVERIFY(!f.timer.chosenBillable());
-        QCOMPARE(f.stateReads(), readsBefore + 1);
-
-        // An event from the stream shows the edit but does not end the wait:
-        // only a read sent after the reply does.
-        QVERIFY(f.push(json(edited)));
-        QVERIFY(f.timer.chosenBillable());
-        QVERIFY(f.timer.isBusy());
-        QVERIFY(f.answerState(json(edited)));
-        QVERIFY(!f.timer.isBusy());
-        QVERIFY(f.timer.chosenBillable());
-        QVERIFY(f.timer.canWrite());
-        QCOMPARE(f.find("PUT", "/time_entries/5").size(), 1);
-        QCOMPARE(f.stateReads(), readsBefore + 1);
     }
 
     void panelStopDefaultsToTheEntryProject()
@@ -1795,40 +1721,7 @@ private Q_SLOTS:
         QCOMPARE(f.find("POST", stopPath).size(), 1);
     }
 
-    // On a server without the app routes, a v9 stop of an entry stopped or
-    // deleted elsewhere is refused with an entry error: a read shows what
-    // the server has.
-    void stoppedConflictReconciles_data()
-    {
-        QTest::addColumn<int>("status");
-        QTest::addColumn<QByteArray>("body");
-        QTest::newRow("already stopped") << 409 << QByteArray("\"Time entry already stopped\"");
-        QTest::newRow("deleted") << 404 << QByteArray("\"Time entry not found\"");
-    }
-
-    void stoppedConflictReconciles()
-    {
-        QFETCH(int, status);
-        QFETCH(QByteArray, body);
-        Fixture f;
-        f.olderServer = true;
-        QVERIFY(connectAccount(f));
-        QVERIFY(f.timer.stop());
-        f.respond(f.last("PATCH", "/v9/workspaces/7/time_entries/5/stop"), FakeTransport::answer(status, body));
-        QVERIFY(!f.timer.isBusy());
-        QVERIFY(!f.timer.errorString().isEmpty());
-        const qsizetype read = f.last("GET", statePath);
-        QVERIFY(f.unanswered(read));
-
-        f.respond(read, f.stateAnswer());
-        QVERIFY(!f.timer.isRunning());
-        QVERIFY(f.timer.errorString().isEmpty());
-        QVERIFY(f.find("POST", stopPath).isEmpty());
-        QCOMPARE(f.find("PATCH", "/stop").size(), 1);
-        QVERIFY(f.timer.canWrite());
-    }
-
-    void ambiguousStartIsNeverReplayed_data()
+    void ambiguousStartGoesOutOnceMoreWithItsKey_data()
     {
         QTest::addColumn<bool>("serverStarted");
         QTest::addColumn<int>("failure"); // 0 timeout, 1 network, 2 HTTP 502, 3 unreadable 200
@@ -1838,7 +1731,11 @@ private Q_SLOTS:
         }
     }
 
-    void ambiguousStartIsNeverReplayed()
+    // A start whose outcome is unknown goes out once more at once, with the
+    // same body and Idempotency-Key, so the server answers what the first
+    // did if it acted. When that is unknown too, the timer stays busy until
+    // a read shows the server's state, and nothing is sent again.
+    void ambiguousStartGoesOutOnceMoreWithItsKey()
     {
         QFETCH(bool, serverStarted);
         QFETCH(int, failure);
@@ -1846,6 +1743,8 @@ private Q_SLOTS:
         QVERIFY(connectAccount(f, instanceA, 3, 7, "null"));
         QVERIFY(f.timer.start());
         const qsizetype post = f.last("POST", startPath);
+        const HttpRequest first = f.transport.requests.at(post);
+        QCOMPARE(first.idempotencyKey.size(), 32);
         const HttpResponse responses[] = {
             FakeTransport::failure(HttpResponse::Outcome::Timeout),
             FakeTransport::failure(HttpResponse::Outcome::NetworkError, QStringLiteral("Connection refused")),
@@ -1853,6 +1752,12 @@ private Q_SLOTS:
             FakeTransport::answer(200, "{\"unexpected\":true}"),
         };
         f.respond(post, responses[failure]);
+        QVERIFY(f.timer.isBusy());
+        QCOMPARE(f.find("POST", startPath).size(), 2);
+        const qsizetype again = f.last("POST", startPath);
+        QCOMPARE(f.transport.requests.at(again).body, first.body);
+        QCOMPARE(f.transport.requests.at(again).idempotencyKey, first.idempotencyKey);
+        f.respond(again, responses[failure]);
 
         // Unknown outcome: busy until a read shows the server state.
         QVERIFY(f.timer.isBusy());
@@ -1878,7 +1783,46 @@ private Q_SLOTS:
         QVERIFY(!f.timer.isStale());
         QCOMPARE(f.timer.isRunning(), serverStarted);
         QCOMPARE(f.timer.canWrite(), true);
+        QCOMPARE(f.find("POST", startPath).size(), 2);
+    }
+
+    // The second send answers what the first one did: the start shows, and
+    // the next click gets a key of its own.
+    void aLostStartIsAnsweredByItsKey()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f, instanceA, 3, 7, "null"));
+        QVERIFY(f.timer.start());
+        const qsizetype post = f.last("POST", startPath);
+        f.respond(post, FakeTransport::failure(HttpResponse::Outcome::Timeout));
+        const qsizetype again = f.last("POST", startPath);
+        QVERIFY(again != post);
+        f.respond(again, f.stateAnswer(entryBody(30, 7, clockText(f.clock.now()))));
+        QVERIFY(!f.timer.isBusy());
+        QVERIFY(f.timer.isRunning());
+        QVERIFY(f.timer.errorString().isEmpty());
+
+        QVERIFY(f.timer.stop());
+        f.respond(f.last("POST", stopPath), f.stateAnswer("null"));
+        QVERIFY(f.timer.start());
+        const QByteArray nextKey = f.transport.requests.at(f.last("POST", startPath)).idempotencyKey;
+        QCOMPARE(nextKey.size(), 32);
+        QVERIFY(nextKey != f.transport.requests.at(post).idempotencyKey);
+    }
+
+    // A refusal or a conflict is an answer: the start is not sent again.
+    // Stop, pause and resume carry no key.
+    void answeredStartIsNotSentAgain()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f, instanceA, 3, 7, "null"));
+        QVERIFY(f.timer.start());
+        f.respond(f.last("POST", startPath), FakeTransport::answer(409, f.nextState(entryBody(30, 7, startedAt))));
         QCOMPARE(f.find("POST", startPath).size(), 1);
+        QVERIFY(f.timer.toggle());
+        const qsizetype pause = f.last("POST", "/timer/pause");
+        QVERIFY(f.transport.requests.at(pause).idempotencyKey.isEmpty());
+        QCOMPARE(QJsonDocument::fromJson(f.transport.requests.at(pause).body).object(), QJsonObject({{QStringLiteral("revision"), f.revision}}));
     }
 
     void lateRepliesCannotOverwriteNewerState()

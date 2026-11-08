@@ -106,8 +106,8 @@ QtObject {
         if (id === null || id === undefined) {
             return i18nc("@item:inmenu", "No project");
         }
-        const project = timer.chosenProjectDetails;
-        return project ? projectLabel(project) : i18nc("@item:inmenu", "Unknown project");
+        const parts = timer.chosenProjectLabel;
+        return parts.name.length > 0 || parts.missing ? projectLabel(parts) : i18nc("@item:inmenu", "Unknown project");
     }
 
     readonly property TokklStatusParts parts: TokklStatusParts {
@@ -223,16 +223,18 @@ QtObject {
         }
     }
 
-    function projectLabel(project: var): string {
-        if (project.name.length === 0) {
+    // The words for the parts of a project's label, as the core gives them
+    // (TokklTimer.chosenProjectLabel, or a project row's label).
+    function projectLabel(parts: var): string {
+        if (parts.missing) {
             // The entry names a project the instance no longer has.
             return i18nc("@item:inmenu", "Unavailable project");
         }
-        let label = project.name;
-        if (project.clientName && project.clientName.length > 0) {
-            label = i18nc("@item:inmenu project (client)", "%1 (%2)", label, project.clientName);
+        let label = parts.name;
+        if (parts.client.length > 0) {
+            label = i18nc("@item:inmenu project (client)", "%1 (%2)", label, parts.client);
         }
-        if (!project.active) {
+        if (parts.archived) {
             label = i18nc("@item:inmenu", "%1 (archived)", label);
         }
         return label;

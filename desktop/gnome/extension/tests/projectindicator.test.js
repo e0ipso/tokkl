@@ -14,16 +14,13 @@ import {
 } from '../projectindicator.js';
 
 const identity = text => text;
-const projects = [
-    { id: 7, name: 'Website', clientName: 'Acme' },
-    { id: 9, name: 'Internal', clientName: '' },
-];
+const website = { name: 'Website', client: 'Acme', archived: false, missing: false };
 const timer = overrides => ({
     indicatorState: 'project',
     indicatorColor: '#3366cc',
     running: false,
-    projects,
     chosenProject: 7,
+    chosenProjectLabel: website,
     ...overrides,
 });
 
@@ -63,7 +60,12 @@ test('no project is an outline named No project that never pulses', () => {
 
 test("a project the instance no longer has is an outline with the menu's label", () => {
     const shown = describeIndicator(
-        timer({ indicatorState: 'none', indicatorColor: '', chosenProject: 42 }),
+        timer({
+            indicatorState: 'none',
+            indicatorColor: '',
+            chosenProject: 42,
+            chosenProjectLabel: { name: '', client: '', archived: false, missing: true },
+        }),
         true,
         identity,
     );
@@ -71,13 +73,24 @@ test("a project the instance no longer has is an outline with the menu's label",
     assert.equal(shown.label, 'Unavailable project');
 });
 
-test("a running entry's archived project is filled and named from ChosenProjectName", () => {
+test("a running entry's archived project is filled and named from ChosenProjectLabel", () => {
     const shown = describeIndicator(
-        timer({ chosenProject: 42, chosenProjectName: 'Legacy', running: true, indicatorColor: '#2da608' }),
+        timer({
+            chosenProject: 42,
+            chosenProjectLabel: { name: 'Legacy', client: '', archived: true, missing: false },
+            running: true,
+            indicatorColor: '#2da608',
+        }),
         true,
         identity,
     );
-    assert.deepEqual(shown, { kind: 'filled', round: true, color: '#2da608', pulsing: true, label: 'Legacy' });
+    assert.deepEqual(shown, {
+        kind: 'filled',
+        round: true,
+        color: '#2da608',
+        pulsing: true,
+        label: 'Legacy (archived)',
+    });
 });
 
 test('a project still being read leaves the slot empty but keeps the label', () => {

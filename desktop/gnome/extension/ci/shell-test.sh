@@ -53,7 +53,6 @@ cp -a "$source_dir" "$work/source"
 cp "$interface" "$work/source/"
 gnome-extensions pack "$work/source" --force --out-dir="$work" \
     --extra-source=compat.js --extra-source=indicator.js --extra-source=instanceurl.js \
-    --extra-source=legacyactions.js --extra-source=legacylimits.js \
     --extra-source=menumodel.js \
     --extra-source=projectindicator.js --extra-source=projectindicatorview.js \
     --extra-source=timer1.js --extra-source=timer1proxy.js --extra-source=timerrequests.js --extra-source=typedsecret.js \
@@ -63,13 +62,17 @@ gnome-extensions pack "$work/source" --force --out-dir="$work" \
 zip="$work/$uuid.shell-extension.zip"
 contents="$(unzip -Z1 "$zip" | sort)"
 echo "$contents"
-for file in metadata.json extension.js compat.js indicator.js instanceurl.js legacyactions.js legacylimits.js menumodel.js \
+for file in metadata.json extension.js compat.js indicator.js instanceurl.js menumodel.js \
             projectindicator.js projectindicatorview.js \
             timer1.js timer1proxy.js timerrequests.js typedsecret.js org.tokkl.Timer1.xml prefs.js stylesheet.css \
             tokkl.png tokkl-symbolic.symbolic.png hourglass.svg hourglass-symbolic.svg \
             schemas/org.gnome.shell.extensions.tokkl.gschema.xml; do
     grep -qx "$file" <<<"$contents" || { echo "error: the package lacks $file" >&2; exit 1; }
 done
+if grep -q '^legacyactions.js$\|^legacylimits.js$' <<<"$contents"; then
+    echo "error: the package still has a fallback for an older tokkl-timerd" >&2
+    exit 1
+fi
 if grep -q '^tests/\|^ci/' <<<"$contents"; then
     echo "error: the package contains tests or CI files" >&2
     exit 1

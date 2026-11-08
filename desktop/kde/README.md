@@ -249,7 +249,8 @@ before the change. When `/me` or `/me/time_entries/current` answers 403 the widg
 account and stops retrying until you choose Reconnect from its context menu or
 change the settings; the saved secret stays in the wallet so you can correct it. A 429
 answer pauses requests for the `Retry-After` time (60 seconds when the server
-sends none). Connection failures, timeouts and 5xx answers keep the last account
+sends none), and so does a 503 that carries `Retry-After`. The event stream
+reconnects no sooner than its `retry:` field asks. Connection failures, timeouts and 5xx answers keep the last account
 data, marked stale. Redirects are not followed, so the credentials never go to
 another address; enter the final address instead.
 
@@ -366,13 +367,11 @@ never the only sign.
   Reconnect replaces only an automatic default, never a choice you made. A
   choice made before a stop does not carry over it.
 - While an entry runs, Billable also changes that entry in place with
-  `POST /api/app/timer/edit`, sending only `billable` and the revision shown.
+  `POST /api/app/timer/edit`, sending only `billable` and the entry's id.
   The description, tags, start and the rest stay as they are, and the entry
-  is not split. If the server answers 409 and its state still runs the same
-  entry, only the revision moved, so the widget sends the edit once more at
-  the new revision; any other 409 shows as a change on another device. A
-  server that does not announce `timer-edit` gets
-  `PUT /api/v9/workspaces/{wid}/time_entries/{id}` instead.
+  is not split. A change on another device that leaves the entry running
+  does not refuse the edit. The server answers 409 only once the entry
+  stopped, which shows as a change on another device.
 - Project and Billable are disabled whenever the timer cannot write: not
   configured, loading, busy, offline before the entry is known, refused
   credentials, a lost workspace or a cooldown.
@@ -413,14 +412,16 @@ pause chain and the session all come from it.
   description and the selected project and billable choice. Stop sends `POST
   /api/app/timer/stop` with the revision shown. Both answer with the timer
   state, and with a 409 and the server's state when another device changed
-  the timer first. `GET /api/v9/me` names what the server offers in
-  `capabilities`; on a server that does not announce `timer-actions` the
-  widget sends the v9 calls instead: `POST
-  /api/v9/workspaces/{wid}/time_entries` with `duration: -1`, and `PATCH
-  /api/v9/workspaces/{wid}/time_entries/{id}/stop`. A 404 from either route
-  is a refusal, never a reason to send the write again elsewhere.
-- Pause (`POST /api/app/timer/pause`) asks the server to stop the running
-  entry and keep a chain: the entry's description, project, task, tags and
+  the timer first. A 404 from either route is a refusal, never a reason to
+  send the write again elsewhere.
+- The widget needs a Tokkl server from the first release after 2.1.0: its
+  `GET /api/app/status` names `api_version` 1 and the capabilities
+  `ServerFloor` lists in `desktop/core/src/apitypes.h`. Against an older
+  server the widget shows the Error status with "This Tokkl server is too old
+  for this app; update the server." and sends nothing else; Reconnect asks
+  the server again.
+- Pause (`POST /api/app/timer/pause`, against the revision shown) asks the
+  server to stop the running entry and keep a chain: the entry's description, project, task, tags and
   billable flag, and the seconds it stored. Resume (`POST
   /api/app/timer/resume`) starts a clone of that entry on the server, against
   the revision shown. The elapsed time is then the chain total, the seconds the
@@ -435,10 +436,12 @@ pause chain and the session all come from it.
 - One start, pause, resume or stop runs at a time and clicks meanwhile are
   ignored. A read sent before one cannot overwrite its result. When one gets
   no clear answer (no response, timeout, 5xx or an unreadable body)
-  the timer stays busy until a read shows what the server did; it never sends
-  the request again. A 409 on a timer action adopts the state the server sent
-  and shows "The timer changed on another device first."; a 409 or 404 on a
-  v9 stop just reads the entry again.
+  the timer stays busy until a read shows what the server did. Start and
+  Start session carry an `Idempotency-Key`, a new one per click, and go out
+  once more at once with the same body and key, so a server that acted on
+  the first answers with what it did then. Nothing else is sent again. A 409 on a timer action adopts the state the server sent
+  and shows "The timer changed on another device first."; any other refusal
+  reads the state again.
 - Connection failures keep the last entry, marked stale. After a failed read
   of the entry the mark stays until the entry is read again, even if other
   requests succeed first. Refused credentials clear it. During a 429 cooldown nothing is sent.

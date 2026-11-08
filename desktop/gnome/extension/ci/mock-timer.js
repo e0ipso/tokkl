@@ -4,7 +4,7 @@
 // records every method call. A second interface, org.tokkl.Timer1Mock,
 // lets the check read the calls, change properties, start a session as
 // another device would, have the server refuse the next request, act as a
-// service from before InterfaceVersion and the Request methods, and stop
+// service older than the extension supports (InterfaceVersion 1), and stop
 // the mock. Configure
 // with an address that contains "replaced" fails as a call a later one
 // replaced.
@@ -45,6 +45,7 @@ const types = {
     ProjectsIncomplete: 'b',
     ChosenProject: 'x',
     ChosenProjectName: 's',
+    ChosenProjectLabel: 'a{sv}',
     Billable: 'b',
     Status: 's',
     ErrorString: 's',
@@ -88,6 +89,7 @@ const state = {
     ProjectsIncomplete: false,
     ChosenProject: 0,
     ChosenProjectName: '',
+    ChosenProjectLabel: { name: '', client: '', archived: false, missing: false },
     Billable: false,
     Status: 'ready',
     ErrorString: '',
@@ -129,7 +131,7 @@ const state = {
     SessionMessage: '',
     Actions: {},
     Presentation: {},
-    InterfaceVersion: 1,
+    InterfaceVersion: 2,
 };
 
 // The lengths on the Tokkl server behind the service. RefreshPreferences
@@ -166,6 +168,15 @@ function variant(name) {
                 label: new GLib.Variant('s', choice.label),
             })),
         );
+    }
+    if (name === 'ChosenProjectLabel') {
+        const label = state.ChosenProjectLabel;
+        return new GLib.Variant('a{sv}', {
+            name: new GLib.Variant('s', label.name),
+            client: new GLib.Variant('s', label.client),
+            archived: new GLib.Variant('b', label.archived),
+            missing: new GLib.Variant('b', label.missing),
+        });
     }
     if (name === 'Presentation') {
         return new GLib.Variant('a{sv}', {
@@ -372,6 +383,12 @@ class Timer1 {
         set({
             ChosenProject: projectId,
             ChosenProjectName: project ? project.name : '',
+            ChosenProjectLabel: {
+                name: project ? project.name : '',
+                client: project ? project.clientName : '',
+                archived: false,
+                missing: false,
+            },
             Billable: project ? project.billable : false,
             IndicatorState: project ? 'project' : 'none',
             IndicatorColor: project ? project.color : '',
@@ -521,7 +538,7 @@ const mock = Gio.DBusExportedObject.wrapJSObject(mockXml, {
     },
     ActAsOlderService: older => {
         olderService = older;
-        set({ InterfaceVersion: older ? 0 : 1 });
+        set({ InterfaceVersion: older ? 1 : 2 });
     },
     Quit: () => GLib.idle_add(GLib.PRIORITY_DEFAULT, () => loop.quit()),
 });

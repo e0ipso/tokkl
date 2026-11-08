@@ -409,7 +409,9 @@ TestCase {
         // A click pauses: the server stops the entry and keeps its time.
         mouseClick(button, 5, 5, Qt.LeftButton);
         const pause = waitFor("POST", "/timer/pause");
-        compare(fixture.request(pause).body, {}, "a pause names no revision");
+        compare(fixture.request(pause).body, {
+            revision: revision
+        }, "against the revision shown");
         fixture.respond(pause, 200, stateBody(null, pauseChain(true, 125, undefined, 11, true)));
         tryCompare(button.timer, "canWrite", true);
         verify(button.timer.paused);
@@ -836,12 +838,12 @@ TestCase {
         compare(button.timer.chosenProjectId, 12);
 
         // Billable edits the running entry through the timer, with billable
-        // alone, against the revision shown.
+        // alone, naming that entry.
         toggleBillableWithKeyboard();
         const edit = waitFor("POST", "/timer/edit");
         compare(fixture.request(edit).body, {
             billable: true,
-            revision: revision
+            entry_id: 5
         }, "a billable change sends only billable");
         compare(button.timer.status, TokklTimer.Busy);
 

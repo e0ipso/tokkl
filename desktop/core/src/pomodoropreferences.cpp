@@ -12,18 +12,15 @@ constexpr PomodoroField fields[] = {
     PomodoroField::LongRestEvery,
 };
 
-// The field a refused save names. A server that sends the Tokkl-Error-Field
-// header names the key there, and a key that is none of the four is no
-// field's error. An older server only says it in the message, 400 "Invalid
-// <key>: expected an integer from <min> to <max>", which is searched then.
+// The field a refused save names in its Tokkl-Error-Field header. A key
+// that is none of the four is no field's error.
 std::optional<PomodoroField> refusedField(const ApiError &error)
 {
     if (error.kind != ApiError::Kind::Client || error.status != 400) {
         return std::nullopt;
     }
     for (const PomodoroField field : fields) {
-        const QString key = pomodoroPreferenceKey(field);
-        if (error.field.isEmpty() ? error.message.contains(key) : error.field == key) {
+        if (error.field == pomodoroPreferenceKey(field)) {
             return field;
         }
     }
@@ -44,18 +41,14 @@ PomodoroPreferences::PomodoroPreferences(Connection *connection, QObject *parent
     onConnectionChanged();
 }
 
-QVariantMap PomodoroPreferences::limits()
+PomodoroLimits PomodoroPreferences::pomodoroLimits() const
 {
-    const PomodoroConfig defaults;
-    const auto limit = [](PomodoroRange range, int value) {
-        return QVariantMap{{QStringLiteral("min"), range.min}, {QStringLiteral("max"), range.max}, {QStringLiteral("default"), value}};
-    };
-    return {
-        {QStringLiteral("workMinutes"), limit(PomodoroConfig::workMinutesRange, defaults.workMinutes)},
-        {QStringLiteral("shortRestMinutes"), limit(PomodoroConfig::shortRestMinutesRange, defaults.shortRestMinutes)},
-        {QStringLiteral("longRestMinutes"), limit(PomodoroConfig::longRestMinutesRange, defaults.longRestMinutes)},
-        {QStringLiteral("longRestEvery"), limit(PomodoroConfig::longRestEveryRange, defaults.longRestEvery)},
-    };
+    return m_limits;
+}
+
+QVariantMap PomodoroPreferences::limits() const
+{
+    return m_limits.toVariantMap();
 }
 
 PomodoroConfig PomodoroPreferences::config() const
@@ -173,6 +166,7 @@ void PomodoroPreferences::refresh()
 
 void PomodoroPreferences::onConnectionChanged()
 {
+    followLimits();
     followOwner();
     const bool online = m_connection && m_connection->state() == Connection::Connected && m_connection->isConnected();
     const bool cameOnline = online && !m_online;
@@ -199,7 +193,17 @@ void PomodoroPreferences::followOwner()
         return;
     }
     m_owner = owner;
-    setConfig(PomodoroConfig());
+    setConfig(m_limits.defaults);
+}
+
+void PomodoroPreferences::followLimits()
+{
+    const std::optional<PomodoroLimits> announced = m_connection ? m_connection->server().pomodoroLimits : std::nullopt;
+    if (!announced || *announced == m_limits) {
+        return;
+    }
+    m_limits = *announced;
+    Q_EMIT limitsChanged();
 }
 
 void PomodoroPreferences::fetch()

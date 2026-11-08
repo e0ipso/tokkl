@@ -128,12 +128,10 @@ class TimerStateClientTest : public QObject
         }
     };
 
-    // Configure token auth for the instance and answer /me, on a current
-    // server or, with current false, on one from before the capabilities.
-    // The client then reads the state and opens the stream.
-    static bool connectAccount(Fixture &f, const QString &url = instanceA, qint64 userId = 3, bool current = true)
+    // Configure token auth for the instance and answer /me. The client then
+    // reads the state and opens the stream.
+    static bool connectAccount(Fixture &f, const QString &url = instanceA, qint64 userId = 3)
     {
-        f.transport.status = current ? FakeTransport::currentStatus() : FakeTransport::olderStatus();
         f.store.secrets.insert(credentialKey(parseInstanceUrl(url), AuthMode::Token, QString()), token);
         const qsizetype before = f.transport.requests.size();
         f.connection.setInstanceUrl(url);
@@ -436,6 +434,57 @@ private Q_SLOTS:
         QCOMPARE(f.reads(), reads + 3);
     }
 
+    // The stream's retry field is the shortest wait before a reconnect, for
+    // the streams after it too. The backoff still doubles above it, the
+    // jitter still applies, and no wait goes past the cap. A field that is
+    // not digits is ignored, and a new generation forgets it.
+    void retryFieldSetsTheShortestWait()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f));
+        f.answerRead(stateBody(1, f.clock.now()));
+
+        f.transport.lastStream()->push(QByteArray("retry: 5000\n") + eventFrame(stateBody(1, f.clock.now())));
+        QVERIFY(f.client.streaming());
+        f.transport.lastStream()->end(cleanEnd());
+        QCOMPARE(f.secondsToNextStream(), 5);
+        // 1, 2 and 4 s of backoff stay under the floor; 8 s goes past it.
+        const QList<int> waits{5, 5, 8, 16};
+        for (int wait : waits) {
+            f.transport.lastStream()->end(FakeTransport::answer(503, "\"Service Unavailable\""));
+            QCOMPARE(f.secondsToNextStream(), wait);
+        }
+
+        // A floor above the cap is the cap.
+        f.transport.lastStream()->push(QByteArray("retry: 600000\n\n"));
+        f.transport.lastStream()->end(FakeTransport::answer(503, "\"Service Unavailable\""));
+        QCOMPARE(f.secondsToNextStream(), 60);
+
+        // Not digits: ignored, the floor stays.
+        f.transport.lastStream()->push(QByteArray("retry: 1s\n\n"));
+        f.transport.lastStream()->end(FakeTransport::answer(503, "\"Service Unavailable\""));
+        QCOMPARE(f.secondsToNextStream(), 60);
+
+        // Another account starts from the defaults again.
+        QVERIFY(connectAccount(f, instanceB));
+        f.answerRead(stateBody(1, f.clock.now()));
+        f.transport.lastStream()->end(FakeTransport::answer(503, "\"Service Unavailable\""));
+        QCOMPARE(f.secondsToNextStream(), 1);
+    }
+
+    // The floor takes the jitter like any wait.
+    void retryFieldKeepsTheJitter()
+    {
+        Fixture f;
+        f.clock.jitter = 3000;
+        QVERIFY(connectAccount(f));
+        f.answerRead(stateBody(1, f.clock.now()));
+        f.transport.lastStream()->push(QByteArray("retry: 8000\n\n"));
+        // 8 s plus up to 2 s, which the fake keeps at 1.999 s.
+        f.transport.lastStream()->end(FakeTransport::answer(503, "\"Service Unavailable\""));
+        QCOMPARE(f.secondsToNextStream(), 10);
+    }
+
     // The clock's jitter lengthens each wait by up to a quarter of it.
     void reconnectAddsJitter()
     {
@@ -517,8 +566,7 @@ private Q_SLOTS:
 
     // A Pomodoro start applies to the state the user saw: refused without
     // one, sent with its revision, and a 409 brings the server's state,
-    // which the client adopts. A server without pomodoro-revision gets no
-    // revision.
+    // which the client adopts.
     void pomodoroStartCarriesTheRevision()
     {
         Fixture f;
@@ -541,13 +589,6 @@ private Q_SLOTS:
         QVERIFY(results.last().outcome == TimerActionResult::Outcome::Conflict);
         QCOMPARE(f.client.state()->revision, 7);
         QCOMPARE(f.find("POST", QStringLiteral("/api/app/pomodoro")).size(), 1);
-
-        QVERIFY(connectAccount(f, instanceB, 3, false));
-        f.answerRead(stateBody(2, f.clock.now()));
-        f.client.startPomodoro(PomodoroStart(), record);
-        post = f.transport.requests.size() - 1;
-        QVERIFY(f.transport.requests.at(post).url.path().endsWith(QLatin1String("/api/app/pomodoro")));
-        QVERIFY(!QJsonDocument::fromJson(f.transport.requests.at(post).body).object().contains(QLatin1String("revision")));
     }
 
     // Each action posts to its route and takes the state it gets back, on
@@ -574,7 +615,7 @@ private Q_SLOTS:
         f.client.pause(record);
         qsizetype post = f.last("POST", QStringLiteral("/api/app/timer/pause"));
         QVERIFY(post >= 0);
-        QCOMPARE(f.transport.requests.at(post).body, QByteArray("{}"));
+        QCOMPARE(f.transport.requests.at(post).body, QByteArray(R"({"revision":5})"));
         f.respond(post, FakeTransport::answer(200, stateBody(6, f.clock.now(), 300)));
         QCOMPARE(results.size(), 2);
         QVERIFY(results.last().outcome == TimerActionResult::Outcome::Applied);
@@ -647,6 +688,34 @@ private Q_SLOTS:
         QCOMPARE(results.last().error.status, 400);
         QCOMPARE(f.client.state()->revision, 10);
         QVERIFY(!f.client.settling());
+    }
+
+    // A pause applies to the state the user saw, so it is refused without
+    // one. An edit names its entry instead and needs none.
+    void pauseNeedsAStateAndEditNamesItsEntry()
+    {
+        Fixture f;
+        QList<TimerActionResult> results;
+        const auto record = [&results](const TimerActionResult &result) {
+            results.append(result);
+        };
+        QVERIFY(connectAccount(f));
+        const qsizetype sent = f.transport.requests.size();
+        f.client.pause(record);
+        QTRY_COMPARE(results.size(), 1);
+        QVERIFY(results.last().outcome == TimerActionResult::Outcome::Refused);
+        QCOMPARE(f.transport.requests.size(), sent);
+
+        TimeEntryUpdate update;
+        update.billable = true;
+        f.client.edit(5, update, record);
+        const qsizetype post = f.last("POST", QStringLiteral("/api/app/timer/edit"));
+        QVERIFY(post >= 0);
+        QCOMPARE(QJsonDocument::fromJson(f.transport.requests.at(post).body).object(),
+                 QJsonObject({{QStringLiteral("billable"), true}, {QStringLiteral("entry_id"), 5}}));
+        f.respond(post, FakeTransport::answer(200, stateBody(4, f.clock.now())));
+        QVERIFY(results.last().outcome == TimerActionResult::Outcome::Applied);
+        QCOMPARE(f.client.state()->revision, 4);
     }
 
     // After an unknown outcome the client is settling until a read sent

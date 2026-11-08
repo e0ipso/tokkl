@@ -221,6 +221,79 @@ private Q_SLOTS:
         QCOMPARE(session.failures.first().second, ApiAccess::Write);
     }
 
+    // A keyed action whose outcome is unknown goes out once more at once,
+    // with the same body and key, and the second answer is the one
+    // reported. A plain action carries no key and is never sent again.
+    void aKeyedActionWithoutAnAnswerGoesOutOnceMore()
+    {
+        FakeTransport transport;
+        ScriptedSession session;
+        ApiClient client(&transport, session);
+        QList<TimerActionResult> received;
+        const QByteArray key = ApiClient::newIdempotencyKey();
+        client.keyedAction(testUrl, R"({"revision":3})", key, [&](const TimerActionResult &result) {
+            received.append(result);
+        });
+        QCOMPARE(transport.requests.size(), 1);
+        QCOMPARE(transport.requests.first().idempotencyKey, key);
+        transport.respondLast(FakeTransport::answer(502, "\"Bad gateway\""));
+        QVERIFY(received.isEmpty());
+        QCOMPARE(transport.requests.size(), 2);
+        QCOMPARE(transport.requests.last().body, QByteArray(R"({"revision":3})"));
+        QCOMPARE(transport.requests.last().idempotencyKey, key);
+        transport.respondLast(FakeTransport::failure(HttpResponse::Outcome::Timeout));
+        QCOMPARE(received.size(), 1);
+        QCOMPARE(received.first().outcome, TimerActionResult::Outcome::Unknown);
+        QCOMPARE(transport.requests.size(), 2);
+
+        client.action(testUrl, "{}", [&](const TimerActionResult &result) {
+            received.append(result);
+        });
+        QVERIFY(transport.requests.last().idempotencyKey.isEmpty());
+        transport.respondLast(FakeTransport::failure(HttpResponse::Outcome::Timeout));
+        QCOMPARE(received.size(), 2);
+        QCOMPARE(transport.requests.size(), 3);
+    }
+
+    // An answer, a refusal or a session that refuses the second send ends
+    // a keyed action with what the first one got.
+    void aKeyedActionIsSentAgainOnlyForAnUnknownOutcome()
+    {
+        FakeTransport transport;
+        ScriptedSession session;
+        ApiClient client(&transport, session);
+        QList<TimerActionResult> received;
+        const auto record = [&](const TimerActionResult &result) {
+            received.append(result);
+        };
+        client.keyedAction(testUrl, "{}", "k1", record);
+        transport.respondLast(FakeTransport::answer(400, "\"Invalid\""));
+        QCOMPARE(received.last().outcome, TimerActionResult::Outcome::Refused);
+        QCOMPARE(transport.requests.size(), 1);
+
+        client.keyedAction(testUrl, "{}", "k2", record);
+        transport.respondLast(FakeTransport::answer(409, "\"stale\""));
+        QCOMPARE(transport.requests.size(), 2);
+
+        // The failure started a cooldown: the session refuses the second.
+        client.keyedAction(testUrl, "{}", "k3", record);
+        session.refuse = ApiError{ApiError::Kind::RateLimited, 0, QStringLiteral("wait")};
+        transport.respondLast(FakeTransport::failure(HttpResponse::Outcome::Timeout));
+        QCOMPARE(transport.requests.size(), 3);
+        QCOMPARE(received.size(), 3);
+        QCOMPARE(received.last().outcome, TimerActionResult::Outcome::Unknown);
+    }
+
+    void newIdempotencyKeysAreDistinctHex()
+    {
+        const QByteArray key = ApiClient::newIdempotencyKey();
+        QCOMPARE(key.size(), 32);
+        for (const char c : key) {
+            QVERIFY((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'));
+        }
+        QVERIFY(ApiClient::newIdempotencyKey() != key);
+    }
+
     void aStreamRefusalGoesToTheSessionAsAnAccountFailure()
     {
         FakeTransport transport;
@@ -232,6 +305,19 @@ private Q_SLOTS:
         transport.lastStream()->end(FakeTransport::answer(403, "\"no\""));
         QCOMPARE(session.failures.size(), 1);
         QCOMPARE(session.failures.first().first, ApiError::Kind::Forbidden);
+        QCOMPARE(session.failures.first().second, ApiAccess::Account);
+    }
+
+    // A 503 that says when to come back is the session's to wait out.
+    void aStreamUnavailableWithRetryAfterGoesToTheSession()
+    {
+        FakeTransport transport;
+        ScriptedSession session;
+        ApiClient client(&transport, session);
+        QVERIFY(client.openStream(testUrl));
+        transport.lastStream()->end(FakeTransport::answer(503, "\"busy\"", "30"));
+        QCOMPARE(session.failures.size(), 1);
+        QCOMPARE(session.failures.first().first, ApiError::Kind::Server);
         QCOMPARE(session.failures.first().second, ApiAccess::Account);
     }
 

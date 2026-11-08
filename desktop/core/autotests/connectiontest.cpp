@@ -38,22 +38,6 @@ QByteArray meBody(qint64 id, qint64 workspace, const QString &email = QStringLit
         .toJson(QJsonDocument::Compact);
 }
 
-QByteArray entryBody(qint64 id, qint64 workspace, bool running = true)
-{
-    QJsonObject entry{
-        {QStringLiteral("id"), id},
-        {QStringLiteral("workspace_id"), workspace},
-        {QStringLiteral("project_id"), QJsonValue::Null},
-        {QStringLiteral("billable"), false},
-        {QStringLiteral("start"), QStringLiteral("2026-10-16T08:00:00+00:00")},
-        {QStringLiteral("stop"), running ? QJsonValue(QJsonValue::Null) : QJsonValue(QStringLiteral("2026-10-16T09:00:00+00:00"))},
-        {QStringLiteral("duration"), running ? -1792137600 : 3600},
-        {QStringLiteral("description"), QString()},
-        {QStringLiteral("tags"), QJsonArray()},
-    };
-    return QJsonDocument(entry).toJson(QJsonDocument::Compact);
-}
-
 // GET /api/app/timer with nothing running.
 QByteArray stateBody(qint64 revision = 1)
 {
@@ -403,34 +387,16 @@ private Q_SLOTS:
         StartEntry start;
         start.start = QDateTime::currentDateTimeUtc();
         start.projectId = 11;
-        std::optional<ApiResult<TimeEntry>> started;
-        f.connection.startEntry(start, [&started](const ApiResult<TimeEntry> &result) {
-            started = result;
-        });
+        f.connection.startTimer(1, start);
         const HttpRequest post = f.transport.requests.last();
         QCOMPARE(post.method, QByteArray("POST"));
-        QCOMPARE(path(post), QStringLiteral("/tokkl/api/v9/workspaces/42/time_entries"));
+        QCOMPARE(path(post), QStringLiteral("/tokkl/api/app/timer/start"));
         QCOMPARE(QJsonDocument::fromJson(post.body).object().value(QLatin1String("workspace_id")).toInteger(), 42);
-        f.transport.respondLast(FakeTransport::answer(200, entryBody(5, 42)));
-        QVERIFY(started && started->ok());
-        QCOMPARE(started->value->id, 5);
 
-        TimeEntryUpdate update;
-        update.description = QStringLiteral("Deep work");
-        f.connection.updateEntry(5, update);
-        QCOMPARE(f.transport.requests.last().method, QByteArray("PUT"));
-        QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/v9/workspaces/42/time_entries/5"));
-        f.transport.respondLast(FakeTransport::answer(200, entryBody(5, 42)));
-
-        std::optional<ApiResult<TimeEntry>> stopped;
-        f.connection.stopEntry(5, [&stopped](const ApiResult<TimeEntry> &result) {
-            stopped = result;
-        });
-        QCOMPARE(f.transport.requests.last().method, QByteArray("PATCH"));
-        QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/v9/workspaces/42/time_entries/5/stop"));
-        f.transport.respondLast(FakeTransport::answer(200, entryBody(5, 42, false)));
-        QVERIFY(stopped && stopped->ok());
-        QVERIFY(!stopped->value->isRunning());
+        PomodoroStart session;
+        f.connection.startPomodoro(1, session);
+        QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/app/pomodoro"));
+        QCOMPARE(QJsonDocument::fromJson(f.transport.requests.last().body).object().value(QLatin1String("workspace_id")).toInteger(), 42);
 
         for (const HttpRequest &request : std::as_const(f.transport.requests)) {
             QVERIFY2(!path(request).contains(QLatin1String("/workspaces/1/")), qPrintable(path(request)));
@@ -460,14 +426,14 @@ private Q_SLOTS:
         QVERIFY(me && me->ok());
         QCOMPARE(me->value->defaultWorkspaceId, 7);
 
-        std::optional<ApiResult<TimeEntry>> stopped;
-        f.connection.stopEntry(99, [&](const auto &result) {
-            stopped = result;
+        std::optional<ApiResult<Project>> project;
+        f.connection.fetchProject(99, [&](const auto &result) {
+            project = result;
         });
-        f.transport.respondLast(FakeTransport::answer(404, "\"Time entry not found\""));
-        QVERIFY(stopped && !stopped->ok());
-        QVERIFY(stopped->error.kind == ApiError::Kind::Client);
-        QCOMPARE(stopped->error.message, QStringLiteral("Time entry not found"));
+        f.transport.respondLast(FakeTransport::answer(404, "\"Project not found\""));
+        QVERIFY(project && !project->ok());
+        QVERIFY(project->error.kind == ApiError::Kind::Client);
+        QCOMPARE(project->error.message, QStringLiteral("Project not found"));
 
         std::optional<ApiResult<ProjectList>> projects;
         f.connection.fetchProjects([&](const auto &result) {
@@ -482,13 +448,14 @@ private Q_SLOTS:
     void operationsNeedAnAccount()
     {
         Fixture f;
-        std::optional<ApiResult<TimeEntry>> result;
+        std::optional<TimerActionResult> result;
         StartEntry start;
         start.start = QDateTime::currentDateTimeUtc();
-        f.connection.startEntry(start, [&](const auto &r) {
+        f.connection.startTimer(1, start, [&](const TimerActionResult &r) {
             result = r;
         });
         QTRY_VERIFY(result.has_value());
+        QVERIFY(result->outcome == TimerActionResult::Outcome::Refused);
         QVERIFY(result->error.kind == ApiError::Kind::NotConnected);
         QVERIFY(f.transport.requests.isEmpty());
     }
@@ -722,11 +689,12 @@ private Q_SLOTS:
 
         // Writes are blocked and automatic retries do nothing.
         const qsizetype sent = f.transport.requests.size();
-        std::optional<ApiResult<TimeEntry>> write;
-        f.connection.stopEntry(5, [&](const auto &r) {
+        std::optional<TimerActionResult> write;
+        f.connection.stopTimer(1, [&](const TimerActionResult &r) {
             write = r;
         });
         QTRY_VERIFY(write.has_value());
+        QVERIFY(write->outcome == TimerActionResult::Outcome::Refused);
         QVERIFY(write->error.kind == ApiError::Kind::AuthenticationPaused);
         f.connection.refreshAccount();
         QTest::qWait(20);
@@ -807,11 +775,12 @@ private Q_SLOTS:
 
         // Writes are blocked and automatic retries do nothing.
         const qsizetype sent = f.transport.requests.size();
-        std::optional<ApiResult<TimeEntry>> write;
-        f.connection.stopEntry(5, [&](const auto &r) {
+        std::optional<TimerActionResult> write;
+        f.connection.stopTimer(1, [&](const TimerActionResult &r) {
             write = r;
         });
         QTRY_VERIFY(write.has_value());
+        QVERIFY(write->outcome == TimerActionResult::Outcome::Refused);
         QVERIFY(write->error.kind == ApiError::Kind::AuthenticationPaused);
         f.connection.refreshAccount();
         QTest::qWait(20);
@@ -862,11 +831,12 @@ private Q_SLOTS:
 
         // Writes are blocked and automatic retries do nothing.
         const qsizetype sent = f.transport.requests.size();
-        std::optional<ApiResult<TimeEntry>> write;
-        f.connection.stopEntry(5, [&](const auto &r) {
+        std::optional<TimerActionResult> write;
+        f.connection.stopTimer(1, [&](const TimerActionResult &r) {
             write = r;
         });
         QTRY_VERIFY(write.has_value());
+        QVERIFY(write->outcome == TimerActionResult::Outcome::Refused);
         QVERIFY(write->error.kind == ApiError::Kind::AuthenticationPaused);
         f.connection.refreshAccount();
         QTest::qWait(20);
@@ -932,6 +902,51 @@ private Q_SLOTS:
         QTRY_VERIFY(refused.has_value());
         QVERIFY(refused->error.kind == ApiError::Kind::RateLimited);
         QCOMPARE(f.transport.requests.size(), sent);
+    }
+
+    // A 503 that says when to come back starts the same cooldown as a 429:
+    // on /me, on a request with a bound account, and on the status read.
+    // Requests wait, the account stays, and validation resumes afterwards.
+    void unavailableWithRetryAfterCoolsDown()
+    {
+        {
+            Fixture f;
+            QVERIFY(connectAccount(f));
+            std::optional<ApiResult<ProjectList>> refused;
+            f.connection.fetchProjects([&](const auto &r) {
+                refused = r;
+            });
+            f.transport.respondLast(FakeTransport::answer(503, "\"Report queue is full\"", "120"));
+            QVERIFY(refused && refused->error.kind == ApiError::Kind::Server);
+            QCOMPARE(f.connection.state(), Connection::RateLimited);
+            QVERIFY(f.connection.isConnected());
+            QVERIFY(!f.connection.canWrite());
+            const qint64 wait = QDateTime::currentDateTimeUtc().msecsTo(f.connection.rateLimitedUntil());
+            QVERIFY2(wait > 115000 && wait <= 120000, qPrintable(QString::number(wait)));
+            const qsizetype sent = f.transport.requests.size();
+            f.connection.fetchTimerState();
+            QTest::qWait(10);
+            QCOMPARE(f.transport.requests.size(), sent);
+        }
+        {
+            Fixture f;
+            f.store.secrets.insert(tokenKey(), token);
+            f.connection.setInstanceUrl(instance);
+            QTRY_COMPARE(f.transport.requests.size(), 1);
+            f.transport.respondLast(FakeTransport::answer(503, QByteArray(), "1"));
+            QCOMPARE(f.connection.state(), Connection::RateLimited);
+            QTRY_COMPARE_WITH_TIMEOUT(f.transport.requests.size(), 2, 3000);
+            f.transport.respondLast(FakeTransport::answer(200, meBody(3, 7)));
+            QCOMPARE(f.connection.state(), Connection::Connected);
+        }
+        {
+            Fixture f;
+            f.transport.status = FakeTransport::answer(503, QByteArray(), "60");
+            f.store.secrets.insert(tokenKey(), token);
+            f.connection.setInstanceUrl(instance);
+            QTRY_COMPARE(f.connection.state(), Connection::RateLimited);
+            QVERIFY(f.transport.requests.isEmpty());
+        }
     }
 
     void transientFailuresAreNotAuthenticationFailures_data()
@@ -1111,8 +1126,8 @@ private Q_SLOTS:
     }
 
     // Before the first /me of a generation the connection reads what the
-    // server announces in GET /api/app/status, so the routes are known once
-    // the account binds.
+    // server announces in GET /api/app/status, and binds only a server at
+    // the floor.
     void currentServerAnnouncesTheAppRoutes()
     {
         Fixture f;
@@ -1137,105 +1152,121 @@ private Q_SLOTS:
         QCOMPARE(f.connection.state(), Connection::Connected);
         const ServerApi server = f.connection.server();
         QCOMPARE(server.version, 1);
-        QVERIFY(server.appPreferences && server.timerActions && server.timerEdit && server.pomodoroRevision);
+        QVERIFY(server.isSupported());
 
         f.connection.fetchPreferences();
         QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/app/me/preferences"));
     }
 
-    // A status without the announcement is a server from before it: the v9
-    // routes. The fields in a /me body are not read.
-    void olderServerAnnouncesNothing()
+    void olderServerIsRefused_data()
     {
+        QTest::addColumn<HttpResponse>("status");
+        QJsonObject partial = currentServerApi();
+        partial.insert(QStringLiteral("capabilities"), QJsonArray{QStringLiteral("app-preferences"), QStringLiteral("timer-actions"), QStringLiteral("timer-edit")});
+        QTest::newRow("no announcement") << FakeTransport::olderStatus();
+        QTest::newRow("some capabilities") << FakeTransport::answer(200, QJsonDocument(partial).toJson(QJsonDocument::Compact));
+        QTest::newRow("not found") << FakeTransport::answer(404, "\"Not found\"");
+        QTest::newRow("not JSON") << FakeTransport::answer(200, "<html></html>");
+    }
+
+    // A server below the floor, or an answer that announces nothing: /me
+    // still goes out, so a wrong address or refused credentials say so, and
+    // valid credentials end in Error with a message that asks for a server
+    // update. Fields in a /me body are not read. Nothing else is sent, and
+    // a reconnect asks the server again.
+    void olderServerIsRefused()
+    {
+        QFETCH(HttpResponse, status);
         Fixture f;
-        f.transport.status = FakeTransport::olderStatus();
+        f.transport.status = status;
         f.store.secrets.insert(tokenKey(), token);
         f.connection.setInstanceUrl(instance);
         QTRY_COMPARE(f.transport.requests.size(), 1);
         QCOMPARE(f.transport.statusRequests.size(), 1);
         QJsonObject me = QJsonDocument::fromJson(meBody(3, 7)).object();
         me.insert(QStringLiteral("api_version"), 1);
-        me.insert(QStringLiteral("capabilities"), QJsonArray{QStringLiteral("app-preferences"), QStringLiteral("timer-actions")});
+        me.insert(QStringLiteral("capabilities"), currentServerApi().value(QStringLiteral("capabilities")));
         f.transport.respondLast(FakeTransport::answer(200, QJsonDocument(me).toJson(QJsonDocument::Compact)));
-        QCOMPARE(f.connection.state(), Connection::Connected);
+        QCOMPARE(f.connection.state(), Connection::Error);
+        QCOMPARE(f.connection.errorString(), QStringLiteral("This Tokkl server is too old for this app; update the server."));
+        verifyCleared(f.connection);
         QCOMPARE(f.connection.server(), ServerApi());
+        QTest::qWait(10);
+        QCOMPARE(f.transport.requests.size(), 1);
 
-        f.connection.fetchPreferences();
-        QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/v9/me/preferences"));
-    }
-
-    void statusFailureAnnouncesNothing_data()
-    {
-        QTest::addColumn<HttpResponse>("status");
-        QTest::addColumn<bool>("askedAgain"); // by the next /me of the generation
-        QTest::newRow("no answer") << FakeTransport::failure(HttpResponse::Outcome::NetworkError, QStringLiteral("Host unreachable")) << true;
-        QTest::newRow("timeout") << FakeTransport::failure(HttpResponse::Outcome::Timeout) << true;
-        QTest::newRow("server error") << FakeTransport::answer(503, QByteArray()) << true;
-        QTest::newRow("not found") << FakeTransport::answer(404, "\"Not found\"") << false;
-        QTest::newRow("unauthorized") << FakeTransport::answer(401, "\"Unauthorized\"") << false;
-        QTest::newRow("rate limited") << FakeTransport::answer(429, "\"Too many requests\"", "120") << false;
-        QTest::newRow("not JSON") << FakeTransport::answer(200, "<html></html>") << false;
-    }
-
-    // A failed status read means the v9 routes. It never refuses the
-    // sign-in, pauses it or starts a cooldown. Without an answer from the
-    // server the next /me asks again; an answer holds for the generation.
-    void statusFailureAnnouncesNothing()
-    {
-        QFETCH(HttpResponse, status);
-        QFETCH(bool, askedAgain);
-        Fixture f;
-        f.transport.status = status;
-        QVERIFY(connectAccount(f));
-        QCOMPARE(f.transport.statusRequests.size(), 1);
-        QVERIFY(f.connection.canWrite());
-        QVERIFY(!f.connection.rateLimitedUntil().isValid());
-        QCOMPARE(f.connection.server(), ServerApi());
-
-        f.connection.fetchPreferences();
-        QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/v9/me/preferences"));
-
-        const qsizetype before = f.transport.requests.size();
-        f.connection.refreshAccount();
-        QTRY_COMPARE(f.transport.requests.size(), before + 1);
-        QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/v9/me"));
-        QCOMPARE(f.transport.statusRequests.size(), askedAgain ? 2 : 1);
+        f.transport.status = FakeTransport::currentStatus();
+        f.connection.reconnect();
+        QTRY_COMPARE(f.transport.requests.size(), 2);
+        QCOMPARE(f.transport.statusRequests.size(), 2);
         f.transport.respondLast(FakeTransport::answer(200, meBody(3, 7)));
         QCOMPARE(f.connection.state(), Connection::Connected);
-        QCOMPARE(f.connection.server(), ServerApi());
+        QVERIFY(f.connection.server().isSupported());
     }
 
-    // A status read that found no network, and a /me that failed the same
-    // way: the retry asks for the status again, and its answer picks the
-    // app routes.
+    // Credentials refused on an older server say so, not that the server
+    // is too old.
+    void refusedCredentialsOutrankAnOlderServer()
+    {
+        Fixture f;
+        f.transport.status = FakeTransport::olderStatus();
+        f.store.secrets.insert(tokenKey(), token);
+        f.connection.setInstanceUrl(instance);
+        QTRY_COMPARE(f.transport.requests.size(), 1);
+        f.transport.respondLast(FakeTransport::answer(403, "\"Incorrect username and/or password\""));
+        QCOMPARE(f.connection.state(), Connection::AuthenticationFailed);
+    }
+
+    void statusFailureFailsTheValidation_data()
+    {
+        QTest::addColumn<HttpResponse>("status");
+        QTest::addColumn<int>("state");
+        QTest::newRow("no answer") << FakeTransport::failure(HttpResponse::Outcome::NetworkError, QStringLiteral("Host unreachable"))
+                                   << int(Connection::Disconnected);
+        QTest::newRow("timeout") << FakeTransport::failure(HttpResponse::Outcome::Timeout) << int(Connection::Disconnected);
+        QTest::newRow("server error") << FakeTransport::answer(502, QByteArray()) << int(Connection::Disconnected);
+        QTest::newRow("rate limited") << FakeTransport::answer(429, "\"Too many requests\"", "120") << int(Connection::RateLimited);
+    }
+
+    // A status read that fails as /me can fails the validation the same
+    // way, without sending /me, and the next validation asks again.
+    void statusFailureFailsTheValidation()
+    {
+        QFETCH(HttpResponse, status);
+        QFETCH(int, state);
+        Fixture f;
+        f.transport.status = status;
+        f.store.secrets.insert(tokenKey(), token);
+        f.connection.setInstanceUrl(instance);
+        QTRY_COMPARE(f.transport.statusRequests.size(), 1);
+        QTRY_COMPARE(int(f.connection.state()), state);
+        QVERIFY(f.transport.requests.isEmpty());
+        QVERIFY(!f.connection.isConnected());
+    }
+
+    // A status read that found no network: the retry asks for the status
+    // again, and binds once a supported server answers.
     void statusAskedAgainAfterANetworkFailure()
     {
         Fixture f;
         f.transport.status = FakeTransport::failure(HttpResponse::Outcome::NetworkError, QStringLiteral("Host unreachable"));
         f.store.secrets.insert(tokenKey(), token);
         f.connection.setInstanceUrl(instance);
-        QTRY_COMPARE(f.transport.requests.size(), 1);
+        QTRY_COMPARE(f.connection.state(), Connection::Disconnected);
         QCOMPARE(f.transport.statusRequests.size(), 1);
-        f.transport.respondLast(FakeTransport::failure(HttpResponse::Outcome::NetworkError, QStringLiteral("Host unreachable")));
-        QCOMPARE(f.connection.state(), Connection::Disconnected);
-        QVERIFY(!f.connection.isConnected());
+        QVERIFY(f.transport.requests.isEmpty());
 
         // The network is back. refreshAccount() is what the retry timer runs.
         f.transport.status = FakeTransport::currentStatus();
         f.connection.refreshAccount();
-        QTRY_COMPARE(f.transport.requests.size(), 2);
+        QTRY_COMPARE(f.transport.requests.size(), 1);
         QCOMPARE(f.transport.statusRequests.size(), 2);
         f.transport.respondLast(FakeTransport::answer(200, meBody(3, 7)));
         QCOMPARE(f.connection.state(), Connection::Connected);
-        QVERIFY(f.connection.server().timerActions);
-        QVERIFY(f.connection.server().appPreferences);
-
-        f.connection.fetchPreferences();
-        QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/app/me/preferences"));
+        QVERIFY(f.connection.server().isSupported());
 
         // Known now: the next revalidation sends /me alone.
         f.connection.refreshAccount();
-        QTRY_COMPARE(f.transport.requests.size(), 4);
+        QTRY_COMPARE(f.transport.requests.size(), 2);
         QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/v9/me"));
         QCOMPARE(f.transport.statusRequests.size(), 2);
     }
@@ -1246,7 +1277,6 @@ private Q_SLOTS:
     void statusIsReadOncePerGeneration()
     {
         Fixture f;
-        f.transport.status = FakeTransport::currentStatus();
         QVERIFY(connectAccount(f));
         QCOMPARE(f.transport.statusRequests.size(), 1);
 
@@ -1255,7 +1285,7 @@ private Q_SLOTS:
         f.connection.refreshAccount();
         f.transport.respondLast(FakeTransport::answer(200, meBody(4, 8)));
         QCOMPARE(f.connection.workspaceId(), 8);
-        QVERIFY(f.connection.server().timerActions);
+        QVERIFY(f.connection.server().isSupported());
         QTest::qWait(10);
         QCOMPARE(f.transport.statusRequests.size(), 1);
 
@@ -1268,7 +1298,7 @@ private Q_SLOTS:
         QCOMPARE(f.transport.statusRequests.size(), 2);
         QCOMPARE(f.transport.statusRequests.last().url.toString(), QStringLiteral("https://other.example.test/api/app/status"));
         f.transport.respondLast(FakeTransport::answer(200, meBody(3, 7)));
-        QCOMPARE(f.connection.state(), Connection::Connected);
+        QCOMPARE(f.connection.state(), Connection::Error);
         QCOMPARE(f.connection.server(), ServerApi());
     }
 
@@ -1293,12 +1323,12 @@ private Q_SLOTS:
         f.transport.respondStatus(0, FakeTransport::currentStatus());
         QVERIFY(f.transport.requests.isEmpty());
 
-        f.transport.respondStatus(1, FakeTransport::olderStatus());
+        f.transport.respondStatus(1, FakeTransport::currentStatus());
         QCOMPARE(f.transport.requests.size(), 1);
         QCOMPARE(f.transport.requests.first().url.toString(), QStringLiteral("https://other.example.test/api/v9/me"));
         f.transport.respondLast(FakeTransport::answer(200, meBody(3, 7)));
         QCOMPARE(f.connection.state(), Connection::Connected);
-        QCOMPARE(f.connection.server(), ServerApi());
+        QVERIFY(f.connection.server().isSupported());
     }
 
     void nonTokklAnswer()

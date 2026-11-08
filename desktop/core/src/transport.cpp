@@ -290,6 +290,9 @@ QNetworkRequest NetworkTransport::networkRequest(const HttpRequest &request, con
     QNetworkRequest networkRequest(request.url);
     networkRequest.setRawHeader("Authorization", request.authorization);
     networkRequest.setRawHeader("Accept", accept);
+    if (!request.idempotencyKey.isEmpty()) {
+        networkRequest.setRawHeader("Idempotency-Key", request.idempotencyKey);
+    }
     networkRequest.setHeader(QNetworkRequest::UserAgentHeader, m_userAgent);
     networkRequest.setAttribute(QNetworkRequest::CookieLoadControlAttribute, QNetworkRequest::Manual);
     networkRequest.setAttribute(QNetworkRequest::CookieSaveControlAttribute, QNetworkRequest::Manual);

@@ -29,6 +29,8 @@ class Clock;
 // When a stream ends or fails the client reads the state again if the stream
 // had delivered, and opens a new stream after a wait that starts at 1 s and
 // doubles up to 60 s, plus up to a quarter more from the clock's jitter. A
+// stream's retry field raises that wait to at least the time it names, also
+// for later streams of the generation, still at most 60 s before the jitter. A
 // stream that delivered for 60 s starts the wait over. A timer event that is
 // not a readable state, also after good ones, drops the stream: the state is
 // read at once and polled until a stream delivers again, and the next stream
@@ -38,9 +40,11 @@ class Clock;
 // stream at once.
 //
 // Actions go through the client so it adopts the state they return, the new
-// one or, on a 409, the server's current one. After an unknown outcome it
-// never sends the action again: it is settling until a read sent after the
-// outcome brings a state. A read already on its way does not count, as the
+// one or, on a 409, the server's current one. A start or Pomodoro start
+// whose outcome is unknown goes out once more with the same Idempotency-Key
+// (Connection::startTimer()); after an unknown outcome the client sends
+// nothing again: it is settling until a read sent after the outcome brings
+// a state. A read already on its way does not count, as the
 // server may have answered it before the action. While settling, a failed
 // read is tried again every 30 s, also while the stream delivers.
 //
@@ -93,24 +97,23 @@ public:
     // The connection's timer actions. The ones that apply to a revision send
     // the one held, and are refused without sending while no state is held.
     //
-    // A start, or a stop of the running entry, entryId. On a server without
-    // timer-actions they go to v9 and answer with the entry instead of the
-    // state; see Connection::startTimer(). The caller settles that.
+    // A start, or a stop of the running entry.
     void start(const StartEntry &entry, ActionCallback done = {});
-    void stop(qint64 entryId, ActionCallback done = {});
+    void stop(ActionCallback done = {});
     void pause(ActionCallback done = {});
     void resume(ActionCallback done = {});
     void discard(ActionCallback done = {});
-    // Edits the running entry; see Connection::editTimer().
-    void edit(const TimeEntryUpdate &update, ActionCallback done = {});
+    // Edits the running entry entryId; see Connection::editTimer(). It needs
+    // no state held.
+    void edit(qint64 entryId, const TimeEntryUpdate &update, ActionCallback done = {});
     void startPomodoro(const PomodoroStart &start, ActionCallback done = {}) override;
     void nextPhase(ActionCallback done = {}) override;
     void endPomodoro(ActionCallback done = {}) override;
 
-    // A write made elsewhere, such as a v9 edit, had an unknown outcome or
-    // answered with less than the state: read the state and stay settling
-    // until a read sent from now on answers. The actions above do this
-    // themselves for an unknown outcome.
+    // A write had an unknown outcome, or was in flight when the workspace
+    // was lost: read the state and stay settling until a read sent from now
+    // on answers. The actions above do this themselves for an unknown
+    // outcome.
     void settle();
 
 public Q_SLOTS:
@@ -150,6 +153,8 @@ private:
     void onStreamData(const QByteArray &data);
     void onStreamEnded();
     void readLine(QByteArrayView line);
+    // The retry field: the server's reconnect wait in milliseconds.
+    void readRetry(QByteArrayView value);
     // Drops a stream that sent more than maxEventBytes for one event.
     void dropOversizedStream();
     // Drops a stream that sent a timer event that is not a timer state,
@@ -189,6 +194,9 @@ private:
     bool m_streaming = false;
     QDateTime m_streamingSince;
     int m_backoffMs = reconnectMinMs;
+    // The server's retry field, the shortest wait before a reconnect; 0
+    // until a stream sends one.
+    int m_retryFloorMs = 0;
     QDateTime m_reconnectAt;
 };
 

@@ -52,6 +52,7 @@ class TimerService : public QObject, protected QDBusContext
     Q_PROPERTY(bool ProjectsIncomplete READ projectsIncomplete)
     Q_PROPERTY(qint64 ChosenProject READ chosenProject)
     Q_PROPERTY(QString ChosenProjectName READ chosenProjectName)
+    Q_PROPERTY(QVariantMap ChosenProjectLabel READ chosenProjectLabel)
     Q_PROPERTY(bool Billable READ billable)
     Q_PROPERTY(QString Status READ status)
     Q_PROPERTY(QString ErrorString READ errorString)
@@ -85,7 +86,7 @@ public:
     static const QString interfaceName;
     // The InterfaceVersion this service publishes. Raise it by one in a
     // release that adds members to org.tokkl.Timer1.
-    static constexpr uint version = 1;
+    static constexpr uint version = 2;
     // The settings key of a transition's sound: "Sounds/workToShortRest" and
     // so on.
     static QString soundKey(TransitionKind kind);
@@ -133,6 +134,7 @@ public:
     bool projectsIncomplete() const;
     qint64 chosenProject() const;
     QString chosenProjectName() const;
+    QVariantMap chosenProjectLabel() const;
     bool billable() const;
     QString status() const;
     QString errorString() const;

@@ -113,7 +113,7 @@ std::optional<Me> AuthSession::account() const
 ServerApi AuthSession::server() const
 {
     // An account binds only after the announcement of its generation.
-    return hasAccount() && m_announcement.generation == m_generation && m_announcement.known ? m_announcement.server : ServerApi();
+    return hasAccount() && m_announcement.generation == m_generation ? m_announcement.server : ServerApi();
 }
 
 ApiClient &AuthSession::api()
@@ -240,7 +240,7 @@ void AuthSession::authenticate(bool explicitRequest)
     if (!hasAccount()) {
         setState(Connecting);
     }
-    if (m_announcement.generation != m_generation || (!m_announcement.pending && !m_announcement.known)) {
+    if (m_announcement.generation != m_generation || (!m_announcement.pending && !m_announcement.server.isSupported())) {
         readAnnouncement();
     } else if (!m_announcement.pending) {
         sendMe();
@@ -250,15 +250,20 @@ void AuthSession::authenticate(bool explicitRequest)
 
 void AuthSession::readAnnouncement()
 {
-    // Its answer never touches the session state. Until the server answers,
-    // the routes are those of a server without the announcement, and the
-    // next /me of the generation, such as the retry after a connectivity
-    // failure, asks again. An answer, with the fields or without, or a
-    // refusal holds for the generation.
-    m_announcement = Announcement{m_generation, true, false, ServerApi()};
+    // A supported announcement holds for the generation. Any other answer
+    // is asked for again by the next validation, such as a reconnect after
+    // the server was updated.
+    m_announcement = Announcement{m_generation, true, ServerApi()};
     m_api.send("GET", instance().app(QStringLiteral("/status")), QByteArray(), [this](const HttpResponse &response) {
         m_announcement.pending = false;
-        m_announcement.known = response.outcome == HttpResponse::Outcome::Finished && response.status < 500;
+        const ApiError error = errorFromResponse(response);
+        if (response.outcome != HttpResponse::Outcome::Finished || error.kind == ApiError::Kind::Server || asksToWait(response)) {
+            handleFailure(response, error);
+            return;
+        }
+        // Any other answer, an older server's 404 too, is the server's;
+        // /me then tells a wrong address or refused credentials from a
+        // server that is too old.
         m_announcement.server = serverApiFromResponse(response);
         sendMe();
     });
@@ -278,15 +283,19 @@ void AuthSession::handleMe(const HttpResponse &response)
         bind(*me.value);
         return;
     }
+    handleFailure(response, me.error);
+}
 
-    const ApiError &error = me.error;
+void AuthSession::handleFailure(const HttpResponse &response, const ApiError &error)
+{
+    if (asksToWait(response)) {
+        startCooldown(response.retryAfter, error.message);
+        return;
+    }
     switch (error.kind) {
     case ApiError::Kind::Forbidden:
     case ApiError::Kind::Unauthorized:
         refuseCredentials(error);
-        return;
-    case ApiError::Kind::RateLimited:
-        startCooldown(response.retryAfter, error.message);
         return;
     case ApiError::Kind::Network:
     case ApiError::Kind::Timeout:
@@ -333,6 +342,16 @@ void AuthSession::pauseAuthentication(const QString &message)
 
 void AuthSession::bind(const Me &me)
 {
+    if (!m_announcement.server.isSupported()) {
+        qCWarning(lcAuth) << "The server announces API version" << m_announcement.server.version << "with" << m_announcement.server.capabilities
+                          << "; this app needs version" << ServerFloor::apiVersion << "with" << ServerFloor::capabilities();
+        if (hasAccount()) {
+            resetAccount();
+        }
+        //: The connection's error when the server lacks what this app needs
+        setState(Error, tr("This Tokkl server is too old for this app; update the server.", "connection error"));
+        return;
+    }
     if (hasAccount() && (m_context->me.id != me.id || m_context->me.defaultWorkspaceId != me.defaultWorkspaceId)) {
         // The same credentials now name another account or workspace. The
         // instance is the same, so what it announced still holds.
@@ -440,7 +459,7 @@ void AuthSession::answered()
 
 bool AuthSession::absorbFailure(const HttpResponse &response, const ApiError &error, ApiAccess access)
 {
-    if (error.kind == ApiError::Kind::RateLimited) {
+    if (asksToWait(response)) {
         startCooldown(response.retryAfter, error.message);
     } else if (access == ApiAccess::Account && refusesCredentials(error)) {
         refuseCredentials(error);

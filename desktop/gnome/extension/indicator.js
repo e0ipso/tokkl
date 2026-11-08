@@ -16,8 +16,8 @@ import { captureActivateKeys, replaceClickGesture } from './compat.js';
 import { describeMenu, describeTime, projectChoices } from './menumodel.js';
 import { describeIndicator } from './projectindicator.js';
 import { TokklProjectIndicator } from './projectindicatorview.js';
-import { describeStatus, formatElapsed, projectLabel } from './timer1.js';
-import { cachedProperty, publishedProperty, serviceRunning } from './timer1proxy.js';
+import { describeStatus, formatElapsed, projectLabel, supportsService } from './timer1.js';
+import { cachedProperty, serviceRunning } from './timer1proxy.js';
 import { TimerRequests } from './timerrequests.js';
 
 // The properties the project submenu's items show. A change to any other
@@ -171,9 +171,8 @@ export const TokklIndicator = GObject.registerClass(
             this._disconnectProxy();
             this._proxy = proxy;
             if (proxy) {
-                this._requests = new TimerRequests(
-                    (method, done) => proxy[`${method}Remote`]((result, error) => done(error ? null : result, error)),
-                    () => cachedProperty(proxy, 'InterfaceVersion', 0),
+                this._requests = new TimerRequests((method, done) =>
+                    proxy[`${method}Remote`]((result, error) => done(error ? null : result, error)),
                 );
                 this._proxySignals = [
                     proxy.connect('g-properties-changed', (_source, changed) =>
@@ -199,20 +198,31 @@ export const TokklIndicator = GObject.registerClass(
             this._requests = null;
         }
 
+        _interfaceVersion() {
+            return cachedProperty(this._proxy, 'InterfaceVersion', 0);
+        }
+
+        // A service owns the name but is older than the extension supports.
+        _outdated() {
+            return serviceRunning(this._proxy) && !supportsService(this._interfaceVersion());
+        }
+
+        // A property of a service the extension can use; the fallback
+        // without one, so an older service shows nothing of its own.
         _property(name, fallback) {
-            return cachedProperty(this._proxy, name, fallback);
+            return this._outdated() ? fallback : cachedProperty(this._proxy, name, fallback);
         }
 
         _state() {
             const owned = serviceRunning(this._proxy);
             return {
                 status: owned ? this._property('Status', 'error') : null,
+                interfaceVersion: this._interfaceVersion(),
                 errorString: this._property('ErrorString', ''),
                 running: this._property('Running', false),
                 // The start on this machine's clock, so elapsed time matches the
-                // other apps when the clocks differ. A service from before
-                // LocalStartTime only has StartTime.
-                startTime: this._property('LocalStartTime', this._property('StartTime', 0)),
+                // other apps when the clocks differ.
+                startTime: this._property('LocalStartTime', 0),
                 paused: this._property('Paused', false),
                 chainSeconds: this._property('ChainSeconds', 0),
                 indicatorState: this._property('IndicatorState', ''),
@@ -220,7 +230,7 @@ export const TokklIndicator = GObject.registerClass(
                 projects: this._property('Projects', []),
                 projectsIncomplete: this._property('ProjectsIncomplete', false),
                 chosenProject: this._property('ChosenProject', 0),
-                chosenProjectName: this._property('ChosenProjectName', ''),
+                chosenProjectLabel: this._property('ChosenProjectLabel', {}),
                 billable: this._property('Billable', false),
                 pomodoroMode: this._property('PomodoroMode', false),
                 modeLocked: this._property('ModeLocked', false),
@@ -233,12 +243,10 @@ export const TokklIndicator = GObject.registerClass(
                 upcomingPhase: this._property('UpcomingPhase', ''),
                 sessionMessage: this._property('SessionMessage', ''),
                 alarmError: this._property('AlarmError', ''),
-                // Which items show and can be chosen; a service from before
-                // Actions publishes none, and legacyactions.js stands in.
-                actions: publishedProperty(this._proxy, 'Actions'),
-                // Which parts the time's words show; a service from before
-                // Presentation publishes none, and legacyPresentation() stands in.
-                presentation: publishedProperty(this._proxy, 'Presentation'),
+                // Which items show and can be chosen.
+                actions: this._property('Actions', null),
+                // Which parts the time's words show.
+                presentation: this._property('Presentation', null),
                 actionError: this._actionError,
             };
         }
@@ -251,7 +259,7 @@ export const TokklIndicator = GObject.registerClass(
          */
         _sync(changed) {
             const state = this._state();
-            const words = describeStatus(state.status, state.errorString, _);
+            const words = describeStatus(state.status, state.errorString, _, state.interfaceVersion);
 
             this._words = words;
             this._time = {
@@ -347,6 +355,11 @@ export const TokklIndicator = GObject.registerClass(
         // timer or in Timer mode it pauses, resumes or starts, and in Pomodoro
         // mode it starts a session.
         _activate() {
+            // An older service gets nothing; the menu says to update it.
+            if (this._outdated()) {
+                if (!this.menu.isOpen) this.menu.toggle();
+                return;
+            }
             this._call('Activate', [], action => {
                 if (action === 'open-menu' && !this.menu.isOpen) this.menu.toggle();
             });
@@ -378,7 +391,7 @@ export const TokklIndicator = GObject.registerClass(
          *     null when the call failed; not called once the button is gone
          */
         _call(method, args, onReply) {
-            if (!this._proxy) return;
+            if (!this._proxy || this._outdated()) return;
             this._clearActionError();
             this._proxy[`${method}Remote`](...args, (result, error) => {
                 if (error) this._callFailed(method, error);
@@ -391,14 +404,12 @@ export const TokklIndicator = GObject.registerClass(
          * Sends Start or Stop as a request this menu follows to its end (see
          * timerrequests.js): when the server refuses it, or its outcome is
          * unknown, the service's words for it show in the menu until the
-         * next call, also once ErrorString has moved on. A service without
-         * the requests gets the plain method, whose failure shows in
-         * ErrorString only.
+         * next call, also once ErrorString has moved on.
          *
          * @param {'Start' | 'Stop'} action
          */
         _request(action) {
-            if (!this._proxy) return;
+            if (!this._proxy || this._outdated()) return;
             this._clearActionError();
             this._requests.send(action, {
                 sent: (_sent, error) => {

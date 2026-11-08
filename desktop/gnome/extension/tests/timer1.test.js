@@ -15,13 +15,12 @@ import {
     elapsedSeconds,
     fill,
     formatElapsed,
-    hasRequestMethods,
     nextPhaseLabel,
     phaseName,
     pomodoroModeLabel,
     projectLabel,
-    publishes,
     sessionLine,
+    supportsService,
 } from '../timer1.js';
 
 const identity = text => text;
@@ -64,19 +63,20 @@ test('every Status value has words and a mark', () => {
     assert.match(describeStatus('unconfigured', '', identity).detail, /settings/);
 });
 
+// The words for ChosenProjectLabel, as the KDE and macOS menus word the
+// same parts.
 test('project labels name the client, an archived project and the missing project', () => {
-    const projects = [
-        { id: 7, name: 'Website', clientName: 'Acme' },
-        { id: 9, name: 'Internal', clientName: '' },
-    ];
-    assert.equal(projectLabel(projects[0]), 'Website (Acme)');
-    assert.equal(projectLabel(projects[1]), 'Internal');
-    assert.equal(chosenProjectLabel(projects, 0, '', identity), 'No project');
-    assert.equal(chosenProjectLabel(projects, 9, 'Internal', identity), 'Internal');
-    assert.equal(chosenProjectLabel(projects, 7, 'Website', identity), 'Website (Acme)');
-    // A running entry's archived project is not in Projects but has a name.
-    assert.equal(chosenProjectLabel(projects, 42, 'Legacy', identity), 'Legacy');
-    assert.equal(chosenProjectLabel(projects, 42, '', identity), 'Unavailable project');
+    const parts = (name, client = '', archived = false, missing = false) => ({ name, client, archived, missing });
+    assert.equal(projectLabel({ name: 'Website', clientName: 'Acme' }), 'Website (Acme)');
+    assert.equal(projectLabel({ name: 'Internal', clientName: '' }), 'Internal');
+    assert.equal(chosenProjectLabel(0, parts(''), identity), 'No project');
+    assert.equal(chosenProjectLabel(9, parts('Internal'), identity), 'Internal');
+    assert.equal(chosenProjectLabel(7, parts('Website', 'Acme'), identity), 'Website (Acme)');
+    assert.equal(chosenProjectLabel(42, parts('Legacy', '', true), identity), 'Legacy (archived)');
+    assert.equal(chosenProjectLabel(42, parts('Legacy', 'Acme', true), identity), 'Legacy (Acme) (archived)');
+    assert.equal(chosenProjectLabel(42, parts('', '', false, true), identity), 'Unavailable project');
+    assert.equal(chosenProjectLabel(42, parts(''), identity), 'Unknown project');
+    assert.equal(chosenProjectLabel(42, {}, identity), 'Unknown project');
 });
 
 test('the countdown rounds the time left up and the overtime down', () => {
@@ -146,39 +146,34 @@ test('a translation that reorders the session line shows the same values', () =>
     assert.equal(sessionLine(session, 1_700_000_000, reordered), 'Pomodoro 2/4: Short rest (4:10 left)');
 });
 
-test('a fallback is picked by InterfaceVersion, or without one by the property being there', () => {
-    for (const property of ['Actions', 'Presentation', 'PomodoroLengthLimits']) {
-        assert.equal(publishes(1, property, true), true, property);
-        assert.equal(publishes(2, property, true), true, property);
-        // A version says what the service publishes, whatever the proxy
-        // holds at the moment.
-        assert.equal(publishes(1, property, false), true, property);
-        assert.equal(publishes(0, property, true), true, property);
-        assert.equal(publishes(0, property, false), false, property);
+test('a service below the floor is not used, and the menu asks for an update', () => {
+    assert.equal(OLDEST_SUPPORTED_INTERFACE_VERSION, 2);
+    assert.equal(supportsService(0), false);
+    assert.equal(supportsService(1), false);
+    assert.equal(supportsService(2), true);
+    assert.equal(supportsService(3), true);
+    for (const status of ['ready', 'error', 'loading']) {
+        assert.deepEqual(describeStatus(status, 'Network down', identity, 0), {
+            text: 'This timer service is too old; update tokkl-timerd.',
+            detail: '',
+            mark: '!',
+        });
     }
-    assert.equal(publishes(1, 'Unknown', false), false);
+    assert.equal(describeStatus('ready', '', identity, 1).text, 'This timer service is too old; update tokkl-timerd.');
+    assert.equal(describeStatus('ready', '', identity, 2).text, 'Connected');
+    assert.equal(describeStatus(null, '', identity, 0).text, 'Timer service not running');
 });
 
-test('the Request methods are picked by InterfaceVersion alone', () => {
-    assert.equal(hasRequestMethods(0), false);
-    assert.equal(hasRequestMethods(1), true);
-    assert.equal(hasRequestMethods(2), true);
-});
-
-// The fallbacks for a service from before InterfaceVersion live only while
-// the floor admits such a service. Raising the floor without deleting them,
-// or deleting them while the floor is 0, fails here.
-test('the fallbacks for older services follow the support floor', () => {
+// No fallback for a service below the floor is left behind.
+test('the fallbacks for older services are gone', () => {
     const extension = name => existsSync(new URL(`../${name}`, import.meta.url));
-    const legacyPresentation = readFileSync(new URL('../menumodel.js', import.meta.url), 'utf8').includes(
-        'export function legacyPresentation',
+    const source = name => readFileSync(new URL(`../${name}`, import.meta.url), 'utf8');
+    assert.equal(extension('legacyactions.js'), false, 'legacyactions.js');
+    assert.equal(extension('legacylimits.js'), false, 'legacylimits.js');
+    assert.equal(source('menumodel.js').includes('legacyPresentation'), false, 'legacyPresentation() in menumodel.js');
+    assert.equal(
+        source('timerrequests.js').includes('hasRequestMethods'),
+        false,
+        'the plain methods in timerrequests.js',
     );
-    const plainMethods = readFileSync(new URL('../timerrequests.js', import.meta.url), 'utf8').includes(
-        'hasRequestMethods(',
-    );
-    const older = OLDEST_SUPPORTED_INTERFACE_VERSION < 1;
-    assert.equal(extension('legacyactions.js'), older, 'legacyactions.js');
-    assert.equal(extension('legacylimits.js'), older, 'legacylimits.js');
-    assert.equal(legacyPresentation, older, 'legacyPresentation() in menumodel.js');
-    assert.equal(plainMethods, older, 'the plain methods in timerrequests.js');
 });

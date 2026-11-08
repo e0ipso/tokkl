@@ -12,43 +12,26 @@ using namespace Json;
 namespace
 {
 // The preferences that hold the Pomodoro lengths: the config value each one
-// fills, the range the server accepts and the change that sets it.
+// fills and the change that sets it.
 struct PomodoroPreference {
     PomodoroField field;
     QLatin1String key;
     int PomodoroConfig::*value;
-    PomodoroRange range;
     std::optional<int> PomodoroConfigUpdate::*change;
 };
 
 const PomodoroPreference pomodoroPreferences[] = {
-    {PomodoroField::WorkMinutes,
-     QLatin1String("pomodoro_focus_interval_in_minutes"),
-     &PomodoroConfig::workMinutes,
-     PomodoroConfig::workMinutesRange,
-     &PomodoroConfigUpdate::workMinutes},
+    {PomodoroField::WorkMinutes, QLatin1String("pomodoro_focus_interval_in_minutes"), &PomodoroConfig::workMinutes, &PomodoroConfigUpdate::workMinutes},
     {PomodoroField::ShortRestMinutes,
      QLatin1String("pomodoro_break_interval_in_minutes"),
      &PomodoroConfig::shortRestMinutes,
-     PomodoroConfig::shortRestMinutesRange,
      &PomodoroConfigUpdate::shortRestMinutes},
     {PomodoroField::LongRestMinutes,
      QLatin1String("pomodoro_long_break_interval_in_minutes"),
      &PomodoroConfig::longRestMinutes,
-     PomodoroConfig::longRestMinutesRange,
      &PomodoroConfigUpdate::longRestMinutes},
-    {PomodoroField::LongRestEvery,
-     QLatin1String("pomodoro_long_break_every"),
-     &PomodoroConfig::longRestEvery,
-     PomodoroConfig::longRestEveryRange,
-     &PomodoroConfigUpdate::longRestEvery},
+    {PomodoroField::LongRestEvery, QLatin1String("pomodoro_long_break_every"), &PomodoroConfig::longRestEvery, &PomodoroConfigUpdate::longRestEvery},
 };
-}
-
-bool PomodoroConfig::isValid() const
-{
-    return workMinutesRange.contains(workMinutes) && shortRestMinutesRange.contains(shortRestMinutes) && longRestMinutesRange.contains(longRestMinutes)
-        && longRestEveryRange.contains(longRestEvery);
 }
 
 QString pomodoroPreferenceKey(PomodoroField field)
@@ -61,16 +44,17 @@ QString pomodoroPreferenceKey(PomodoroField field)
     return QString();
 }
 
-std::optional<PomodoroConfig> decodePomodoroPreferences(const QJsonValue &value)
+std::optional<PomodoroConfig> decodePomodoroPreferences(const QJsonValue &value, const PomodoroLimits &limits)
 {
     if (!value.isObject()) {
         return std::nullopt;
     }
     const QJsonObject object = value.toObject();
-    PomodoroConfig config;
+    PomodoroConfig config = limits.defaults;
     for (const PomodoroPreference &preference : pomodoroPreferences) {
+        const PomodoroRange range = limits.range(preference.field);
         const std::optional<qint64> minutes = integer(object.value(preference.key));
-        if (minutes && *minutes >= preference.range.min && *minutes <= preference.range.max) {
+        if (minutes && *minutes >= range.min && *minutes <= range.max) {
             config.*preference.value = int(*minutes);
         }
     }

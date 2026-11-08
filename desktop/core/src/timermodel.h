@@ -75,14 +75,7 @@ public:
     // apply before the panels hear of it; then the change, the elapsed time
     // and the status are announced.
     virtual void showState() = 0;
-    // The server's v9 reply to a stop or edit from here that ended the
-    // entry shown. It names the project the server stopped, which another
-    // device may have changed since the last state; the state that shows the
-    // stop takes it for the next-start default. It counts only for the stop
-    // of the entry it names.
-    virtual void entryEnded(const TimeEntry &reply) = 0;
-    // A new context: the projects, the next start's choice and a stop reply
-    // are forgotten and every answer on its way is dropped. Then shows the
+    // A new context: the projects and the next start's choice are forgotten and every answer on its way is dropped. Then shows the
     // state held and announces the context and the status.
     virtual void resetContext() = 0;
     // The workspace was lost: its projects and the next start's choice are
@@ -266,6 +259,10 @@ public:
     // the active project with that id; null for no project or one that is
     // neither.
     Q_PROPERTY(QVariant chosenProjectDetails READ chosenProjectDetails NOTIFY chosenProjectDetailsChanged)
+    // chosenProjectDetails as the parts every panel words its label from
+    // (ProjectLabelParts::toVariantMap()): empty parts for no project and
+    // for one that is neither held nor active.
+    Q_PROPERTY(QVariantMap chosenProjectLabel READ chosenProjectLabelVariant NOTIFY chosenProjectDetailsChanged)
     // The project behind chosenProjectId for the panel indicator, and its
     // colour as lowercase #rrggbb. The colour is empty outside the Project
     // state and for any other value. A string keeps the core free of Qt Gui.
@@ -327,6 +324,8 @@ public:
     std::optional<Project> entryProject() const;
     QVariant entryProjectVariant() const;
     QVariant chosenProjectDetails() const;
+    ProjectLabelParts chosenProjectLabel() const;
+    QVariantMap chosenProjectLabelVariant() const;
     IndicatorState indicatorState() const;
     QString indicatorColor() const;
 
@@ -369,7 +368,6 @@ protected:
     void contextUpdated() override;
     void activityChanged() override;
     void showState() override;
-    void entryEnded(const TimeEntry &reply) override;
     void resetContext() override;
     void forgetWorkspace() override;
 
@@ -426,8 +424,6 @@ private:
     ProjectCatalog *m_catalog;
     ChosenProject *m_chosen;
     NextStartSelection *m_next;
-    // See entryEnded().
-    std::optional<TimeEntry> m_stopReply;
     qint64 m_elapsed = 0;
     // What projectChoices last announced.
     QVariantList m_projectChoices;

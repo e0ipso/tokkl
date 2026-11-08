@@ -16,7 +16,7 @@ _None yet._
 - Open [**GNOME Shell extension panel button and menu**](map-gnome-shell-extension-panel-button-and-menu.md) to learn about: desktop/gnome/extension drives tokkl-timerd; Shell 46-51; click and key activation; Shell 50 click gesture; Shell 51 key controller #gnome #desktop #tooling
 - Open [**GNOME Shell extension CI harnesses and Shell version matrix**](map-gnome-shell-extension-ci-harnesses-and-shell-version-matrix.md) to learn about: check.sh mock harness per Shell version; realservice.sh against real timerd; waitFor drawn state; gnome-extension CI matrix 46-51 #gnome #ci #testing #desktop
 - Open [**GNOME Shell extension packaging and preferences**](map-gnome-shell-extension-packaging-and-preferences.md) to learn about: pack-extension.sh packs every *.js, *.png and *.svg and the D-Bus interface description as extra sources; panel logo tokkl.png; prefs.js keeps only non-secret fields in GSettings #gnome #desktop #tooling #packaging
-- Open [**GNOME Shell extension project indicator and chosen project label**](map-gnome-shell-extension-project-indicator-and-chosen-project-label.md) to learn about: projectindicator.js decides, indicator.js draws; pulse check lifts enable-animations; chosenProjectLabel falls back to ChosenProjectName #gnome #desktop #tooling
+- Open [**GNOME Shell extension project indicator and chosen project label**](map-gnome-shell-extension-project-indicator-and-chosen-project-label.md) to learn about: projectindicator.js decides, indicator.js draws; pulse check lifts enable-animations; chosenProjectLabel words the service's ChosenProjectLabel parts #gnome #desktop #tooling
 
 ## By topic
 
@@ -26,7 +26,7 @@ _None yet._
 - Open [**Desktop app identifiers use the canpicasoft.com domain**](../practice-desktop-app-identifiers-use-the-canpicasoft-com-domain.md) — KDE, macOS and GNOME identifiers use com.canpicasoft.tokkl / tokkl@canpicasoft.com, never com.github.e0ipso or e0ipso.github.com.
 ### #gnome
 - Open [**GNOME Shell extension panel button and menu**](map-gnome-shell-extension-panel-button-and-menu.md) — desktop/gnome/extension drives tokkl-timerd; Shell 46-51; click and key activation; Shell 50 click gesture; Shell 51 key controller
-- Open [**GNOME Shell extension project indicator and chosen project label**](map-gnome-shell-extension-project-indicator-and-chosen-project-label.md) — projectindicator.js decides, indicator.js draws; pulse check lifts enable-animations; chosenProjectLabel falls back to ChosenProjectName
+- Open [**GNOME Shell extension project indicator and chosen project label**](map-gnome-shell-extension-project-indicator-and-chosen-project-label.md) — projectindicator.js decides, indicator.js draws; pulse check lifts enable-animations; chosenProjectLabel words the service's ChosenProjectLabel parts
 - Open [**GNOME Shell extension packaging and preferences**](map-gnome-shell-extension-packaging-and-preferences.md) — pack-extension.sh packs every *.js, *.png and *.svg and the D-Bus interface description as extra sources; panel logo tokkl.png; prefs.js keeps only non-secret fields in GSettings
 ### #tooling
 - Open [**Release stages, KDE semantic-release plugin and GNOME assets**](../kde-companion/kde-ci-and-release-pipeline/map-release-stages-kde-semantic-release-plugin-and-gnome-assets.md) — A push to main runs release-version, two kde-release legs, then release; the plugin gates on the manifests; GNOME assets upload after.

@@ -25,14 +25,28 @@ inline QString testClientName()
 }
 
 // What a current server announces in GET /api/app/status besides
-// setup_required. A server from before the announcement sends neither field
-// and has none of the /api/app routes it names.
+// setup_required: its API, and the Pomodoro limits the server keeps today.
+// A server from before the announcement sends none of it and has none of
+// the /api/app routes it names.
 inline QJsonObject currentServerApi()
 {
     return QJsonObject{
         {QStringLiteral("api_version"), 1},
         {QStringLiteral("capabilities"),
-         QJsonArray{QStringLiteral("app-preferences"), QStringLiteral("timer-actions"), QStringLiteral("timer-edit"), QStringLiteral("pomodoro-revision")}},
+         QJsonArray{QStringLiteral("app-preferences"),
+                    QStringLiteral("timer-actions"),
+                    QStringLiteral("timer-edit"),
+                    QStringLiteral("pomodoro-revision"),
+                    QStringLiteral("pause-revision"),
+                    QStringLiteral("timer-edit-entry"),
+                    QStringLiteral("idempotency-keys")}},
+        {QStringLiteral("pomodoro_limits"),
+         QJsonObject{
+             {QStringLiteral("work_minutes"), QJsonObject{{QStringLiteral("min"), 1}, {QStringLiteral("max"), 180}, {QStringLiteral("default"), 25}}},
+             {QStringLiteral("short_rest_minutes"), QJsonObject{{QStringLiteral("min"), 1}, {QStringLiteral("max"), 60}, {QStringLiteral("default"), 5}}},
+             {QStringLiteral("long_rest_minutes"), QJsonObject{{QStringLiteral("min"), 1}, {QStringLiteral("max"), 60}, {QStringLiteral("default"), 15}}},
+             {QStringLiteral("long_rest_every"), QJsonObject{{QStringLiteral("min"), 1}, {QStringLiteral("max"), 12}, {QStringLiteral("default"), 4}}},
+         }},
     };
 }
 
@@ -93,8 +107,8 @@ class FakeTransport : public Tokkl::Transport
 public:
     using Tokkl::Transport::Transport;
 
-    // GET /api/app/status of a server from before the announcement, and of
-    // a current one.
+    // GET /api/app/status of a server from before the announcement, which
+    // this app no longer supports, and of a current one.
     static Tokkl::HttpResponse olderStatus()
     {
         return answer(200, R"({"setup_required":false})");
@@ -191,7 +205,7 @@ public:
     QList<Tokkl::HttpRequest> requests;
     QList<QPointer<FakeReply>> replies;
     // The answer GET /api/app/status gets, and whether it waits for the test.
-    Tokkl::HttpResponse status = olderStatus();
+    Tokkl::HttpResponse status = currentStatus();
     bool holdStatus = false;
     QList<Tokkl::HttpRequest> statusRequests;
     QList<QPointer<FakeReply>> statusReplies;

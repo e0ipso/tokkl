@@ -15,10 +15,13 @@ import Gtk from 'gi://Gtk';
 import { ExtensionPreferences, gettext as _ } from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
 import { isInsecureUrl } from './instanceurl.js';
-import { lengthLimits } from './legacylimits.js';
 import { AUTH_MODES, describeStatus } from './timer1.js';
-import { cachedProperty, createTimer1Proxy, publishedProperty, serviceRunning } from './timer1proxy.js';
+import { cachedProperty, createTimer1Proxy, serviceRunning } from './timer1proxy.js';
 import { TypedSecret, connectionIdentity } from './typedsecret.js';
+
+// A row's range until the service publishes PomodoroLengthLimits, as the
+// core's placeholder is; the rows cannot be saved then.
+const PLACEHOLDER_LIMIT = { min: 1, max: 999 };
 
 function toastError(window, error) {
     Gio.DBusError.strip_remote_error(error);
@@ -46,19 +49,24 @@ class PomodoroGroup {
         // Keyed as PomodoroLengths. The ranges and defaults are the ones the
         // service publishes in PomodoroLengthLimits once it is reached.
         const minutes = _('Minutes');
-        const limits = lengthLimits(null);
         this._lengths = [
             ['work', _('Work'), minutes],
             ['shortRest', _('Short rest'), minutes],
             ['longRest', _('Long rest'), minutes],
             ['longRestEvery', _('Long rest every'), _('Pomodoros')],
         ].map(([key, title, unit]) => {
-            const { min, max, default: value } = limits[key];
+            const { min, max } = PLACEHOLDER_LIMIT;
             const row = new Adw.SpinRow({
                 title,
                 subtitle: unit,
                 numeric: true,
-                adjustment: new Gtk.Adjustment({ lower: min, upper: max, value, step_increment: 1, page_increment: 5 }),
+                adjustment: new Gtk.Adjustment({
+                    lower: min,
+                    upper: max,
+                    value: min,
+                    step_increment: 1,
+                    page_increment: 5,
+                }),
             });
             this.group.add(row);
             return { key, unit, row };
@@ -117,13 +125,14 @@ class PomodoroGroup {
     // The range of each row, and its value while the service has no
     // lengths for it.
     _syncLimits() {
-        const limits = lengthLimits(publishedProperty(this._proxy, 'PomodoroLengthLimits'));
+        const limits = this._property('PomodoroLengthLimits', {});
         const lengths = this._property('PomodoroLengths', {});
         for (const { key, row } of this._lengths) {
-            const { min, max, default: value } = limits[key];
-            row.adjustment.lower = min;
-            row.adjustment.upper = max;
-            if (!(key in lengths)) row.value = value;
+            const limit = limits[key];
+            if (!limit) continue;
+            row.adjustment.lower = limit.min;
+            row.adjustment.upper = limit.max;
+            if (!(key in lengths)) row.value = limit.default;
         }
     }
 
