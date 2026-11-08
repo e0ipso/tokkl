@@ -19,7 +19,14 @@ import type { TimerPublication } from '../domain/timerSettlement.ts';
 import type { OperationContext } from '../storage/contracts.ts';
 import type { User } from '../storage/domain.ts';
 import { EXPORT_FORMAT, LEGACY_EXPORT_FORMAT } from './exports.ts';
-import { MAX_IMPORT_ERRORS, protectImport, importError, type ImportRunner } from './importGuards.ts';
+import {
+  MAX_IMPORT_ERRORS,
+  cancelBeforeCommit,
+  checkCancelled,
+  importError,
+  protectImport,
+  type ImportRunner,
+} from './importGuards.ts';
 import { importTogglCsv, readTogglCsv } from './importCsv.ts';
 export interface JsonImportResult {
   dry_run: boolean;
@@ -32,6 +39,11 @@ export interface JsonImportResult {
   errors: Array<{ entity: string; id: unknown; message: string }>;
 }
 type Item = Record<string, unknown>;
+/** `signal` is the request's: once it aborts, the import stops and rolls back. */
+export interface ImportOptions {
+  dryRun: boolean;
+  signal?: AbortSignal;
+}
 function list(value: unknown, field: string): Item[] {
   if (value === undefined) return [];
   if (!Array.isArray(value)) throw invalidInput(`Invalid export file: "${field}" must be an array`);
@@ -222,9 +234,10 @@ async function importJsonExport(
   ctx: OperationContext<EntryRepositories>,
   userId: number,
   file: Item,
-  options: { dryRun: boolean },
+  options: ImportOptions,
   publish: TimerPublication,
 ): Promise<JsonImportResult> {
+  const { signal } = options;
   const user = await protectImport(ctx, userId);
   const restore: Restore = {
     ctx,
@@ -250,13 +263,20 @@ async function importJsonExport(
     ['tasks', 'task', restoreTask],
     ['tags', 'tag', restoreTag],
   ] as const;
+  // Each record checks the request before its savepoint, which would report a failure as the record's.
   for (const [field, entity, step] of catalogs)
-    for (const item of list(file[field], field)) await unit(restore, entity, item, () => step(restore, item));
+    for (const item of list(file[field], field)) {
+      checkCancelled(signal);
+      await unit(restore, entity, item, () => step(restore, item));
+    }
   const zone = exporterZone(file, user);
   await withExactEntryImport(ctx, userId, restore.wid, publish, async writer => {
-    for (const item of list(file.time_entries, 'time_entries'))
+    for (const item of list(file.time_entries, 'time_entries')) {
+      checkCancelled(signal);
       await unit(restore, 'time_entry', item, () => restoreEntry(restore, writer, zone, item), writer.savepoint);
+    }
   });
+  cancelBeforeCommit(ctx, signal);
   return restore.result;
 }
 /** Construct once with the application's shared ordered publication callback. */
@@ -266,15 +286,17 @@ export function createImportOperations<R extends EntryRepositories>(
 ) {
   return {
     /** The file's format is checked before the transaction opens. */
-    async importJsonExport(userId: number, data: unknown, options: { dryRun: boolean }) {
+    async importJsonExport(userId: number, data: unknown, options: ImportOptions) {
       const file = exportFile(data);
+      checkCancelled(options.signal);
       return runner.transaction(ctx => importJsonExport(ctx, userId, file, options, publish), {
         dryRun: options.dryRun,
       });
     },
     /** The file is parsed before the transaction opens. */
-    async importTogglCsv(userId: number, text: string, options: { dryRun: boolean; users?: string[] }) {
+    async importTogglCsv(userId: number, text: string, options: ImportOptions & { users?: string[] }) {
       const table = await readTogglCsv(text);
+      checkCancelled(options.signal);
       return runner.transaction(ctx => importTogglCsv(ctx, userId, table, options, publish), {
         dryRun: options.dryRun,
       });

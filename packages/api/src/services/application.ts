@@ -26,6 +26,7 @@ import { createAccountEntryEffects } from '../domain/timerEffects.ts';
 import { createTimerOperations } from '../domain/timers.ts';
 import { forbidden } from '../lib/errors.ts';
 import { silentLogger, type Logger } from '../lib/logger.ts';
+import { createImportAdmission, type ImportAdmissionOptions } from './importAdmission.ts';
 import { createImportOperations } from './importJson.ts';
 import type { ExportAssemblyJob, ExportEmitter } from './exportJobs.ts';
 import type { ReportExecutor } from './reportRunner.ts';
@@ -46,6 +47,8 @@ export interface ApplicationServiceOptions {
   logger?: Logger;
   /** The deployment's session length, used until an admin stores one. */
   sessionDays: number;
+  /** How many imports run at once, in all and per account. */
+  imports?: ImportAdmissionOptions;
 }
 
 const refused = () => forbidden('Incorrect username and/or password');
@@ -103,6 +106,7 @@ export function createApplicationServices({
   bus = createLocalTimerBus(),
   logger = silentLogger,
   sessionDays,
+  imports,
 }: ApplicationServiceOptions) {
   const { timerStreams, publish, settled } = createTimerDelivery({ storage, bus, logger, streamOptions });
   const security = { recheckUser: (id: number) => timerStreams.recheck(id) };
@@ -134,6 +138,8 @@ export function createApplicationServices({
       return timerStreams.open(authentication.user.id, res, streamCredentials.check(authentication));
     },
     readFor,
+    /** Admits an import before it reads its file, or refuses it with a 503 and `Retry-After`. */
+    importAdmission: createImportAdmission(imports),
     /**
      * Takes a place in the report queue, then writes the signed-in account's export to `output` on
      * the report runner, a batch of entries at a time, after checking the credential in the export's
