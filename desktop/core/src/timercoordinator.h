@@ -24,7 +24,8 @@ class ProjectLoader;
 // and the project and billable choices, the connection they act on, the
 // settling of each write and the recovery from a lost workspace. It reads
 // a TimerModel through its public interface and changes it only through
-// TimerModelUpdates, whose operations send the model's notifications; the
+// the model's roles (TimerModelRoles), whose operations send the model's
+// notifications; the
 // model shows the result, owns the project catalog and the next start's
 // selection, and applies the next-start defaults. The coordinator's
 // ProjectLoader does the reads of projects and of the last entry. The
@@ -94,10 +95,10 @@ class TimerCoordinator : public TimerActions, public TimerActivity
     Q_OBJECT
 
 public:
-    // Reads model and changes it through updates, the same model's; it
-    // must outlive the coordinator. A null clock follows the clock of the
-    // state client it is given.
-    TimerCoordinator(TimerModel *model, TimerModelUpdates *updates, Clock *clock, QObject *parent = nullptr);
+    // Reads model and changes it through roles, the same model's; it must
+    // outlive the coordinator. A null clock follows the clock of the state
+    // client it is given.
+    TimerCoordinator(TimerModel *model, const TimerModelRoles &roles, Clock *clock, QObject *parent = nullptr);
     ~TimerCoordinator() override;
 
     TimerModel *model() const;
@@ -177,7 +178,9 @@ private:
     void clearKeptError();
 
     TimerModel *m_model;
-    TimerModelUpdates *m_updates;
+    TimerStateUpdates *m_state;
+    TimerSelectionUpdates *m_selection;
+    TimerCatalogUpdates *m_catalog;
     ProjectLoader *m_loader;
     // The clock given, or the state client's when none was.
     QPointer<Clock> m_fixedClock;

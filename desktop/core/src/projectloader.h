@@ -10,8 +10,8 @@ namespace Tokkl
 
 class Connection;
 class ProjectCatalog;
+class TimerCatalogUpdates;
 class TimerModel;
-class TimerModelUpdates;
 
 // The timer's reads for what it shows of projects: the workspace's project
 // list, a chosen project the list lacks, and the last entry's project for
@@ -28,9 +28,9 @@ class ProjectLoader : public QObject
     Q_OBJECT
 
 public:
-    // The view and the updates are the same model, not owned; it must
-    // outlive the loader.
-    ProjectLoader(const TimerModel *view, TimerModelUpdates *updates, QObject *parent = nullptr);
+    // The view and the catalog are the same model's, not owned; it must
+    // outlive the loader. The loader sees no other role of the model.
+    ProjectLoader(const TimerModel *view, TimerCatalogUpdates *catalog, QObject *parent = nullptr);
 
     // Reads the workspace's projects, when the workspace can be read.
     void fetchProjects();
@@ -50,7 +50,7 @@ public:
 
 private:
     const TimerModel *m_view;
-    TimerModelUpdates *m_updates;
+    TimerCatalogUpdates *m_catalog;
 };
 
 }

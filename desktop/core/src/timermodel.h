@@ -38,14 +38,19 @@ public:
 };
 
 // How TimerCoordinator changes what a TimerModel shows, apart from what the
-// panels read. Each change is one operation that sends every notification
-// it causes; the coordinator emits none of the model's signals. The model
-// implements it for its subclass, TimerController, which hands it to the
-// coordinator, so a panel holding a TimerModel can only read.
-class TimerModelUpdates
+// panels read, in three roles. Each change is one operation that sends
+// every notification it causes; the coordinator emits none of the model's
+// signals. The model implements all three for its subclass,
+// TimerController, which hands them to the coordinator, so a panel holding
+// a TimerModel can only read. Each consumer takes only the roles it uses:
+// ProjectLoader takes the catalog alone.
+
+// The state shown: the client and clock it is read from, and the changes of
+// connection, context, activity and state.
+class TimerStateUpdates
 {
 public:
-    virtual ~TimerModelUpdates() = default;
+    virtual ~TimerStateUpdates() = default;
 
     // Reads the state, the connection and the clock (for elapsed time and
     // ticks) from now on. Not owned. Announces nothing: connectionReplaced()
@@ -54,8 +59,6 @@ public:
     virtual Clock *clock() const = 0;
     // The state the client accepted; none without a client.
     virtual const std::optional<TimerState> &heldState() const = 0;
-    // The connection may read the workspace now.
-    virtual bool readable() const = 0;
 
     // Another state client, or none: announces the connection and the next
     // start's choice.
@@ -71,10 +74,10 @@ public:
     // and the status are announced.
     virtual void showState() = 0;
     // The server's v9 reply to a stop or edit from here that ended the
-    // entry shown. It names the project the server stopped, which another device
-    // may have changed since the last state; the state that shows the stop
-    // takes it for the next-start default. It counts only for the stop of
-    // the entry it names.
+    // entry shown. It names the project the server stopped, which another
+    // device may have changed since the last state; the state that shows the
+    // stop takes it for the next-start default. It counts only for the stop
+    // of the entry it names.
     virtual void entryEnded(const TimeEntry &reply) = 0;
     // A new context: the projects, the next start's choice and a stop reply
     // are forgotten and every answer on its way is dropped. Then shows the
@@ -84,6 +87,14 @@ public:
     // forgotten, the state shows without the workspace's data, and the
     // status is announced.
     virtual void forgetWorkspace() = 0;
+};
+
+// The project and billable flag of the next start, as the user picks them
+// and a start uses them.
+class TimerSelectionUpdates
+{
+public:
+    virtual ~TimerSelectionUpdates() = default;
 
     // The project and billable flag of the next start.
     virtual NextStartSelection::Choice nextStart() const = 0;
@@ -101,22 +112,38 @@ public:
     virtual void pickBillable(bool billable) = 0;
     // Asks for the last entry's project after the next state.
     virtual void wantLastEntry() = 0;
+};
 
-    // Where the reads of ProjectLoader land: the workspace's projects and
-    // the one read on its own, and the next start's choice with its
-    // last-entry default. Each tells the model of a change itself.
+// Where the reads of ProjectLoader land: the workspace's projects and the
+// one read on its own, and the next start's choice with its last-entry
+// default. Each tells the model of a change itself.
+class TimerCatalogUpdates
+{
+public:
+    virtual ~TimerCatalogUpdates() = default;
+
+    // The connection may read the workspace now.
+    virtual bool readable() const = 0;
     virtual ProjectCatalog &catalog() = 0;
     virtual NextStartSelection &selection() = 0;
     // Shows the chosen project and the indicator as the catalog knows them.
     virtual void showChosenProject() = 0;
 };
 
+// The three roles of one model, as TimerController hands them over.
+struct TimerModelRoles {
+    TimerStateUpdates *state = nullptr;
+    TimerSelectionUpdates *selection = nullptr;
+    TimerCatalogUpdates *catalog = nullptr;
+};
+
 // What a panel shows of the timer: the running entry of the connection's
 // validated account and workspace, its elapsed time, the pause chain, the
 // projects, the project and billable flag chosen for the next start, and a
 // status. Its public interface only reads. TimerCoordinator binds it to a
-// TimerStateClient and changes it through TimerModelUpdates; the panels act
-// through the coordinator.
+// TimerStateClient and changes it through its roles (TimerStateUpdates,
+// TimerSelectionUpdates, TimerCatalogUpdates); the panels act through the
+// coordinator.
 //
 // What it shows is derived from one timer state, the one the client
 // accepted, and from nothing else. Elapsed time is recomputed on every clock
@@ -133,7 +160,7 @@ public:
 // a chosen project the list lacks and the last entry into them.
 // NextStartSelection holds the next start's choice, and the model applies
 // its defaults as the states it shows ask for them.
-class TimerModel : public QObject, protected TimerModelUpdates
+class TimerModel : public QObject, protected TimerStateUpdates, protected TimerSelectionUpdates, protected TimerCatalogUpdates
 {
     Q_OBJECT
 
@@ -308,11 +335,13 @@ protected:
     explicit TimerModel(QObject *parent = nullptr);
     void setActivity(const TimerActivity *activity);
 
-    // TimerModelUpdates, for the subclass to hand to the coordinator.
+    // The roles, for the subclass to hand to the coordinator.
+    TimerModelRoles roles();
+
+    // TimerStateUpdates.
     void bind(TimerStateClient *client, Clock *clock) override;
     Clock *clock() const override;
     const std::optional<TimerState> &heldState() const override;
-    bool readable() const override;
     void connectionReplaced() override;
     void contextUpdated() override;
     void activityChanged() override;
@@ -320,6 +349,8 @@ protected:
     void entryEnded(const TimeEntry &reply) override;
     void resetContext() override;
     void forgetWorkspace() override;
+
+    // TimerSelectionUpdates.
     NextStartSelection::Choice nextStart() const override;
     void startSent() override;
     std::optional<NextStartSelection::Choice> choiceFor(const QVariant &projectId) const override;
@@ -327,6 +358,9 @@ protected:
     void pickProjectId(const QVariant &projectId) override;
     void pickBillable(bool billable) override;
     void wantLastEntry() override;
+
+    // TimerCatalogUpdates.
+    bool readable() const override;
     ProjectCatalog &catalog() override;
     NextStartSelection &selection() override;
     void showChosenProject() override;

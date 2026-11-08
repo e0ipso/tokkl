@@ -326,7 +326,12 @@ QString TimerModel::formatElapsed(qint64 seconds)
     return QStringLiteral("%1:%2").arg(seconds / 3600).arg((seconds % 3600) / 60, 2, 10, QLatin1Char('0'));
 }
 
-// ----- TimerModelUpdates ----------------------------------------------------
+// ----- the coordinator's roles ----------------------------------------------
+
+TimerModelRoles TimerModel::roles()
+{
+    return {this, this, this};
+}
 
 const std::optional<TimerState> &TimerModel::heldState() const
 {
