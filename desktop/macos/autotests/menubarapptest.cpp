@@ -206,6 +206,11 @@ public:
     {
         previews.append(file);
     }
+    // As NSSound refusing the last sound.
+    void fail(const QString &reason)
+    {
+        reportFailure(reason);
+    }
 
     // The file that loops now; empty after stop().
     QString looping;
@@ -2092,6 +2097,30 @@ private Q_SLOTS:
         QCOMPARE(f.player.previews.last(), soundFile(QStringLiteral("work-to-long-rest")));
         QVERIFY(f.player.loops.isEmpty());
         QVERIFY(!f.settings.contains(MenuBarApp::soundKey(TransitionKind::LongRestToWork)));
+    }
+
+    // A sound that did not play says why under the sounds and in the
+    // menu, until the next one starts.
+    void aSilentAlarmSaysWhy()
+    {
+        Fixture f;
+        f.app.start();
+        SettingsWindow &window = *f.app.m_settingsWindow.get();
+        StatusMenu &menu = *f.app.m_menu.get();
+        QVERIFY(window.m_soundError->isHidden());
+        QVERIFY(!menu.m_messageAction->isVisible());
+
+        previewButton(window, TransitionKind::LongRestToWork)->click();
+        f.player.fail(QStringLiteral("pomodoro-long-rest-to-work.wav does not play"));
+        const QString expected = QStringLiteral("No alarm sound: pomodoro-long-rest-to-work.wav does not play");
+        QCOMPARE(window.m_soundError->text(), expected);
+        QVERIFY(!window.m_soundError->isHidden());
+        QCOMPARE(menu.m_messageAction->text(), expected);
+        QVERIFY(menu.m_messageAction->isVisible());
+
+        previewButton(window, TransitionKind::LongRestToWork)->click();
+        QVERIFY(window.m_soundError->isHidden());
+        QVERIFY(!menu.m_messageAction->isVisible());
     }
 
     // Each sound selector has its label as buddy and a name for its
