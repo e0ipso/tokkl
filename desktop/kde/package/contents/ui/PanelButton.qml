@@ -103,15 +103,8 @@ MouseArea {
     }
     // The session's line has no project or connection state, so the
     // description names them: a failing connection otherwise shows only as
-    // the state symbol.
-    Accessible.description: {
-        if (!button.words.showsSession) {
-            return button.words.summary;
-        }
-        const connection = button.words.connectionText;
-        const text = connection.length > 0 ? i18nc("@info:status", "%1 · %2", button.words.projectText, connection) : button.words.projectText;
-        return button.words.withMessage(text);
-    }
+    // the state symbol. The core decides which parts (TokklStatusParts).
+    Accessible.description: button.words.accessibleDescription
     Accessible.focusable: true
     Accessible.onPressAction: {
         if (button.activate()) {

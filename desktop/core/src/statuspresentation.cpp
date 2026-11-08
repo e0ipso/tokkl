@@ -133,6 +133,24 @@ QList<StatusPart> summaryOf(const StatusInput &input, const StatusPolicy &policy
     return parts;
 }
 
+QList<StatusPart> accessibleOf(const StatusInput &input, const StatusPolicy &policy, const QList<StatusPart> &summary)
+{
+    if (!input.showsSession) {
+        return summary;
+    }
+    QList<StatusPart> parts{StatusPart::Project};
+    if (namesConnection(policy.summarySessionConnection, input.status)) {
+        parts.append(StatusPart::Connection);
+        if (input.hasDetail) {
+            parts.append(StatusPart::Detail);
+        }
+    }
+    if (policy.summaryMessage && input.hasMessage) {
+        parts.append(StatusPart::Message);
+    }
+    return parts;
+}
+
 QList<StatusPart> menuLineOf(const StatusInput &input, const StatusPolicy &policy)
 {
     if (input.showsSession) {
@@ -177,7 +195,8 @@ QStringList keys(const QList<StatusPart> &parts)
 
 StatusPresentation StatusPresentation::of(const StatusInput &input, const StatusPolicy &policy)
 {
-    return StatusPresentation{summaryOf(input, policy), menuLineOf(input, policy), markOf(input, policy)};
+    const QList<StatusPart> summary = summaryOf(input, policy);
+    return StatusPresentation{summary, menuLineOf(input, policy), accessibleOf(input, policy, summary), markOf(input, policy)};
 }
 
 QVariantMap StatusPresentation::toVariantMap() const
@@ -256,9 +275,19 @@ QStringList StatusParts::menuLine() const
     return keys(m_presentation.menuLine);
 }
 
+QStringList StatusParts::accessible() const
+{
+    return keys(m_presentation.accessible);
+}
+
 QString StatusParts::mark() const
 {
     return statusMarkKey(m_presentation.mark);
+}
+
+bool StatusParts::showsSession() const
+{
+    return m_showsSession;
 }
 
 void StatusParts::watch()
@@ -283,10 +312,11 @@ void StatusParts::watch()
 
 void StatusParts::update()
 {
-    const StatusPresentation presentation =
-        m_timer ? StatusPresentation::of(StatusInput::of(*m_timer, m_session, m_hasMessage), StatusPolicy::plasma()) : StatusPresentation();
-    if (presentation != m_presentation) {
+    const StatusInput input = m_timer ? StatusInput::of(*m_timer, m_session, m_hasMessage) : StatusInput();
+    const StatusPresentation presentation = m_timer ? StatusPresentation::of(input, StatusPolicy::plasma()) : StatusPresentation();
+    if (presentation != m_presentation || input.showsSession != m_showsSession) {
         m_presentation = presentation;
+        m_showsSession = input.showsSession;
         Q_EMIT changed();
     }
 }

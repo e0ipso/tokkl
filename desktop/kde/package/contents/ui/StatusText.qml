@@ -19,9 +19,8 @@ QtObject {
 
     readonly property bool pomodoroMode: session !== null && session.pomodoroMode
     // The panel shows the session rather than the timer: a session is
-    // active. The timer holds no entry then, as the session owns its
-    // pomodoro.
-    readonly property bool showsSession: session !== null && session.active
+    // active and no timer runs or is paused, by the core's rule.
+    readonly property bool showsSession: parts.showsSession
 
     // The last refusal of a Pomodoro lengths save from the settings page,
     // which may come after the dialog has closed. Null leaves it out.
@@ -102,15 +101,6 @@ QtObject {
         }
     }
 
-    // The connection's state and, when there is one, why it is not ready;
-    // empty while ready.
-    readonly property string connectionText: {
-        if (timer.status === TokklTimer.Ready) {
-            return "";
-        }
-        return detailText.length > 0 ? i18nc("@info:status", "%1 · %2", statusText, detailText) : statusText;
-    }
-
     // The project name for the menu title, including the archived project of
     // the running or paused entry.
     readonly property string projectText: {
@@ -128,10 +118,14 @@ QtObject {
         hasMessage: words.messageText.length > 0
     }
 
-    // One line for the tooltip and the accessible description. It names the
-    // project, so the panel's project indicator is never the only sign of it.
-    // During a session it is the session's line.
+    // One line for the tooltip. It names the project, so the panel's
+    // project indicator is never the only sign of it. During a session it is
+    // the session's line.
     readonly property string summary: render(parts.summary)
+    // The panel button's accessible description: the summary, or during a
+    // session, whose line is the button's name, the project and the
+    // connection's state, which the session's line leaves out.
+    readonly property string accessibleDescription: render(parts.accessible)
     // The menu's state line: the run state, the elapsed time and the
     // connection's state, or the session's line.
     readonly property string menuLine: render(parts.menuLine)
@@ -165,11 +159,6 @@ QtObject {
             }
         }
         return shown.filter(text => text.length > 0).join(" · ");
-    }
-
-    // The text, followed by the session's message when there is one.
-    function withMessage(text: string): string {
-        return messageText.length > 0 ? i18nc("@info:status", "%1 · %2", text, messageText) : text;
     }
 
     // The text, marked in Pomodoro mode.
