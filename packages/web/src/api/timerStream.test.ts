@@ -1,7 +1,7 @@
 import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import type { TimerState } from './types.ts';
-import { connectTimerStream, type TimerEventSource } from './timerStream.ts';
+import { DEFAULT_RETRY, connectTimerStream, retryDelay, type TimerEventSource } from './timerStream.ts';
 
 class FakeSource implements TimerEventSource {
   readyState = 0;
@@ -38,7 +38,8 @@ const state = (revision: number): TimerState => ({
   discarded_pomodoro: null,
 });
 
-function setup() {
+/** A stream whose retries draw `random` (0 by default, so each waits the shortest time, 5 s). */
+function setup(random: () => number = () => 0) {
   const sources: FakeSource[] = [];
   const states: TimerState[] = [];
   const statuses: boolean[] = [];
@@ -49,7 +50,7 @@ function setup() {
       return source;
     },
     { onState: s => states.push(s), onStatus: up => statuses.push(up) },
-    5000,
+    { retry: { ...DEFAULT_RETRY, random } },
   );
   const at = (index: number): FakeSource => {
     const source = sources[index];
@@ -207,6 +208,45 @@ test('keep-alives do not keep a connection that never sent a state', t => {
   t.mock.timers.tick(1);
   assert.equal(sources.length, 3);
   assert.deepEqual(statuses, [true, false]);
+  stop();
+});
+
+test('the retry wait is random between 5 s and a ceiling that doubles per failure, up to 60 s', () => {
+  const at = (random: number) => (failures: number) => retryDelay(failures, { ...DEFAULT_RETRY, random: () => random });
+  assert.deepEqual([0, 1, 2, 3, 4, 10, 2000].map(at(0)), [5000, 5000, 5000, 5000, 5000, 5000, 5000]);
+  assert.deepEqual([0, 1, 2, 3, 4, 10, 2000].map(at(0.5)), [7500, 12_500, 22_500, 32_500, 32_500, 32_500, 32_500]);
+  assert.deepEqual([0, 1, 2, 3, 4].map(at(0.999_999)), [10_000, 20_000, 40_000, 60_000, 60_000]);
+});
+
+test('each failure in a row waits longer, and a well-formed state starts the count again', t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  // The midpoint of each range: 7.5 s, then 12.5 s, then 22.5 s.
+  const { sources, at, stop } = setup(() => 0.5);
+  const giveUp = (index: number) => {
+    at(index).readyState = 2;
+    at(index).emit('error');
+  };
+  const reopensAfter = (ms: number) => {
+    const before = sources.length;
+    t.mock.timers.tick(ms - 1);
+    assert.equal(sources.length, before, `nothing opens before ${ms} ms`);
+    t.mock.timers.tick(1);
+    assert.equal(sources.length, before + 1, `a source opens at ${ms} ms`);
+  };
+  giveUp(0);
+  reopensAfter(7500);
+  at(1).open();
+  at(1).emit('timer', '{not json');
+  reopensAfter(12_500);
+  giveUp(2);
+  reopensAfter(22_500);
+  // A connection that opens but sends no state is not healthy yet.
+  at(3).open();
+  giveUp(3);
+  reopensAfter(32_500);
+  at(4).start(1);
+  giveUp(4);
+  reopensAfter(7500);
   stop();
 });
 

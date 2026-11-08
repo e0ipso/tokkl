@@ -19,9 +19,35 @@ export interface TimerStreamHandlers {
 }
 
 const CLOSED = 2;
-const DEFAULT_RETRY_MS = 5000;
 /** The server sends a `keep-alive` event every 25 s, so a minute without one means it is not getting through. */
 const DEFAULT_SILENCE_MS = 60_000;
+
+/** When to open a new source after the last one failed. */
+export interface RetrySchedule {
+  /**
+   * The shortest wait, 5 s. It is also the `Retry-After` the server sends when its stream cap is
+   * full. `EventSource` shows neither the status nor the headers of a refused connection, so the
+   * schedule never goes below it instead of reading it.
+   */
+  baseMs: number;
+  /** The longest wait, 60 s. */
+  capMs: number;
+  /** A number from 0 (included) to 1 (excluded), as `Math.random` returns. */
+  random: () => number;
+}
+
+export const DEFAULT_RETRY: RetrySchedule = { baseMs: 5000, capMs: 60_000, random: Math.random };
+
+/**
+ * The wait before retry number `failures` (0 for the first) after failures in a row: a random time
+ * between `baseMs` and a ceiling that doubles with each failure, from twice `baseMs` up to `capMs`.
+ * The random part spreads the tabs a server restart dropped together, so they do not all come
+ * back in the same second.
+ */
+export function retryDelay(failures: number, { baseMs, capMs, random }: RetrySchedule): number {
+  const ceiling = Math.min(capMs, baseMs * 2 ** (failures + 1));
+  return Math.round(baseMs + random() * (ceiling - baseMs));
+}
 
 /** The state a `timer` event carries, or null when its data is not JSON or not a whole state. */
 function decodeState(data: unknown): TimerState | null {
@@ -34,6 +60,11 @@ function decodeState(data: unknown): TimerState | null {
   return isTimerState(value) ? value : null;
 }
 
+export interface TimerStreamOptions {
+  retry?: RetrySchedule;
+  silenceMs?: number;
+}
+
 /**
  * Holds the timer event stream open and says whether its states can be trusted, so the hooks poll
  * only when they cannot.
@@ -42,23 +73,27 @@ function decodeState(data: unknown): TimerState | null {
  * soon as the stream opens, so opening alone switches nothing off. It counts as down again when:
  * - it errs. The browser reconnects by itself after a dropped connection, and the next state brings
  *   it back up. When the browser gives up instead (readyState CLOSED), such as on an error status
- *   from a restarting proxy, the source is closed and a new one opens after `retryMs`.
+ *   from a restarting proxy or a full stream cap, the source is closed and a new one opens after
+ *   `retryDelay`.
  * - a `timer` event does not decode. A stream that sends states this app cannot read is no better
- *   than none: the source is closed and a new one opens after `retryMs`, as when the browser gives up.
+ *   than none: the source is closed and a new one opens after `retryDelay`, as when the browser
+ *   gives up.
  * - it stays silent for `silenceMs`: no state within that time of opening, or no state or
  *   keep-alive within that time of the last one, such as when a buffering proxy holds the body back.
  *   The source is replaced at once. Keep-alives restart that wait only once a state has arrived, so
  *   a connection that only ever sends keep-alives does not pass for a working one.
  *
- * The returned function stops it for good.
+ * Each failure in a row waits longer before the next source opens (`retryDelay`); a well-formed
+ * state starts the count again. The returned function stops it for good.
  */
 export function connectTimerStream(
   open: () => TimerEventSource,
   handlers: TimerStreamHandlers,
-  retryMs: number = DEFAULT_RETRY_MS,
-  silenceMs: number = DEFAULT_SILENCE_MS,
+  { retry: schedule = DEFAULT_RETRY, silenceMs = DEFAULT_SILENCE_MS }: TimerStreamOptions = {},
 ): () => void {
   let source: TimerEventSource | null = null;
+  // Sources closed for an error or an unreadable event since the last well-formed state.
+  let failures = 0;
   let retry: ReturnType<typeof setTimeout> | null = null;
   let silence: ReturnType<typeof setTimeout> | null = null;
   let up = false;
@@ -100,7 +135,9 @@ export function connectTimerStream(
     };
     const reopenLater = () => {
       current.close();
-      if (!stopped) retry = setTimeout(connect, retryMs);
+      if (stopped) return;
+      retry = setTimeout(connect, retryDelay(failures, schedule));
+      failures += 1;
     };
 
     current.addEventListener('open', () => {
@@ -123,6 +160,7 @@ export function connectTimerStream(
         return;
       }
       delivered = true;
+      failures = 0;
       watch();
       handlers.onState(state);
       setUp(true);
