@@ -134,7 +134,21 @@ bool TimerService::registerOn(QDBusConnection bus)
 
 void TimerService::setAlarm(PomodoroAlarm *alarm)
 {
+    if (m_alarm) {
+        disconnect(m_alarm, nullptr, this, nullptr);
+    }
     m_alarm = alarm;
+    if (m_alarm) {
+        connect(m_alarm, &PomodoroAlarm::failureChanged, this, [this] {
+            mark(SoundsGroup);
+        });
+    }
+    mark(SoundsGroup);
+}
+
+QString TimerService::alarmError() const
+{
+    return m_alarm ? m_alarm->failure() : QString();
 }
 
 bool TimerService::running() const
@@ -658,7 +672,10 @@ QVariantMap TimerService::lengthProperties() const
 
 QVariantMap TimerService::soundProperties() const
 {
-    return {{QStringLiteral("Sounds"), QVariant::fromValue(sounds())}};
+    return {
+        {QStringLiteral("Sounds"), QVariant::fromValue(sounds())},
+        {QStringLiteral("AlarmError"), alarmError()},
+    };
 }
 
 QVariantMap TimerService::fixedProperties() const

@@ -38,6 +38,9 @@ import {
  * @property {boolean} canStartSession
  * @property {string} upcomingPhase
  * @property {string} sessionMessage
+ * @property {string} [alarmError] the AlarmError property: why the last
+ *     alarm sound did not play; empty or missing when it played, or from a
+ *     service older than the property
  * @property {Record<string, ActionState>|null} [actions] the Actions property,
  *     missing or null when the service publishes none
  * @property {string} [actionError] the extension's own word on a method call
@@ -72,8 +75,9 @@ export function describeMenu(state, words, _) {
     else if (actions.project.label === 'projectPaused')
         projectText = fill(_('Project: %s (locked while paused)'), chosen);
     // A call that failed outranks the service's message: it is newer, and
-    // the service may not have seen the call at all.
-    const message = state.actionError || state.sessionMessage;
+    // the service may not have seen the call at all. A sound that did not
+    // play comes last.
+    const message = state.actionError || state.sessionMessage || state.alarmError || '';
     // A refused request's words are often ErrorString's too; they show once.
     const detailShown = words.detail.length > 0 && words.detail !== message;
     return {

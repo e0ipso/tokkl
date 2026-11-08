@@ -342,6 +342,12 @@ public:
     {
         calls.append(QStringLiteral("stop"));
     }
+
+    // As a sound server that refused the last sound.
+    void fail(const QString &reason)
+    {
+        reportFailure(reason);
+    }
 };
 
 // A keyring whose writes wait until the test finishes them, in any order.
@@ -736,6 +742,7 @@ private Q_SLOTS:
             {QStringLiteral("PomodoroLengthLimits"), QStringLiteral("a{sa{si}} read")},
             {QStringLiteral("Sounds"), QStringLiteral("a{ss} read")},
             {QStringLiteral("SoundChoices"), QStringLiteral("aa{sv} read")},
+            {QStringLiteral("AlarmError"), QStringLiteral("s read")},
         };
         QCOMPARE(timer.properties, properties);
         const QMap<QString, QStringList> methods{
@@ -1935,6 +1942,35 @@ private Q_SLOTS:
         }
         QVERIFY(f.restart());
         QCOMPARE(qdbus_cast<StringMap>(f.get(QStringLiteral("Sounds"))), chosen);
+    }
+
+    // A sound the output could not play, or whose file is missing, shows in
+    // AlarmError until the next sound starts.
+    void alarmErrorTellsWhyNoSoundPlayed()
+    {
+        Fixture f;
+        QVERIFY(f.start());
+        QCOMPARE(f.get(QStringLiteral("AlarmError")).toString(), QString());
+        FakeAlarmOutput output;
+        PomodoroAlarm alarm(&f.daemon->session, &output, &f.daemon->sounds, bundledSoundsDir());
+        f.service->setAlarm(&alarm);
+        QCOMPARE(f.result(QStringLiteral("PreviewSound"), {QStringLiteral("short-rest-to-work")}).toBool(), true);
+        output.fail(QStringLiteral("Connection refused"));
+        QCOMPARE(f.get(QStringLiteral("AlarmError")).toString(), QStringLiteral("No alarm sound: Connection refused"));
+        QTRY_VERIFY(f.recorder.valuesOf(QStringLiteral("AlarmError")).contains(QStringLiteral("No alarm sound: Connection refused")));
+
+        // The next sound starts afresh.
+        QCOMPARE(f.result(QStringLiteral("PreviewSound"), {QStringLiteral("work-to-long-rest")}).toBool(), true);
+        QCOMPARE(f.get(QStringLiteral("AlarmError")).toString(), QString());
+
+        // A file that is not there plays nothing and says so.
+        QTemporaryDir empty;
+        QVERIFY(empty.isValid());
+        alarm.setSoundsDirectory(empty.path());
+        QCOMPARE(f.result(QStringLiteral("PreviewSound"), {QStringLiteral("work-to-long-rest")}).toBool(), true);
+        QCOMPARE(output.calls.size(), 2);
+        const QString missing = f.get(QStringLiteral("AlarmError")).toString();
+        QVERIFY2(missing.startsWith(QStringLiteral("No alarm sound: ")) && missing.contains(empty.path()), qPrintable(missing));
     }
 
     // The alarm loops the file of the sound chosen for the ringing

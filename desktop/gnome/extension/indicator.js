@@ -232,6 +232,7 @@ export const TokklIndicator = GObject.registerClass(
                 longRestEvery: this._property('LongRestEvery', 0),
                 upcomingPhase: this._property('UpcomingPhase', ''),
                 sessionMessage: this._property('SessionMessage', ''),
+                alarmError: this._property('AlarmError', ''),
                 // Which items show and can be chosen; a service from before
                 // Actions publishes none, and legacyactions.js stands in.
                 actions: this._property('Actions', null),

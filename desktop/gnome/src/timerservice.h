@@ -73,6 +73,7 @@ class TimerService : public QObject, protected QDBusContext
     Q_PROPERTY(QMap<QString, QMap<QString, int>> PomodoroLengthLimits READ pomodoroLengthLimits)
     Q_PROPERTY(QMap<QString, QString> Sounds READ sounds)
     Q_PROPERTY(QList<QVariantMap> SoundChoices READ soundCatalogue)
+    Q_PROPERTY(QString AlarmError READ alarmError)
 
 public:
     static const QString serviceName;
@@ -108,7 +109,7 @@ public:
     bool registerOn(QDBusConnection bus);
 
     // The alarm PreviewSound plays on, which the service does not own.
-    // Without one, PreviewSound is refused.
+    // Without one, PreviewSound is refused. AlarmError follows its failure.
     void setAlarm(PomodoroAlarm *alarm);
 
     bool running() const;
@@ -150,6 +151,8 @@ public:
     QMap<QString, QMap<QString, int>> pomodoroLengthLimits() const;
     QMap<QString, QString> sounds() const;
     QList<QVariantMap> soundCatalogue() const;
+    // PomodoroAlarm::failure(), empty without an alarm.
+    QString alarmError() const;
 
 public Q_SLOTS:
     // The org.tokkl.Timer1 methods, called by the generated adaptor.

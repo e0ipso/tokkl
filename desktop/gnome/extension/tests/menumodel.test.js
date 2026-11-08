@@ -165,6 +165,18 @@ test('a failed call shows its message, ahead of the session message', () => {
     assert.deepEqual(menuFor({ actionError: '' }).message, { text: '', visible: false });
 });
 
+test('a sound that did not play shows after the other messages', () => {
+    const alarmError = 'No alarm sound: Connection refused';
+    assert.deepEqual(menuFor({ alarmError }).message, { text: alarmError, visible: true });
+    assert.equal(menuFor({ alarmError, sessionMessage: 'Too short to save' }).message.text, 'Too short to save');
+    assert.equal(
+        menuFor({ alarmError, actionError: 'The timer service did not answer.' }).message.text,
+        'The timer service did not answer.',
+    );
+    // A service from before AlarmError leaves it out.
+    assert.deepEqual(menuFor({ alarmError: undefined }).message, { text: '', visible: false });
+});
+
 test("a refused request's words show once, also when ErrorString holds them", () => {
     const refused = 'Project is archived';
     const state = serviceState({ status: 'error', actionError: refused });
