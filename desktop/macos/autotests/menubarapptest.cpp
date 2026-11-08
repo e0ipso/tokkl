@@ -1756,10 +1756,21 @@ private Q_SLOTS:
         QVERIFY(f.app.m_connection.get()->instanceUrl().isEmpty());
         QVERIFY(!f.item.image.monochromeLogo);
 
-        // Opening the window again forgets the failure.
+        // Opening the window again forgets the failure, and once the file
+        // can be written a save works.
         window.close();
         f.app.showSettings();
         QVERIFY(!window.m_saveError->isVisibleTo(&window));
+        QVERIFY(QDir(f.settings.fileName()).removeRecursively());
+        window.m_urlField->setText(instance);
+        // The Keychain kept the secret the first time.
+        QTRY_COMPARE(window.m_secretField->text(), token);
+        window.m_saveButton->click();
+        QTRY_COMPARE(saved.count(), 1);
+        QTRY_VERIFY(!window.isVisible());
+        QVERIFY(!window.m_saveError->isVisibleTo(&window));
+        QCOMPARE(f.settings.value(ConnectionSettings::instanceUrlKey).toString(), instance);
+        QCOMPARE(f.app.m_connection.get()->instanceUrl(), instance);
     }
 
     void settingsRefuseCredentialsInTheAddress()
