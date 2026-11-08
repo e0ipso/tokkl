@@ -221,6 +221,14 @@ test('the extension reads the service only through the shared gate', () => {
     );
 });
 
+// The core's placeholder limits are the only ones: the preferences wait for
+// the service's PomodoroLengthLimits.
+test('the preferences keep no length range of their own', () => {
+    const prefs = readFileSync(new URL('../prefs.js', import.meta.url), 'utf8');
+    assert.doesNotMatch(prefs, /\b999\b/);
+    assert.doesNotMatch(prefs, /lower:|upper:/);
+});
+
 // No fallback for a service below the floor is left behind.
 test('the fallbacks for older services are gone', () => {
     const extension = name => existsSync(new URL(`../${name}`, import.meta.url));

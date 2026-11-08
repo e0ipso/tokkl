@@ -31,10 +31,6 @@ import {
 import { createTimer1Proxy } from './timer1proxy.js';
 import { TypedSecret, connectionIdentity } from './typedsecret.js';
 
-// A row's range until the service publishes PomodoroLengthLimits, as the
-// core's placeholder is; the rows cannot be saved then.
-const PLACEHOLDER_LIMIT = { min: 1, max: 999 };
-
 function toastError(window, error) {
     Gio.DBusError.strip_remote_error(error);
     window.add_toast(new Adw.Toast({ title: error.message, timeout: 0 }));
@@ -59,7 +55,10 @@ class PomodoroGroup {
         this.group.header_suffix = this._save;
 
         // Keyed as PomodoroLengths. The ranges and defaults are the ones the
-        // service publishes in PomodoroLengthLimits once it is reached.
+        // service publishes in PomodoroLengthLimits once it is reached, the
+        // core's placeholder until the server announces its own. Before that
+        // a row has no range, and it is insensitive: nothing can be saved
+        // without the service.
         const minutes = _('Minutes');
         this._lengths = [
             ['work', _('Work'), minutes],
@@ -67,18 +66,12 @@ class PomodoroGroup {
             ['longRest', _('Long rest'), minutes],
             ['longRestEvery', _('Long rest every'), _('Pomodoros')],
         ].map(([key, title, unit]) => {
-            const { min, max } = PLACEHOLDER_LIMIT;
             const row = new Adw.SpinRow({
                 title,
                 subtitle: unit,
                 numeric: true,
-                adjustment: new Gtk.Adjustment({
-                    lower: min,
-                    upper: max,
-                    value: min,
-                    step_increment: 1,
-                    page_increment: 5,
-                }),
+                sensitive: false,
+                adjustment: new Gtk.Adjustment({ step_increment: 1, page_increment: 5 }),
             });
             this.group.add(row);
             return { key, unit, row };
