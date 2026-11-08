@@ -115,7 +115,7 @@ int main(int argc, char **argv)
     Tokkl::SoundChoices sounds(&settings, &Tokkl::TimerService::soundKey);
     Tokkl::PomodoroPreferences preferences(&connection);
     timer.setStateClient(&client);
-    Tokkl::PomodoroSession session(&clock, timer.coordinator(), &pomodoroStore);
+    Tokkl::PomodoroSession session(&clock, timer.coordinator(), &client, &pomodoroStore);
     Tokkl::ServiceSettings connectionSettings(&settings, &connection, &store);
     Tokkl::ConfigurationAdapter configuration(&connectionSettings);
     Tokkl::TimerService service({&timer, timer.coordinator(), &session, &preferences, &sounds, &configuration});

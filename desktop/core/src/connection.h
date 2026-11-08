@@ -109,10 +109,15 @@ public:
     void startEntry(const StartEntry &entry, Callback<TimeEntry> done = {});
     void stopEntry(qint64 entryId, Callback<TimeEntry> done = {});
     void updateEntry(qint64 entryId, const TimeEntryUpdate &update, Callback<TimeEntry> done = {});
-    // The Pomodoro lengths of the account preferences.
+    // The Pomodoro lengths of the account preferences, through
+    // /api/app/me/preferences, whose refusals name the refused key in
+    // Tokkl-Error-Field. A server from before that route answers 404; the
+    // request then goes to /api/v9/me/preferences, and so does every later
+    // one of this generation.
     void fetchPreferences(Callback<PomodoroConfig> done = {});
-    // Posts only the lengths the update sets. done gets the lengths the
-    // server holds afterwards.
+    // Posts only the lengths the update sets, on the same path as
+    // fetchPreferences(). done gets the lengths the server holds
+    // afterwards.
     void savePreferences(const PomodoroConfigUpdate &update, Callback<PomodoroConfig> done = {});
 
     // The account's timer state, GET /api/app/timer. Like /me, a 401 or 403
@@ -167,9 +172,16 @@ private:
     void fetchProjectPage(const std::shared_ptr<ProjectPages> &pages);
     QUrl api(const QString &path) const;
     QUrl app(const QString &path) const;
+    // The preferences go through v9 in this generation.
+    bool preferencesThroughV9() const;
+    // Sends a preferences request through the app path, or through v9 once
+    // the app path answered 404 in this generation.
+    void preferencesCall(const QByteArray &method, const QByteArray &body, ApiAccess access, Callback<PomodoroConfig> done);
 
     const QString m_clientName;
     AuthSession m_session;
+    // The generation in which /api/app/me/preferences answered 404.
+    std::optional<quint64> m_v9PreferencesGeneration;
 };
 
 }

@@ -17,9 +17,9 @@
 
 #include <QDBusMessage>
 #include <QDBusMetaType>
-#include <QMetaProperty>
 
 #include <optional>
+#include <utility>
 
 namespace Tokkl
 {
@@ -71,31 +71,41 @@ TimerService::TimerService(const Parts &parts, QObject *parent)
     qDBusRegisterMetaType<QMap<QString, int>>();
     qDBusRegisterMetaType<QMap<QString, QString>>();
     qDBusRegisterMetaType<QMap<QString, QVariantMap>>();
+    qDBusRegisterMetaType<QMap<QString, QMap<QString, int>>>();
     new Timer1Adaptor(this);
 
-    // Each property follows the core signal that announces its change. The
-    // countdown is left out: clients count down to PlannedEnd themselves.
-    const auto publish = [this] {
-        publishChanges();
+    // Each core signal marks the groups whose properties it can change, and
+    // the next turn of the event loop publishes them once. The countdown is
+    // left out: clients count down to PlannedEnd themselves.
+    const auto marking = [this](unsigned groups) {
+        return [this, groups] {
+            mark(groups);
+        };
     };
-    connect(m_timer, &TimerModel::currentEntryChanged, this, publish);
-    connect(m_timer, &TimerModel::chainChanged, this, publish);
-    connect(m_timer, &TimerModel::indicatorChanged, this, publish);
-    connect(m_timer, &TimerModel::projectsChanged, this, publish);
-    connect(m_timer, &TimerModel::choiceChanged, this, publish);
-    connect(m_timer, &TimerModel::entryProjectChanged, this, publish);
-    connect(m_timer, &TimerModel::statusChanged, this, publish);
-    connect(m_session, &PomodoroSession::modeChanged, this, publish);
-    connect(m_session, &PomodoroSession::modeLockedChanged, this, publish);
-    connect(m_session, &PomodoroSession::sessionChanged, this, publish);
-    connect(m_session, &PomodoroSession::canStartSessionChanged, this, publish);
-    connect(m_session, &PomodoroSession::ringingChanged, this, publish);
-    connect(m_session, &PomodoroSession::messageChanged, this, publish);
-    connect(m_preferences, &PomodoroPreferences::changed, this, publish);
-    connect(m_preferences, &PomodoroPreferences::stateChanged, this, publish);
-    connect(m_sounds, &SoundChoices::changed, this, publish);
+    for (auto signal : {&TimerModel::currentEntryChanged,
+                        &TimerModel::chainChanged,
+                        &TimerModel::indicatorChanged,
+                        &TimerModel::choiceChanged,
+                        &TimerModel::entryProjectChanged,
+                        &TimerModel::statusChanged}) {
+        connect(m_timer, signal, this, marking(TimerGroup | ActionsGroup));
+    }
+    // ChosenProjectName reads the list too.
+    connect(m_timer, &TimerModel::projectsChanged, this, marking(ProjectsGroup | TimerGroup | ActionsGroup));
+    for (auto signal : {&PomodoroSession::modeChanged,
+                        &PomodoroSession::modeLockedChanged,
+                        &PomodoroSession::sessionChanged,
+                        &PomodoroSession::canStartSessionChanged,
+                        &PomodoroSession::ringingChanged,
+                        &PomodoroSession::messageChanged}) {
+        connect(m_session, signal, this, marking(SessionGroup | ActionsGroup));
+    }
+    connect(m_preferences, &PomodoroPreferences::changed, this, marking(LengthsGroup));
+    connect(m_preferences, &PomodoroPreferences::stateChanged, this, marking(LengthsGroup));
+    connect(m_sounds, &SoundChoices::changed, this, marking(SoundsGroup));
+    connect(m_actions, &TimerCoordinator::writeFinished, this, &TimerService::onWriteFinished);
 
-    m_published = snapshot();
+    m_published = read(AllGroups);
 }
 
 TimerService::~TimerService()
@@ -117,7 +127,8 @@ bool TimerService::registerOn(QDBusConnection bus)
     }
     m_bus = bus;
     m_registered = true;
-    m_published = snapshot();
+    m_dirty = 0;
+    m_published = read(AllGroups);
     return true;
 }
 
@@ -374,6 +385,27 @@ QMap<QString, QString> TimerService::pomodoroLengthErrors() const
     return errors;
 }
 
+QMap<QString, QMap<QString, int>> TimerService::pomodoroLengthLimits() const
+{
+    // The core's limits are keyed by the preferences' names; the bus keys
+    // them as PomodoroLengths.
+    const std::pair<QString, QString> keys[] = {
+        {QStringLiteral("work"), QStringLiteral("workMinutes")},
+        {QStringLiteral("shortRest"), QStringLiteral("shortRestMinutes")},
+        {QStringLiteral("longRest"), QStringLiteral("longRestMinutes")},
+        {QStringLiteral("longRestEvery"), QStringLiteral("longRestEvery")},
+    };
+    const QVariantMap limits = PomodoroPreferences::limits();
+    QMap<QString, QMap<QString, int>> published;
+    for (const auto &[key, name] : keys) {
+        const QVariantMap limit = limits.value(name).toMap();
+        for (auto it = limit.cbegin(); it != limit.cend(); ++it) {
+            published[key].insert(it.key(), it.value().toInt());
+        }
+    }
+    return published;
+}
+
 QMap<QString, QString> TimerService::sounds() const
 {
     QMap<QString, QString> sounds;
@@ -399,32 +431,73 @@ QList<QVariantMap> TimerService::soundCatalogue() const
 bool TimerService::Start()
 {
     // In Pomodoro mode the desktop starts no timer: sessions run instead.
-    return !m_session->pomodoroMode() && m_actions->start();
+    return answer(!m_session->pomodoroMode() && m_actions->start());
 }
 
 bool TimerService::Stop()
 {
-    return m_actions->stop();
+    return answer(m_actions->stop());
 }
 
 bool TimerService::Pause()
 {
-    return m_actions->pause();
+    return answer(m_actions->pause());
 }
 
 bool TimerService::Resume()
 {
-    return m_actions->resume();
+    return answer(m_actions->resume());
+}
+
+qulonglong TimerService::RequestStart()
+{
+    return answer(follow(!m_session->pomodoroMode() && m_actions->start()));
+}
+
+qulonglong TimerService::RequestStop()
+{
+    return answer(follow(m_actions->stop()));
+}
+
+qulonglong TimerService::RequestPause()
+{
+    return answer(follow(m_actions->pause()));
+}
+
+qulonglong TimerService::RequestResume()
+{
+    return answer(follow(m_actions->resume()));
+}
+
+qulonglong TimerService::follow(bool sent)
+{
+    if (!sent) {
+        return 0;
+    }
+    // The core answers a write later, never while it sends it.
+    m_request = ++m_lastRequest;
+    return m_request;
+}
+
+void TimerService::onWriteFinished(bool ok, const QString &message)
+{
+    const qulonglong request = std::exchange(m_request, 0);
+    if (request == 0) {
+        return; // a write from Start, Activate or another plain method
+    }
+    // The properties the write changed reach the bus first.
+    publishChanges();
+    Q_EMIT RequestFinished(request, ok, message);
 }
 
 bool TimerService::SetProject(qint64 projectId)
 {
-    return m_actions->chooseProject(projectId == 0 ? QVariant::fromValue(nullptr) : QVariant(projectId));
+    return answer(m_actions->chooseProject(projectId == 0 ? QVariant::fromValue(nullptr) : QVariant(projectId)));
 }
 
 bool TimerService::SetBillable(bool billable)
 {
-    return m_actions->chooseBillable(billable);
+    return answer(m_actions->chooseBillable(billable));
 }
 
 void TimerService::Configure(const QString &instanceUrl, const QString &authMode, const QString &email, const QString &secret)
@@ -436,11 +509,12 @@ void TimerService::Configure(const QString &instanceUrl, const QString &authMode
         call = ConfigurationAdapter::Call{message(), QDBusContext::connection()};
     }
     m_configuration->configure(instanceUrl, authMode, email, secret, call);
+    publishChanges();
 }
 
 bool TimerService::SetPomodoroMode(bool pomodoro)
 {
-    return m_session->setPomodoroMode(pomodoro);
+    return answer(m_session->setPomodoroMode(pomodoro));
 }
 
 QString TimerService::Activate()
@@ -449,36 +523,37 @@ QString TimerService::Activate()
     case PomodoroSession::Activation::Handled:
         break;
     case PomodoroSession::Activation::OpenMenu:
-        return QStringLiteral("open-menu");
+        return answer(QStringLiteral("open-menu"));
     case PomodoroSession::Activation::Ignored:
-        return QStringLiteral("ignored");
+        return answer(QStringLiteral("ignored"));
     }
-    return QStringLiteral("handled");
+    return answer(QStringLiteral("handled"));
 }
 
 bool TimerService::StartSession()
 {
-    return m_session->startSession();
+    return answer(m_session->startSession());
 }
 
 bool TimerService::NextPhase()
 {
-    return m_session->confirmNextPhase();
+    return answer(m_session->confirmNextPhase());
 }
 
 bool TimerService::EndSession()
 {
-    return m_session->endSession();
+    return answer(m_session->endSession());
 }
 
 bool TimerService::SetPomodoroLengths(int work, int shortRest, int longRest, int longRestEvery)
 {
-    return m_preferences->save(work, shortRest, longRest, longRestEvery);
+    return answer(m_preferences->save(work, shortRest, longRest, longRestEvery));
 }
 
 void TimerService::RefreshPreferences()
 {
     m_preferences->refresh();
+    publishChanges();
 }
 
 bool TimerService::SetSound(const QString &transition, const QString &soundId)
@@ -498,7 +573,7 @@ bool TimerService::SetSound(const QString &transition, const QString &soundId)
     }
     // A choice the file cannot keep is not taken, so Sounds keeps showing
     // the one stored.
-    return m_sounds->choose(*kind, soundId);
+    return answer(m_sounds->choose(*kind, soundId));
 }
 
 bool TimerService::PreviewSound(const QString &soundId)
@@ -517,30 +592,137 @@ bool TimerService::PreviewSound(const QString &soundId)
     return true;
 }
 
-// Every org.tokkl.Timer1 property, read as the adaptor reads it.
-QVariantMap TimerService::snapshot() const
+// ----- publishing ----------------------------------------------------------
+//
+// Each group reads its properties through their getters, with the types the
+// adaptor gives them on the bus.
+
+QVariantMap TimerService::timerProperties() const
 {
+    return {
+        {QStringLiteral("Running"), running()},
+        {QStringLiteral("StartTime"), startTime()},
+        {QStringLiteral("LocalStartTime"), localStartTime()},
+        {QStringLiteral("Paused"), paused()},
+        {QStringLiteral("ChainSeconds"), chainSeconds()},
+        {QStringLiteral("IndicatorState"), indicatorState()},
+        {QStringLiteral("IndicatorColor"), indicatorColor()},
+        {QStringLiteral("ChosenProject"), chosenProject()},
+        {QStringLiteral("ChosenProjectName"), chosenProjectName()},
+        {QStringLiteral("Billable"), billable()},
+        {QStringLiteral("Status"), status()},
+        {QStringLiteral("ErrorString"), errorString()},
+    };
+}
+
+QVariantMap TimerService::projectProperties() const
+{
+    return {
+        {QStringLiteral("Projects"), QVariant::fromValue(projects())},
+        {QStringLiteral("ProjectsIncomplete"), projectsIncomplete()},
+    };
+}
+
+QVariantMap TimerService::sessionProperties() const
+{
+    return {
+        {QStringLiteral("PomodoroMode"), pomodoroMode()},
+        {QStringLiteral("ModeLocked"), modeLocked()},
+        {QStringLiteral("SessionActive"), sessionActive()},
+        {QStringLiteral("CanStartSession"), canStartSession()},
+        {QStringLiteral("Phase"), phase()},
+        {QStringLiteral("PhaseStart"), phaseStart()},
+        {QStringLiteral("PlannedEnd"), plannedEnd()},
+        {QStringLiteral("PomodoroNumber"), pomodoroNumber()},
+        {QStringLiteral("LongRestEvery"), longRestEvery()},
+        {QStringLiteral("UpcomingPhase"), upcomingPhase()},
+        {QStringLiteral("Ringing"), ringing()},
+        {QStringLiteral("RingingTransition"), ringingTransition()},
+        {QStringLiteral("SessionMessage"), sessionMessage()},
+    };
+}
+
+QVariantMap TimerService::actionProperties() const
+{
+    return {{QStringLiteral("Actions"), QVariant::fromValue(actions())}};
+}
+
+QVariantMap TimerService::lengthProperties() const
+{
+    return {
+        {QStringLiteral("PomodoroLengths"), QVariant::fromValue(pomodoroLengths())},
+        {QStringLiteral("PomodoroLengthsEditable"), pomodoroLengthsEditable()},
+        {QStringLiteral("PomodoroLengthErrors"), QVariant::fromValue(pomodoroLengthErrors())},
+    };
+}
+
+QVariantMap TimerService::soundProperties() const
+{
+    return {{QStringLiteral("Sounds"), QVariant::fromValue(sounds())}};
+}
+
+QVariantMap TimerService::fixedProperties() const
+{
+    return {
+        {QStringLiteral("PomodoroLengthLimits"), QVariant::fromValue(pomodoroLengthLimits())},
+        {QStringLiteral("SoundChoices"), QVariant::fromValue(soundCatalogue())},
+    };
+}
+
+QVariantMap TimerService::read(unsigned groups) const
+{
+    using Reader = QVariantMap (TimerService::*)() const;
+    const std::pair<Group, Reader> readers[] = {
+        {TimerGroup, &TimerService::timerProperties},
+        {ProjectsGroup, &TimerService::projectProperties},
+        {SessionGroup, &TimerService::sessionProperties},
+        {ActionsGroup, &TimerService::actionProperties},
+        {LengthsGroup, &TimerService::lengthProperties},
+        {SoundsGroup, &TimerService::soundProperties},
+        {FixedGroup, &TimerService::fixedProperties},
+    };
     QVariantMap values;
-    const QMetaObject &meta = staticMetaObject;
-    for (int i = meta.propertyOffset(); i < meta.propertyCount(); ++i) {
-        const QMetaProperty property = meta.property(i);
-        values.insert(QString::fromLatin1(property.name()), property.read(this));
+    for (const auto &[group, reader] : readers) {
+        if (groups & group) {
+            values.insert((this->*reader)());
+        }
     }
     return values;
 }
 
-// Sends PropertiesChanged with the properties whose value differs from what
-// the bus last saw. A core signal that changed nothing visible sends nothing.
+void TimerService::mark(unsigned groups)
+{
+    m_dirty |= groups;
+    if (m_publishQueued) {
+        return;
+    }
+    m_publishQueued = true;
+    QMetaObject::invokeMethod(
+        this,
+        [this] {
+            m_publishQueued = false;
+            publishChanges();
+        },
+        Qt::QueuedConnection);
+}
+
+// Sends PropertiesChanged with the properties of the marked groups whose
+// value differs from what the bus last saw. A core signal that changed
+// nothing visible sends nothing.
 void TimerService::publishChanges()
 {
-    const QVariantMap current = snapshot();
+    const unsigned groups = std::exchange(m_dirty, 0u);
+    if (groups == 0) {
+        return;
+    }
+    const QVariantMap current = read(groups);
     QVariantMap changed;
     for (auto it = current.cbegin(); it != current.cend(); ++it) {
         if (m_published.value(it.key()) != it.value()) {
             changed.insert(it.key(), it.value());
+            m_published.insert(it.key(), it.value());
         }
     }
-    m_published = current;
     if (!m_registered || changed.isEmpty()) {
         return;
     }

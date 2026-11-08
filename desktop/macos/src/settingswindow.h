@@ -46,10 +46,15 @@ class Transport;
 // PomodoroPreferences, read again when the window opens, and the sound of
 // each transition from the catalogue. The lengths can be edited only with a
 // validated account; otherwise the last ones read show, and a note says so.
-// Save posts the lengths that changed next to the Keychain write, without
-// waiting for it, and keeps the sound choices with the other settings. The
-// window closes once the store has the secret and the server has the
-// lengths; a length the server refuses shows next to its field, and the
+// Lengths read while the window is open fill only the fields the user has
+// not changed, and lengths of another account replace every field. Save
+// posts the lengths that changed next to the Keychain write, without
+// waiting for it, and only to the account they were edited for, so a save
+// that also moves to another account posts none (see SettingsSave). It
+// keeps the sound choices with the other settings. The window closes once
+// the store has the secret, the settings file has the rest and the server
+// has the lengths; a length the server refuses shows next to its field, a
+// settings file that cannot be written shows below the form, and the
 // window stays open.
 class SettingsWindow : public QWidget
 {
@@ -78,10 +83,11 @@ public:
     // other fields in the settings; then emits saved(). Posts the lengths
     // that changed at the same time. Closes the window once both are done.
     // When the store fails, the window stays open with the fields as typed
-    // and shows the store's error; when the server refuses a length, it
-    // stays open with the error next to the field. Returns false, and
-    // changes nothing, when the address is not usable or a save is already
-    // waiting.
+    // and shows the store's error; when the settings file cannot be
+    // written, it stays open and says so; when the server refuses a
+    // length, it stays open with the error next to the field. Returns
+    // false, and changes nothing, when the address is not usable or a save
+    // is already waiting.
     bool save();
 
 Q_SIGNALS:
@@ -99,7 +105,10 @@ private:
     void updateTest();
     void updateLoginItem();
     void onLoginToggled(bool enabled);
-    void loadLengths();
+    // Shows the preferences' lengths. With keepEdits, a field changed since
+    // it was last filled keeps what was typed, unless the lengths now
+    // belong to another account.
+    void loadLengths(bool keepEdits);
     void updatePomodoro();
     void loadSounds();
     void preview(TransitionKind kind);
@@ -122,6 +131,8 @@ private:
     QLabel *m_secretLabel;
     QLineEdit *m_secretField;
     QLabel *m_storeError;
+    // A settings file the last save could not write.
+    QLabel *m_saveError;
     QPushButton *m_testButton;
     QLabel *m_testResult;
     QCheckBox *m_loginToggle;
@@ -130,6 +141,10 @@ private:
     QPushButton *m_saveButton;
 
     std::array<QSpinBox *, 4> m_lengthBoxes;
+    // What each length field was last filled with, and the account it
+    // belonged to: a field whose value differs was edited.
+    std::array<int, 4> m_lengthsShown{};
+    QString m_lengthsOwner;
     // The server's message for each field's refused value.
     std::array<QLabel *, 4> m_lengthErrors;
     // Why the lengths cannot be edited.

@@ -52,16 +52,19 @@ interface="$repo/desktop/gnome/dbus/org.tokkl.Timer1.xml"
 cp -a "$source_dir" "$work/source"
 cp "$interface" "$work/source/"
 gnome-extensions pack "$work/source" --force --out-dir="$work" \
-    --extra-source=compat.js --extra-source=indicator.js --extra-source=legacyactions.js --extra-source=menumodel.js \
+    --extra-source=compat.js --extra-source=indicator.js --extra-source=legacyactions.js --extra-source=legacylimits.js \
+    --extra-source=menumodel.js \
     --extra-source=projectindicator.js --extra-source=projectindicatorview.js \
-    --extra-source=timer1.js --extra-source=timer1proxy.js --extra-source=org.tokkl.Timer1.xml \
+    --extra-source=timer1.js --extra-source=timer1proxy.js --extra-source=timerrequests.js \
+    --extra-source=org.tokkl.Timer1.xml \
     --extra-source=tokkl.png --extra-source=tokkl-symbolic.symbolic.png \
     --extra-source=hourglass.svg --extra-source=hourglass-symbolic.svg
 zip="$work/$uuid.shell-extension.zip"
 contents="$(unzip -Z1 "$zip" | sort)"
 echo "$contents"
-for file in metadata.json extension.js compat.js indicator.js legacyactions.js menumodel.js projectindicator.js projectindicatorview.js \
-            timer1.js timer1proxy.js org.tokkl.Timer1.xml prefs.js stylesheet.css \
+for file in metadata.json extension.js compat.js indicator.js legacyactions.js legacylimits.js menumodel.js \
+            projectindicator.js projectindicatorview.js \
+            timer1.js timer1proxy.js timerrequests.js org.tokkl.Timer1.xml prefs.js stylesheet.css \
             tokkl.png tokkl-symbolic.symbolic.png hourglass.svg hourglass-symbolic.svg \
             schemas/org.gnome.shell.extensions.tokkl.gschema.xml; do
     grep -qx "$file" <<<"$contents" || { echo "error: the package lacks $file" >&2; exit 1; }

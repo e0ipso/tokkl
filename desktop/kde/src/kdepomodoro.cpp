@@ -116,7 +116,7 @@ void KdePomodoro::build()
     m_client = client;
     m_builtStore = m_store;
     m_preferences = new PomodoroPreferences(client->connection(), this);
-    m_session = new PomodoroSession(client->clock(), m_timer->coordinator(), m_store, this);
+    m_session = new PomodoroSession(client->clock(), m_timer->coordinator(), client, m_store, this);
     Q_EMIT sessionChanged();
 }
 

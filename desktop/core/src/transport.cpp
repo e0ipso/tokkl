@@ -38,6 +38,15 @@ void logResponse(const QByteArray &method, const QUrl &url, const HttpResponse &
     }
 }
 
+// The headers of an answer that Tokkl reads.
+void readHeaders(const QNetworkReply *reply, HttpResponse &response)
+{
+    response.retryAfter = reply->rawHeader("Retry-After");
+    response.location = reply->rawHeader("Location");
+    response.errorCode = reply->rawHeader("Tokkl-Error-Code");
+    response.errorField = reply->rawHeader("Tokkl-Error-Field");
+}
+
 // Reads a body as it arrives and stops at a size limit, so an answer larger
 // than the limit is never held whole.
 class BoundedBody
@@ -153,8 +162,7 @@ private:
             response.outcome = HttpResponse::Outcome::Finished;
             response.status = status.toInt();
             response.body = m_body.take();
-            response.retryAfter = m_reply->rawHeader("Retry-After");
-            response.location = m_reply->rawHeader("Location");
+            readHeaders(m_reply, response);
         } else {
             response.outcome = HttpResponse::Outcome::NetworkError;
             response.errorString = m_reply->errorString();
@@ -250,8 +258,7 @@ private:
             }
             response.outcome = HttpResponse::Outcome::Finished;
             response.status = status();
-            response.retryAfter = m_reply->rawHeader("Retry-After");
-            response.location = m_reply->rawHeader("Location");
+            readHeaders(m_reply, response);
         } else {
             response.outcome = HttpResponse::Outcome::NetworkError;
             response.errorString = m_reply->errorString();

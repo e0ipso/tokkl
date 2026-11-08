@@ -277,6 +277,11 @@ struct ApiError {
     Kind kind = Kind::None;
     int status = 0;
     QString message; // for the user; never contains credentials
+    // From the Tokkl-Error-Code and Tokkl-Error-Field headers of an HTTP
+    // error answer: what failed and the field it names, such as a
+    // preference key. Empty when the server sent none, as older ones do.
+    QString code;
+    QString field;
 
     // Connectivity problems, timeouts and server errors: the account may be
     // fine and cached data is only stale.

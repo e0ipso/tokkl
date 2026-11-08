@@ -6,6 +6,8 @@
 #include "connectionsetup.h"
 #include "fakes.h"
 
+#include <QDir>
+#include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -337,6 +339,35 @@ private Q_SLOTS:
         QCOMPARE(f.connection.instanceUrl(), instance);
         QCOMPARE(f.connection.authMode(), AuthMode::Password);
         QCOMPARE(f.connection.email(), QStringLiteral("bea@example.test"));
+    }
+
+    // QSettings keeps the first error it meets. A write that fails, then
+    // one made once the cause is gone, reports success, and the file gets
+    // the keys and what the caller set before.
+    void settingsWriteAfterAFailedOne()
+    {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        const QString file = dir.filePath(QStringLiteral("tokkl.conf"));
+        QSettings settings(file, QSettings::IniFormat);
+        settings.setValue(QStringLiteral("monochromeIcon"), true);
+        // A directory stands where the file would go.
+        QVERIFY(QDir().mkpath(file));
+        QVERIFY(!(ConnectionSettings{instance, QStringLiteral("token"), QString()}.write(settings)));
+        QVERIFY(!settings.contains(ConnectionSettings::instanceUrlKey));
+
+        QVERIFY(QDir(file).removeRecursively());
+        const ConnectionSettings next{instance, QStringLiteral("password"), QStringLiteral("bea@example.test")};
+        QVERIFY(next.write(settings));
+        QCOMPARE(ConnectionSettings::read(settings), next);
+        QFile written(file);
+        QVERIFY(written.open(QIODevice::ReadOnly));
+        const QByteArray content = written.readAll();
+        QVERIFY(content.contains("authMode=password"));
+        QVERIFY(content.contains("email=bea@example.test"));
+        QVERIFY(content.contains("monochromeIcon=true"));
+        // A third write on the same object is judged on its own as well.
+        QVERIFY((ConnectionSettings{instance, QStringLiteral("token"), QString()}.write(settings)));
     }
 
     void webUrlCarriesNoCredentials()

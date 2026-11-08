@@ -47,9 +47,11 @@ To use the extension from a checkout instead, pack it first. The extension reads
 rm -rf /tmp/tokkl-extension && cp -r desktop/gnome/extension /tmp/tokkl-extension
 cp desktop/gnome/dbus/org.tokkl.Timer1.xml /tmp/tokkl-extension/
 gnome-extensions pack /tmp/tokkl-extension --force --out-dir=/tmp \
-    --extra-source=compat.js --extra-source=indicator.js --extra-source=legacyactions.js --extra-source=menumodel.js \
+    --extra-source=compat.js --extra-source=indicator.js --extra-source=legacyactions.js --extra-source=legacylimits.js \
+    --extra-source=menumodel.js \
     --extra-source=projectindicator.js --extra-source=projectindicatorview.js \
-    --extra-source=timer1.js --extra-source=timer1proxy.js --extra-source=org.tokkl.Timer1.xml \
+    --extra-source=timer1.js --extra-source=timer1proxy.js --extra-source=timerrequests.js \
+    --extra-source=org.tokkl.Timer1.xml \
     --extra-source=tokkl.png --extra-source=tokkl-symbolic.symbolic.png \
     --extra-source=hourglass.svg --extra-source=hourglass-symbolic.svg
 gnome-extensions install --force /tmp/tokkl@canpicasoft.com.shell-extension.zip

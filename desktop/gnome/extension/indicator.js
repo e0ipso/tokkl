@@ -18,6 +18,7 @@ import { describeIndicator } from './projectindicator.js';
 import { TokklProjectIndicator } from './projectindicatorview.js';
 import { describeStatus, formatElapsed, projectLabel } from './timer1.js';
 import { cachedProperty, serviceRunning } from './timer1proxy.js';
+import { TimerRequests } from './timerrequests.js';
 
 // The properties the project submenu's items show. A change to any other
 // property leaves the items as they are.
@@ -35,11 +36,13 @@ export const TokklIndicator = GObject.registerClass(
 
             this._proxy = null;
             this._proxySignals = [];
+            this._requestSignal = 0;
+            this._requests = null;
             this._ownGesture = null;
             this._syncing = false;
             this._tickId = 0;
-            // Set when a method call fails, so the menu says so; the next call
-            // clears it.
+            // Set when a method call fails, or the server refuses a request
+            // this menu sent, so the menu says so; the next call clears it.
             this._actionError = '';
 
             // The button lays out one child: the logo, the hourglass of Pomodoro
@@ -168,12 +171,22 @@ export const TokklIndicator = GObject.registerClass(
             this._disconnectProxy();
             this._proxy = proxy;
             if (proxy) {
+                this._requests = new TimerRequests(
+                    (method, done) => proxy[`${method}Remote`]((result, error) => done(error ? null : result, error)),
+                    error => error instanceof GLib.Error && error.matches(Gio.DBusError, Gio.DBusError.UNKNOWN_METHOD),
+                );
                 this._proxySignals = [
                     proxy.connect('g-properties-changed', (_source, changed) =>
                         this._sync(Object.keys(changed.deepUnpack())),
                     ),
-                    proxy.connect('notify::g-name-owner', () => this._sync()),
+                    proxy.connect('notify::g-name-owner', () => {
+                        this._requests.reset();
+                        this._sync();
+                    }),
                 ];
+                this._requestSignal = proxy.connectSignal('RequestFinished', (_proxy, _sender, [id, ok, error]) =>
+                    this._requests.finished(id, ok, error),
+                );
             }
             this._sync();
         }
@@ -181,6 +194,9 @@ export const TokklIndicator = GObject.registerClass(
         _disconnectProxy() {
             for (const id of this._proxySignals) this._proxy.disconnect(id);
             this._proxySignals = [];
+            if (this._requestSignal) this._proxy.disconnectSignal(this._requestSignal);
+            this._requestSignal = 0;
+            this._requests = null;
         }
 
         _property(name, fallback) {
@@ -331,7 +347,7 @@ export const TokklIndicator = GObject.registerClass(
         }
 
         _startOrStop() {
-            this._call(this._time.running || this._time.paused ? 'Stop' : 'Start', []);
+            this._request(this._time.running || this._time.paused ? 'Stop' : 'Start');
         }
 
         // The service answers false when it refused a choice, and then announces
@@ -357,20 +373,51 @@ export const TokklIndicator = GObject.registerClass(
          */
         _call(method, args, onReply) {
             if (!this._proxy) return;
-            if (this._actionError) {
-                this._actionError = '';
-                // Leaves the project items alone: this may run in one's activate.
-                this._sync([]);
-            }
+            this._clearActionError();
             this._proxy[`${method}Remote`](...args, (result, error) => {
-                if (error) console.warn(`Tokkl: ${method} failed: ${error.message}`);
+                if (error) this._callFailed(method, error);
                 if (!this._proxy) return;
-                if (error) {
-                    this._actionError = _('The timer service did not answer.');
-                    this._sync([]);
-                }
                 if (onReply) onReply(error ? null : result[0]);
             });
+        }
+
+        /**
+         * Sends Start or Stop as a request this menu follows to its end (see
+         * timerrequests.js): when the server refuses it, or its outcome is
+         * unknown, the service's words for it show in the menu until the
+         * next call, also once ErrorString has moved on. A service without
+         * the requests gets the plain method, whose failure shows in
+         * ErrorString only.
+         *
+         * @param {'Start' | 'Stop'} action
+         */
+        _request(action) {
+            if (!this._proxy) return;
+            this._clearActionError();
+            this._requests.send(action, {
+                sent: (_sent, error) => {
+                    if (error) this._callFailed(action, error);
+                },
+                finished: (ok, error) => {
+                    if (!this._proxy || ok || !error) return;
+                    this._actionError = error;
+                    this._sync([]);
+                },
+            });
+        }
+
+        _clearActionError() {
+            if (!this._actionError) return;
+            this._actionError = '';
+            // Leaves the project items alone: this may run in one's activate.
+            this._sync([]);
+        }
+
+        _callFailed(method, error) {
+            console.warn(`Tokkl: ${method} failed: ${error.message}`);
+            if (!this._proxy) return;
+            this._actionError = _('The timer service did not answer.');
+            this._sync([]);
         }
 
         // A primary click is the service's Activate (see _activate); other

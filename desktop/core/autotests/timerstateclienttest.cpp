@@ -196,12 +196,12 @@ private Q_SLOTS:
         QVERIFY(f.client.streaming());
         QCOMPARE(f.streamingChanges.size(), 1);
 
-        // Keep-alives, comments, other events and an unreadable state change
-        // nothing.
+        // Keep-alives, comments, other events and data without the timer
+        // event's name change nothing. An unreadable timer event drops the
+        // stream (unreadableEventDropsTheStream).
         stream->push("event: keep-alive\ndata:\n\n");
         stream->push(": comment\n\n");
         stream->push("event: other\ndata: " + stateBody(9, f.clock.now()) + "\n\n");
-        stream->push("event: timer\ndata: {\"revision\":9}\n\n");
         stream->push("data: " + stateBody(9, f.clock.now()) + "\n\n");
         QCOMPARE(f.changes.size(), 2);
         QCOMPARE(f.client.state()->revision, 4);
@@ -358,6 +358,54 @@ private Q_SLOTS:
         QVERIFY(!third->aborted);
         third->push(eventFrame(stateBody(4, f.clock.now())));
         QCOMPARE(f.client.state()->revision, 4);
+    }
+
+    // A timer event that is not a state, after good ones, drops the stream
+    // even while keep-alives would hold it open: the state is read at once,
+    // polled until a stream delivers again, and the next stream waits for
+    // the backoff.
+    void unreadableEventDropsTheStream()
+    {
+        Fixture f;
+        QVERIFY(streamAt(f, 5));
+        FakeStream *stream = f.transport.lastStream();
+        const qsizetype reads = f.reads();
+        const qsizetype changes = f.changes.size();
+
+        stream->push(eventFrame("{\"revision\":\"six\"}"));
+        QVERIFY(stream->aborted);
+        QVERIFY(!f.client.streaming());
+        QCOMPARE(f.changes.size(), changes);
+        QCOMPARE(f.client.state()->revision, 5);
+        QCOMPARE(f.reads(), reads + 1);
+        f.answerRead(stateBody(6, f.clock.now()));
+        QCOMPARE(f.client.state()->revision, 6);
+
+        // The next stream opens after the backoff, and while it only sends
+        // keep-alives the state is polled.
+        QCOMPARE(f.secondsToNextStream(), 1);
+        FakeStream *next = f.transport.lastStream();
+        for (int second = 0; second < 29; ++second) {
+            next->push("event: keep-alive\ndata:\n\n");
+            f.tick();
+        }
+        QCOMPARE(f.reads(), reads + 2);
+        f.answerRead(stateBody(6, f.clock.now()));
+
+        // Not JSON at all, from the next stream: dropped too, with a longer
+        // wait.
+        next->push(eventFrame("not json"));
+        QVERIFY(next->aborted);
+        QCOMPARE(f.reads(), reads + 3);
+        f.answerRead(stateBody(6, f.clock.now()));
+        QCOMPARE(f.secondsToNextStream(), 2);
+
+        // A stream that delivers a state again stops the polling.
+        f.transport.lastStream()->push(eventFrame(stateBody(7, f.clock.now())));
+        QVERIFY(f.client.streaming());
+        QCOMPARE(f.client.state()->revision, 7);
+        f.tick(90);
+        QCOMPARE(f.reads(), reads + 3);
     }
 
     // The clock's jitter lengthens each wait by up to a quarter of it.

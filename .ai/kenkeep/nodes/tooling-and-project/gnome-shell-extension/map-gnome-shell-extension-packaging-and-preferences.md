@@ -21,6 +21,7 @@ kk_confidence: high
 ---
 - The panel logo is `extension/tokkl.png` (32 px, rendered by `npm run icons`; see `map-app-icons-script`). `desktop/gnome/scripts/pack-extension.sh` copies every `*.js`, `*.png` and `*.svg`, and `desktop/gnome/dbus/org.tokkl.Timer1.xml`, the only copy of the D-Bus interface in the checkout, and passes each besides `extension.js` and `prefs.js` to `gnome-extensions pack` as `--extra-source`, so a new module or image is packed without editing the script. `timer1proxy.js` reads the interface from that file next to itself at load time. `extension/ci/shell-test.sh` lists its files by hand: it packs a copy of the extension with the description added, so a new module goes in both scripts.
 - `prefs.js` keeps only non-secret fields (URL, auth mode, email) in GSettings and sends the secret straight to `Configure`; the service stores it in the keyring.
+- The Pomodoro rows take their ranges from the service's `PomodoroLengthLimits`. `legacylimits.js` keeps the ranges and defaults the preferences had built in, for a service from before the property, as `legacyactions.js` does for `Actions`; remove it once such services are unsupported. `ci/prefs-check.js` checks that the rows follow the published ranges.
 
 <!-- kk:related:start -->
 # Related

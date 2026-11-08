@@ -27,7 +27,8 @@ public:
 };
 
 // Keeps the mode in a group of QSettings. A save returns true only once
-// sync() wrote it without error.
+// this save reached the file (see writeSettings()); a refused one keeps the
+// mode stored before.
 class SettingsPomodoroStore : public PomodoroStore
 {
     Q_OBJECT
@@ -42,8 +43,6 @@ public:
     bool savePomodoroMode(bool pomodoro) override;
 
 private:
-    bool sync();
-
     std::unique_ptr<QSettings> m_ownSettings;
     QSettings *m_settings = nullptr;
 };

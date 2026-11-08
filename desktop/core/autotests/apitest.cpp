@@ -329,6 +329,27 @@ private Q_SLOTS:
         QVERIFY(errorFromResponse(refused).message.contains(QLatin1String("Connection refused")));
     }
 
+    // The machine-readable headers of an error answer reach the error, and
+    // an answer without them leaves both empty.
+    void errorHeadersReachTheError()
+    {
+        HttpResponse response;
+        response.outcome = HttpResponse::Outcome::Finished;
+        response.status = 400;
+        response.body = "\"Invalid pomodoro_focus_interval_in_minutes\"";
+        response.errorCode = " invalid_preference ";
+        response.errorField = "pomodoro_focus_interval_in_minutes";
+        const ApiError error = errorFromResponse(response);
+        QVERIFY(error.kind == ApiError::Kind::Client);
+        QCOMPARE(error.code, QStringLiteral("invalid_preference"));
+        QCOMPARE(error.field, QStringLiteral("pomodoro_focus_interval_in_minutes"));
+
+        response.errorCode.clear();
+        response.errorField.clear();
+        QVERIFY(errorFromResponse(response).code.isEmpty());
+        QVERIFY(errorFromResponse(response).field.isEmpty());
+    }
+
     void redirectsHideCredentials()
     {
         HttpResponse response;

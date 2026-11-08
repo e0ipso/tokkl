@@ -5,11 +5,11 @@
 namespace Tokkl
 {
 
-PomodoroSession::PomodoroSession(Clock *clock, TimerActions *timer, PomodoroStore *store, QObject *parent)
+PomodoroSession::PomodoroSession(Clock *clock, TimerActions *timer, SessionState *state, PomodoroStore *store, QObject *parent)
     : QObject(parent)
     , m_clock(clock)
     , m_timer(timer)
-    , m_client(timer ? timer->stateClient() : nullptr)
+    , m_client(state)
     , m_store(store)
 {
     if (m_store) {
@@ -19,11 +19,9 @@ PomodoroSession::PomodoroSession(Clock *clock, TimerActions *timer, PomodoroStor
         connect(m_clock, &Clock::ticked, this, &PomodoroSession::updateClock);
     }
     if (m_client) {
-        connect(m_client, &TimerStateClient::stateChanged, this, &PomodoroSession::onStateChanged);
-        connect(m_client, &TimerStateClient::settlingChanged, this, &PomodoroSession::update);
-        if (Connection *connection = m_client->connection()) {
-            connect(connection, &Connection::generationChanged, this, &PomodoroSession::onGenerationChanged);
-        }
+        connect(m_client, &SessionState::stateChanged, this, &PomodoroSession::onStateChanged);
+        connect(m_client, &SessionState::settlingChanged, this, &PomodoroSession::update);
+        connect(m_client, &SessionState::accountReset, this, &PomodoroSession::onAccountReset);
     }
     if (m_timer) {
         connect(m_timer, &TimerActions::changed, this, &PomodoroSession::update);
@@ -169,15 +167,15 @@ bool PomodoroSession::startSession()
 
 bool PomodoroSession::confirmNextPhase()
 {
-    return sendWithRevision(&TimerStateClient::nextPhase);
+    return sendWithRevision(&SessionState::nextPhase);
 }
 
 bool PomodoroSession::endSession()
 {
-    return sendWithRevision(&TimerStateClient::endPomodoro);
+    return sendWithRevision(&SessionState::endPomodoro);
 }
 
-bool PomodoroSession::sendWithRevision(void (TimerStateClient::*action)(TimerStateClient::ActionCallback))
+bool PomodoroSession::sendWithRevision(void (SessionState::*action)(SessionState::ActionCallback))
 {
     if (!pomodoro() || busy()) {
         return false;
@@ -189,7 +187,7 @@ bool PomodoroSession::sendWithRevision(void (TimerStateClient::*action)(TimerSta
     return true;
 }
 
-TimerStateClient::ActionCallback PomodoroSession::finishing()
+SessionState::ActionCallback PomodoroSession::finishing()
 {
     return m_epoch.guard(this, [this](const TimerActionResult &result) {
         m_pending = false;
@@ -204,7 +202,7 @@ TimerStateClient::ActionCallback PomodoroSession::finishing()
     });
 }
 
-void PomodoroSession::onGenerationChanged()
+void PomodoroSession::onAccountReset()
 {
     // Another instance, account or credential: the pending action and its
     // message belonged to the earlier one.

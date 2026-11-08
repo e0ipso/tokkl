@@ -11,7 +11,7 @@ namespace Tokkl
 {
 
 TimerStateClient::TimerStateClient(Connection *connection, Clock *clock, QObject *parent)
-    : QObject(parent)
+    : SessionState(parent)
     , m_connection(connection)
     , m_clock(clock)
 {
@@ -192,6 +192,7 @@ void TimerStateClient::onGenerationChanged()
         m_state.reset();
         Q_EMIT stateChanged();
     }
+    Q_EMIT accountReset();
 }
 
 void TimerStateClient::resumed()
@@ -333,6 +334,17 @@ void TimerStateClient::dropOversizedStream()
     scheduleReconnect();
 }
 
+void TimerStateClient::dropUnreadableStream()
+{
+    // Its keep-alives would hold it open, and the states after this one may
+    // be just as unreadable. The state comes from a read until another
+    // stream delivers.
+    qCWarning(lcNet) << "Event stream sent a timer event Tokkl could not read; dropped";
+    closeStream();
+    refresh();
+    scheduleReconnect();
+}
+
 void TimerStateClient::readLine(QByteArrayView line)
 {
     if (line.isEmpty()) {
@@ -369,7 +381,7 @@ void TimerStateClient::dispatchEvent()
     const std::optional<QJsonValue> json = parseJsonBody(event.data);
     const std::optional<TimerState> state = json ? decodeTimerState(*json) : std::nullopt;
     if (!state) {
-        qCWarning(lcNet) << "Event stream sent a timer event Tokkl could not read";
+        dropUnreadableStream();
         return;
     }
     setStreaming(true);

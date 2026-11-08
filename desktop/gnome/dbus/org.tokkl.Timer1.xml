@@ -146,6 +146,14 @@
     <property name="PomodoroLengthErrors" type="a{ss}" access="read">
       <annotation name="org.qtproject.QtDBus.QtTypeName" value="QMap&lt;QString,QString&gt;"/>
     </property>
+    <!-- The range and default of each length the server accepts, keyed as
+         PomodoroLengths, each with min, max and default (i), so a settings
+         pane offers what SetPomodoroLengths can save. It does not change
+         while the service runs. A service from before this property has
+         none: a client then keeps the limits it had built in. -->
+    <property name="PomodoroLengthLimits" type="a{sa{si}}" access="read">
+      <annotation name="org.qtproject.QtDBus.QtTypeName" value="QMap&lt;QString,QMap&lt;QString,int&gt;&gt;"/>
+    </property>
     <!-- The sound each transition plays when it rings: the four transition
          names of RingingTransition, each with an id from SoundChoices. -->
     <property name="Sounds" type="a{ss}" access="read">
@@ -183,6 +191,36 @@
     <method name="Resume">
       <arg name="sent" type="b" direction="out"/>
     </method>
+    <!-- Start, Stop, Pause and Resume as requests a caller can follow to
+         their end. Each does what the method of the same action does and
+         returns the request's id, or 0 when nothing was sent, for the same
+         reasons as that method. RequestFinished carries the id once the
+         server has answered. Ids are never reused while the service runs.
+         The methods without Request keep their meaning. -->
+    <method name="RequestStart">
+      <arg name="request" type="t" direction="out"/>
+    </method>
+    <method name="RequestStop">
+      <arg name="request" type="t" direction="out"/>
+    </method>
+    <method name="RequestPause">
+      <arg name="request" type="t" direction="out"/>
+    </method>
+    <method name="RequestResume">
+      <arg name="request" type="t" direction="out"/>
+    </method>
+    <!-- A request from RequestStart, RequestStop, RequestPause or
+         RequestResume has ended, after the properties it changed. ok is
+         true when the server applied it. Otherwise error says why for the
+         user, as ErrorString words it: a refusal, a change made on another
+         device first, an answer that never came (the service then reads
+         the state to learn what happened), or a lost workspace. error is
+         empty when another account was configured before the answer came. -->
+    <signal name="RequestFinished">
+      <arg name="request" type="t"/>
+      <arg name="ok" type="b"/>
+      <arg name="error" type="s"/>
+    </signal>
     <!-- Choose the project of the next start; 0 for no project. Applies the
          project's billable default. Refused (false) while an entry runs or a
          chain is paused, and for a project that is not an active project of

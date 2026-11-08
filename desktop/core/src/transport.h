@@ -31,6 +31,11 @@ struct HttpResponse {
     QByteArray body;
     QByteArray retryAfter; // raw Retry-After header, if any
     QByteArray location; // raw Location header of a redirect, if any
+    // The raw Tokkl-Error-Code and Tokkl-Error-Field headers of an error
+    // answer, if any: what failed and which field it names, for a client to
+    // read without parsing the message. Older servers send neither.
+    QByteArray errorCode;
+    QByteArray errorField;
     QString errorString; // for NetworkError; holds no credentials
 };
 

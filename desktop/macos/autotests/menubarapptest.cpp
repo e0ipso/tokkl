@@ -27,6 +27,7 @@
 #include <QAction>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QDir>
 #include <QFile>
 #include <QImage>
 #include <QJsonArray>
@@ -1726,6 +1727,52 @@ private Q_SLOTS:
         QCOMPARE(f.settings.value(ConnectionSettings::instanceUrlKey).toString(), instance);
     }
 
+    // A settings file that cannot be written keeps the window open and says
+    // so: saved() does not come, and no setting changes, not even in memory.
+    void settingsStayOpenWhenTheFileCannotBeWritten()
+    {
+        Fixture f;
+        f.app.start();
+        SettingsWindow &window = *f.app.m_settingsWindow.get();
+        QVERIFY(window.isVisible());
+        QSignalSpy saved(&window, &SettingsWindow::saved);
+        window.m_urlField->setText(instance);
+        QTest::keyClicks(window.m_secretField, token);
+        window.m_monochromeToggle->setChecked(true);
+        // A directory stands where the file would go.
+        QFile::remove(f.settings.fileName());
+        QVERIFY(QDir().mkpath(f.settings.fileName()));
+        QVERIFY(!window.m_saveError->isVisibleTo(&window));
+
+        window.m_saveButton->click();
+        QTRY_VERIFY(window.m_saveError->isVisibleTo(&window));
+        QVERIFY(window.m_saveError->text().contains(f.settings.fileName()));
+        QCOMPARE(saved.count(), 0);
+        QVERIFY(window.isVisible());
+        QVERIFY(window.m_saveButton->isEnabled());
+        QCOMPARE(window.m_secretField->text(), token);
+        QVERIFY(!f.settings.contains(ConnectionSettings::instanceUrlKey));
+        QVERIFY(!f.settings.contains(SettingsSave::monochromeIconKey));
+        QVERIFY(f.app.m_connection.get()->instanceUrl().isEmpty());
+        QVERIFY(!f.item.image.monochromeLogo);
+
+        // Opening the window again forgets the failure, and once the file
+        // can be written a save works.
+        window.close();
+        f.app.showSettings();
+        QVERIFY(!window.m_saveError->isVisibleTo(&window));
+        QVERIFY(QDir(f.settings.fileName()).removeRecursively());
+        window.m_urlField->setText(instance);
+        // The Keychain kept the secret the first time.
+        QTRY_COMPARE(window.m_secretField->text(), token);
+        window.m_saveButton->click();
+        QTRY_COMPARE(saved.count(), 1);
+        QTRY_VERIFY(!window.isVisible());
+        QVERIFY(!window.m_saveError->isVisibleTo(&window));
+        QCOMPARE(f.settings.value(ConnectionSettings::instanceUrlKey).toString(), instance);
+        QCOMPARE(f.app.m_connection.get()->instanceUrl(), instance);
+    }
+
     void settingsRefuseCredentialsInTheAddress()
     {
         Fixture f;
@@ -1866,6 +1913,73 @@ private Q_SLOTS:
         QTRY_VERIFY(!window.isVisible());
         QCOMPARE(f.find("POST", "/me/preferences").size(), 1);
         QVERIFY(f.transport.requests.size() >= again);
+    }
+
+    // Lengths read again while the window is open fill only the fields the
+    // user left alone, and Save posts the edit against what was read.
+    void pomodoroSettingsKeepEditedLengthsThroughARead()
+    {
+        Fixture f;
+        QVERIFY(f.connect(QByteArrayLiteral("null")));
+        SettingsWindow &window = *f.app.m_settingsWindow.get();
+        f.app.showSettings();
+        f.respond(f.last("GET", "/me/preferences"), 200, preferencesBody());
+        QTRY_COMPARE(window.m_secretField->text(), token);
+        QTRY_COMPARE(lengthBox(window, PomodoroField::WorkMinutes)->value(), 1);
+
+        lengthBox(window, PomodoroField::WorkMinutes)->setValue(30);
+        // The lengths changed on another device, and are read again.
+        const qsizetype before = f.transport.requests.size();
+        f.app.m_preferences.get()->refresh();
+        QVERIFY(f.waitFor("GET", "/me/preferences", before - 1));
+        f.respond(f.last("GET", "/me/preferences"), 200, QByteArrayLiteral(
+            R"({"pomodoro_focus_interval_in_minutes":40,"pomodoro_break_interval_in_minutes":8,)"
+            R"("pomodoro_long_break_interval_in_minutes":1,"pomodoro_long_break_every":2})"));
+        QTRY_COMPARE(lengthBox(window, PomodoroField::ShortRestMinutes)->value(), 8);
+        QCOMPARE(lengthBox(window, PomodoroField::WorkMinutes)->value(), 30);
+        QCOMPARE(lengthBox(window, PomodoroField::LongRestMinutes)->value(), 1);
+
+        window.m_saveButton->click();
+        const qsizetype post = f.last("POST", "/me/preferences");
+        QVERIFY(post >= before);
+        QCOMPARE(jsonBody(f.transport.requests.at(post)), (QJsonObject{{QStringLiteral("pomodoro_focus_interval_in_minutes"), 30}}));
+
+        // Opening the window again shows what the server holds.
+        f.respond(post, 200, QByteArrayLiteral(
+            R"({"pomodoro_focus_interval_in_minutes":30,"pomodoro_break_interval_in_minutes":8,)"
+            R"("pomodoro_long_break_interval_in_minutes":1,"pomodoro_long_break_every":2})"));
+        QTRY_VERIFY(!window.isVisible());
+        lengthBox(window, PomodoroField::LongRestMinutes)->setValue(9);
+        f.app.showSettings();
+        QCOMPARE(lengthBox(window, PomodoroField::LongRestMinutes)->value(), 1);
+        QCOMPARE(lengthBox(window, PomodoroField::WorkMinutes)->value(), 30);
+    }
+
+    // Lengths edited while the window moves to another account are not
+    // posted: they would change the account the save leaves.
+    void pomodoroSettingsPostNoLengthsWhenTheAccountChanges()
+    {
+        Fixture f;
+        QVERIFY(f.connect(QByteArrayLiteral("null")));
+        SettingsWindow &window = *f.app.m_settingsWindow.get();
+        f.app.showSettings();
+        f.respond(f.last("GET", "/me/preferences"), 200, preferencesBody());
+        QTRY_COMPARE(window.m_secretField->text(), token);
+        QTRY_COMPARE(lengthBox(window, PomodoroField::WorkMinutes)->value(), 1);
+
+        lengthBox(window, PomodoroField::WorkMinutes)->setValue(30);
+        const QString other = QStringLiteral("https://b.example.test");
+        window.m_urlField->setText(other);
+        // The secret shown belonged to the account before.
+        QTRY_VERIFY(window.m_secretField->text().isEmpty());
+        QTest::keyClicks(window.m_secretField, QStringLiteral("tok-b"));
+        QSignalSpy saved(&window, &SettingsWindow::saved);
+        window.m_saveButton->click();
+        QTRY_COMPARE(saved.count(), 1);
+        QTRY_VERIFY(!window.isVisible());
+        QVERIFY(f.find("POST", "/me/preferences").isEmpty());
+        QCOMPARE(f.settings.value(ConnectionSettings::instanceUrlKey).toString(), other);
+        QCOMPARE(f.app.m_connection.get()->instanceUrl(), other);
     }
 
     // A 400 that names a key shows next to its field, the window stays

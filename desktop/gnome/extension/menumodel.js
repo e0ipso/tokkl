@@ -41,7 +41,8 @@ import {
  * @property {Record<string, ActionState>|null} [actions] the Actions property,
  *     missing or null when the service publishes none
  * @property {string} [actionError] the extension's own word on a method call
- *     that failed, empty or missing when none did
+ *     that failed, or the service's on a request it saw refused; empty or
+ *     missing when there is none
  */
 
 /**
@@ -73,9 +74,11 @@ export function describeMenu(state, words, _) {
     // A call that failed outranks the service's message: it is newer, and
     // the service may not have seen the call at all.
     const message = state.actionError || state.sessionMessage;
+    // A refused request's words are often ErrorString's too; they show once.
+    const detailShown = words.detail.length > 0 && words.detail !== message;
     return {
         message: { text: message, visible: message.length > 0 },
-        detail: { text: words.detail, visible: words.detail.length > 0 },
+        detail: { text: words.detail, visible: detailShown },
         toggle: {
             text: actions.run.label === 'stop' ? _('Stop') : _('Start'),
             sensitive: actions.run.enabled,

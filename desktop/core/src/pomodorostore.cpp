@@ -1,5 +1,7 @@
 #include "pomodorostore.h"
 
+#include "settingswrite.h"
+
 #include <QSettings>
 
 namespace Tokkl
@@ -29,14 +31,7 @@ bool SettingsPomodoroStore::loadPomodoroMode()
 
 bool SettingsPomodoroStore::savePomodoroMode(bool pomodoro)
 {
-    m_settings->setValue(modeKey, pomodoro);
-    return sync();
-}
-
-bool SettingsPomodoroStore::sync()
-{
-    m_settings->sync();
-    return m_settings->status() == QSettings::NoError;
+    return writeSettings(*m_settings, {{modeKey, pomodoro}});
 }
 
 }

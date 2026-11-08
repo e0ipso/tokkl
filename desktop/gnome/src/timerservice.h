@@ -37,8 +37,8 @@ class TimerService : public QObject, protected QDBusContext
     Q_OBJECT
 
     // The org.tokkl.Timer1 properties, read by the generated adaptor. They
-    // have no NOTIFY: publishChanges() sends their changes to the bus as
-    // PropertiesChanged.
+    // have no NOTIFY: the service sends their changes to the bus as
+    // PropertiesChanged, once per turn of the event loop.
     Q_PROPERTY(bool Running READ running)
     Q_PROPERTY(qint64 StartTime READ startTime)
     Q_PROPERTY(qint64 LocalStartTime READ localStartTime)
@@ -70,6 +70,7 @@ class TimerService : public QObject, protected QDBusContext
     Q_PROPERTY(QMap<QString, int> PomodoroLengths READ pomodoroLengths)
     Q_PROPERTY(bool PomodoroLengthsEditable READ pomodoroLengthsEditable)
     Q_PROPERTY(QMap<QString, QString> PomodoroLengthErrors READ pomodoroLengthErrors)
+    Q_PROPERTY(QMap<QString, QMap<QString, int>> PomodoroLengthLimits READ pomodoroLengthLimits)
     Q_PROPERTY(QMap<QString, QString> Sounds READ sounds)
     Q_PROPERTY(QList<QVariantMap> SoundChoices READ soundCatalogue)
 
@@ -145,6 +146,8 @@ public:
     QMap<QString, int> pomodoroLengths() const;
     bool pomodoroLengthsEditable() const;
     QMap<QString, QString> pomodoroLengthErrors() const;
+    // PomodoroPreferences::limits(), keyed as PomodoroLengths.
+    QMap<QString, QMap<QString, int>> pomodoroLengthLimits() const;
     QMap<QString, QString> sounds() const;
     QList<QVariantMap> soundCatalogue() const;
 
@@ -154,6 +157,12 @@ public Q_SLOTS:
     bool Stop();
     bool Pause();
     bool Resume();
+    // Start, Stop, Pause and Resume, returning the request's id, or 0 when
+    // nothing was sent. RequestFinished follows the server's answer.
+    qulonglong RequestStart();
+    qulonglong RequestStop();
+    qulonglong RequestPause();
+    qulonglong RequestResume();
     bool SetProject(qint64 projectId);
     bool SetBillable(bool billable);
     void Configure(const QString &instanceUrl, const QString &authMode, const QString &email, const QString &secret);
@@ -167,9 +176,50 @@ public Q_SLOTS:
     bool SetSound(const QString &transition, const QString &soundId);
     bool PreviewSound(const QString &soundId);
 
+Q_SIGNALS:
+    // The org.tokkl.Timer1 signal, relayed by the generated adaptor.
+    void RequestFinished(qulonglong request, bool ok, const QString &error);
+
 private:
-    QVariantMap snapshot() const;
+    // The id of a request that sent, or 0. The service follows one at a
+    // time, as the timer sends one write at a time.
+    qulonglong follow(bool sent);
+    void onWriteFinished(bool ok, const QString &message);
+
+    // The properties in groups that change together. Each core signal marks
+    // the groups it can change, and only those are read again.
+    enum Group : unsigned {
+        TimerGroup = 1u << 0, // the entry, chain, choice, indicator and status
+        ProjectsGroup = 1u << 1,
+        SessionGroup = 1u << 2,
+        ActionsGroup = 1u << 3, // reads both the timer and the session
+        LengthsGroup = 1u << 4,
+        SoundsGroup = 1u << 5,
+        FixedGroup = 1u << 6, // never changes while the service runs
+        AllGroups = (1u << 7) - 1,
+    };
+
+    QVariantMap timerProperties() const;
+    QVariantMap projectProperties() const;
+    QVariantMap sessionProperties() const;
+    QVariantMap actionProperties() const;
+    QVariantMap lengthProperties() const;
+    QVariantMap soundProperties() const;
+    QVariantMap fixedProperties() const;
+    // The values of the given groups, as the adaptor reads them.
+    QVariantMap read(unsigned groups) const;
+    // Marks the groups and publishes them when the event loop next runs.
+    void mark(unsigned groups);
+    // Sends PropertiesChanged now for what changed in the marked groups.
     void publishChanges();
+    // A method's answer, sent after what the method changed: D-Bus clients
+    // read their cached properties when the answer arrives.
+    template<typename T>
+    T answer(T value)
+    {
+        publishChanges();
+        return value;
+    }
 
     TimerModel *m_timer;
     TimerCoordinator *m_actions;
@@ -182,5 +232,11 @@ private:
     bool m_registered = false;
     // The property values the bus last saw.
     QVariantMap m_published;
+    // The groups marked since the last publish.
+    unsigned m_dirty = 0;
+    qulonglong m_lastRequest = 0;
+    // The request whose write runs; 0 for none.
+    qulonglong m_request = 0;
+    bool m_publishQueued = false;
 };
 }

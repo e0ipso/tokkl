@@ -290,6 +290,28 @@ await step('the Pomodoro group shows the lengths read on opening and the chosen 
         throw new Error(`calls on opening: ${JSON.stringify(names)}`);
 });
 
+await step('the length rows offer the ranges the service publishes', async () => {
+    const ranges = () =>
+        Object.fromEntries(
+            Object.entries(pomodoro.lengths).map(([key, row]) => [key, [row.adjustment.lower, row.adjustment.upper]]),
+        );
+    const limitsVariant = limits =>
+        new GLib.Variant(
+            'a{sa{si}}',
+            Object.fromEntries(
+                Object.entries(limits).map(([key, [min, max, value]]) => [key, { min, max, default: value }]),
+            ),
+        );
+    const core = { work: [1, 180, 25], shortRest: [1, 60, 5], longRest: [1, 60, 15], longRestEvery: [1, 12, 4] };
+    const rangesOf = limits => Object.fromEntries(Object.entries(limits).map(([key, [min, max]]) => [key, [min, max]]));
+    await waitFor("the core's ranges", () => sameCall(ranges(), rangesOf(core)));
+    const narrower = { work: [5, 90, 25], shortRest: [1, 30, 5], longRest: [2, 45, 15], longRestEvery: [2, 8, 4] };
+    mockSet('PomodoroLengthLimits', limitsVariant(narrower));
+    await waitFor('the published ranges', () => sameCall(ranges(), rangesOf(narrower)));
+    mockSet('PomodoroLengthLimits', limitsVariant(core));
+    await waitFor("the core's ranges again", () => sameCall(ranges(), rangesOf(core)));
+});
+
 await step('Save lengths sends the edited lengths, also one still being typed', async () => {
     pomodoro.lengths.work.value = 45;
     pomodoro.lengths.longRestEvery.text = '6';
