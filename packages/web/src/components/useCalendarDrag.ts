@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent, type RefObject } from 'react';
-import { useCreateEntry, useUpdateEntry } from '../api/entries.ts';
+import { useCreateEntry, useUpdateEntry, useUpdateRunningEntry } from '../api/entries.ts';
 import type { TimeEntry } from '../api/types.ts';
 import { dragStep } from '../lib/calendarDay.ts';
 import { dropChange } from '../lib/calendarDrop.ts';
@@ -48,6 +48,7 @@ export function useCalendarDrag({
   const stepMinutes = dragStep(settings.timeResolution);
   const create = useCreateEntry();
   const update = useUpdateEntry();
+  const updateRunning = useUpdateRunningEntry();
   const toast = useToast();
   const [drag, setDrag] = useState<CalendarDrag | null>(null);
   // The machine's state, for handlers that run before React re-renders. A touch fires pointer up
@@ -79,6 +80,11 @@ export function useCalendarDrag({
           await update.mutateAsync(input);
           return;
         }
+        case 'moveRunning':
+          // A conflict, once the entry stopped elsewhere, takes the server's state and fails with
+          // the message the entry editor shows.
+          await updateRunning.mutateAsync({ id: change.id, start: change.start });
+          return;
       }
     } catch (error) {
       toast.error(error);

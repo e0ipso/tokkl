@@ -56,10 +56,17 @@ test('a move shifts the start by clock minutes and keeps the stored duration', (
     start: '2026-06-22T08:30:00.000Z',
     stop: '2026-06-22T09:30:00.000Z',
   });
-  // A running entry has no stop to send.
+});
+
+test('a move of the running entry sends only its new start, through the timer', () => {
   const running = entry('2026-06-22T07:00:00.000Z', null);
   assert.deepEqual(dropChange(dragging('move', running, -30), exact, false), {
-    kind: 'update',
+    kind: 'moveRunning',
+    id: 5,
+    start: '2026-06-22T06:30:00.000Z',
+  });
+  assert.deepEqual(dropChange(dragging('move', running, -30), exact, true), {
+    kind: 'moveRunning',
     id: 5,
     start: '2026-06-22T06:30:00.000Z',
   });
