@@ -159,7 +159,9 @@ void TimerCoordinator::onConnectionChanged()
 
 void TimerCoordinator::reset()
 {
-    // Another generation, account or client: nothing carries over.
+    // Another generation, account or client: nothing carries over, and the
+    // answer to a write on its way never comes.
+    const bool wasWriting = m_gate.running();
     m_epoch.advance();
     m_gate.reset();
     m_workspaceLost = false;
@@ -170,6 +172,9 @@ void TimerCoordinator::reset()
     m_model->resetContext();
     Q_EMIT m_model->contextChanged();
     Q_EMIT m_model->statusChanged();
+    if (wasWriting) {
+        Q_EMIT writeFinished(false, QString());
+    }
 }
 
 // ----- actions -------------------------------------------------------------
@@ -330,6 +335,13 @@ void TimerCoordinator::beginMutation()
 }
 
 void TimerCoordinator::finishMutation(Outcome outcome, const ApiError &error, bool start, bool entryReply)
+{
+    endMutation(outcome, error, start, entryReply);
+    const bool ok = outcome == Outcome::Applied;
+    Q_EMIT writeFinished(ok, ok ? QString() : (m_error.isEmpty() ? error.message : m_error));
+}
+
+void TimerCoordinator::endMutation(Outcome outcome, const ApiError &error, bool start, bool entryReply)
 {
     if (outcome != Outcome::Applied) {
         qCInfo(lcTimer) << "Timer change ended with" << outcome << error.message;

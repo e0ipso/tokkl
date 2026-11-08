@@ -103,6 +103,7 @@ TimerService::TimerService(const Parts &parts, QObject *parent)
     connect(m_preferences, &PomodoroPreferences::changed, this, marking(LengthsGroup));
     connect(m_preferences, &PomodoroPreferences::stateChanged, this, marking(LengthsGroup));
     connect(m_sounds, &SoundChoices::changed, this, marking(SoundsGroup));
+    connect(m_actions, &TimerCoordinator::writeFinished, this, &TimerService::onWriteFinished);
 
     m_published = read(AllGroups);
 }
@@ -446,6 +447,47 @@ bool TimerService::Pause()
 bool TimerService::Resume()
 {
     return answer(m_actions->resume());
+}
+
+qulonglong TimerService::RequestStart()
+{
+    return answer(follow(!m_session->pomodoroMode() && m_actions->start()));
+}
+
+qulonglong TimerService::RequestStop()
+{
+    return answer(follow(m_actions->stop()));
+}
+
+qulonglong TimerService::RequestPause()
+{
+    return answer(follow(m_actions->pause()));
+}
+
+qulonglong TimerService::RequestResume()
+{
+    return answer(follow(m_actions->resume()));
+}
+
+qulonglong TimerService::follow(bool sent)
+{
+    if (!sent) {
+        return 0;
+    }
+    // The core answers a write later, never while it sends it.
+    m_request = ++m_lastRequest;
+    return m_request;
+}
+
+void TimerService::onWriteFinished(bool ok, const QString &message)
+{
+    const qulonglong request = std::exchange(m_request, 0);
+    if (request == 0) {
+        return; // a write from Start, Activate or another plain method
+    }
+    // The properties the write changed reach the bus first.
+    publishChanges();
+    Q_EMIT RequestFinished(request, ok, message);
 }
 
 bool TimerService::SetProject(qint64 projectId)

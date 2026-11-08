@@ -3,7 +3,8 @@
 // desktop/gnome/dbus, keeps a timer in memory with no server behind it, and
 // records every method call. A second interface, org.tokkl.Timer1Mock,
 // lets the check read the calls, change properties, start a session as
-// another device would, and stop the mock.
+// another device would, have the server refuse the next request, act as a
+// service from before the Request methods, and stop the mock.
 //
 //   gjs -m mock-timer.js /path/to/org.tokkl.Timer1.xml
 
@@ -20,6 +21,8 @@ const mockXml = `<node>
     <method name="Calls"><arg name="json" type="s" direction="out"/></method>
     <method name="Quit"/>
     <method name="StartForeignSession"/>
+    <method name="RefuseNextRequest"><arg name="error" type="s" direction="in"/></method>
+    <method name="ActAsOlderService"><arg name="older" type="b" direction="in"/></method>
     <method name="Set">
       <arg name="name" type="s" direction="in"/>
       <arg name="value" type="v" direction="in"/>
@@ -126,6 +129,11 @@ const accountLengths = { work: 50, shortRest: 10, longRest: 20, longRestEvery: 3
 
 const calls = [];
 let timer = null;
+let lastRequest = 0;
+// The server's words for the next request it refuses, or null.
+let refusal = null;
+// The Request methods answer UnknownMethod, as before they existed.
+let olderService = false;
 
 function variant(name) {
     if (name === 'Projects') {
@@ -279,6 +287,42 @@ class Timer1 {
         return true;
     }
 
+    // As the service does: a request does what the plain method does, and
+    // RequestFinished follows the answer. The mock's server answers at once,
+    // on the next turn of the loop. Only the request is recorded.
+    _request(name, action) {
+        calls.push([name]);
+        if (olderService) throw new GLib.Error(Gio.DBusError, Gio.DBusError.UNKNOWN_METHOD, `No such method "${name}"`);
+        const refused = refusal;
+        refusal = null;
+        const before = calls.length;
+        const sent = refused === null ? action() : state.Status === 'ready';
+        calls.splice(before, calls.length - before);
+        if (!sent) return 0;
+        const request = ++lastRequest;
+        GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+            timer.emit_signal('RequestFinished', new GLib.Variant('(tbs)', [request, refused === null, refused ?? '']));
+            return GLib.SOURCE_REMOVE;
+        });
+        return request;
+    }
+
+    RequestStart() {
+        return this._request('RequestStart', () => this.Start());
+    }
+
+    RequestStop() {
+        return this._request('RequestStop', () => this.Stop());
+    }
+
+    RequestPause() {
+        return this._request('RequestPause', () => this.Pause());
+    }
+
+    RequestResume() {
+        return this._request('RequestResume', () => this.Resume());
+    }
+
     SetProject(projectId) {
         calls.push(['SetProject', projectId]);
         if (state.Running || state.Paused || (projectId !== 0 && !state.Projects.some(p => p.id === projectId)))
@@ -422,6 +466,12 @@ const mock = Gio.DBusExportedObject.wrapJSObject(mockXml, {
         set({ SessionActive: true });
     },
     Set: (name, value) => set({ [name]: value.recursiveUnpack() }),
+    RefuseNextRequest: error => {
+        refusal = error;
+    },
+    ActAsOlderService: older => {
+        olderService = older;
+    },
     Quit: () => GLib.idle_add(GLib.PRIORITY_DEFAULT, () => loop.quit()),
 });
 

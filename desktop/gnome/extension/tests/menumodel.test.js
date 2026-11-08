@@ -165,6 +165,16 @@ test('a failed call shows its message, ahead of the session message', () => {
     assert.deepEqual(menuFor({ actionError: '' }).message, { text: '', visible: false });
 });
 
+test("a refused request's words show once, also when ErrorString holds them", () => {
+    const refused = 'Project is archived';
+    const state = serviceState({ status: 'error', actionError: refused });
+    const same = describeMenu(state, describeStatus('error', refused, identity), identity);
+    assert.deepEqual(same.message, { text: refused, visible: true });
+    assert.equal(same.detail.visible, false);
+    const other = describeMenu(state, describeStatus('error', 'The instance is unreachable', identity), identity);
+    assert.deepEqual(other.detail, { text: 'The instance is unreachable', visible: true });
+});
+
 test('the project choices start with No project and check the chosen one', () => {
     assert.deepEqual(
         projectChoices(

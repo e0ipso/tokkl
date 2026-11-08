@@ -138,6 +138,14 @@ public:
     // Explicit reconnect: lifts a workspace block and revalidates the account.
     void reconnect();
 
+Q_SIGNALS:
+    // The write that start(), stop(), pause(), resume() or chooseBillable()
+    // sent has ended. ok is true when the server applied it. Otherwise
+    // message is why, as errorString() words it: a refusal, a 409, an
+    // unknown outcome the state client now settles, or a lost workspace.
+    // A new generation ends a write still on its way with an empty message.
+    void writeFinished(bool ok, const QString &message);
+
 private:
     void onConnectionChanged();
     void onStateChanged();
@@ -151,6 +159,7 @@ private:
     // whose reply is an entry rather than the whole state, so the state
     // that shows it comes from a read.
     void finishMutation(TimerActionResult::Outcome outcome, const ApiError &error, bool start = false, bool entryReply = false);
+    void endMutation(TimerActionResult::Outcome outcome, const ApiError &error, bool start, bool entryReply);
     void loseWorkspace(const ApiError &error);
     void setError(const QString &error);
     // Clears the message of a refused start or resume, or of a 409, on a

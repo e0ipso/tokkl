@@ -157,6 +157,12 @@ public Q_SLOTS:
     bool Stop();
     bool Pause();
     bool Resume();
+    // Start, Stop, Pause and Resume, returning the request's id, or 0 when
+    // nothing was sent. RequestFinished follows the server's answer.
+    qulonglong RequestStart();
+    qulonglong RequestStop();
+    qulonglong RequestPause();
+    qulonglong RequestResume();
     bool SetProject(qint64 projectId);
     bool SetBillable(bool billable);
     void Configure(const QString &instanceUrl, const QString &authMode, const QString &email, const QString &secret);
@@ -170,7 +176,16 @@ public Q_SLOTS:
     bool SetSound(const QString &transition, const QString &soundId);
     bool PreviewSound(const QString &soundId);
 
+Q_SIGNALS:
+    // The org.tokkl.Timer1 signal, relayed by the generated adaptor.
+    void RequestFinished(qulonglong request, bool ok, const QString &error);
+
 private:
+    // The id of a request that sent, or 0. The service follows one at a
+    // time, as the timer sends one write at a time.
+    qulonglong follow(bool sent);
+    void onWriteFinished(bool ok, const QString &message);
+
     // The properties in groups that change together. Each core signal marks
     // the groups it can change, and only those are read again.
     enum Group : unsigned {
@@ -219,6 +234,9 @@ private:
     QVariantMap m_published;
     // The groups marked since the last publish.
     unsigned m_dirty = 0;
+    qulonglong m_lastRequest = 0;
+    // The request whose write runs; 0 for none.
+    qulonglong m_request = 0;
     bool m_publishQueued = false;
 };
 }

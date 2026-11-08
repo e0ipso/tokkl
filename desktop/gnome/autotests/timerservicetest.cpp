@@ -285,13 +285,16 @@ QMap<QString, Interface> parseIntrospection(const QByteArray &xml)
     return interfaces;
 }
 
-// Records PropertiesChanged of org.tokkl.Timer1 on the client connection.
+// Records PropertiesChanged and RequestFinished of org.tokkl.Timer1 on the
+// client connection.
 class ChangeRecorder : public QObject
 {
     Q_OBJECT
 
 public:
     QList<QVariantMap> changes;
+    // Each RequestFinished as its id, ok and error.
+    QList<QVariantList> finished;
 
     // Every value a property took, in order.
     QVariantList valuesOf(const QString &property) const
@@ -311,6 +314,11 @@ public Q_SLOTS:
         if (interface == TimerService::interfaceName && invalidated.isEmpty()) {
             changes.append(changed);
         }
+    }
+
+    void requestFinished(qulonglong request, bool ok, const QString &error)
+    {
+        finished.append({request, ok, error});
     }
 };
 
@@ -474,6 +482,14 @@ class TimerServiceTest : public QObject
                                 QStringLiteral("PropertiesChanged"),
                                 &recorder,
                                 SLOT(propertiesChanged(QString, QVariantMap, QStringList)))) {
+                return false;
+            }
+            if (!client.connect(TimerService::serviceName,
+                                TimerService::objectPath,
+                                TimerService::interfaceName,
+                                QStringLiteral("RequestFinished"),
+                                &recorder,
+                                SLOT(requestFinished(qulonglong, bool, QString)))) {
                 return false;
             }
             // A round trip, so the match rule is in place before anything changes.
@@ -727,6 +743,10 @@ private Q_SLOTS:
             {QStringLiteral("Stop"), {QStringLiteral("out b")}},
             {QStringLiteral("Pause"), {QStringLiteral("out b")}},
             {QStringLiteral("Resume"), {QStringLiteral("out b")}},
+            {QStringLiteral("RequestStart"), {QStringLiteral("out t")}},
+            {QStringLiteral("RequestStop"), {QStringLiteral("out t")}},
+            {QStringLiteral("RequestPause"), {QStringLiteral("out t")}},
+            {QStringLiteral("RequestResume"), {QStringLiteral("out t")}},
             {QStringLiteral("SetProject"), {QStringLiteral("in x"), QStringLiteral("out b")}},
             {QStringLiteral("SetBillable"), {QStringLiteral("in b"), QStringLiteral("out b")}},
             {QStringLiteral("Configure"), {QStringLiteral("in s"), QStringLiteral("in s"), QStringLiteral("in s"), QStringLiteral("in s")}},
@@ -743,6 +763,8 @@ private Q_SLOTS:
         QCOMPARE(timer.methods, methods);
         QCOMPARE(described.properties, timer.properties);
         QCOMPARE(described.methods, timer.methods);
+        QCOMPARE(timer.signalNames, QSet<QString>{QStringLiteral("RequestFinished")});
+        QCOMPARE(described.signalNames, timer.signalNames);
         QVERIFY(live.value(propertiesInterface).signalNames.contains(QStringLiteral("PropertiesChanged")));
     }
 
@@ -929,6 +951,63 @@ private Q_SLOTS:
         QCOMPARE(f.get(QStringLiteral("ChosenProject")).toLongLong(), 0);
         QCOMPARE(f.get(QStringLiteral("ChosenProjectName")).toString(), QString());
         QCOMPARE(f.get(QStringLiteral("IndicatorState")).toString(), QStringLiteral("none"));
+    }
+
+    // A request is followed to its end: RequestFinished carries its id with
+    // the outcome, after the properties it changed, and the plain methods
+    // send none.
+    void requestsReportTheirEnd()
+    {
+        Fixture f;
+        QVERIFY(f.start());
+        QVERIFY(f.connect());
+        const auto requestOf = [](const QVariant &value) {
+            return value.toULongLong();
+        };
+
+        // A start the server refuses.
+        const qulonglong refusedStart = requestOf(f.result(QStringLiteral("RequestStart")));
+        QVERIFY(refusedStart > 0);
+        // One write at a time: nothing is sent while it runs.
+        QCOMPARE(requestOf(f.result(QStringLiteral("RequestStart"))), 0ULL);
+        const QList<qsizetype> starts = f.find("POST", "/workspaces/7/time_entries");
+        QCOMPARE(starts.size(), 1);
+        f.respond(starts.first(), FakeTransport::answer(400, errorBody("Project is archived")));
+        QTRY_COMPARE(f.recorder.finished.size(), 1);
+        QCOMPARE(f.recorder.finished.last(), (QVariantList{refusedStart, false, QStringLiteral("Project is archived")}));
+        // ErrorString had the words before the signal came.
+        QVERIFY(f.recorder.valuesOf(QStringLiteral("ErrorString")).contains(QStringLiteral("Project is archived")));
+
+        // A start the server applies, with the next id.
+        const qulonglong start = requestOf(f.result(QStringLiteral("RequestStart")));
+        QVERIFY(start > refusedStart);
+        f.change(entryObject(5, 11, true));
+        f.respond(f.find("POST", "/workspaces/7/time_entries").last(), FakeTransport::answer(200, json(entryObject(5, 11, true))));
+        QTRY_COMPARE(f.recorder.finished.size(), 2);
+        QCOMPARE(f.recorder.finished.last(), (QVariantList{start, true, QString()}));
+        QVERIFY(f.serve());
+        QCOMPARE(f.get(QStringLiteral("Running")).toBool(), true);
+
+        // A pause whose answer never comes: not ok, with the connection's
+        // words.
+        const qulonglong pause = requestOf(f.result(QStringLiteral("RequestPause")));
+        QVERIFY(pause > start);
+        f.respond(f.find("POST", "/app/timer/pause").last(), FakeTransport::failure(HttpResponse::Outcome::Timeout));
+        QTRY_COMPARE(f.recorder.finished.size(), 3);
+        QCOMPARE(f.recorder.finished.last().at(0).toULongLong(), pause);
+        QCOMPARE(f.recorder.finished.last().at(1).toBool(), false);
+        QVERIFY(!f.recorder.finished.last().at(2).toString().isEmpty());
+        QVERIFY(f.serve());
+
+        // The plain method sends and reports nothing more; a request with
+        // nothing to do returns 0.
+        QCOMPARE(requestOf(f.result(QStringLiteral("RequestResume"))), 0ULL);
+        QCOMPARE(f.result(QStringLiteral("Stop")).toBool(), true);
+        f.change(QJsonValue::Null);
+        f.respond(f.find("PATCH", "/workspaces/7/time_entries/5/stop").last(), FakeTransport::answer(200, json(entryObject(5, 11, false))));
+        QVERIFY(f.serve());
+        QVERIFY(f.ping());
+        QCOMPARE(f.recorder.finished.size(), 3);
     }
 
     // The server's clock runs 90 s ahead of this machine's. StartTime keeps

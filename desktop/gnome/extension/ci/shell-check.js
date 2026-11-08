@@ -26,6 +26,24 @@ const mockSet = (name, value) =>
 
 const startForeignSession = () =>
     call('org.tokkl.Timer1', '/org/tokkl/Timer1', 'org.tokkl.Timer1Mock', 'StartForeignSession', null, null);
+const refuseNextRequest = error =>
+    call(
+        'org.tokkl.Timer1',
+        '/org/tokkl/Timer1',
+        'org.tokkl.Timer1Mock',
+        'RefuseNextRequest',
+        new GLib.Variant('(s)', [error]),
+        null,
+    );
+const actAsOlderService = older =>
+    call(
+        'org.tokkl.Timer1',
+        '/org/tokkl/Timer1',
+        'org.tokkl.Timer1Mock',
+        'ActAsOlderService',
+        new GLib.Variant('(b)', [older]),
+        null,
+    );
 
 const checks = steps();
 const { step } = checks;
@@ -292,12 +310,32 @@ await step('a primary click resumes, and the time counts on from the chain total
 await step('Stop in the menu ends the chain, and the item then reads Start', async () => {
     const before = mockCalls().length;
     shell(`${button}._toggleItem.activate(null)`);
-    await waitFor('Stop', () => (mockCalls().length > before && lastCall()[0] === 'Stop') || mockCalls());
+    await waitFor('RequestStop', () => (mockCalls().length > before && lastCall()[0] === 'RequestStop') || mockCalls());
     await waitFor('0:00', () => label() === '0:00' || label());
     if (timerProperty('ChainSeconds') !== 0 || timerProperty('Paused')) throw new Error('the chain outlived Stop');
     await waitFor('Start', () => toggleItem() === 'Start' || toggleItem());
     if (!shell(`${button}.accessible_name`).startsWith('Stopped · '))
         throw new Error(`button name: ${shell(`${button}.accessible_name`)}`);
+});
+
+await step('a start the server refuses shows its words in the menu until the next call', async () => {
+    const refused = 'This project is archived.';
+    refuseNextRequest(refused);
+    const before = mockCalls().length;
+    shell(`${button}._toggleItem.activate(null)`);
+    await waitFor(
+        'RequestStart',
+        () => (mockCalls().length > before && lastCall()[0] === 'RequestStart') || mockCalls(),
+    );
+    await waitFor(
+        'the refusal',
+        () =>
+            (shell(`${button}._messageItem.visible`) === true &&
+                shell(`${button}._messageItem.label.text`) === refused) ||
+            shell(`${button}._messageItem.label.text`),
+    );
+    if (timerProperty('Running')) throw new Error('the refused start ran');
+    if (toggleItem() !== 'Start') throw new Error(`the menu offers ${toggleItem()}`);
 });
 
 await step('a stopped timer lets the menu choose the project', async () => {
@@ -386,7 +424,7 @@ await step('a paused timer turns the dot into a still square, and Stop clears th
     await indicatorIs('a still square', { kind: 'filled', round: false, pulsing: false, fillOpacity: 255 });
     const before = mockCalls().length;
     shell(`${button}._toggleItem.activate(null)`);
-    await waitFor('Stop', () => (mockCalls().length > before && lastCall()[0] === 'Stop') || mockCalls());
+    await waitFor('RequestStop', () => (mockCalls().length > before && lastCall()[0] === 'RequestStop') || mockCalls());
     await waitFor('the chain cleared', () => timerProperty('Paused') === false && timerProperty('ChainSeconds') === 0);
     await waitFor('0:00', () => label() === '0:00' || label());
     await waitFor('Start', () => toggleItem() === 'Start' || toggleItem());
@@ -531,7 +569,7 @@ await step('Space and Return do what a primary click does, and Down opens the me
     if (mockCalls().length !== before) throw new Error(`Down sent ${JSON.stringify(mockCalls().slice(before))}`);
     if (toggleItem() !== 'Stop') throw new Error(`the menu offers ${toggleItem()}`);
     shell(`${button}._toggleItem.activate(null)`);
-    await waitFor('Stop', () => lastCall()[0] === 'Stop' || mockCalls().slice(before));
+    await waitFor('RequestStop', () => lastCall()[0] === 'RequestStop' || mockCalls().slice(before));
     shell(`${button}.menu.close()`);
     await waitFor('0:00', () => label() === '0:00' || label());
 });
@@ -909,6 +947,28 @@ await step('a session started on another device shows in Timer mode', async () =
         endSession: false,
     });
     await modeItemIs('the unlocked switch', { label: 'Pomodoro mode', state: false, sensitive: true });
+    await waitFor('0:00', () => label() === '0:00' || label());
+});
+
+await step('a service without the Request methods gets the plain Start and Stop', async () => {
+    actAsOlderService(true);
+    let before = mockCalls().length;
+    shell(`${button}._toggleItem.activate(null)`);
+    await waitFor('Start', () => (mockCalls().length > before && lastCall()[0] === 'Start') || mockCalls());
+    await waitFor('Running', () => timerProperty('Running') === true);
+    const first = mockCalls().slice(before);
+    if (JSON.stringify(first) !== JSON.stringify([['RequestStart'], ['Start']]))
+        throw new Error(`Start sent ${JSON.stringify(first)}`);
+    if (shell(`${button}._messageItem.visible`)) throw new Error('the fallback showed a message');
+    // The menu remembers that this service has no requests.
+    await waitFor('Stop', () => toggleItem() === 'Stop' || toggleItem());
+    before = mockCalls().length;
+    shell(`${button}._toggleItem.activate(null)`);
+    await waitFor('Stop', () => (mockCalls().length > before && lastCall()[0] === 'Stop') || mockCalls());
+    await waitFor('Stopped', () => timerProperty('Running') === false);
+    const second = mockCalls().slice(before);
+    if (JSON.stringify(second) !== JSON.stringify([['Stop']])) throw new Error(`Stop sent ${JSON.stringify(second)}`);
+    actAsOlderService(false);
     await waitFor('0:00', () => label() === '0:00' || label());
 });
 
