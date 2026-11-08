@@ -26,11 +26,6 @@ QString projectLabel(const QVariantMap &project);
 // The project the menu shows: the running or paused entry's, or the next
 // start's.
 QString projectText(const TimerModel &timer);
-// One line for the tooltip: run state, elapsed time, project and status.
-QString summary(const TimerModel &timer);
-// The menu bar text: the elapsed time, with a mark when the timer is not
-// ready, or the app name before it is configured.
-QString menuBarTitle(const TimerModel &timer);
 // What the item does on a primary click, for screen readers: pause, resume
 // or start.
 QString actionName(const TimerModel &timer);
@@ -45,20 +40,26 @@ QString phaseName(const QString &phase);
 // the pomodoro of the round, such as "Short rest · 4:10 left · Pomodoro 2 of
 // 4".
 QString sessionText(const PomodoroSession &session);
-// sessionText with the timer's status after it unless the timer is Ready, so
-// an offline or failing connection shows next to the countdown of the last
-// state held, such as "Work · 4:10 left · Pomodoro 2 of 4 · Offline,
-// showing the last known state".
-QString sessionLine(const TimerModel &timer, const PomodoroSession &session);
 // The item shows the session rather than the timer: a session is active and
 // no timer runs or is paused.
 bool showsSession(const TimerModel &timer, const PomodoroSession &session);
-// The tooltip with the session: sessionLine while showsSession, otherwise
-// the timer's summary, with " · Pomodoro mode" in Pomodoro mode.
+// The words follow the core's StatusPresentation with the macOS policy;
+// these turn its parts into words.
+//
+// The tooltip: the session's line, with the connection's state unless it is
+// ready, while showsSession; otherwise the run state and elapsed time, the
+// project, the connection's state and its detail, with " · Pomodoro mode"
+// in Pomodoro mode.
 QString summary(const TimerModel &timer, const PomodoroSession &session);
-// The menu bar text with the session: the session's countdown while
-// showsSession, with " !" after it when the instance is offline, refusing the
-// sign-in or failing; otherwise the timer's.
+// The menu's state line: the session's line, with the connection's state
+// unless it is ready, while showsSession, such as "Work · 4:10 left ·
+// Pomodoro 2 of 4 · Offline, showing the last known state"; otherwise the
+// run state, the elapsed time and the connection's state.
+QString menuLine(const TimerModel &timer, const PomodoroSession &session);
+// The menu bar text: the session's countdown while showsSession, otherwise
+// the elapsed time, with " …" while loading or saving and " !" when the
+// instance is offline, refusing the sign-in or failing; the app name before
+// an account is set up. The countdown is marked only by " !".
 QString menuBarTitle(const TimerModel &timer, const PomodoroSession &session);
 // The screen reader's name with the session: sessionText while
 // showsSession, otherwise the timer's, with " · Pomodoro mode" in Pomodoro

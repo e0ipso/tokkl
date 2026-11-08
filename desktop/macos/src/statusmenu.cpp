@@ -177,13 +177,12 @@ void StatusMenu::refreshState()
     if (!m_timer) {
         return;
     }
-    const QString detail = StatusWords::detailText(*m_timer);
-    if (m_session && StatusWords::showsSession(*m_timer, *m_session)) {
-        m_stateAction->setText(StatusWords::sessionLine(*m_timer, *m_session));
+    if (m_session) {
+        m_stateAction->setText(StatusWords::menuLine(*m_timer, *m_session));
     } else {
         m_stateAction->setText(tr("%1 %2 · %3").arg(StatusWords::runText(*m_timer), m_timer->elapsedText(), StatusWords::statusText(m_timer->status())));
     }
-    m_stateAction->setToolTip(detail);
+    m_stateAction->setToolTip(StatusWords::detailText(*m_timer));
 }
 
 void StatusMenu::refreshSession(const MenuActionStates &actions)
