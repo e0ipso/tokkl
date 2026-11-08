@@ -322,22 +322,29 @@ export function projectLabel(project) {
 }
 
 /**
- * The label of ChosenProject from the parts the service publishes in
- * ChosenProjectLabel, as the KDE and macOS menus word them: "No project" for
- * 0, "Unavailable project" for one the instance no longer has, "Unknown
- * project" while it has no name, and otherwise "Name (Client)" with
- * "(archived)" after it for an archived project.
+ * The label of ChosenProject in the words for the kind the service
+ * publishes in ChosenProjectLabel, as the KDE and macOS menus word it:
+ * "No project", "Unknown project" while it is read, "Unavailable project"
+ * for one the instance no longer has, and for a named project "Name
+ * (Client)" with "(archived)" after it for an archived one. Without the
+ * property, as while the service is gone, it is No project.
  *
- * @param {number} chosenProject the ChosenProject property
- * @param {{name?: string, client?: string, archived?: boolean, missing?: boolean}} label
+ * @param {{name?: string, client?: string, archived?: boolean, kind?: string}} label
  *     the ChosenProjectLabel property
  * @param {(text: string) => string} _ gettext
  * @returns {string}
  */
-export function chosenProjectLabel(chosenProject, label, _) {
-    if (!chosenProject) return _('No project');
-    if (label.missing) return _('Unavailable project');
-    if (!label.name) return _('Unknown project');
+export function chosenProjectLabel(label, _) {
+    switch (label.kind ?? 'none') {
+        case 'none':
+            return _('No project');
+        case 'named':
+            break;
+        case 'unavailable':
+            return _('Unavailable project');
+        default:
+            return _('Unknown project');
+    }
     const named = projectLabel({ name: label.name, clientName: label.client });
     // Translators: %s is the project's name, with its client in parentheses.
     return label.archived ? fill(_('%s (archived)'), named) : named;

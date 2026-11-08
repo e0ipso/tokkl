@@ -52,6 +52,7 @@ const labelVariant = label =>
         client: new GLib.Variant('s', label.client),
         archived: new GLib.Variant('b', label.archived),
         missing: new GLib.Variant('b', label.missing),
+        kind: new GLib.Variant('s', label.kind),
     });
 
 const checks = steps();
@@ -455,7 +456,10 @@ await step('a running entry on an archived project is named by the indicator and
     mockSet('Running', new GLib.Variant('b', true));
     mockSet('ChosenProject', new GLib.Variant('x', 42));
     mockSet('ChosenProjectName', new GLib.Variant('s', 'Legacy'));
-    mockSet('ChosenProjectLabel', labelVariant({ name: 'Legacy', client: '', archived: true, missing: false }));
+    mockSet(
+        'ChosenProjectLabel',
+        labelVariant({ name: 'Legacy', client: '', archived: true, missing: false, kind: 'named' }),
+    );
     mockSet('IndicatorColor', new GLib.Variant('s', '#2da608'));
     await indicatorIs('a named dot', {
         kind: 'filled',
@@ -470,7 +474,10 @@ await step('a running entry on an archived project is named by the indicator and
     mockSet('Running', new GLib.Variant('b', false));
     mockSet('ChosenProject', new GLib.Variant('x', 7));
     mockSet('ChosenProjectName', new GLib.Variant('s', 'Website'));
-    mockSet('ChosenProjectLabel', labelVariant({ name: 'Website', client: 'Acme', archived: false, missing: false }));
+    mockSet(
+        'ChosenProjectLabel',
+        labelVariant({ name: 'Website', client: 'Acme', archived: false, missing: false, kind: 'named' }),
+    );
     mockSet('IndicatorColor', new GLib.Variant('s', '#3366cc'));
     await indicatorIs('the still square', {
         kind: 'filled',

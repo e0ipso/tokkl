@@ -69,20 +69,24 @@ test('every Status value has words and a mark', () => {
     assert.match(describeStatus('unconfigured', '', identity).detail, /settings/);
 });
 
-// The words for ChosenProjectLabel, as the KDE and macOS menus word the
-// same parts.
+// The words for the kind in ChosenProjectLabel, as the KDE and macOS menus
+// word the same parts. The service decides the kind.
 test('project labels name the client, an archived project and the missing project', () => {
-    const parts = (name, client = '', archived = false, missing = false) => ({ name, client, archived, missing });
+    const named = (name, client = '', archived = false) => ({ name, client, archived, missing: false, kind: 'named' });
+    const empty = (kind, missing = false) => ({ name: '', client: '', archived: false, missing, kind });
     assert.equal(projectLabel({ name: 'Website', clientName: 'Acme' }), 'Website (Acme)');
     assert.equal(projectLabel({ name: 'Internal', clientName: '' }), 'Internal');
-    assert.equal(chosenProjectLabel(0, parts(''), identity), 'No project');
-    assert.equal(chosenProjectLabel(9, parts('Internal'), identity), 'Internal');
-    assert.equal(chosenProjectLabel(7, parts('Website', 'Acme'), identity), 'Website (Acme)');
-    assert.equal(chosenProjectLabel(42, parts('Legacy', '', true), identity), 'Legacy (archived)');
-    assert.equal(chosenProjectLabel(42, parts('Legacy', 'Acme', true), identity), 'Legacy (Acme) (archived)');
-    assert.equal(chosenProjectLabel(42, parts('', '', false, true), identity), 'Unavailable project');
-    assert.equal(chosenProjectLabel(42, parts(''), identity), 'Unknown project');
-    assert.equal(chosenProjectLabel(42, {}, identity), 'Unknown project');
+    assert.equal(chosenProjectLabel(empty('none'), identity), 'No project');
+    assert.equal(chosenProjectLabel(named('Internal'), identity), 'Internal');
+    assert.equal(chosenProjectLabel(named('Website', 'Acme'), identity), 'Website (Acme)');
+    assert.equal(chosenProjectLabel(named('Legacy', '', true), identity), 'Legacy (archived)');
+    assert.equal(chosenProjectLabel(named('Legacy', 'Acme', true), identity), 'Legacy (Acme) (archived)');
+    assert.equal(chosenProjectLabel(empty('unavailable', true), identity), 'Unavailable project');
+    assert.equal(chosenProjectLabel(empty('unknown'), identity), 'Unknown project');
+    // A kind from a later service reads as a project still being read.
+    assert.equal(chosenProjectLabel({ ...named('Later'), kind: 'grouped' }, identity), 'Unknown project');
+    // While the service is gone the property is empty.
+    assert.equal(chosenProjectLabel({}, identity), 'No project');
 });
 
 test('the countdown rounds the time left up and the overtime down', () => {

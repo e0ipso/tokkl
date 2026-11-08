@@ -89,7 +89,7 @@ const state = {
     ProjectsIncomplete: false,
     ChosenProject: 0,
     ChosenProjectName: '',
-    ChosenProjectLabel: { name: '', client: '', archived: false, missing: false },
+    ChosenProjectLabel: { name: '', client: '', archived: false, missing: false, kind: 'none' },
     Billable: false,
     Status: 'ready',
     ErrorString: '',
@@ -176,6 +176,7 @@ function variant(name) {
             client: new GLib.Variant('s', label.client),
             archived: new GLib.Variant('b', label.archived),
             missing: new GLib.Variant('b', label.missing),
+            kind: new GLib.Variant('s', label.kind),
         });
     }
     if (name === 'Presentation') {
@@ -388,6 +389,7 @@ class Timer1 {
                 client: project ? project.clientName : '',
                 archived: false,
                 missing: false,
+                kind: project ? 'named' : 'none',
             },
             Billable: project ? project.billable : false,
             IndicatorState: project ? 'project' : 'none',

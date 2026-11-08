@@ -260,8 +260,8 @@ public:
     // neither.
     Q_PROPERTY(QVariant chosenProjectDetails READ chosenProjectDetails NOTIFY chosenProjectDetailsChanged)
     // chosenProjectDetails as the parts every panel words its label from
-    // (ProjectLabelParts::toVariantMap()): empty parts for no project and
-    // for one that is neither held nor active.
+    // (ProjectLabelParts::toVariantMap()): kind "none" for no project and
+    // "unknown" for one that is neither held nor active.
     Q_PROPERTY(QVariantMap chosenProjectLabel READ chosenProjectLabelVariant NOTIFY chosenProjectDetailsChanged)
     // The project behind chosenProjectId for the panel indicator, and its
     // colour as lowercase #rrggbb. The colour is empty outside the Project

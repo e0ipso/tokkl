@@ -28,11 +28,9 @@ QString statusWord(const QString &status);
 QString statusText(TimerModel::Status status);
 // A longer explanation of the status, or an empty string.
 QString detailText(const TimerModel &timer);
-// A project id from TimerModel, such as chosenProjectId: null, or
-// unset, for no project.
-bool isNoProject(const QVariant &id);
-// The words for the parts of a project's label: "Name (Client)", then
-// "(archived)", or "Unavailable project" for one the instance no longer has.
+// The words for the kind of a project's label: No project, Unknown
+// project, Unavailable project for one the instance no longer has, or
+// "Name (Client)" and then "(archived)".
 QString projectLabel(const ProjectLabelParts &parts);
 // The project the menu shows, TimerModel::chosenProjectLabel(): the
 // running or paused entry's, or the next start's.

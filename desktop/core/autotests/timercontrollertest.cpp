@@ -447,7 +447,9 @@ private Q_SLOTS:
         QVERIFY(f.timer.chooseProject(11));
         QCOMPARE(f.timer.chosenProjectDetails().toMap().value(QStringLiteral("id")).toLongLong(), 11);
         QCOMPARE(f.timer.chosenProjectLabel().name, QStringLiteral("Alpha"));
+        QCOMPARE(f.timer.chosenProjectLabel().kind, ProjectLabelParts::Kind::Named);
         QCOMPARE(f.timer.chosenProjectLabelVariant().value(QStringLiteral("name")).toString(), QStringLiteral("Alpha"));
+        QCOMPARE(f.timer.chosenProjectLabelVariant().value(QStringLiteral("kind")).toString(), QStringLiteral("named"));
     }
 
     void exposesContextAndEntry()
@@ -2326,6 +2328,8 @@ private Q_SLOTS:
         }
         QCOMPARE(f.timer.chosenProjectId().toLongLong(), 33);
         QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::Pending);
+        // The label waits for the details too.
+        QCOMPARE(f.timer.chosenProjectLabel(), ProjectLabelParts::unknown());
         const qsizetype archived = f.last("GET", "/projects/33");
         QVERIFY(f.unanswered(archived));
 
@@ -2335,6 +2339,10 @@ private Q_SLOTS:
         QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::Project);
         QCOMPARE(f.timer.indicatorColor(), QStringLiteral("#9e5bd9"));
         QCOMPARE(indicator.count(), 1);
+        // The menu names the running entry's archived project; the next
+        // start offers only active ones.
+        QCOMPARE(f.timer.chosenProjectLabel().kind, running ? ProjectLabelParts::Kind::Named : ProjectLabelParts::Kind::Unknown);
+        QCOMPARE(f.timer.chosenProjectLabel().archived, running);
 
         // Deleted on the server: 404 gives None.
         if (running) {
@@ -2352,6 +2360,7 @@ private Q_SLOTS:
         QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::None);
         QVERIFY(f.timer.indicatorColor().isEmpty());
         QCOMPARE(indicator.count(), 3);
+        QCOMPARE(f.timer.chosenProjectLabel().kind, running ? ProjectLabelParts::Kind::Unavailable : ProjectLabelParts::Kind::Unknown);
         if (running) {
             // entryProject keeps the id without a name, as before.
             QCOMPARE(f.timer.entryProject()->id, 44);

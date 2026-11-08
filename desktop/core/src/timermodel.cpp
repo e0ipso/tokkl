@@ -311,8 +311,11 @@ QVariant TimerModel::chosenProjectDetails() const
 
 ProjectLabelParts TimerModel::chosenProjectLabel() const
 {
+    if (!chosenProject()) {
+        return ProjectLabelParts();
+    }
     const std::optional<Project> project = m_chosen->details(chosenProject(), isRunning() || isPaused());
-    return project ? ProjectLabelParts::of(*project) : ProjectLabelParts();
+    return project ? ProjectLabelParts::of(*project) : ProjectLabelParts::unknown();
 }
 
 QVariantMap TimerModel::chosenProjectLabelVariant() const

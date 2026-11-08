@@ -9,12 +9,35 @@ ProjectLabelParts ProjectLabelParts::of(const Project &project)
 {
     ProjectLabelParts parts;
     parts.missing = project.name.isEmpty();
+    parts.kind = parts.missing ? Kind::Unavailable : Kind::Named;
     if (!parts.missing) {
         parts.name = project.name;
         parts.client = project.clientName;
         parts.archived = !project.active;
     }
     return parts;
+}
+
+ProjectLabelParts ProjectLabelParts::unknown()
+{
+    ProjectLabelParts parts;
+    parts.kind = Kind::Unknown;
+    return parts;
+}
+
+QString ProjectLabelParts::kindKey(Kind kind)
+{
+    switch (kind) {
+    case Kind::None:
+        break;
+    case Kind::Unknown:
+        return QStringLiteral("unknown");
+    case Kind::Unavailable:
+        return QStringLiteral("unavailable");
+    case Kind::Named:
+        return QStringLiteral("named");
+    }
+    return QStringLiteral("none");
 }
 
 QVariantMap ProjectLabelParts::toVariantMap() const
@@ -24,6 +47,7 @@ QVariantMap ProjectLabelParts::toVariantMap() const
         {QStringLiteral("client"), client},
         {QStringLiteral("archived"), archived},
         {QStringLiteral("missing"), missing},
+        {QStringLiteral("kind"), kindKey(kind)},
     };
 }
 
