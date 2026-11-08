@@ -1,19 +1,19 @@
-import { Worker } from 'node:worker_threads';
 import type { StorageConfig } from '../storage/config.ts';
-import { reportRunsInline } from '../storage/repositories/report-reader.ts';
-import { ApplicationError, RequestCancelled, unavailable, type FailureKind } from '../lib/errors.ts';
-import { redactedDiagnostic, silentLogger, type ErrorDiagnostic, type Logger } from '../lib/logger.ts';
+import { RequestCancelled, unavailable } from '../lib/errors.ts';
+import { silentLogger, type Logger } from '../lib/logger.ts';
 import type { ReportSource } from './reports.ts';
 import type { AccountExportProjection, User } from '../storage/domain.ts';
 import type { Authentication } from '../domain/credentials.ts';
+import type { ExportAssemblyJob, JobResult, ReportJob } from './reportJobs.ts';
 import {
-  formatExportJob,
-  runReportJob,
-  type ExportAssemblyJob,
-  type JobResult,
-  type ReportJob,
-  type ReportJobWork,
-} from './reportJobs.ts';
+  createReportExecution,
+  type ExecutionJob,
+  type ReportExecution,
+  type ReportPhase,
+  type ReportWork,
+} from './reportExecution.ts';
+
+export type { ReportWork };
 
 /** A queued report usually finishes within a second or two, so a full queue asks for a short wait. */
 const QUEUE_FULL_RETRY_SECONDS = 2;
@@ -28,33 +28,17 @@ export interface ReportRunnerOptions {
    * `maxQueue`, at least 1; at most `maxQueue`.
    */
   maxPerUser?: number;
-  onPhase?: (phase: 'reading' | 'formatting') => void;
+  onPhase?: (phase: ReportPhase) => void;
   /** Where unexpected report and worker failures are logged, as redacted diagnostics. */
   logger?: Logger;
 }
-interface Pending {
-  id: number;
+interface Pending extends ExecutionJob {
   /** The account whose place this is. */
   userId: number;
-  work: ReportWork;
   resolve(result: JobResult): void;
   reject(error: Error): void;
   dispose(): void;
 }
-export type ReportWork = ReportJobWork | { data: AccountExportProjection; assembly: ExportAssemblyJob };
-interface Reply {
-  id?: number;
-  ready?: boolean;
-  phase?: 'reading' | 'formatting';
-  result?: JobResult;
-  /** An application failure keeps its kind and message; anything else arrives without a kind. */
-  error?: { kind?: FailureKind; message: string; retryAfterSeconds?: number };
-  /** Sent with an unexpected failure, for the log only. */
-  diagnostic?: ErrorDiagnostic;
-  /** The worker could not open its reader. */
-  startupFailed?: ErrorDiagnostic;
-}
-
 /** A place in the report queue, held while its caller prepares one job. It queues one job only. */
 export interface ReportSlot {
   run(
@@ -98,26 +82,17 @@ function credentialFree(data: AccountExportProjection): AccountExportProjection 
   return projection;
 }
 
-/** The job's kind and the runner's id for it: what a log line may say about a job. */
-function jobFields(p: Pending) {
-  return { jobId: p.id, jobKind: 'assembly' in p.work ? p.work.assembly.kind : p.work.job.kind };
-}
-
 /**
- * One runner per app, one worker/reader, a bounded parent queue and one job in flight. Each account
- * holds at most `maxPerUser` places, and queued jobs take turns between accounts: the next job is
- * the oldest one of the account served longest ago.
+ * One runner per app: a bounded queue in front of one execution, with one job in flight. The runner
+ * admits and cancels jobs and picks the next one; the execution (`reportExecution.ts`) runs it in
+ * the worker, or inline for in-memory SQLite. Each account holds at most `maxPerUser` places, and
+ * queued jobs take turns between accounts: the next job is the oldest one of the account served
+ * longest ago.
  */
 export class ReportRunner implements ReportExecutor {
-  private readonly config: StorageConfig;
-  private readonly inline: ReportSource;
-  private readonly options: ReportRunnerOptions;
   private readonly maxQueue: number;
   private readonly maxPerUser: number;
-  private readonly logger: Logger;
-  private worker: Worker | null = null;
-  private ready = false;
-  private startup: ReturnType<typeof setTimeout> | undefined;
+  private readonly execution: ReportExecution;
   private active: Pending | undefined;
   private queue: Pending[] = [];
   /** Places reserved by callers still preparing their job, per account. */
@@ -127,21 +102,31 @@ export class ReportRunner implements ReportExecutor {
   private turns = 0;
   private nextId = 1;
   private closed = false;
-  private stopping: Promise<void> | undefined;
   private closing: Promise<void> | undefined;
-  private inlineWork: Promise<void> | undefined;
 
   constructor(config: StorageConfig, inline: ReportSource, options: ReportRunnerOptions = {}) {
-    this.config = structuredClone(config);
-    this.inline = inline;
-    this.options = options;
     this.maxQueue = options.maxQueue ?? DEFAULT_MAX_QUEUE;
-    this.logger = options.logger ?? silentLogger;
     if (!Number.isSafeInteger(this.maxQueue) || this.maxQueue < 1 || this.maxQueue > MAX_QUEUE_LIMIT)
       throw new Error('Invalid report queue limit');
     this.maxPerUser = options.maxPerUser ?? Math.max(1, Math.floor(this.maxQueue / 4));
     if (!Number.isSafeInteger(this.maxPerUser) || this.maxPerUser < 1 || this.maxPerUser > this.maxQueue)
       throw new Error('Invalid report share per account');
+    this.execution = createReportExecution(
+      structuredClone(config),
+      inline,
+      {
+        settled: (id, result, error) => {
+          if (this.active?.id === id) this.finish(this.active, result, error);
+        },
+        available: () => this.pump(),
+        failed: error => this.failAll(error),
+      },
+      { logger: options.logger ?? silentLogger, onPhase: options.onPhase },
+    );
+  }
+  /** The worker running jobs, while there is one. */
+  private get worker() {
+    return this.execution.worker;
   }
   run(
     userId: number,
@@ -243,7 +228,7 @@ export class ReportRunner implements ReportExecutor {
           this.active = undefined;
           pending.dispose();
           pending.reject(new RequestCancelled('Report cancelled'));
-          if (this.worker) this.stopWorker();
+          this.execution.cancel();
         } else {
           this.queue = this.queue.filter(p => p !== pending);
           pending.dispose();
@@ -258,40 +243,10 @@ export class ReportRunner implements ReportExecutor {
     });
   }
   private pump(): void {
-    if (this.closed || this.active || this.stopping || this.inlineWork || !this.queue.length) return;
-    if (reportRunsInline(this.config)) {
-      const p = this.next();
-      this.active = p;
-      const work = p.work;
-      const build =
-        'assembly' in work
-          ? Promise.resolve().then(() => formatExportJob(work.data, work.assembly))
-          : runReportJob(this.inline, work);
-      this.inlineWork = build
-        .then(result => {
-          if (this.active === p) this.finish(p, result);
-        })
-        .catch(error => {
-          if (this.active !== p) return;
-          if (!(error instanceof ApplicationError))
-            this.logger.error('Report failed', { ...jobFields(p), diagnostic: redactedDiagnostic(error) });
-          this.finish(p, undefined, this.safeError(error));
-        })
-        .finally(() => {
-          this.inlineWork = undefined;
-          this.pump();
-        });
-      return;
-    }
-    if (!this.worker) this.startWorker();
-    if (!this.ready) return;
+    if (this.closed || this.active || !this.queue.length || !this.execution.ready()) return;
     const p = this.next();
     this.active = p;
-    this.worker!.ref();
-    this.worker!.postMessage({ id: p.id, work: p.work });
-  }
-  private safeError(error: unknown): Error {
-    return error instanceof ApplicationError ? error : new Error('Report failed');
+    this.execution.run(p);
   }
   private finish(p: Pending, result?: JobResult, error?: Error): void {
     this.active = undefined;
@@ -299,100 +254,10 @@ export class ReportRunner implements ReportExecutor {
     p.dispose();
     if (error) p.reject(error);
     else p.resolve(result!);
-    this.worker?.unref();
     this.pump();
   }
-  private startWorker(): void {
-    const worker = new Worker(new URL('./reportWorker.ts', import.meta.url), { workerData: this.config });
-    this.worker = worker;
-    const fail = () => {
-      if (this.worker !== worker) return;
-      this.ready = false;
-      clearTimeout(this.startup);
-      // Wait for this worker's exit before allowing a replacement reader to open.
-      this.stopWorker();
-      const error = new Error('Report worker stopped');
-      if (this.active) {
-        const p = this.active;
-        this.active = undefined;
-        p.dispose();
-        p.reject(error);
-      }
-      for (const p of this.queue.splice(0)) {
-        p.dispose();
-        p.reject(error);
-      }
-      this.served.clear();
-    };
-    worker.on('message', (message: Reply) => {
-      if (this.worker !== worker) return;
-      if (message.startupFailed) {
-        this.logger.error('Report worker failed to start', { diagnostic: message.startupFailed });
-        return;
-      }
-      if (message.ready) {
-        clearTimeout(this.startup);
-        this.ready = true;
-        if (!this.queue.length) worker.unref();
-        this.pump();
-        return;
-      }
-      const p = this.active;
-      if (!p || message.id !== p.id) return;
-      if (message.phase) {
-        try {
-          this.options.onPhase?.(message.phase);
-        } catch {
-          /* Observers do not own jobs. */
-        }
-        return;
-      }
-      if (message.diagnostic) this.logger.error('Report failed', { ...jobFields(p), diagnostic: message.diagnostic });
-      this.finish(
-        p,
-        message.result,
-        message.error
-          ? message.error.kind === undefined
-            ? new Error('Report failed')
-            : new ApplicationError(message.error.kind, message.error.message, message.error.retryAfterSeconds)
-          : undefined,
-      );
-    });
-    worker.on('error', error => {
-      if (this.worker === worker)
-        this.logger.error('Report worker crashed', {
-          ...(this.active && jobFields(this.active)),
-          diagnostic: redactedDiagnostic(error),
-        });
-      fail();
-    });
-    worker.on('exit', fail);
-    this.startup = setTimeout(() => {
-      if (this.worker === worker) this.logger.error('Report worker did not start in time');
-      fail();
-    }, 30000);
-  }
-  private stopWorker(): void {
-    const worker = this.worker;
-    if (!worker) return;
-    this.worker = null;
-    this.ready = false;
-    clearTimeout(this.startup);
-    this.stopping = worker
-      .terminate()
-      .then(
-        () => {},
-        () => {},
-      )
-      .finally(() => {
-        this.stopping = undefined;
-        this.pump();
-      });
-  }
-  close(): Promise<void> {
-    if (this.closing) return this.closing;
-    this.closed = true;
-    const error = new Error('Report runner is closed');
+  /** Fails the running job and every queued one. Reserved places stay with their callers. */
+  private failAll(error: Error): void {
     if (this.active) {
       const p = this.active;
       this.active = undefined;
@@ -404,25 +269,12 @@ export class ReportRunner implements ReportExecutor {
       p.reject(error);
     }
     this.served.clear();
-    this.closing = (async () => {
-      clearTimeout(this.startup);
-      if (this.inlineWork) await this.inlineWork;
-      if (this.stopping) await this.stopping;
-      const worker = this.worker;
-      if (!worker) return;
-      this.worker = null;
-      worker.ref();
-      await new Promise<void>(resolve => {
-        const timeout = setTimeout(() => {
-          void worker.terminate();
-        }, 30000);
-        worker.once('exit', () => {
-          clearTimeout(timeout);
-          resolve();
-        });
-        worker.postMessage({ close: true });
-      });
-    })();
+  }
+  close(): Promise<void> {
+    if (this.closing) return this.closing;
+    this.closed = true;
+    this.failAll(new Error('Report runner is closed'));
+    this.closing = this.execution.close();
     return this.closing;
   }
 }
