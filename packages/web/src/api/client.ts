@@ -129,12 +129,23 @@ export interface RequestOptions<T> {
   /** Which deadline applies (see `DEADLINE_MS`). By default it follows from the method and body (`requestKind`). */
   kind?: RequestKind;
   /**
-   * Checks the reply (see decode.ts). Without one the reply is trusted to match `T`, as for write
-   * replies the views only refresh from: the server is this app's own same-origin API and both
-   * sides compile against @tokkl/types.
+   * Checks the reply (see decode.ts). A GET must pass one (`api.get`), and so must a write whose
+   * reply goes into the cache, which takes only a `Checked` value. Without one the reply is
+   * trusted to match `T`, as for write replies the views only refresh from or show once: the
+   * server is this app's own same-origin API and both sides compile against @tokkl/types.
    */
   decode?: Decoder<T>;
 }
+
+declare const checked: unique symbol;
+
+/**
+ * A reply its decoder checked. Only a request given `decode` returns one, so code that writes a
+ * reply into the cache asks for `Checked<T>` and cannot be handed an unchecked reply.
+ */
+export type Checked<T> = T & { readonly [checked]: true };
+
+type Decoded<T> = RequestOptions<T> & { decode: Decoder<T> };
 
 function isDeadline(error: unknown, deadline: AbortSignal): boolean {
   return deadline.aborted && error instanceof DOMException && error.name === 'TimeoutError';
@@ -195,6 +206,9 @@ async function send(method: Method, path: string, body: unknown, signal: AbortSi
   return response;
 }
 
+/** Sends a request and returns its reply: `Checked` when a decoder checked it, trusted otherwise. */
+export function request<T>(method: Method, path: string, options: Decoded<T>): Promise<Checked<T>>;
+export function request<T>(method: Method, path: string, options?: RequestOptions<T>): Promise<T>;
 export async function request<T>(method: Method, path: string, options: RequestOptions<T> = {}): Promise<T> {
   const ms = DEADLINE_MS[requestKind(method, options.body, options.kind)];
   const text = await withDeadline(ms, { method, path }, options.signal, async signal => {
@@ -282,10 +296,21 @@ export async function download(path: string, filename: string, request: Download
 
 type Options<T> = Omit<RequestOptions<T>, 'body'>;
 
+/** A write: `Checked` when given a decoder, trusted otherwise (see `RequestOptions.decode`). */
+interface Write {
+  <T>(path: string, body: unknown, options: Omit<Decoded<T>, 'body'>): Promise<Checked<T>>;
+  <T>(path: string, body?: unknown, options?: Options<T>): Promise<T>;
+}
+
+// `request` brands a decoded reply itself; one signature cannot state both overloads.
+const write = (method: Exclude<Method, 'GET'>) =>
+  (<T>(path: string, body?: unknown, options?: Options<T>) => request<T>(method, path, { ...options, body })) as Write;
+
 export const api = {
-  get: <T>(path: string, options?: Options<T>) => request<T>('GET', path, options),
-  post: <T>(path: string, body?: unknown, options?: Options<T>) => request<T>('POST', path, { ...options, body }),
-  put: <T>(path: string, body?: unknown, options?: Options<T>) => request<T>('PUT', path, { ...options, body }),
-  patch: <T>(path: string, body?: unknown, options?: Options<T>) => request<T>('PATCH', path, { ...options, body }),
-  delete: <T>(path: string, body?: unknown, options?: Options<T>) => request<T>('DELETE', path, { ...options, body }),
+  /** A read. It must check its reply: every GET feeds a query, and so the cache. */
+  get: <T>(path: string, options: Omit<Decoded<T>, 'body'>) => request<T>('GET', path, options),
+  post: write('POST'),
+  put: write('PUT'),
+  patch: write('PATCH'),
+  delete: write('DELETE'),
 };

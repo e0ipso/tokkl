@@ -61,7 +61,7 @@ test("a query's cancel signal reaches fetch, and the deadline rides along", asyn
     return hang(init.signal!);
   });
   const controller = new AbortController();
-  const pending = api.get('/api/app/timer', { signal: controller.signal });
+  const pending = api.get('/api/app/timer', { signal: controller.signal, decode: value => value });
   assert.equal(seen.length, 1);
   assert.equal(seen[0]!.aborted, false);
   controller.abort();

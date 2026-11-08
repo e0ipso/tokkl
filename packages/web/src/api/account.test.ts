@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { QueryClient } from '@tanstack/react-query';
 import { savePreferencesOptions } from './account.ts';
+import type { Checked } from './client.ts';
 import { keys } from './keys.ts';
 import type { Preferences } from './types.ts';
 
@@ -23,10 +24,11 @@ function setup(cached: Preferences | null = base) {
   if (cached) qc.setQueryData(keys.preferences, cached);
   const sent: Sent[] = [];
   const options = savePreferencesOptions(qc, changes => {
-    return new Promise<Preferences>((resolve, reject) => {
+    return new Promise<Checked<Preferences>>((resolve, reject) => {
       sent.push({
         changes,
-        reply: preferences => resolve({ ...base, ...preferences }),
+        // Stands in for the server and the reply's decoder.
+        reply: preferences => resolve({ ...base, ...preferences } as Checked<Preferences>),
         fail: () => reject(new Error('Preferences not saved')),
       });
     });

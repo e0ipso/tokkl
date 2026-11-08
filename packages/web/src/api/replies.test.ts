@@ -1,11 +1,19 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { DecodeError } from './decode.ts';
 import {
+  adminAccountListReply,
+  appStatusReply,
   detailedReportReply,
   entryListReply,
+  instanceSettingsReply,
+  inviteCheckReply,
+  inviteListReply,
   meReply,
+  preferencesReply,
   projectListReply,
   reportReply,
+  resetCheckReply,
   runningEntryReply,
   weeklyReportReply,
 } from './replies.ts';
@@ -125,4 +133,78 @@ test('detailed and weekly report pages decode', () => {
   };
   assert.deepEqual(weeklyReportReply(weekly), weekly);
   assert.throws(() => weeklyReportReply({ ...weekly, mode: 'months' }), { message: /reply\.mode/ });
+});
+
+// What getPreferences sends: a default for every preference the app reads, plus keys other clients saved.
+const preferences = {
+  date_format: 'YYYY-MM-DD',
+  timeofday_format: 'H:mm',
+  duration_format: 'improved',
+  collapseTimeEntries: true,
+  manualMode: false,
+  pg_time_zone_name: 'UTC',
+  record_timeline: false,
+  pomodoro_focus_interval_in_minutes: 25,
+  pomodoro_break_interval_in_minutes: 5,
+  pomodoro_long_break_interval_in_minutes: 15,
+  pomodoro_long_break_every: 4,
+  long_timer_reminder_enabled: true,
+  long_timer_reminder_hours: 8,
+  keyboard_shortcuts_enabled: true,
+  theme: 'system',
+  timerView: 'calendar',
+  desktop_only_key: { nested: [1] },
+};
+
+const at = (expected: string) => (error: unknown) => error instanceof DecodeError && error.at === expected;
+
+test('preferences decode with or without favorites, and keys other clients saved pass through', () => {
+  assert.equal(preferencesReply(preferences), preferences);
+  const favorites = [{ description: 'Write', project_id: 3, task_id: null, tags: ['deep'], billable: true }];
+  assert.deepEqual(preferencesReply({ ...preferences, favorites, showTimeInTitle: true }).favorites, favorites);
+});
+
+test('a preference the views read that has the wrong shape fails the reply, naming it', () => {
+  assert.throws(() => preferencesReply({ ...preferences, favorites: 5 }), at('reply.favorites'));
+  assert.throws(
+    () => preferencesReply({ ...preferences, favorites: [{ description: 'Write', tags: 'deep' }] }),
+    at('reply.favorites[0].project_id'),
+  );
+  assert.throws(() => preferencesReply({ ...preferences, theme: 'sepia' }), at('reply.theme'));
+  assert.throws(() => preferencesReply({ ...preferences, manualMode: 'yes' }), at('reply.manualMode'));
+  const { long_timer_reminder_hours: _, ...missing } = preferences;
+  assert.throws(() => preferencesReply(missing), at('reply.long_timer_reminder_hours'));
+});
+
+test('the status, invite and reset link checks and the admin lists decode their replies', () => {
+  assert.deepEqual(appStatusReply({ setup_required: false }), { setup_required: false });
+  assert.throws(() => appStatusReply({ setup_required: 'no' }), at('reply.setup_required'));
+  assert.deepEqual(inviteCheckReply({ role: 'admin' }), { role: 'admin' });
+  assert.throws(() => inviteCheckReply({ role: 'owner' }), at('reply.role'));
+  assert.deepEqual(resetCheckReply({ email: 'a@example.com' }), { email: 'a@example.com' });
+  assert.throws(() => resetCheckReply({}), at('reply.email'));
+
+  const account = {
+    id: 1,
+    email: 'a@example.com',
+    fullname: 'A',
+    role: 'user',
+    created_at: '2026-10-27T10:00:00+00:00',
+    disabled_at: null,
+  };
+  assert.equal(adminAccountListReply([account]).length, 1);
+  assert.throws(() => adminAccountListReply([{ ...account, disabled_at: 'yesterday' }]), at('reply[0].disabled_at'));
+  const invite = {
+    id: 2,
+    role: 'user',
+    note: null,
+    created_by: 1,
+    created_at: '2026-10-27T10:00:00+00:00',
+    expires_at: '2026-11-03T10:00:00+00:00',
+  };
+  assert.equal(inviteListReply([invite]).length, 1);
+  assert.throws(() => inviteListReply({ invites: [invite] }), at('reply'));
+  const settings = { session_days: 30, invite_days: 7, time_resolution_minutes: 5 };
+  assert.deepEqual(instanceSettingsReply(settings), settings);
+  assert.throws(() => instanceSettingsReply({ ...settings, invite_days: 1.5 }), at('reply.invite_days'));
 });

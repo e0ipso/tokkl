@@ -12,11 +12,17 @@ import {
   type Decoder,
 } from './decode.ts';
 import type {
+  AdminAccount,
+  AppStatus,
   Client,
   DetailedReportPage,
   DiscardedPomodoro,
   EntryBounds,
+  Favorite,
+  InstanceSettings,
+  Invite,
   Me,
+  Preferences,
   Project,
   Report,
   ReportEntry,
@@ -28,16 +34,28 @@ import type {
   TimerPomodoro,
   TimerPomodoroPhase,
   TimerState,
+  UserRole,
   WeeklyReport,
   Workspace,
 } from './types.ts';
 
 /**
- * Decoders for the replies the views compute with: the account, the catalogs, entries, the timer
- * state and reports. Preferences are left as they come: their type is an open record of whatever the
- * clients saved. Ids, revisions, counts and page numbers are safe integers (`integer`), other numbers
+ * Decoders for every reply a GET reads and every write reply kept in the cache: the account and its
+ * preferences, the catalogs, entries, the timer state, reports, the instance status and the admin
+ * lists. Ids, revisions, counts and page numbers are safe integers (`integer`), other numbers
  * finite (`number`), and timestamps RFC 3339 instants (`instant`); calendar days stay `string`.
  */
+
+const role = oneOf('admin', 'user');
+
+/** GET /api/app/status. */
+export const appStatusReply: Decoder<AppStatus> = object<AppStatus>({ setup_required: boolean });
+
+/** GET /api/app/invites/:token: the role the invite grants. */
+export const inviteCheckReply = object<{ role: UserRole }>({ role });
+
+/** GET /api/app/password-resets/:token: the account the link resets. */
+export const resetCheckReply = object<{ email: string }>({ email: string });
 
 export const meReply: Decoder<Me> = object<Me>({
   id: integer,
@@ -47,8 +65,39 @@ export const meReply: Decoder<Me> = object<Me>({
   timezone: string,
   default_workspace_id: integer,
   beginning_of_week: integer,
-  role: oneOf('admin', 'user'),
+  role,
   time_resolution_minutes: integer,
+});
+
+const favoriteReply: Decoder<Favorite> = object<Favorite>({
+  description: string,
+  project_id: nullable(integer),
+  task_id: nullable(integer),
+  tags: array(string),
+  billable: boolean,
+});
+
+/**
+ * The preferences of GET and POST /api/v9/me/preferences. The server fills in a default for every
+ * preference this app reads and drops stored values it cannot use, so each one is checked. Keys
+ * other clients saved pass through unchecked, as the open record type allows.
+ */
+export const preferencesReply: Decoder<Preferences> = object<Preferences>({
+  date_format: string,
+  timeofday_format: string,
+  duration_format: oneOf('improved', 'classic', 'decimal'),
+  collapseTimeEntries: boolean,
+  manualMode: boolean,
+  keyboard_shortcuts_enabled: boolean,
+  theme: oneOf('system', 'light', 'dark'),
+  pomodoro_focus_interval_in_minutes: integer,
+  pomodoro_break_interval_in_minutes: integer,
+  pomodoro_long_break_interval_in_minutes: integer,
+  pomodoro_long_break_every: integer,
+  long_timer_reminder_enabled: boolean,
+  long_timer_reminder_hours: integer,
+  showTimeInTitle: optional(boolean),
+  favorites: optional(array(favoriteReply)),
 });
 
 export const workspaceReply: Decoder<Workspace> = object<Workspace>({
@@ -246,4 +295,33 @@ export const weeklyReportReply: Decoder<WeeklyReport> = object<WeeklyReport>({
   ),
   column_totals: array(number),
   total: number,
+});
+
+export const adminAccountListReply: Decoder<AdminAccount[]> = array(
+  object<AdminAccount>({
+    id: integer,
+    email: string,
+    fullname: string,
+    role,
+    created_at: instant,
+    disabled_at: nullable(instant),
+  }),
+);
+
+export const inviteListReply: Decoder<Invite[]> = array(
+  object<Invite>({
+    id: integer,
+    role,
+    note: nullable(string),
+    created_by: nullable(integer),
+    created_at: instant,
+    expires_at: instant,
+  }),
+);
+
+/** GET and PUT /api/app/admin/settings. */
+export const instanceSettingsReply: Decoder<InstanceSettings> = object<InstanceSettings>({
+  session_days: integer,
+  invite_days: integer,
+  time_resolution_minutes: integer,
 });
