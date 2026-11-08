@@ -110,7 +110,9 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
             },
           };
           const late = entries.bodyTimers(presentTimerOperations(createTimerOperations(wrapper, publish)));
-          const state = await late.getTimerState(user.id, at('09:06:00'));
+          // A settled read takes no transaction, so the reply is checked on an action that commits one.
+          const before = await timers[0]!.getTimerState(user.id, at('09:06:00'));
+          const state = await late.nextPomodoroPhase(user.id, before.revision, at('09:06:00'));
           assert.equal(state.running_entry?.description, 'late committed edit');
           assert.deepEqual(state, await timers[0]!.getTimerState(user.id, at('09:06:00')));
         });
