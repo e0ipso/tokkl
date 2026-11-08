@@ -158,12 +158,9 @@ TestCase {
         return index;
     }
 
-    // Answers the state reads after a v9 write until the timer can write
-    // again. The reply to a start, stop or billable edit is an entry, so
-    // the timer waits for a read sent after it. A poll already on its way
-    // does not count; the read queued behind it does.
+    // Answers a state read still on its way, such as a poll sent while a
+    // write ran, and waits until the timer can write again.
     function settleState(running) {
-        answerState(running);
         if (fixture.pending("GET", "/app/timer") >= 0) {
             answerState(running);
         }
@@ -372,16 +369,6 @@ TestCase {
         compare(label.text, "0:02");
     }
 
-    // A running entry as the server stores it once stopped: the seconds it
-    // ran, and the fields a resume copies.
-    function stoppedEntry(id, projectId, billable, seconds) {
-        return entry(id, 7, projectId, billable, {
-            start: fixture.clockIso(-seconds),
-            stop: fixture.clockIso(),
-            duration: seconds
-        });
-    }
-
     function checkWords(runText, name) {
         compare(button.words.runText, runText);
         compare(button.Accessible.name, name);
@@ -399,8 +386,9 @@ TestCase {
 
         // A click starts.
         mouseClick(button, 5, 5, Qt.LeftButton);
-        const start = waitFor("POST", "/workspaces/7/time_entries");
+        const start = waitFor("POST", "/timer/start");
         const body = fixture.request(start).body;
+        compare(body.revision, revision, "against the revision shown");
         compare(body.project_id, 11);
         compare(body.billable, true, "Alpha's billable default");
         compare(button.timer.status, TokklTimer.Busy);
@@ -408,8 +396,7 @@ TestCase {
         const running = entry(9, 7, 11, true, {
             start: fixture.clockIso()
         });
-        fixture.respond(start, 200, JSON.stringify(running));
-        answerState(running);
+        fixture.respond(start, 200, stateBody(running));
         tryCompare(button.timer, "canWrite", true);
         verify(button.timer.running);
         fixture.advance(125000);
@@ -469,7 +456,11 @@ TestCase {
         compare(button.menu.runItem.text, "Stop");
         keyClick(Qt.Key_Return);
         tryVerify(() => !button.menu.visible, 3000, "menu closes after Stop");
-        fixture.respond(waitFor("PATCH", "/time_entries/10/stop"), 200, JSON.stringify(stoppedEntry(10, 11, true, 55)));
+        const stop = waitFor("POST", "/timer/stop");
+        compare(fixture.request(stop).body, {
+            revision: revision
+        });
+        fixture.respond(stop, 200, stateBody(null));
         // A poll went out while the clone ran.
         settleState(null);
         verify(!button.timer.running);
@@ -481,14 +472,13 @@ TestCase {
 
         // The next click starts a new entry from 0:00.
         mouseClick(button, 5, 5, Qt.LeftButton);
-        const next = waitFor("POST", "/workspaces/7/time_entries");
+        const next = waitFor("POST", "/timer/start");
         verify(next > resume);
         compare(fixture.request(next).body.description, "", "a new entry, not a clone");
         const fresh = entry(11, 7, 11, true, {
             start: fixture.clockIso()
         });
-        fixture.respond(next, 200, JSON.stringify(fresh));
-        answerState(fresh);
+        fixture.respond(next, 200, stateBody(fresh));
         tryCompare(button.timer, "running", true);
         compare(label.text, "0:00");
     }
@@ -615,7 +605,7 @@ TestCase {
         mouseClick(button, 5, 5, Qt.RightButton);
         tryVerify(() => menu.opened, 3000, "right click opens");
         closeMenu();
-        compare(fixture.pending("POST", "/time_entries"), -1, "opening the menu starts nothing");
+        compare(fixture.pending("POST", "/timer/start"), -1, "opening the menu starts nothing");
     }
 
     function test_openTokklAndConfigure() {
@@ -664,7 +654,7 @@ TestCase {
         chooseProjectWithKeyboard("Alpha");
         toggleBillableWithKeyboard();
         mouseClick(button, 5, 5, Qt.LeftButton);
-        const body = fixture.request(waitFor("POST", "/workspaces/7/time_entries")).body;
+        const body = fixture.request(waitFor("POST", "/timer/start")).body;
         compare(body.project_id, 11);
         compare(body.billable, false);
         compare(fixture.pending("PUT", "/time_entries/5"), -1, "no edit while stopped");
@@ -696,7 +686,7 @@ TestCase {
         verify(menu.billableItem.checked, "Alpha's billable default");
 
         mouseClick(button, 5, 5, Qt.LeftButton);
-        const start = waitFor("POST", "/workspaces/7/time_entries");
+        const start = waitFor("POST", "/timer/start");
         compare(fixture.request(start).body.project_id, 11);
         compare(fixture.request(start).body.billable, true);
     }
@@ -707,11 +697,7 @@ TestCase {
 
         // Stop in the menu ends the entry; a click would pause it.
         verify(button.timer.stop());
-        fixture.respond(waitFor("PATCH", "/time_entries/5/stop"), 200, JSON.stringify(entry(5, 7, 12, false, {
-            stop: fixture.clockIso(),
-            duration: 65
-        })));
-        answerState(null);
+        fixture.respond(waitFor("POST", "/timer/stop"), 200, stateBody(null));
         tryCompare(button.timer, "canWrite", true);
         verify(!button.timer.running);
         verify(!button.timer.paused);
@@ -723,7 +709,7 @@ TestCase {
         compare(fixture.pending("GET", "/me/time_entries"), -1, "a stop needs no list");
 
         mouseClick(button, 5, 5, Qt.LeftButton);
-        const start = waitFor("POST", "/workspaces/7/time_entries");
+        const start = waitFor("POST", "/timer/start");
         compare(fixture.request(start).body.project_id, 12);
         compare(fixture.request(start).body.billable, false);
     }
@@ -877,11 +863,7 @@ TestCase {
         // Stopped, Project is a choice again. A click would pause, which
         // keeps the project.
         verify(button.timer.stop());
-        fixture.respond(waitFor("PATCH", "/time_entries/5/stop"), 200, JSON.stringify(entry(5, 7, 12, true, {
-            stop: fixture.clockIso(),
-            duration: 65
-        })));
-        answerState(null);
+        fixture.respond(waitFor("POST", "/timer/stop"), 200, stateBody(null));
         tryCompare(button.timer, "canWrite", true);
         verify(!button.timer.running);
         verify(menu.projectMenu.enabled);
@@ -941,8 +923,7 @@ TestCase {
         mouseClick(button, 5, 5, Qt.LeftButton);
         record(TokklTimer.Busy);
         verify(!button.menu.billableItem.enabled);
-        fixture.respond(waitFor("POST", "/time_entries"), 200, JSON.stringify(entry(9, 7, null, false)));
-        answerState(entry(9, 7, null, false));
+        fixture.respond(waitFor("POST", "/timer/start"), 200, stateBody(entry(9, 7, null, false)));
         tryCompare(button.timer, "status", TokklTimer.Ready);
 
         fixture.advance(31000);
@@ -1120,8 +1101,7 @@ TestCase {
         }, 3000, "a dashed side");
 
         mouseClick(button, 5, 5, Qt.LeftButton);
-        fixture.respond(waitFor("POST", "/workspaces/7/time_entries"), 200, JSON.stringify(entry(9, 7, null, false)));
-        answerState(entry(9, 7, null, false));
+        fixture.respond(waitFor("POST", "/timer/start"), 200, stateBody(entry(9, 7, null, false)));
         tryCompare(button.timer, "running", true);
         verify(ind.dashed, "a dashed circle while running");
         verify(ind.round);
@@ -1376,8 +1356,7 @@ TestCase {
 
         // Stopped, the mode is a choice again.
         verify(button.timer.stop());
-        fixture.respond(waitFor("PATCH", "/time_entries/5/stop"), 200, JSON.stringify(stoppedEntry(5, 11, true, 65)));
-        answerState(null);
+        fixture.respond(waitFor("POST", "/timer/stop"), 200, stateBody(null));
         tryCompare(button.timer, "canWrite", true);
         menu = checkSessionMenu({
             run: true,
@@ -1560,7 +1539,7 @@ TestCase {
         const start = startSession(4);
         compare(fixture.request(start).body.project_id, 11, "the chosen project");
         compare(fixture.request(start).body.billable, true, "and Alpha's billable default");
-        compare(fixture.pending("POST", "/time_entries"), -1, "a session starts no timer");
+        compare(fixture.pending("POST", "/timer/start"), -1, "a session starts no timer");
         compare(label.text, "25:00");
         fixture.advance(1000);
         compare(label.text, "24:59");

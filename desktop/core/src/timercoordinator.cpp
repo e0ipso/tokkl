@@ -14,6 +14,7 @@ namespace
 {
 using Outcome = TimerActionResult::Outcome;
 
+// The outcome of the billable edit, a v9 write whose reply is an entry.
 Outcome outcomeOf(const ApiError &error, bool succeeded)
 {
     if (succeeded) {
@@ -191,8 +192,8 @@ bool TimerCoordinator::start()
     entry.billable = choice.billable;
     beginMutation();
 
-    m_model->connection()->startEntry(entry, m_epoch.guard(this, [this](const ApiResult<TimeEntry> &result) {
-        finishMutation(outcomeOf(result.error, result.ok()), result.error, true, true);
+    m_model->stateClient()->start(entry, m_epoch.guard(this, [this](const TimerActionResult &result) {
+        finishMutation(result.outcome, result.error, true, result.entry.has_value());
     }));
     return true;
 }
@@ -218,11 +219,12 @@ bool TimerCoordinator::stop()
     const qint64 entryId = m_model->currentEntry()->id;
     beginMutation();
 
-    m_model->connection()->stopEntry(entryId, m_epoch.guard(this, [this](const ApiResult<TimeEntry> &result) {
-        if (result.ok()) {
-            m_updates->entryEnded(*result.value);
+    m_model->stateClient()->stop(entryId, m_epoch.guard(this, [this](const TimerActionResult &result) {
+        // A v9 stop's reply names the project the server stopped.
+        if (result.entry) {
+            m_updates->entryEnded(*result.entry);
         }
-        finishMutation(outcomeOf(result.error, result.ok()), result.error, false, true);
+        finishMutation(result.outcome, result.error, false, result.entry.has_value());
     }));
     return true;
 }

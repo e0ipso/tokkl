@@ -36,13 +36,17 @@ class ProjectLoader;
 // stream, polls while the stream is down, and reads again on a wake and
 // whenever the connection becomes Connected again.
 //
-// One mutation runs at a time; clicks while it runs are ignored. Start, stop
-// and the billable edit are v9 calls whose reply is an entry, not the state:
-// once one is applied the timer stays busy while the client settles, until
-// a read sent after the reply brings the state that shows it. Pause, resume
-// and stop while paused are the server's timer actions, and the client
-// adopts the state they return. A 409 adopts the server's state, ends the
-// action and leaves a message until the next user action. A failure that
+// One mutation runs at a time; clicks while it runs are ignored. Start,
+// stop, pause, resume and stop while paused are the server's timer actions,
+// sent against the revision shown (pause excepted), and the client adopts
+// the state they return. A 409 adopts the server's state, ends the action
+// and leaves a message until the next user action, so a start never
+// replaces one another device made first. The billable edit, and a start or
+// stop on a server without the app routes, are v9 calls whose reply is an
+// entry, not the state: once one is applied the timer stays busy while the
+// client settles, until a read sent after the reply brings the state that
+// shows it. The billable edit stays a v9 PUT: the server has no edit
+// against a revision. A failure that
 // leaves the outcome unknown (no answer, timeout, 5xx, unreadable answer)
 // keeps the timer busy while the client settles it the same way. No write
 // is ever sent again.
@@ -59,7 +63,7 @@ class ProjectLoader;
 // answers.
 //
 // The next start defaults to the project of the last entry: of the entry
-// that stopped (as the stop reply names it, when the panel stopped it), and
+// that stopped (as a v9 stop reply names it, when the panel stopped it), and
 // of the newest entry the API lists when a connection starts or reconnect()
 // runs with nothing running. Only an active project of the workspace counts.
 //
@@ -161,9 +165,9 @@ private:
     void beginMutation();
     void fetchProjects();
     bool updateEntry(const TimeEntryUpdate &update);
-    // start is true for a start or resume, and entryReply for a v9 write,
-    // whose reply is an entry rather than the whole state, so the state
-    // that shows it comes from a read.
+    // start is true for a start or resume, and entryReply for a write that
+    // went to v9, whose reply is an entry rather than the whole state, so
+    // the state that shows it comes from a read.
     void finishMutation(TimerActionResult::Outcome outcome, const ApiError &error, bool start = false, bool entryReply = false);
     void endMutation(TimerActionResult::Outcome outcome, const ApiError &error, bool start, bool entryReply);
     void loseWorkspace(const ApiError &error);

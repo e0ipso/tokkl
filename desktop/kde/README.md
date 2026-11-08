@@ -404,11 +404,15 @@ pause chain and the session all come from it.
   included. `indicatorColor` is the project's colour as lowercase `#rrggbb`
   in the `Project` state when it has that form, and an empty string otherwise. `indicatorChanged`
   fires whenever either changes. The panel's project indicator draws it.
-- Start sends `POST /api/v9/workspaces/{wid}/time_entries` with
-  `duration: -1`, the current UTC time as `start`, `created_with: "tokkl-kde"`,
-  an empty description and the selected project and billable choice. Stop
-  sends `PATCH /api/v9/workspaces/{wid}/time_entries/{id}/stop` for the
-  running entry.
+- Start sends `POST /api/app/timer/start` with the revision shown, the
+  current UTC time as `start`, `created_with: "tokkl-kde"`, an empty
+  description and the selected project and billable choice. Stop sends `POST
+  /api/app/timer/stop` with the revision shown. Both answer with the timer
+  state, and with a 409 and the server's state when another device changed
+  the timer first. A server without those routes answers 404, and the widget
+  then sends the v9 calls for the rest of the connection: `POST
+  /api/v9/workspaces/{wid}/time_entries` with `duration: -1`, and `PATCH
+  /api/v9/workspaces/{wid}/time_entries/{id}/stop`.
 - Pause (`POST /api/app/timer/pause`) asks the server to stop the running
   entry and keep a chain: the entry's description, project, task, tags and
   billable flag, and the seconds it stored. Resume (`POST
@@ -427,8 +431,8 @@ pause chain and the session all come from it.
   no clear answer (no response, timeout, 5xx or an unreadable body)
   the timer stays busy until a read shows what the server did; it never sends
   the request again. A 409 on a timer action adopts the state the server sent
-  and shows "The timer changed on another device first."; a 409 or 404 on stop
-  just reads the entry again.
+  and shows "The timer changed on another device first."; a 409 or 404 on a
+  v9 stop just reads the entry again.
 - Connection failures keep the last entry, marked stale. After a failed read
   of the entry the mark stays until the entry is read again, even if other
   requests succeed first. Refused credentials clear it. During a 429 cooldown nothing is sent.

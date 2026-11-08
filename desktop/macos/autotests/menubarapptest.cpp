@@ -248,24 +248,6 @@ QByteArray entryBody(std::optional<qint64> project = std::nullopt, bool billable
         .toJson(QJsonDocument::Compact);
 }
 
-// The entry of entryBody, stopped after a minute: the server's answer to a
-// stop.
-QByteArray stoppedEntryBody(std::optional<qint64> project = std::nullopt)
-{
-    const QDateTime begin = QDateTime::fromString(startedAt, Qt::ISODate);
-    return QJsonDocument(QJsonObject{
-                             {QStringLiteral("id"), 5},
-                             {QStringLiteral("workspace_id"), 7},
-                             {QStringLiteral("project_id"), project ? QJsonValue(*project) : QJsonValue(QJsonValue::Null)},
-                             {QStringLiteral("billable"), false},
-                             {QStringLiteral("start"), startedAt},
-                             {QStringLiteral("stop"), begin.addSecs(60).toString(Qt::ISODate)},
-                             {QStringLiteral("duration"), 60},
-                             {QStringLiteral("description"), QString()},
-                         })
-        .toJson(QJsonDocument::Compact);
-}
-
 // A running entry with everything a resume copies: description, project,
 // task, tags and billable flag.
 QByteArray chainEntryBody(qint64 id, const QDateTime &begin)
@@ -775,11 +757,11 @@ private Q_SLOTS:
         QCOMPARE(f.item.title, QStringLiteral("0:00"));
         QCOMPARE(f.item.accessibleName, QStringLiteral("Start the Tokkl timer, Beta (Acme)"));
         f.item.click();
-        const qsizetype start = f.last("POST", "/workspaces/7/time_entries");
+        const qsizetype start = f.last("POST", "/app/timer/start");
         QVERIFY(start >= 0);
         const QJsonObject body = jsonBody(f.transport.requests.at(start));
         QCOMPARE(body.value(QStringLiteral("created_with")).toString(), QStringLiteral("tokkl-macos"));
-        QCOMPARE(body.value(QStringLiteral("duration")).toInt(), -1);
+        QCOMPARE(body.value(QStringLiteral("revision")).toInteger(), f.revision);
         QCOMPARE(body.value(QStringLiteral("project_id")).toInteger(), 12);
     }
 
@@ -808,7 +790,7 @@ private Q_SLOTS:
 
         QCOMPARE(menu.m_startStopAction->text(), QStringLiteral("Start Timer"));
         menu.m_startStopAction->trigger();
-        const QJsonObject body = jsonBody(f.transport.requests.at(f.last("POST", "/workspaces/7/time_entries")));
+        const QJsonObject body = jsonBody(f.transport.requests.at(f.last("POST", "/app/timer/start")));
         QCOMPARE(body.value(QStringLiteral("project_id")).toInteger(), 11);
         QCOMPARE(body.value(QStringLiteral("billable")).toBool(), false);
     }
@@ -853,14 +835,12 @@ private Q_SLOTS:
         menu.m_startStopAction->trigger();
         QCOMPARE(f.transport.requests.size(), before + 1);
         const HttpRequest stop = f.transport.requests.last();
-        QCOMPARE(stop.method, QByteArray("PATCH"));
-        QCOMPARE(stop.url.path(), QStringLiteral("/api/v9/workspaces/7/time_entries/5/stop"));
-
-        // The reply is an entry; the state read after it shows the stop.
-        f.respond(before, 200, stoppedEntryBody());
+        QCOMPARE(stop.method, QByteArray("POST"));
+        QCOMPARE(stop.url.path(), QStringLiteral("/api/app/timer/stop"));
         QVERIFY(f.app.m_timer.get()->isBusy());
-        QVERIFY(f.waitFor("GET", "/app/timer", before));
-        f.respond(f.last("GET", "/app/timer"), 200, f.state());
+
+        // The reply is the state that shows the stop.
+        f.respond(before, 200, f.state());
         QTRY_VERIFY(!f.app.m_timer.get()->isRunning());
         QVERIFY(!f.app.m_timer.get()->isPaused());
         QTRY_COMPARE(f.item.title, QStringLiteral("0:00"));
@@ -902,7 +882,7 @@ private Q_SLOTS:
 
         const qsizetype next = f.transport.requests.size();
         f.item.click();
-        const qsizetype start = f.last("POST", "/workspaces/7/time_entries");
+        const qsizetype start = f.last("POST", "/app/timer/start");
         QVERIFY(start >= next);
         const QJsonObject body = jsonBody(f.transport.requests.at(start));
         QCOMPARE(body.value(QStringLiteral("description")).toString(), QString());
@@ -986,10 +966,7 @@ private Q_SLOTS:
         QCOMPARE(f.item.accessibleName, QStringLiteral("Pause the Tokkl timer, Alpha"));
 
         f.app.m_menu.get()->m_startStopAction->trigger();
-        const qsizetype stop = f.last("PATCH", "/stop");
-        f.respond(stop, 200, stoppedEntryBody(qint64(11)));
-        QVERIFY(f.waitFor("GET", "/app/timer", stop));
-        f.respond(f.last("GET", "/app/timer"), 200, f.state());
+        f.respond(f.last("POST", "/app/timer/stop"), 200, f.state());
         QTRY_VERIFY(!f.app.m_timer.get()->isRunning());
         QVERIFY(!f.app.m_timer.get()->isPaused());
         QCOMPARE(f.item.indicator.kind, ProjectIndicator::Kind::Filled);
@@ -1115,10 +1092,7 @@ private Q_SLOTS:
         }
 
         f.app.m_menu.get()->m_startStopAction->trigger();
-        const qsizetype stop = f.last("PATCH", "/stop");
-        f.respond(stop, 200, stoppedEntryBody(qint64(11)));
-        QVERIFY(f.waitFor("GET", "/app/timer", stop));
-        f.respond(f.last("GET", "/app/timer"), 200, f.state());
+        f.respond(f.last("POST", "/app/timer/stop"), 200, f.state());
         QTRY_VERIFY(!f.app.m_timer.get()->isRunning());
         QVERIFY(f.item.image.indicator != running.indicator);
         QCOMPARE(f.item.image.indicator, f.item.indicator);
@@ -1314,7 +1288,7 @@ private Q_SLOTS:
         // phase after it; it starts no timer.
         f.item.click();
         QCOMPARE(f.item.menuPopUps, 1);
-        QVERIFY(f.find("POST", "/time_entries").isEmpty());
+        QVERIFY(f.find("POST", "/app/timer/start").isEmpty());
         f.advance(50);
         QVERIFY(session.isRinging());
         f.item.click();

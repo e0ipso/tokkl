@@ -70,8 +70,8 @@ public:
     // apply before the panels hear of it; then the change, the elapsed time
     // and the status are announced.
     virtual void showState() = 0;
-    // The server's reply to a stop or edit from here that ended the entry
-    // shown. It names the project the server stopped, which another device
+    // The server's v9 reply to a stop or edit from here that ended the
+    // entry shown. It names the project the server stopped, which another device
     // may have changed since the last state; the state that shows the stop
     // takes it for the next-start default. It counts only for the stop of
     // the entry it names.

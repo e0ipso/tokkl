@@ -361,6 +361,82 @@ void Connection::endPomodoro(qint64 revision, ActionCallback done)
     m_session.api().action(app(QStringLiteral("/pomodoro/end")), encodeRevision(revision), std::move(done));
 }
 
+namespace
+{
+TimerActionResult entryWrite(const ApiResult<TimeEntry> &reply)
+{
+    TimerActionResult result;
+    result.error = reply.error;
+    if (reply.ok()) {
+        result.outcome = TimerActionResult::Outcome::Applied;
+        result.entry = *reply.value;
+    } else {
+        result.outcome = reply.error.outcomeUnknown() ? TimerActionResult::Outcome::Unknown : TimerActionResult::Outcome::Refused;
+    }
+    return result;
+}
+
+bool notFound(const TimerActionResult &result)
+{
+    return result.outcome == TimerActionResult::Outcome::Refused && result.error.kind == ApiError::Kind::Client && result.error.status == 404;
+}
+}
+
+void Connection::startTimer(qint64 revision, const StartEntry &entry, ActionCallback done)
+{
+    timerWrite(
+        QStringLiteral("/timer/start"),
+        encodeTimerStart(revision, entry, workspaceId(), m_clientName),
+        [entry](Connection &connection, Callback<TimeEntry> reply) {
+            connection.startEntry(entry, std::move(reply));
+        },
+        std::move(done));
+}
+
+void Connection::stopTimer(qint64 revision, qint64 entryId, ActionCallback done)
+{
+    timerWrite(
+        QStringLiteral("/timer/stop"),
+        encodeRevision(revision),
+        [entryId](Connection &connection, Callback<TimeEntry> reply) {
+            connection.stopEntry(entryId, std::move(reply));
+        },
+        std::move(done));
+}
+
+void Connection::timerWrite(const QString &path, const QByteArray &body, V9Write v9, ActionCallback done)
+{
+    if (m_v9TimerWritesGeneration == generation()) {
+        v9(*this, [done](const ApiResult<TimeEntry> &reply) {
+            if (done) {
+                done(entryWrite(reply));
+            }
+        });
+        return;
+    }
+    QPointer<Connection> self(this);
+    const quint64 sent = generation();
+    m_session.api().action(app(path), body, [self, sent, path, v9, done](const TimerActionResult &result) {
+        // A 404 changed nothing, on either kind of server.
+        if (!self || !notFound(result) || self->generation() != sent) {
+            if (done) {
+                done(result);
+            }
+            return;
+        }
+        qCInfo(lcNet) << "POST /api/app" << path << "answered 404; sending the v9 write";
+        v9(*self, [self, sent, done](const ApiResult<TimeEntry> &reply) {
+            const TimerActionResult result = entryWrite(reply);
+            if (self && self->generation() == sent && !notFound(result)) {
+                self->m_v9TimerWritesGeneration = sent;
+            }
+            if (done) {
+                done(result);
+            }
+        });
+    });
+}
+
 PendingStream *Connection::openTimerEvents()
 {
     return m_session.api().openStream(app(QStringLiteral("/timer/events")));

@@ -12,7 +12,8 @@ namespace Tokkl
 // answer) leaves the state to settle: the controller stays busy until a read
 // sent after the failure brings a state, and never sends the write again.
 // The same holds for a write that was in flight when the workspace was lost,
-// and for an applied v9 write, whose reply is an entry rather than the
+// and for an applied v9 write (the billable edit, or a start or stop on a
+// server without the app routes), whose reply is an entry rather than the
 // state: the state a read sent after it brings is what the panel shows.
 class MutationGate
 {

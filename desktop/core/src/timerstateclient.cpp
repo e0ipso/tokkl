@@ -436,7 +436,7 @@ void TimerStateClient::refuseLater(const ActionCallback &done, const QString &me
         Qt::QueuedConnection);
 }
 
-void TimerStateClient::withRevision(void (Connection::*action)(qint64, ActionCallback), ActionCallback done)
+void TimerStateClient::withRevision(const std::function<void(Connection &, qint64, ActionCallback)> &action, ActionCallback done)
 {
     if (!m_connection) {
         refuseLater(done, tr("Not connected to a Tokkl account."));
@@ -446,7 +446,25 @@ void TimerStateClient::withRevision(void (Connection::*action)(qint64, ActionCal
         refuseLater(done, tr("The timer has not been read yet."));
         return;
     }
-    (m_connection->*action)(m_state->revision, adopting(std::move(done)));
+    action(*m_connection, m_state->revision, adopting(std::move(done)));
+}
+
+void TimerStateClient::start(const StartEntry &entry, ActionCallback done)
+{
+    withRevision(
+        [entry](Connection &connection, qint64 revision, ActionCallback adopted) {
+            connection.startTimer(revision, entry, std::move(adopted));
+        },
+        std::move(done));
+}
+
+void TimerStateClient::stop(qint64 entryId, ActionCallback done)
+{
+    withRevision(
+        [entryId](Connection &connection, qint64 revision, ActionCallback adopted) {
+            connection.stopTimer(revision, entryId, std::move(adopted));
+        },
+        std::move(done));
 }
 
 void TimerStateClient::pause(ActionCallback done)

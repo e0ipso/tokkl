@@ -33,7 +33,7 @@ const QByteArray statePath = "/app/timer";
 const QByteArray startPath = "/app/pomodoro";
 const QByteArray nextPath = "/app/pomodoro/next";
 const QByteArray endPath = "/app/pomodoro/end";
-const QByteArray entriesPath = "/workspaces/7/time_entries";
+const QByteArray timerStartPath = "/app/timer/start";
 const QString tooShort = QStringLiteral("This pomodoro was too short to save.");
 
 QByteArray meBody()
@@ -400,7 +400,7 @@ private Q_SLOTS:
         // still write. GNOME, which waits for Ready, holds the writes.
         QVERIFY(f.timer.start());
         QVERIFY(!plasma().run.enabled);
-        f.transport.respond(f.last("POST", entriesPath), FakeTransport::answer(400, "\"Project is archived\""));
+        f.transport.respond(f.last("POST", timerStartPath), FakeTransport::answer(400, "\"Project is archived\""));
         f.respond(f.last("GET", statePath), f.state(std::nullopt));
         QCOMPARE(f.timer.status(), TimerModel::Error);
         QVERIFY(f.timer.canWrite());
@@ -679,17 +679,16 @@ private Q_SLOTS:
         // In Timer mode a click is the timer's: it starts an entry, and the
         // mode stays locked while it runs.
         QCOMPARE(f.session->activate(), PomodoroSession::Activation::Handled);
-        const qsizetype timerStart = f.last("POST", entriesPath);
+        const qsizetype timerStart = f.last("POST", timerStartPath);
         QVERIFY(timerStart >= 0);
         // While the start waits for its answer, a click is ignored, as
         // Activate promises over D-Bus.
         QCOMPARE(f.session->activate(), PomodoroSession::Activation::Ignored);
-        QCOMPARE(f.find("POST", entriesPath).size(), 1);
+        QCOMPARE(f.find("POST", timerStartPath).size(), 1);
+        // The state the start answers with shows it.
         const QJsonObject started = runningEntry(30, f.serverNow());
-        f.transport.respond(timerStart, FakeTransport::answer(200, QJsonDocument(started).toJson(QJsonDocument::Compact)));
-        // The read after the start shows it.
+        f.respond(timerStart, f.runningState(started));
         QVERIFY(!f.session->canStartSession());
-        f.respond(f.last("GET", statePath), f.runningState(started));
         QVERIFY(f.timer.isRunning());
         QVERIFY(f.session->modeLocked());
         QVERIFY(!f.session->setPomodoroMode(true));
