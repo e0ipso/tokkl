@@ -810,6 +810,51 @@ private Q_SLOTS:
         }
     }
 
+    // A state that changes properties of every kind reaches the bus as one
+    // PropertiesChanged, and each property Get reads differently afterwards
+    // is in it with that value.
+    void changesArriveOncePerTurn()
+    {
+        Fixture f;
+        QVERIFY(f.start());
+        QVERIFY(f.connect());
+        QFile file(QStringLiteral(TOKKL_TIMER1_XML));
+        QVERIFY(file.open(QIODevice::ReadOnly));
+        const QStringList names = parseIntrospection(file.readAll()).value(TimerService::interfaceName).properties.keys();
+        // Only plain values compare after the bus; containers arrive as
+        // QDBusArgument.
+        const auto plain = [](const QVariant &value) {
+            return value.metaType() != QMetaType::fromType<QDBusArgument>();
+        };
+        QVariantMap before;
+        for (const QString &name : names) {
+            before.insert(name, f.get(name));
+        }
+        QVERIFY(f.ping());
+        const qsizetype published = f.recorder.changes.size();
+
+        // Another device starts an entry: the entry, the mode lock, the
+        // actions and the project shown change together.
+        QVERIFY(f.push(f.change(entryObject(5, 12, true))));
+        QVERIFY(QTest::qWaitFor([&f, published] {
+            return f.recorder.changes.size() > published;
+        }));
+        QVERIFY(f.ping());
+        QCOMPARE(f.recorder.changes.size(), published + 1);
+        const QVariantMap change = f.recorder.changes.last();
+        for (const QString &name : {QStringLiteral("Running"), QStringLiteral("StartTime"), QStringLiteral("ModeLocked"), QStringLiteral("Actions"),
+                                    QStringLiteral("ChosenProject")}) {
+            QVERIFY2(change.contains(name), qPrintable(name));
+        }
+        for (const QString &name : names) {
+            const QVariant after = f.get(name);
+            if (plain(after) && after != before.value(name)) {
+                QVERIFY2(change.contains(name), qPrintable(name));
+                QCOMPARE(change.value(name), after);
+            }
+        }
+    }
+
     // The core's project rules hold over the bus, and the entries the service
     // starts carry its client name.
     void projectRulesAndClientName()

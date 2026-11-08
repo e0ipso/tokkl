@@ -37,8 +37,8 @@ class TimerService : public QObject, protected QDBusContext
     Q_OBJECT
 
     // The org.tokkl.Timer1 properties, read by the generated adaptor. They
-    // have no NOTIFY: publishChanges() sends their changes to the bus as
-    // PropertiesChanged.
+    // have no NOTIFY: the service sends their changes to the bus as
+    // PropertiesChanged, once per turn of the event loop.
     Q_PROPERTY(bool Running READ running)
     Q_PROPERTY(qint64 StartTime READ startTime)
     Q_PROPERTY(qint64 LocalStartTime READ localStartTime)
@@ -168,8 +168,40 @@ public Q_SLOTS:
     bool PreviewSound(const QString &soundId);
 
 private:
-    QVariantMap snapshot() const;
+    // The properties in groups that change together. Each core signal marks
+    // the groups it can change, and only those are read again.
+    enum Group : unsigned {
+        TimerGroup = 1u << 0, // the entry, chain, choice, indicator and status
+        ProjectsGroup = 1u << 1,
+        SessionGroup = 1u << 2,
+        ActionsGroup = 1u << 3, // reads both the timer and the session
+        LengthsGroup = 1u << 4,
+        SoundsGroup = 1u << 5,
+        FixedGroup = 1u << 6, // never changes while the service runs
+        AllGroups = (1u << 7) - 1,
+    };
+
+    QVariantMap timerProperties() const;
+    QVariantMap projectProperties() const;
+    QVariantMap sessionProperties() const;
+    QVariantMap actionProperties() const;
+    QVariantMap lengthProperties() const;
+    QVariantMap soundProperties() const;
+    QVariantMap fixedProperties() const;
+    // The values of the given groups, as the adaptor reads them.
+    QVariantMap read(unsigned groups) const;
+    // Marks the groups and publishes them when the event loop next runs.
+    void mark(unsigned groups);
+    // Sends PropertiesChanged now for what changed in the marked groups.
     void publishChanges();
+    // A method's answer, sent after what the method changed: D-Bus clients
+    // read their cached properties when the answer arrives.
+    template<typename T>
+    T answer(T value)
+    {
+        publishChanges();
+        return value;
+    }
 
     TimerModel *m_timer;
     TimerCoordinator *m_actions;
@@ -182,5 +214,8 @@ private:
     bool m_registered = false;
     // The property values the bus last saw.
     QVariantMap m_published;
+    // The groups marked since the last publish.
+    unsigned m_dirty = 0;
+    bool m_publishQueued = false;
 };
 }
