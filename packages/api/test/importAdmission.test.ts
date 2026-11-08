@@ -3,7 +3,12 @@ import assert from 'node:assert/strict';
 import { request as httpRequest } from 'node:http';
 import { once } from 'node:events';
 import { setTimeout as sleep } from 'node:timers/promises';
-import { ApplicationError, RequestCancelled } from '../src/lib/errors.ts';
+import type { AddressInfo } from 'node:net';
+import express from 'express';
+import { errorHandler } from '../src/http/errors.ts';
+import { ApplicationError, RequestCancelled, unavailable } from '../src/lib/errors.ts';
+import { silentLogger } from '../src/lib/logger.ts';
+import { importRoutes } from '../src/routes/imports.ts';
 import { createImportAdmission, IMPORT_BUSY_RETRY_SECONDS } from '../src/services/importAdmission.ts';
 import { createImportOperations } from '../src/services/importJson.ts';
 import { createTimerPublication } from '../src/services/timerPublication.ts';
@@ -21,36 +26,101 @@ const busy = (error: unknown) =>
 
 test('import admission bounds imports in all and per account', () => {
   const admission = createImportAdmission({ maxImports: 2, maxPerUser: 1 });
-  const first = admission.admit(1);
-  assert.throws(() => admission.admit(1), busy);
-  const second = admission.admit(2);
-  assert.throws(() => admission.admit(3), busy);
+  const first = admission.admit(1, 1);
+  assert.throws(() => admission.admit(1, 1), busy);
+  const second = admission.admit(2, 1);
+  assert.throws(() => admission.admit(3, 1), busy);
   first.release();
   first.release();
-  const third = admission.admit(3);
-  assert.throws(() => admission.admit(4), busy);
+  const third = admission.admit(3, 1);
+  assert.throws(() => admission.admit(4, 1), busy);
   second.release();
   third.release();
-  admission.admit(1);
+  admission.admit(1, 1);
   assert.throws(() => createImportAdmission({ maxImports: 1, maxPerUser: 2 }), /Invalid import limit per account/);
   assert.throws(() => createImportAdmission({ maxImports: 0 }), /Invalid import limit/);
 });
 
+test('import admission counts file bytes as well as imports', () => {
+  const MB = 1024 * 1024;
+  const admission = createImportAdmission({ maxImports: 4, maxPerUser: 1, maxBytes: 64 * MB });
+  const large = admission.admit(1, 50 * MB);
+  assert.throws(() => admission.admit(2, 40 * MB), busy, 'two large files never run together');
+  const small = admission.admit(2, 10 * MB);
+  assert.throws(() => admission.admit(3, 5 * MB), busy, 'the running files fill the byte budget');
+  admission.admit(3, 4 * MB).release();
+  large.release();
+  const next = admission.admit(4, 40 * MB);
+  small.release();
+  next.release();
+  // Alone, a file larger than the budget still gets in, so every file within the body limit can run.
+  const alone = admission.admit(5, 80 * MB);
+  assert.throws(() => admission.admit(6, 1), busy);
+  alone.release();
+  assert.throws(() => admission.admit(1, -1), /Invalid import size/);
+  assert.throws(() => createImportAdmission({ maxBytes: 0 }), /Invalid import byte limit/);
+});
+
+test('an import is admitted with its declared length, or the body limit when it declares none', async t => {
+  const admitted: number[] = [];
+  const app = express();
+  app.use((_req, res, next) => {
+    res.locals.auth = { user: { id: 1 } } as never;
+    res.locals.workSignal = new AbortController().signal;
+    next();
+  });
+  app.use(
+    importRoutes({
+      auth: { requireAuth: (_req: express.Request, _res: express.Response, next: express.NextFunction) => next() },
+      importAdmission: {
+        admit: (_userId: number, bytes: number) => {
+          admitted.push(bytes);
+          throw unavailable('Too many imports are running', IMPORT_BUSY_RETRY_SECONDS);
+        },
+      },
+      importsFor: () => {
+        throw new Error('unused');
+      },
+    } as unknown as Parameters<typeof importRoutes>[0]),
+  );
+  app.use(errorHandler(silentLogger));
+  const server = app.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  t.after(() => new Promise<void>(resolve => server.close(() => resolve())));
+  const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/import/json`;
+  const sized = await fetch(url, { method: 'POST', body: '{"format":"tokkl-export"}' });
+  assert.equal(sized.status, 503);
+  assert.equal(sized.headers.get('retry-after'), String(IMPORT_BUSY_RETRY_SECONDS));
+  // A streamed body is sent chunked, without a length.
+  const chunked = await fetch(url, {
+    method: 'POST',
+    body: new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('{}'));
+        controller.close();
+      },
+    }),
+    duplex: 'half',
+  } as RequestInit);
+  assert.equal(chunked.status, 503);
+  assert.deepEqual(admitted, [Buffer.byteLength('{"format":"tokkl-export"}'), 50 * 1024 * 1024]);
+});
+
 test('a place lent to work stays taken until the work settles', async () => {
   const admission = createImportAdmission({ maxImports: 1, maxPerUser: 1 });
-  const place = admission.admit(1);
+  const place = admission.admit(1, 1);
   let finish!: () => void;
   const work = place.during(new Promise<void>(resolve => (finish = resolve)));
   // The request ended, but its transaction still runs.
   place.release();
-  assert.throws(() => admission.admit(2), busy);
+  assert.throws(() => admission.admit(2, 1), busy);
   finish();
   await work;
-  admission.admit(2).release();
-  const failing = admission.admit(1);
+  admission.admit(2, 1).release();
+  const failing = admission.admit(1, 1);
   await assert.rejects(failing.during(Promise.reject(new Error('rolled back'))), /rolled back/);
   failing.release();
-  admission.admit(1);
+  admission.admit(1, 1);
 });
 
 /** An import body sent in two parts, the second only when the test says so. */
