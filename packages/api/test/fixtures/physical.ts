@@ -84,6 +84,35 @@ export async function corruptRecord(
   for (const [key, value] of Object.entries(where)) q = q.where(key, '=', value);
   await q.execute();
 }
+/**
+ * Inserts `count` trashed entries for `userId` in `workspaceId`, deleted one second apart going
+ * back from `newestDeletedAt`. Faster than the API when a test needs more than a page of them.
+ */
+export async function insertTrashedEntries(
+  handle: FixtureDatabase,
+  target: { userId: number; workspaceId: number; count: number; newestDeletedAt: string },
+): Promise<void> {
+  const newest = Date.parse(target.newestDeletedAt);
+  const rows = Array.from({ length: target.count }, (_, i) => {
+    const at = new Date(newest - i * 1000).toISOString();
+    return {
+      workspace_id: target.workspaceId,
+      user_id: target.userId,
+      description: `trashed ${i}`,
+      start: '2026-10-01T08:00:00.000Z',
+      stop: '2026-10-01T08:10:00.000Z',
+      created_at: at,
+      updated_at: at,
+      deleted_at: at,
+    };
+  });
+  // Batches keep each statement under every backend's bound-parameter limit.
+  for (let i = 0; i < rows.length; i += 100)
+    await physical(handle)
+      .insertInto('time_entries')
+      .values(rows.slice(i, i + 100))
+      .execute();
+}
 export async function corruptSetting(handle: FixtureDatabase, value: string): Promise<void> {
   const db = physical(handle);
   await db.deleteFrom('instance_settings').where('key', '=', 'time_resolution_minutes').execute();

@@ -343,11 +343,10 @@ export async function purgeDeletedEntries(
   publish: TimerPublication,
   id?: Id,
 ): Promise<number> {
-  const trashed =
+  const workspaceIds =
     id === undefined
-      ? await ctx.entries.listDeleted(userId)
-      : [await ctx.entries.get(userId, id, true)].flatMap(entry => (entry?.deletedAt ? [entry] : []));
-  const workspaceIds = [...new Set(trashed.map(entry => entry.workspaceId))];
+      ? await ctx.entries.trashedWorkspaceIds(userId)
+      : [await ctx.entries.get(userId, id, true)].flatMap(entry => (entry?.deletedAt ? [entry.workspaceId] : []));
   const user = await protectEntryOperation(ctx, userId, workspaceIds);
   const member: Id[] = [];
   for (const wid of workspaceIds)

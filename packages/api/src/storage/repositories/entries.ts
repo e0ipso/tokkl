@@ -295,6 +295,17 @@ export function createEntryRepositories(
           .execute(),
       );
     },
+    async trashedWorkspaceIds(userId) {
+      const rows = await db
+        .selectFrom('time_entries')
+        .select('workspace_id')
+        .distinct()
+        .where('user_id', '=', userId)
+        .where('deleted_at', 'is not', null)
+        .orderBy('workspace_id')
+        .execute();
+      return rows.map(row => entityId(row.workspace_id));
+    },
     async purgeDeleted(userId, { workspaceIds, id }) {
       if (!workspaceIds.length) return 0;
       let q = db
