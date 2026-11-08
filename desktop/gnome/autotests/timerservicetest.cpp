@@ -1351,6 +1351,38 @@ private Q_SLOTS:
         QCOMPARE(settings.value(QStringLiteral("instanceUrl")).toString(), expected);
     }
 
+    // Over the bus, the replaced call says so: its settings were never
+    // applied, so a client must not keep them as accepted.
+    void replacedConfigureFailsAsSuperseded()
+    {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        FakeTransport transport;
+        HeldStore store;
+        FakeClock clock;
+        Daemon daemon(&transport, &store, dir.filePath(QStringLiteral("tokkl-timerd.conf")), &clock);
+        QVERIFY(daemon.service.registerOn(QDBusConnection(serviceBus)));
+        const auto configure = [](const QString &url, const QString &secret) {
+            QDBusMessage message = QDBusMessage::createMethodCall(TimerService::serviceName, TimerService::objectPath, TimerService::interfaceName, QStringLiteral("Configure"));
+            message.setArguments({url, QStringLiteral("token"), QString(), secret});
+            return QDBusConnection(clientBus).asyncCall(message);
+        };
+        const QString other = QStringLiteral("https://b.example.test");
+        QDBusPendingCall first = configure(instanceUrl, QStringLiteral("tok-a"));
+        QTRY_COMPARE(store.held.size(), 1);
+        QDBusPendingCall second = configure(other, QStringLiteral("tok-b"));
+        QTRY_COMPARE(store.held.size(), 2);
+
+        store.finish(1);
+        store.finish(0);
+        QTRY_VERIFY(first.isFinished() && second.isFinished());
+        QCOMPARE(second.reply().type(), QDBusMessage::ReplyMessage);
+        QCOMPARE(first.reply().type(), QDBusMessage::ErrorMessage);
+        QCOMPARE(first.reply().errorName(), ConfigurationAdapter::supersededError);
+        QVERIFY(!first.reply().errorMessage().isEmpty());
+        QCOMPARE(daemon.connection.instanceUrl(), parseInstanceUrl(other).base.toString());
+    }
+
     // A second instance cannot take the name, as tokkl-timerd then exits.
     void secondInstanceRefused()
     {

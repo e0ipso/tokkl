@@ -214,6 +214,17 @@ await step('a refused configuration keeps the form and the saved settings', asyn
         throw new Error(`instance-url changed to ${settings.get_string('instance-url')}`);
 });
 
+await step('a replaced configuration keeps the saved settings', async () => {
+    const before = mockCalls().length;
+    form.url.text = 'https://replaced.example.com';
+    form.secret.text = 'token-value';
+    form.connect.emit('clicked');
+    await waitFor('Configure', () => mockCalls().length > before);
+    await answered();
+    if (settings.get_string('instance-url') !== 'https://tokkl.example.com')
+        throw new Error(`instance-url changed to ${settings.get_string('instance-url')}`);
+});
+
 await step('the form opens with the last accepted values', async () => {
     form.window.close();
     const again = await openWindow();

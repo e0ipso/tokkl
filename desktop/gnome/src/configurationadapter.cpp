@@ -6,6 +6,7 @@ namespace Tokkl
 {
 
 const QString ConfigurationAdapter::credentialStoreError = QStringLiteral("org.tokkl.Timer1.Error.CredentialStore");
+const QString ConfigurationAdapter::supersededError = QStringLiteral("org.tokkl.Timer1.Error.Superseded");
 
 ConfigurationAdapter::ConfigurationAdapter(ServiceSettings *settings, QObject *parent)
     : QObject(parent)
@@ -35,6 +36,9 @@ void ConfigurationAdapter::configure(const QString &instanceUrl, const QString &
             break;
         case ServiceSettings::Outcome::Kind::NotWritten:
             bus.send(call->message.createErrorReply(QDBusError::Failed, outcome.message));
+            break;
+        case ServiceSettings::Outcome::Kind::Superseded:
+            bus.send(call->message.createErrorReply(supersededError, outcome.message));
             break;
         }
     });

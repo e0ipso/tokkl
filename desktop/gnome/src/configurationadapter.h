@@ -17,9 +17,10 @@ class ServiceSettings;
 // ServiceSettings and answers the call once the outcome is known, which may
 // be after the credential store has written the secret: an empty reply when
 // the settings were saved, InvalidArgs for settings that cannot be used,
-// credentialStoreError when the store refused the secret, and Failed when
-// the settings file could not be written. Each error carries the message for
-// the user.
+// credentialStoreError when the store refused the secret, supersededError
+// when a later Configure call came while the store wrote, so these settings
+// were never applied, and Failed when the settings file could not be
+// written. Each error carries the message for the user.
 class ConfigurationAdapter : public QObject
 {
     Q_OBJECT
@@ -27,6 +28,9 @@ class ConfigurationAdapter : public QObject
 public:
     // The error of a Configure call whose secret the credential store refused.
     static const QString credentialStoreError;
+    // The error of a Configure call that a later one replaced before its
+    // settings were applied.
+    static const QString supersededError;
 
     // A Configure call that waits for its answer.
     struct Call {

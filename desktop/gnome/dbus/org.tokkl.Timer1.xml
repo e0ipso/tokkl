@@ -241,7 +241,11 @@
          account. Fails with org.freedesktop.DBus.Error.InvalidArgs for
          unusable settings, and with org.tokkl.Timer1.Error.CredentialStore
          when the store refuses the secret; the settings then stay as they
-         were. -->
+         were. Fails with org.tokkl.Timer1.Error.Superseded when another
+         Configure call came while the store saved this one's secret: the
+         later call's settings are the ones applied, and this call's never
+         were, so a client must not keep them as accepted. A service from
+         before that error answered such a call with success. -->
     <method name="Configure">
       <arg name="instanceUrl" type="s" direction="in"/>
       <arg name="authMode" type="s" direction="in"/>

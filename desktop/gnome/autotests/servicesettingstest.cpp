@@ -203,7 +203,35 @@ private Q_SLOTS:
         store.finish(0);
         QCOMPARE(connection.instanceUrl(), expected);
         QCOMPARE(settings.value(QStringLiteral("instanceUrl")).toString(), expected);
-        QCOMPARE(outcomes, (QList<Kind>{Kind::Saved, Kind::Saved}));
+        // The first call's settings were never applied, and it says so.
+        QCOMPARE(outcomes, (QList<Kind>{Kind::Saved, Kind::Superseded}));
+    }
+
+    void aReplacedCallEndsSupersededWhenItsWriteEndsFirst()
+    {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        FakeTransport transport;
+        HeldStore store;
+        Connection connection(&transport, &store, testClientName());
+        QSettings settings(dir.filePath(QStringLiteral("tokkl-timerd.conf")), QSettings::IniFormat);
+        ServiceSettings service(&settings, &connection, &store);
+        QList<ServiceSettings::Outcome> outcomes;
+        const auto record = [&outcomes](const ServiceSettings::Outcome &outcome) {
+            outcomes.append(outcome);
+        };
+        service.configure(instanceA, QStringLiteral("token"), QString(), QStringLiteral("tok-a"), record);
+        service.configure(instanceB, QStringLiteral("token"), QString(), QStringLiteral("tok-b"), record);
+        store.finish(0);
+        QCOMPARE(outcomes.size(), 1);
+        QCOMPARE(outcomes.at(0).kind, Kind::Superseded);
+        QVERIFY(!outcomes.at(0).message.isEmpty());
+        QCOMPARE(connection.instanceUrl(), QString());
+        QVERIFY(settings.value(QStringLiteral("instanceUrl")).isNull());
+        store.finish(1);
+        QCOMPARE(outcomes.size(), 2);
+        QCOMPARE(outcomes.at(1).kind, Kind::Saved);
+        QCOMPARE(connection.instanceUrl(), parseInstanceUrl(instanceB).base.toString());
     }
 
     void loadGivesTheConnectionASavedInstanceOnly()

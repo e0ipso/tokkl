@@ -4,7 +4,9 @@
 // records every method call. A second interface, org.tokkl.Timer1Mock,
 // lets the check read the calls, change properties, start a session as
 // another device would, have the server refuse the next request, act as a
-// service from before the Request methods, and stop the mock.
+// service from before the Request methods, and stop the mock. Configure
+// with an address that contains "replaced" fails as a call a later one
+// replaced.
 //
 //   gjs -m mock-timer.js /path/to/org.tokkl.Timer1.xml
 
@@ -349,6 +351,14 @@ class Timer1 {
         calls.push(['Configure', instanceUrl, authMode, email, secret]);
         if (!instanceUrl.startsWith('https://'))
             throw new GLib.Error(Gio.DBusError, Gio.DBusError.INVALID_ARGS, 'Enter an https:// URL.');
+        // As the service answers a call that a later one replaced while the
+        // keyring saved its secret. GJS sends a thrown error whose name has a
+        // dot under that name.
+        if (instanceUrl.includes('replaced')) {
+            const error = new Error('A later connection change replaced these settings.');
+            error.name = 'org.tokkl.Timer1.Error.Superseded';
+            throw error;
+        }
     }
 
     SetPomodoroMode(pomodoro) {

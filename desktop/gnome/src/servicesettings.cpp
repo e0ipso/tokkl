@@ -73,7 +73,7 @@ void ServiceSettings::configure(const QString &instanceUrl, const QString &authM
             // A later call came while the store wrote; its settings win,
             // whichever write ends last.
             qCInfo(lcCredentials) << "A later Configure call replaced this one's settings";
-            done(Outcome());
+            done(Outcome{Kind::Superseded, tr("A later connection change replaced these settings.")});
         } else {
             done(apply(settings) ? Outcome() : notWritten());
         }

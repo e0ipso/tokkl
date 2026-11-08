@@ -348,6 +348,10 @@ class ConnectionGroup {
         const address = mode === 'password' ? values.email : '';
         this._proxy.ConfigureRemote(values.url, mode, address, this._secret.text, (result, error) => {
             this._connect.sensitive = true;
+            // Only settings the service applied are kept. That leaves out a
+            // call a later one replaced before its settings were applied
+            // (org.tokkl.Timer1.Error.Superseded): the later call's settings
+            // are the service's.
             if (error) {
                 toastError(this._window, error);
                 return;
