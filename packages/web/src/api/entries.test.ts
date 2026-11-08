@@ -1,9 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { QueryClient } from '@tanstack/react-query';
+import { dropChange } from '../lib/calendarDrop.ts';
 import { updateEntry, updateRunningEntry } from './entries.ts';
 import { keys } from './keys.ts';
-import { TimerActionError, isTimerUnknown, markTimerUnknown, settleOtherWrites } from './timerState.ts';
+import {
+  TIMER_CONFLICT_MESSAGE,
+  TimerActionError,
+  isTimerUnknown,
+  markTimerUnknown,
+  settleOtherWrites,
+} from './timerState.ts';
 import type { TimeEntry, TimerState } from './types.ts';
 
 const entry = (id: number, description: string): TimeEntry => ({
@@ -156,6 +163,27 @@ test('a running-entry edit refused because nothing runs fails with the conflict 
   await assert.rejects(updateRunningEntry(qc, { id: 7, description: 'Late' }), isConflict);
   assert.equal(sent.length, 1);
   assert.equal(qc.getQueryData<TimerState>(keys.timer)?.running_entry, null);
+});
+
+test('a calendar move of the running entry another device stopped takes the server state and changes nothing', async t => {
+  const qc = withTimer(3);
+  const current = state(6, null);
+  const { fetch, sent } = answering({ status: 409, body: current });
+  t.mock.method(globalThis, 'fetch', fetch);
+  const drag = { entry: entry(7, 'Wr'), day: '2026-10-27', originY: 0, startMinute: 0, endMinute: 0 };
+  const settings = { timeZone: 'Europe/Madrid', timeResolution: 1 };
+  const change = dropChange({ kind: 'move', ...drag, deltaMinutes: -30 }, settings, false);
+  assert.ok(change.kind === 'moveRunning');
+  await assert.rejects(
+    updateRunningEntry(qc, { id: change.id, start: change.start }),
+    (error: unknown) => isConflict(error) && error instanceof Error && error.message === TIMER_CONFLICT_MESSAGE,
+  );
+  assert.deepEqual(
+    sent,
+    [{ request: `POST ${EDIT_PATH}`, body: { start: '2026-10-27T08:30:00.000Z', entry_id: 7 } }],
+    'one timer edit and no v9 update',
+  );
+  assert.deepEqual(qc.getQueryData<TimerState>(keys.timer), current);
 });
 
 test('after an unknown outcome a running-entry edit reads the state, and goes out although the revision moved', async t => {

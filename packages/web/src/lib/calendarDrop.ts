@@ -15,8 +15,13 @@ export type DropChange =
   | { readonly kind: 'open'; readonly entry: TimeEntry }
   /** A create drag: a new entry over the dragged range, opened once saved. */
   | { readonly kind: 'create'; readonly start: string; readonly stop: string }
-  /** A move or resize: the new start and stop of the entry, a field left out staying as it is. */
-  | { readonly kind: 'update'; readonly id: number; readonly start?: string; readonly stop?: string };
+  /** A move or resize of a stopped entry: its new start and stop, a field left out staying as it is. */
+  | { readonly kind: 'update'; readonly id: number; readonly start?: string; readonly stop?: string }
+  /**
+   * A move of the running entry: its new start, sent through the timer, which refuses it once the
+   * entry no longer runs, so a drag never moves an entry another device just stopped.
+   */
+  | { readonly kind: 'moveRunning'; readonly id: number; readonly start: string };
 
 type DropSettings = Pick<Settings, 'timeZone' | 'timeResolution'>;
 
@@ -60,12 +65,9 @@ export function dropChange(drag: CalendarDrag, settings: DropSettings, dayMode: 
       const dayEnd = startOfDay(addDays(drag.day, 1), settings.timeZone).getTime();
       movedStart = fitMoveInDay(movedStart, stored, stop, dayEnd);
     }
-    return {
-      kind: 'update',
-      id: entry.id,
-      start: new Date(movedStart).toISOString(),
-      ...(stop !== null ? { stop: new Date(movedStart + stored).toISOString() } : {}),
-    };
+    const movedTo = new Date(movedStart).toISOString();
+    if (stop === null) return { kind: 'moveRunning', id: entry.id, start: movedTo };
+    return { kind: 'update', id: entry.id, start: movedTo, stop: new Date(movedStart + stored).toISOString() };
   }
   if (!entry.stop) return { kind: 'none' };
   // The server moves an off-grid start to its nearest grid point, so the shortest block is
