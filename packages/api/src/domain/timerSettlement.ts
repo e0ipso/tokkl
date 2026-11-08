@@ -67,6 +67,18 @@ function timerFingerprint(snapshot: TimerSnapshot, chainTags: TagLabel[]): strin
 }
 const idleFingerprint = timerFingerprint({ running: null, pauseChain: null, session: null, revision: null }, []);
 
+/**
+ * True when settling `snapshot` would write: a session or pause chain is detached from the running
+ * entry, or the visible state differs from the stored revision's fingerprint. `chainTags` are the
+ * pause chain's tags as stored. A state this calls settled reads the same with or without settling.
+ */
+export function settlementDue(snapshot: TimerSnapshot, chainTags: TagLabel[]): boolean {
+  const runningId = snapshot.running?.id ?? null;
+  if (snapshot.session && snapshot.session.entryId !== runningId) return true;
+  if (snapshot.pauseChain && snapshot.pauseChain.cloneEntryId !== runningId) return true;
+  return timerFingerprint(snapshot, chainTags) !== (snapshot.revision?.fingerprint ?? idleFingerprint);
+}
+
 /** Drops a session or pause chain whose entry is no longer the running one; returns what it left. */
 async function dropDetached(ctx: SettlementContext, userId: Id, data: TimerSnapshot): Promise<Set<Id>> {
   const runningId = data.running?.id ?? null;

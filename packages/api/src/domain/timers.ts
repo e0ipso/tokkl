@@ -19,7 +19,7 @@ import type { NewEntry } from './entryCommands.ts';
 import { entryDurationSeconds, wholeSeconds } from './entrySpans.ts';
 import { memberWorkspace } from './membership.ts';
 import { createTimeEntry, stopEntryAt } from './timeEntries.ts';
-import { settleTimer, touchTimer, type TimerPublication } from './timerSettlement.ts';
+import { settleTimer, settlementDue, touchTimer, type TimerPublication } from './timerSettlement.ts';
 import { buildTimerView, type TimerView } from './timerView.ts';
 
 export interface StartPomodoro {
@@ -80,6 +80,23 @@ export interface TimerRunner<R extends EntryRepositories> {
   readSnapshot<T>(work: (repositories: EntryReaders) => Promise<T>): Promise<T>;
 }
 type ActionWork = (ctx: EntryContext, user: User) => Promise<void>;
+
+/**
+ * The view of a user's timer read in one snapshot, when it needs no settling: the state an action
+ * would answer without writing. Undefined when settling would write, or when the action would
+ * refuse the read (a missing user or a missing workspace), so the caller takes the write path.
+ */
+async function settledView(repositories: EntryReaders, userId: Id, now: Date): Promise<TimerView | undefined> {
+  const user = await repositories.users.get(userId);
+  if (!user) return undefined;
+  const data = await repositories.timers.read(userId);
+  const wids = new Set([data.running?.workspaceId, data.pauseChain?.workspaceId]);
+  for (const wid of wids) if (wid !== undefined && !(await repositories.workspaces.get(wid))) return undefined;
+  const chain = data.pauseChain;
+  const tags = chain ? await repositories.tags.findByIds(chain.workspaceId, chain.tagIds) : [];
+  if (settlementDue(data, tags)) return undefined;
+  return buildTimerView(repositories, user, now, data);
+}
 
 export function createTimerOperations<R extends EntryRepositories>(runner: TimerRunner<R>, publish: TimerPublication) {
   /**
@@ -172,8 +189,13 @@ export function createTimerOperations<R extends EntryRepositories>(runner: Timer
     await ctx.timers.savePauseChain({ ...c, cloneEntryId: clone.id });
   }
   return {
+    /**
+     * Reads the timer in a read snapshot, so a read never waits for the write guards. Only a state
+     * that settling would change takes the write path, which settles, numbers and publishes it.
+     */
     async getTimerState(userId: Id, now = new Date()): Promise<TimerView> {
-      return action(userId, now, async () => {});
+      const settled = await runner.readSnapshot(repositories => settledView(repositories, userId, now));
+      return settled ? Object.freeze(settled) : action(userId, now, async () => {});
     },
     /**
      * Starts a running entry the way a v9 create does: a running timer stops at the new start,
