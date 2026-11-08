@@ -28,7 +28,10 @@ class Clock;
 // When a stream ends or fails the client reads the state again if the stream
 // had delivered, and opens a new stream after a wait that starts at 1 s and
 // doubles up to 60 s, plus up to a quarter more from the clock's jitter. A
-// stream that delivered for 60 s starts the wait over.
+// stream that delivered for 60 s starts the wait over. A timer event that is
+// not a readable state, also after good ones, drops the stream: the state is
+// read at once and polled until a stream delivers again, and the next stream
+// opens after the next wait.
 // Until a stream delivers, the state is read every 30 s. A wake, through
 // resumed() or a tick more than 10 s late, reads the state and replaces the
 // stream at once.
@@ -136,6 +139,9 @@ private:
     void readLine(QByteArrayView line);
     // Drops a stream that sent more than maxEventBytes for one event.
     void dropOversizedStream();
+    // Drops a stream that sent a timer event that is not a timer state,
+    // reads the state and reconnects after the backoff.
+    void dropUnreadableStream();
     void dispatchEvent();
     bool adopt(const TimerState &state);
     void setStreaming(bool streaming);
