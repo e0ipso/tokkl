@@ -58,7 +58,15 @@ export const appStatusReply: Decoder<AppStatus> = object<AppStatus>({
   // The web app ships with its server, so it knows every capability its server names.
   api_version: integer,
   capabilities: array(
-    oneOf('app-preferences', 'timer-actions', 'timer-edit', 'pomodoro-revision', 'pause-revision', 'timer-edit-entry'),
+    oneOf(
+      'app-preferences',
+      'timer-actions',
+      'timer-edit',
+      'pomodoro-revision',
+      'pause-revision',
+      'timer-edit-entry',
+      'idempotency-keys',
+    ),
   ),
   pomodoro_limits: object<PomodoroLimits>({
     work_minutes: pomodoroLimit,

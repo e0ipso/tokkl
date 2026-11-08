@@ -14,12 +14,15 @@ import {
   updateTimeEntry,
   type SplitEntries,
 } from '../domain/timeEntries.ts';
-import type { EntryTransactions } from '../domain/entryAccess.ts';
+import { getTimeEntry, type EntryTransactions } from '../domain/entryAccess.ts';
+import { idempotent } from '../domain/idempotency.ts';
+import type { IdempotencyClaim } from '../lib/idempotency.ts';
 import type { TimerPublication } from '../domain/timerSettlement.ts';
 import type { EntryDetails, Id, User } from '../storage/domain.ts';
 
+/** `create` and `split` take an optional `Idempotency-Key` claim; see `domain/idempotency.ts`. */
 export interface EntryOperations {
-  create(wid: Id, entry: NewEntry): Promise<EntryDetails>;
+  create(wid: Id, entry: NewEntry, claim?: IdempotencyClaim): Promise<EntryDetails>;
   update(wid: Id, id: Id, changes: EntryChanges): Promise<EntryDetails>;
   /** Stops a running entry at `at`, or now. */
   stop(wid: Id, id: Id, at?: Date): Promise<EntryDetails>;
@@ -36,7 +39,7 @@ export interface EntryOperations {
   /** Deletes trashed entries for good: the one with `id`, or all of them. Answers how many. */
   purgeTrash(id?: Id): Promise<number>;
   /** Splits a stopped entry in two, both halves or neither. */
-  split(id: Id, split: EntrySplit): Promise<SplitEntries>;
+  split(id: Id, split: EntrySplit, claim?: IdempotencyClaim): Promise<SplitEntries>;
 }
 
 /** `storage` checks the user's credential around each transaction. */
@@ -46,13 +49,31 @@ export function createEntryOperations(
   publish: TimerPublication,
 ): EntryOperations {
   return {
-    create: (wid, entry) => storage.transaction(ctx => createTimeEntry(ctx, user, wid, entry, publish)),
+    create: (wid, entry, claim) =>
+      storage.transaction(ctx =>
+        idempotent(ctx, user.id, claim, {
+          create: () => createTimeEntry(ctx, user, wid, entry, publish),
+          reference: created => created.id,
+          replay: id => getTimeEntry(ctx, user.id, id),
+        }),
+      ),
     update: (wid, id, changes) => storage.transaction(ctx => updateTimeEntry(ctx, user, wid, id, changes, publish)),
     stop: (wid, id, at) => storage.transaction(ctx => stopTimeEntry(ctx, user, wid, id, publish, at)),
     patch: (wid, ids, steps) => storage.transaction(ctx => patchTimeEntries(ctx, user, wid, ids, steps, publish)),
     remove: (wid, id) => storage.transaction(ctx => deleteTimeEntry(ctx, user.id, wid, id, publish)),
     restore: id => storage.transaction(ctx => restoreTimeEntry(ctx, user, id, publish)),
     purgeTrash: id => storage.transaction(ctx => purgeDeletedEntries(ctx, user.id, publish, id)),
-    split: (id, split) => storage.transaction(ctx => splitTimeEntry(ctx, user, id, split, publish)),
+    // The entry keeps the first half, so a repeat reads it and the second half it made.
+    split: (id, split, claim) =>
+      storage.transaction(ctx =>
+        idempotent(ctx, user.id, claim, {
+          create: () => splitTimeEntry(ctx, user, id, split, publish),
+          reference: halves => halves.second.id,
+          replay: async second => ({
+            first: await getTimeEntry(ctx, user.id, id),
+            second: await getTimeEntry(ctx, user.id, second),
+          }),
+        }),
+      ),
   };
 }

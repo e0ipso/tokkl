@@ -7,6 +7,8 @@ import {
   baselineTables,
   type Column,
   baselineIndexes,
+  idempotencyIndexes,
+  idempotencyTables,
   rateLimitIndexes,
   rateLimitTables,
   totalsIndexes,
@@ -41,7 +43,7 @@ export async function seed(db: TestDb, backend: Backend): Promise<void> {
 }
 /** Every table of the current schema with its columns, those later migrations added included. */
 export const currentTables: Record<string, Record<string, Column>> = Object.fromEntries(
-  Object.entries({ ...baselineTables, ...rateLimitTables }).map(([table, columns]) => [
+  Object.entries({ ...baselineTables, ...rateLimitTables, ...idempotencyTables }).map(([table, columns]) => [
     table,
     { ...columns, ...addedColumns[table] },
   ]),
@@ -115,13 +117,20 @@ export async function assertSchema(db: TestDb, backend: Backend): Promise<void> 
   const primaryKeys =
     backend === 'sqlite'
       ? []
-      : Object.entries(rateLimitTables).map(([table, columns]) => ({
+      : Object.entries({ ...rateLimitTables, ...idempotencyTables }).map(([table, columns]) => ({
           name: backend === 'postgres' ? `${table}_pkey` : 'PRIMARY',
           table,
           columns: Object.keys(columns).filter(name => columns[name]!.primary),
           unique: true,
         }));
-  for (const index of [...baselineIndexes, ...totalsIndexes, ...running, ...rateLimitIndexes, ...primaryKeys]) {
+  for (const index of [
+    ...baselineIndexes,
+    ...totalsIndexes,
+    ...running,
+    ...rateLimitIndexes,
+    ...idempotencyIndexes,
+    ...primaryKeys,
+  ]) {
     if (backend === 'sqlite') {
       const indexes = (
         await sql.raw<{ name: string; unique: number }>(`PRAGMA index_list(${quote(backend, index.table)})`).execute(db)

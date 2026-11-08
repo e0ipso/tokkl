@@ -21,6 +21,13 @@ const PROBES: Record<ServerCapability, (ctx: TestContext) => Promise<number>> = 
     return (await ctx.json('POST', '/api/app/timer/pause', { revision: -1 })).status;
   },
   // An older server refuses an edit without a revision as invalid input.
+  // An older server ignores the key and refuses the second tag as a duplicate name.
+  'idempotency-keys': async ctx => {
+    const tag = () =>
+      ctx.request('POST', `/api/v9/workspaces/${ctx.wid}/tags`, { name: 'probe' }, { 'Idempotency-Key': 'p' });
+    assert.equal((await tag()).status, 200);
+    return (await tag()).status;
+  },
   'timer-edit-entry': async ctx =>
     (await ctx.json('POST', '/api/app/timer/edit', { entry_id: 999_999, billable: true })).status,
 };
@@ -38,6 +45,7 @@ test('GET /api/app/status names the API version and the capabilities this server
     'pomodoro-revision',
     'pause-revision',
     'timer-edit-entry',
+    'idempotency-keys',
   ]);
   const me = await ctx.json<Record<string, unknown>>('GET', '/api/v9/me');
   assert.equal('api_version' in me.body || 'capabilities' in me.body, false, 'the Toggl /me body stays as it was');
@@ -53,6 +61,7 @@ test('GET /api/app/status names the API version and the capabilities this server
     'pomodoro-revision': 409,
     'pause-revision': 409,
     'timer-edit-entry': 409,
+    'idempotency-keys': 200,
   });
 });
 

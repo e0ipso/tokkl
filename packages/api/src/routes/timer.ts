@@ -1,7 +1,7 @@
 import type { Response, Router } from 'express';
 import type { Deps } from './context.ts';
 import { createRouter } from '../http/router.ts';
-import { readJson, readOptionalJson } from '../http/request.ts';
+import { readIdempotencyClaim, readJson, readOptionalJson } from '../http/request.ts';
 import {
   parseEditTimer,
   parsePauseTimer,
@@ -18,9 +18,10 @@ export function timerRoutes(deps: Pick<Deps, 'auth' | 'timersFor' | 'openTimerSt
   api.get('/timer/events', auth, async (_req, res) => {
     await deps.openTimerStream(res.locals.auth, res);
   });
-  api.post('/timer/start', auth, async (req, res) =>
-    res.json(await timers(res).startTimer(res.locals.auth.user.id, parseStartTimer(readJson(req)))),
-  );
+  api.post('/timer/start', auth, async (req, res) => {
+    const start = { ...parseStartTimer(readJson(req)), idempotency: readIdempotencyClaim(req) };
+    res.json(await timers(res).startTimer(res.locals.auth.user.id, start));
+  });
   api.post('/timer/stop', auth, async (req, res) => {
     const { revision, stop } = parseStopTimer(readJson(req));
     res.json(await timers(res).stopTimer(res.locals.auth.user.id, revision, stop));
@@ -38,9 +39,10 @@ export function timerRoutes(deps: Pick<Deps, 'auth' | 'timersFor' | 'openTimerSt
   api.post('/timer/discard', auth, async (req, res) =>
     res.json(await timers(res).discardPause(res.locals.auth.user.id, parseRevision(readJson(req).revision))),
   );
-  api.post('/pomodoro', auth, async (req, res) =>
-    res.json(await timers(res).startPomodoro(res.locals.auth.user.id, parseStartPomodoro(readJson(req)))),
-  );
+  api.post('/pomodoro', auth, async (req, res) => {
+    const start = { ...parseStartPomodoro(readJson(req)), idempotency: readIdempotencyClaim(req) };
+    res.json(await timers(res).startPomodoro(res.locals.auth.user.id, start));
+  });
   api.post('/pomodoro/next', auth, async (req, res) =>
     res.json(await timers(res).nextPomodoroPhase(res.locals.auth.user.id, parseRevision(readJson(req).revision))),
   );

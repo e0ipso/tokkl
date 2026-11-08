@@ -23,6 +23,8 @@ const READS: { [R in keyof Repositories]: ReadonlyArray<MethodsOf<Repositories[R
   tasks: ['getMetadata', 'list', 'get', 'getRef', 'findByName'],
   tags: ['list', 'findByIds', 'get', 'findByName'],
   entries: ['list', 'get', 'running', 'bounds', 'listDeleted', 'listAllDay', 'findDuplicate'],
+  // Not in read snapshots: idempotency keys are read only inside the create they belong to.
+  idempotencyKeys: [],
   timers: ['read', 'getSession', 'getPauseChain', 'getRevision', 'affectedUsers'],
   reports: ['count', 'ids', 'descriptions', 'entries', 'batch'],
   transfers: ['exportAccount', 'exportHead', 'exportEntries'],

@@ -31,9 +31,17 @@ export type UserRole = 'admin' | 'user';
  * - `pause-revision`: `POST /api/app/timer/pause` checks an optional `revision`.
  * - `timer-edit-entry`: `POST /api/app/timer/edit` takes `entry_id` in place of, or next to,
  *   `revision`, and an optional `start`.
+ * - `idempotency-keys`: the v9 time entry, client, project, task and tag creates, timer start,
+ *   Pomodoro start and entry split take an `Idempotency-Key` header.
  */
 export type ServerCapability =
-  'app-preferences' | 'timer-actions' | 'timer-edit' | 'pomodoro-revision' | 'pause-revision' | 'timer-edit-entry';
+  | 'app-preferences'
+  | 'timer-actions'
+  | 'timer-edit'
+  | 'pomodoro-revision'
+  | 'pause-revision'
+  | 'timer-edit-entry'
+  | 'idempotency-keys';
 
 /**
  * Tokkl only, in `GET /api/v9/me`: what this server's API offers. A client tests a capability

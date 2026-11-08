@@ -2,7 +2,8 @@
  * Failures that domain and application code raise on purpose. Each carries a message that is safe
  * to show the client and a kind; `http/errors.ts` is the one place that turns a kind into a status.
  */
-export type FailureKind = 'invalid' | 'forbidden' | 'not-found' | 'conflict' | 'rate-limited' | 'unavailable';
+export type FailureKind =
+  'invalid' | 'forbidden' | 'not-found' | 'conflict' | 'unprocessable' | 'rate-limited' | 'unavailable';
 
 /**
  * Why input was refused, for clients that act on it. Codes and field names are stable; the human
@@ -69,6 +70,8 @@ export const invalidInput = (message: string, validation: ValidationDetail = { c
 export const forbidden = (message = 'Forbidden') => new ApplicationError('forbidden', message);
 export const notFound = (message = 'Not found') => new ApplicationError('not-found', message);
 export const conflict = (message: string) => new ApplicationError('conflict', message);
+/** The request is well formed but contradicts one the server already handled. */
+export const unprocessable = (message: string) => new ApplicationError('unprocessable', message);
 export const tooManyAttempts = (message: string, retryAfterSeconds: number) =>
   new ApplicationError('rate-limited', message, retryAfterSeconds);
 /** The server is too busy for this request right now; the client may retry after the delay. */

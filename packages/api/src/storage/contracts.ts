@@ -268,6 +268,28 @@ export interface EntriesRepository extends EntriesReader {
   /** Deletes the user's trashed entries in `workspaceIds`, or only `id` among them. */
   purgeDeleted(userId: Id, scope: { workspaceIds: Id[]; id?: Id }): Promise<number>;
 }
+/** A create a client named with an idempotency key. */
+export interface IdempotencyRecord {
+  /** Hash of the user and the client's key. */
+  keyHash: string;
+  userId: Id;
+  /** Digest of the request the key first came with. */
+  fingerprint: string;
+  /** The id of the record the create made. */
+  resultId: Id;
+  createdAt: UtcInstant;
+}
+export interface IdempotencyKeysRepository {
+  find(keyHash: string): Promise<IdempotencyRecord | undefined>;
+  /**
+   * Records a create. When another transaction recorded the same key first, it fails as a
+   * serialization conflict, so the runner runs the whole operation again and it finds that record.
+   */
+  insert(record: IdempotencyRecord): Promise<void>;
+  delete(keyHash: string): Promise<void>;
+  /** Deletes up to a batch of records created before `before`, skipping rows other writes hold. */
+  deleteExpired(before: UtcInstant): Promise<void>;
+}
 export interface TimersReader {
   read(userId: Id): Promise<TimerSnapshot>;
   getSession(userId: Id): Promise<PomodoroSession | undefined>;
@@ -412,6 +434,7 @@ export interface Repositories {
   tasks: TasksRepository;
   tags: TagsRepository;
   entries: EntriesRepository;
+  idempotencyKeys: IdempotencyKeysRepository;
   timers: TimersRepository;
   reports: ReportsRepository;
   transfers: TransfersRepository;

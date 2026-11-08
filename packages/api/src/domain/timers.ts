@@ -18,7 +18,9 @@ import {
 } from './entryAccess.ts';
 import type { EntryFields, NewEntry } from './entryCommands.ts';
 import { entryDurationSeconds, wholeSeconds } from './entrySpans.ts';
+import { idempotent } from './idempotency.ts';
 import { memberWorkspace } from './membership.ts';
+import type { IdempotencyClaim } from '../lib/idempotency.ts';
 import { createTimeEntry, stopRunningEntry, updateTimeEntry } from './timeEntries.ts';
 import { settleTimer, settlementDue, touchTimer, type TimerPublication } from './timerSettlement.ts';
 import { buildTimerView, type TimerView } from './timerView.ts';
@@ -35,6 +37,8 @@ export interface StartPomodoro {
   /** The lengths the client sent; the others come from the user's preferences. */
   lengths: Partial<PomodoroSessionConfig>;
   entry: Omit<NewEntry, 'allDay' | 'times' | 'workspaceId'>;
+  /** The request's `Idempotency-Key`; a repeat answers the timer as it is now and starts nothing. */
+  idempotency?: IdempotencyClaim;
 }
 
 export interface StartTimer {
@@ -45,6 +49,16 @@ export interface StartTimer {
   /** When the entry starts; now when absent. */
   start?: Date;
   entry: Omit<NewEntry, 'allDay' | 'times' | 'workspaceId'>;
+  /** The request's `Idempotency-Key`; a repeat answers the timer as it is now and starts nothing. */
+  idempotency?: IdempotencyClaim;
+}
+
+/**
+ * Runs a start once per idempotency key. A repeat is answered before the revision check, which the
+ * first start moved on, and changes nothing: the action's reply is then the timer as it is now.
+ */
+function startOnce(ctx: EntryContext, user: User, claim: IdempotencyClaim | undefined, start: () => Promise<Id>) {
+  return idempotent(ctx, user.id, claim, { create: start, reference: id => id, replay: async id => id });
 }
 
 /**
@@ -147,6 +161,7 @@ export function createTimerOperations<R extends EntryRepositories>(runner: Timer
     if (!reply) throw new Error('The timer reply was not built');
     return reply;
   }
+  /** Starts a session and answers the id of its first pomodoro's entry. */
   async function startPomodoroWork(ctx: EntryContext, user: User, start: StartPomodoro, wid: Id, now: Date) {
     if (start.revision !== undefined) await checkRevision(ctx, user, start.revision, now);
     const config = { ...getPomodoroSessionConfig(user), ...start.lengths };
@@ -161,6 +176,7 @@ export function createTimerOperations<R extends EntryRepositories>(runner: Timer
       config,
       phase: { kind: phase.kind, startedAt: phase.startedAt.toISOString(), completed: phase.completed },
     });
+    return entry.id;
   }
   /** Moves the session on. A new work phase stops the ended entry and starts a copy of it. */
   async function nextPhaseWork(ctx: EntryContext, user: User, seen: number, now: Date) {
@@ -239,9 +255,11 @@ export function createTimerOperations<R extends EntryRepositories>(runner: Timer
         userId,
         now,
         async (ctx, user) => {
-          await checkRevision(ctx, user, start.revision, now);
-          const entry = runningFrom(start.start ?? now, start.entry);
-          await createTimeEntry(ctx, user, explicit ?? user.defaultWorkspaceId, entry, publish);
+          await startOnce(ctx, user, start.idempotency, async () => {
+            await checkRevision(ctx, user, start.revision, now);
+            const entry = runningFrom(start.start ?? now, start.entry);
+            return (await createTimeEntry(ctx, user, explicit ?? user.defaultWorkspaceId, entry, publish)).id;
+          });
         },
         explicit ? [explicit] : [],
         !explicit,
@@ -276,7 +294,11 @@ export function createTimerOperations<R extends EntryRepositories>(runner: Timer
       return action(
         userId,
         now,
-        (ctx, user) => startPomodoroWork(ctx, user, start, explicit ?? user.defaultWorkspaceId, now),
+        async (ctx, user) => {
+          await startOnce(ctx, user, start.idempotency, () =>
+            startPomodoroWork(ctx, user, start, explicit ?? user.defaultWorkspaceId, now),
+          );
+        },
         explicit ? [explicit] : [],
         !explicit,
       );

@@ -356,6 +356,28 @@ export const rateLimitIndexes: SchemaIndex[] = [
   },
   { name: 'rate_limit_reservations_expires_at', table: 'rate_limit_reservations', columns: ['expires_at'] },
 ];
+// Idempotency keys of creates, one row per user and key, holding the digest of the request and the
+// id of what it created. The primary key is a hash of the user and the client's key, so a lookup
+// locks one row by primary key on InnoDB and the table holds no client text.
+export const idempotencyTables: Record<string, Record<string, Column>> = {
+  idempotency_keys: {
+    key_hash: { ...key, primary: true },
+    user_id: ref('users'),
+    fingerprint: key,
+    result_id: integer,
+    created_at: instant,
+  },
+};
+export const idempotencyIndexes: SchemaIndex[] = [
+  { name: 'idempotency_keys_user_id', table: 'idempotency_keys', columns: ['user_id'] },
+  { name: 'idempotency_keys_created_at', table: 'idempotency_keys', columns: ['created_at'] },
+];
+export function idempotencyDDL(backend: Backend): string[] {
+  return [
+    ...Object.entries(idempotencyTables).map(([name, columns]) => createTableDDL(backend, name, columns)),
+    ...idempotencyIndexes.map(index => indexDDL(backend, index)),
+  ];
+}
 /** Columns later migrations added to baseline tables, by table. */
 export const addedColumns: Record<string, Record<string, Column>> = {
   // The Pomodoro session entry the revision's state showed; settlement compares it with the next.

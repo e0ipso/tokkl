@@ -191,7 +191,10 @@ test('the status, invite and reset link checks and the admin lists decode their 
     pomodoro_limits,
   };
   assert.deepEqual(appStatusReply(status), status);
-  const current = { ...status, capabilities: ['pomodoro-revision', 'pause-revision', 'timer-edit-entry'] };
+  const current = {
+    ...status,
+    capabilities: ['pomodoro-revision', 'pause-revision', 'timer-edit-entry', 'idempotency-keys'],
+  };
   assert.deepEqual(appStatusReply(current), current);
   assert.throws(() => appStatusReply({ ...status, setup_required: 'no' }), at('reply.setup_required'));
   assert.throws(() => appStatusReply({ ...status, capabilities: ['teleport'] }), at('reply.capabilities[0]'));

@@ -33,6 +33,7 @@ const FRESH_STATUS = {
     'pomodoro-revision',
     'pause-revision',
     'timer-edit-entry',
+    'idempotency-keys',
   ],
   pomodoro_limits: {
     work_minutes: { min: 1, max: 180, default: 25 },

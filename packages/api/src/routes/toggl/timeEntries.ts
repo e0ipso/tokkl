@@ -1,6 +1,6 @@
 import type { Router } from 'express';
 import type { Deps } from '../context.ts';
-import { readJson, readJsonArray } from '../../http/request.ts';
+import { readIdempotencyClaim, readJson, readJsonArray } from '../../http/request.ts';
 import { createRouter } from '../../http/router.ts';
 import { parseId, parseIdList } from '../../lib/values.ts';
 import { parseEntryChanges, parseEntryPatch, parseNewEntry, parseStopAt } from '../../commands/timeEntries.ts';
@@ -13,7 +13,7 @@ export function timeEntryRoutes(deps: Pick<Deps, 'readFor' | 'entriesFor'>): Rou
   api.post('/workspaces/:wid/time_entries', async (req, res) => {
     const ws = await authorizedWorkspace(deps, req, res);
     const entry = parseNewEntry(readJson(req));
-    const created = await deps.entriesFor(res.locals.auth).create(ws.id, entry);
+    const created = await deps.entriesFor(res.locals.auth).create(ws.id, entry, readIdempotencyClaim(req));
     res.json(serializeTimeEntry(created, entryPresentation(req, res)));
   });
   api.put('/workspaces/:wid/time_entries/:id', async (req, res) => {
