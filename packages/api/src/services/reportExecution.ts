@@ -44,8 +44,6 @@ export interface ExecutionEvents {
 }
 
 export interface ReportExecution {
-  /** The worker running jobs, while there is one. */
-  readonly worker: Worker | null;
   /**
    * True when `run` may be called now. The first call starts the worker; `available` follows once
    * it is ready.
@@ -59,9 +57,18 @@ export interface ReportExecution {
   close(): Promise<void>;
 }
 
+/** Starts a report worker thread, which opens its own reader for `config`. */
+export type WorkerStarter = (config: StorageConfig) => Worker;
+
+/** The worker every report runner starts unless it is given another starter. */
+export const startReportWorker: WorkerStarter = config =>
+  new Worker(new URL('./reportWorker.ts', import.meta.url), { workerData: config });
+
 export interface ReportExecutionOptions {
   logger: Logger;
   onPhase?: (phase: ReportPhase) => void;
+  /** How a worker thread is started. Defaults to `startReportWorker`. */
+  startWorker?: WorkerStarter;
 }
 
 /** What a worker sends back. */
@@ -93,7 +100,6 @@ const WORKER_DEADLINE_MS = 30000;
 
 /** Runs jobs on the application's own connection. Used for in-memory SQLite, which a worker cannot open. */
 class InlineExecution implements ReportExecution {
-  readonly worker = null;
   private readonly source: JobSource;
   private readonly events: ExecutionEvents;
   private readonly logger: Logger;
@@ -151,7 +157,7 @@ class InlineExecution implements ReportExecution {
  * start in time fails every job, and the next job starts a fresh one once the old one has exited.
  */
 class WorkerExecution implements ReportExecution {
-  worker: Worker | null = null;
+  private worker: Worker | null = null;
   private readonly config: StorageConfig;
   private readonly events: ExecutionEvents;
   private readonly options: ReportExecutionOptions;
@@ -181,7 +187,7 @@ class WorkerExecution implements ReportExecution {
     if (this.worker) this.stop();
   }
   private start(): void {
-    const worker = new Worker(new URL('./reportWorker.ts', import.meta.url), { workerData: this.config });
+    const worker = (this.options.startWorker ?? startReportWorker)(this.config);
     this.worker = worker;
     const fail = () => {
       if (this.worker !== worker) return;

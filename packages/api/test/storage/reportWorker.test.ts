@@ -30,6 +30,7 @@ import { presentTimerOperations } from '../../src/services/timerReplies.ts';
 import { createTimeEntry } from '../fixtures/entryBodies.ts';
 import { entryTimerFactory, entryAccount } from './support/entry-timer.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
+import { trackedWorkers } from './support/reportWorkers.ts';
 import type { Backend } from '../../src/storage/config.ts';
 import { createLogger } from '../../src/lib/logger.ts';
 
@@ -88,7 +89,12 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
       } finally {
         await reader.close();
       }
-      const runner = new ReportRunner(fixture.config, operations, { maxQueue: 2, maxPerUser: 2 });
+      const workers = trackedWorkers();
+      const runner = new ReportRunner(fixture.config, operations, {
+        maxQueue: 2,
+        maxPerUser: 2,
+        startWorker: workers.startWorker,
+      });
       t.after(() => runner.close());
       const expected = await runReportJob(operations, { userId: user.id, workspaceId: wid, job });
       assert.deepEqual(await runner.run(user.id, wid, job), expected);
@@ -103,7 +109,9 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
         { kind: 'export-csv', range: {}, filename: 'tokkl.csv' },
       ] as ExportAssemblyJob[])
         assert.equal(await streamedExport(runner, user.id, assembly), oracleExportBody(exported, assembly));
-      const worker = (runner as unknown as { worker: Worker }).worker;
+      // Every job so far ran in the one worker the runner started.
+      assert.equal(workers.started.length, 1);
+      const worker = workers.latest();
       assert.ok(worker instanceof Worker);
       assert.equal(
         Number(
@@ -120,7 +128,8 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
         await worker.terminate();
         await failed;
         assert.deepEqual(await runner.run(user.id, wid, job), expected);
-        assert.notEqual((runner as unknown as { worker: Worker }).worker, worker);
+        assert.equal(workers.started.length, 2);
+        assert.notEqual(workers.latest(), worker);
       });
       await t.test('queued cancellation, running cancellation, overload and restart', async () => {
         const abort = new AbortController();
@@ -165,7 +174,9 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
       const formatting = new Promise<void>(resolve => {
         formatted = resolve;
       });
+      const heavyWorkers = trackedWorkers();
       const heavy = new ReportRunner(fixture.config, operations, {
+        startWorker: heavyWorkers.startWorker,
         onPhase: phase => {
           if (phase === 'formatting') formatted();
         },
@@ -225,7 +236,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
         return Number(result.rows[0]!.n);
       };
       assert.equal(await sessions(), backend === 'sqlite' ? 0 : 1);
-      const oldWorker = (heavy as unknown as { worker: Worker }).worker;
+      const oldWorker = heavyWorkers.latest();
       const exit = once(oldWorker, 'exit');
       const duringClose = assert.rejects(heavy.run(user.id, wid, job), /Report runner is closed/);
       const queuedClose = assert.rejects(heavy.run(user.id, wid, job), /Report runner is closed/);
@@ -247,13 +258,14 @@ test('memory SQLite stays inline; reader startup never creates or migrates a fil
     ...createTransferRepositories(db, 'sqlite'),
   }));
   const user = await operations.transaction(r => r.users.createAccount(entryAccount('inline')));
-  const runner = new ReportRunner(config, operations);
+  const workers = trackedWorkers();
+  const runner = new ReportRunner(config, operations, { startWorker: workers.startWorker });
   t.after(() => runner.close());
   assert.deepEqual(
     await runner.run(user.id, user.defaultWorkspaceId, job),
     await runReportJob(operations, { userId: user.id, workspaceId: user.defaultWorkspaceId, job }),
   );
-  assert.equal((runner as unknown as { worker: Worker | null }).worker, null);
+  assert.equal(workers.started.length, 0);
   const exported = await collectAccountExport(operations, user.id);
   const assembly: ExportAssemblyJob = {
     kind: 'export-json',

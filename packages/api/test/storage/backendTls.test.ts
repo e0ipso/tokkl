@@ -16,6 +16,7 @@ import { openReportReader } from '../../src/storage/repositories/report-reader.t
 import { ReportRunner } from '../../src/services/reportRunner.ts';
 import { runReportJob, type ReportJob } from '../../src/services/reportJobs.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
+import { trackedWorkers } from './support/reportWorkers.ts';
 import { entryAccount } from './support/entry-timer.ts';
 
 function selector(c: ServerConfig): string {
@@ -120,13 +121,12 @@ for (const backend of ['postgres', 'mysql', 'mariadb'] as const) {
       } finally {
         await reader.close();
       }
-      const runner = new ReportRunner(config, storage);
+      const workers = trackedWorkers();
+      const runner = new ReportRunner(config, storage, { startWorker: workers.startWorker });
       try {
         assert.deepEqual(await runner.run(user.id, user.defaultWorkspaceId, job), expected);
-        assert.ok(
-          (runner as unknown as { worker: Worker }).worker instanceof Worker,
-          'report executed in a real worker',
-        );
+        assert.equal(workers.started.length, 1, 'report executed in a real worker');
+        assert.ok(workers.latest() instanceof Worker);
       } finally {
         await runner.close();
       }

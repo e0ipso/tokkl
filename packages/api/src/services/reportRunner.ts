@@ -11,6 +11,7 @@ import {
   type ReportExecution,
   type ReportPhase,
   type ReportWork,
+  type WorkerStarter,
 } from './reportExecution.ts';
 
 export type { ReportWork };
@@ -31,6 +32,8 @@ export interface ReportRunnerOptions {
   onPhase?: (phase: ReportPhase) => void;
   /** Where unexpected report and worker failures are logged, as redacted diagnostics. */
   logger?: Logger;
+  /** How the runner starts its worker thread. Defaults to `startReportWorker`. */
+  startWorker?: WorkerStarter;
 }
 interface Pending extends ExecutionJob {
   /** The account whose place this is. */
@@ -123,12 +126,8 @@ export class ReportRunner implements ReportExecutor {
         available: () => this.pump(),
         failed: error => this.failAll(error),
       },
-      { logger: options.logger ?? silentLogger, onPhase: options.onPhase },
+      { logger: options.logger ?? silentLogger, onPhase: options.onPhase, startWorker: options.startWorker },
     );
-  }
-  /** The worker running jobs, while there is one. */
-  private get worker() {
-    return this.execution.worker;
   }
   run(
     userId: number,
