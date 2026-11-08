@@ -88,7 +88,7 @@ public:
 
     std::optional<Me> account() const;
     // What the server announced in GET /api/app/status before the account
-    // bound; none without an account.
+    // bound, ServerFloor or newer; none without an account.
     ServerApi server() const;
     QVariantMap accountMap() const;
     qint64 workspaceId() const;
@@ -110,15 +110,9 @@ public:
     // The account's entries of the last 9 days in every workspace, newest
     // first, with project metadata (GET /me/time_entries?meta=true).
     void fetchRecentEntries(Callback<QList<ListedEntry>> done = {});
-    // The v9 start and stop of a running entry. startTimer() and
-    // stopTimer() use them on a server without timer-actions.
-    void startEntry(const StartEntry &entry, Callback<TimeEntry> done = {});
-    void stopEntry(qint64 entryId, Callback<TimeEntry> done = {});
-    void updateEntry(qint64 entryId, const TimeEntryUpdate &update, Callback<TimeEntry> done = {});
     // The Pomodoro lengths of the account preferences, through
     // /api/app/me/preferences, whose refusals name the refused key in
-    // Tokkl-Error-Field, on a server that announces app-preferences, and
-    // through /api/v9/me/preferences on one that does not.
+    // Tokkl-Error-Field.
     void fetchPreferences(Callback<PomodoroConfig> done = {});
     // Posts only the lengths the update sets, on the same path as
     // fetchPreferences(). done gets the lengths the server holds
@@ -130,10 +124,8 @@ public:
     void fetchTimerState(Callback<TimerState> done = {});
     // The timer actions. Each needs canWrite(), and done tells apart a change
     // made, a 409 with the server's state, nothing changed, and an unknown
-    // outcome. Resume, discard, next phase and end apply only to the state
-    // at revision, the one the user saw, and so does a Pomodoro start on a
-    // server that announces pomodoro-revision; an older one gets no
-    // revision.
+    // outcome. Resume, discard, next phase, end and a Pomodoro start apply
+    // only to the state at revision, the one the user saw.
     void pauseTimer(ActionCallback done = {});
     void resumeTimer(qint64 revision, ActionCallback done = {});
     void discardPause(qint64 revision, ActionCallback done = {});
@@ -143,18 +135,13 @@ public:
     // Start a running entry and stop the running one through POST
     // /api/app/timer/start and /api/app/timer/stop, like the actions above:
     // a 409 brings the server's state when the timer changed since
-    // revision, or for a stop when nothing runs. On a server that does not
-    // announce timer-actions the write goes to startEntry() or
-    // stopEntry(entryId) instead, whose reply is the entry
-    // (TimerActionResult::entry) rather than the state. A 404 from either
-    // route is a refusal like any other and is never sent again elsewhere.
+    // revision, or for a stop when nothing runs.
     void startTimer(qint64 revision, const StartEntry &entry, ActionCallback done = {});
-    void stopTimer(qint64 revision, qint64 entryId, ActionCallback done = {});
+    void stopTimer(qint64 revision, ActionCallback done = {});
     // Edits the running entry through POST /api/app/timer/edit, against
     // revision; only the fields update sets travel, and start never does.
     // A 409 brings the server's state when the timer changed since revision
-    // or nothing runs. Only for a server that announces timer-edit; see
-    // server().
+    // or nothing runs.
     void editTimer(qint64 revision, const TimeEntryUpdate &update, ActionCallback done = {});
     // Opens GET /api/app/timer/events, or returns nullptr without a bound
     // account or during a 429 cooldown. The caller reads the stream's
@@ -195,8 +182,6 @@ private:
     void fetchProjectPage(const std::shared_ptr<ProjectPages> &pages);
     QUrl api(const QString &path) const;
     QUrl app(const QString &path) const;
-    // Sends a preferences request on the route the server announces.
-    void preferencesCall(const QByteArray &method, const QByteArray &body, ApiAccess access, Callback<PomodoroConfig> done);
 
     const QString m_clientName;
     AuthSession m_session;

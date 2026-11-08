@@ -54,6 +54,14 @@ QByteArray message(const char *text)
 {
     return QByteArrayLiteral("\"") + QByteArray(text) + QByteArrayLiteral("\"");
 }
+
+// A 400 for the preference key, which the Tokkl-Error-Field header names.
+HttpResponse refusal(const QString &key, const char *text)
+{
+    HttpResponse response = FakeTransport::answer(400, message(text));
+    response.errorField = key.toLatin1();
+    return response;
+}
 }
 
 class PomodoroPreferencesTest : public QObject
@@ -95,13 +103,10 @@ class PomodoroPreferencesTest : public QObject
         });
     }
 
-    // Configure the instance and answer /me, on a current server or, with
-    // current false, on one from before the capabilities, which has no
-    // /api/app/me/preferences. Leaves the preferences read the connection
-    // triggers unanswered.
-    static bool connectAccount(Fixture &f, const QString &url, qint64 userId, qint64 workspace, bool current = true)
+    // Configure the instance and answer /me. Leaves the preferences read the
+    // connection triggers unanswered.
+    static bool connectAccount(Fixture &f, const QString &url, qint64 userId, qint64 workspace)
     {
-        f.transport.status = current ? FakeTransport::currentStatus() : FakeTransport::olderStatus();
         if (!configure(f, url)) {
             return false;
         }
@@ -158,7 +163,7 @@ private Q_SLOTS:
         // A 400 that names a key is that field's error.
         QVERIFY(f.preferences.save(200, 10, 15, 6));
         QCOMPARE(f.lastBody(), (QJsonObject{{workKey, 200}, {everyKey, 6}}));
-        f.transport.respondLast(FakeTransport::answer(400, message("Invalid pomodoro_focus_interval_in_minutes: expected an integer from 1 to 180")));
+        f.transport.respondLast(refusal(workKey, "Invalid pomodoro_focus_interval_in_minutes: expected an integer from 1 to 180"));
         QCOMPARE(f.preferences.workMinutesError(), QStringLiteral("Invalid pomodoro_focus_interval_in_minutes: expected an integer from 1 to 180"));
         QVERIFY(f.preferences.shortRestMinutesError().isEmpty());
         QVERIFY(f.preferences.longRestMinutesError().isEmpty());
@@ -170,7 +175,7 @@ private Q_SLOTS:
         // next save clears the earlier error.
         QVERIFY(f.preferences.save(50, 10, 61, 4));
         QVERIFY(f.preferences.workMinutesError().isEmpty());
-        f.transport.respondLast(FakeTransport::answer(400, message("Invalid pomodoro_long_break_interval_in_minutes: expected an integer from 1 to 60")));
+        f.transport.respondLast(refusal(longRestKey, "Invalid pomodoro_long_break_interval_in_minutes: expected an integer from 1 to 60"));
         QCOMPARE(f.preferences.longRestMinutesError(), QStringLiteral("Invalid pomodoro_long_break_interval_in_minutes: expected an integer from 1 to 60"));
         QVERIFY(f.preferences.shortRestMinutesError().isEmpty());
 
@@ -219,44 +224,32 @@ private Q_SLOTS:
         QCOMPARE(f.preferences.errorString(), QStringLiteral("Invalid pomodoro_long_break_every: expected an integer from 1 to 12"));
     }
 
-    // A server that does not announce app-preferences gets the read and the
-    // save through v9, and the app path is never asked. A refusal without
-    // the header is still read from its message.
-    void olderServerUsesV9()
+    // A refusal whose Tokkl-Error-Field header names no key is the general
+    // error, also when its message names one.
+    void aRefusalWithoutTheHeaderIsGeneral()
     {
         Fixture f;
-        QVERIFY(connectAccount(f, instanceA, 3, 7, false));
-        QCOMPARE(f.transport.requests.size(), 2);
-        QVERIFY(f.lastIs("GET", QStringLiteral("/api/v9/me/preferences")));
-        QVERIFY(f.preferences.errorString().isEmpty());
-        f.transport.respondLast(FakeTransport::answer(200, preferencesBody({30, 5, 15, 4})));
-        QCOMPARE(f.preferences.config(), (PomodoroConfig{30, 5, 15, 4}));
-        QVERIFY(f.preferences.errorString().isEmpty());
-
-        const qsizetype before = f.transport.requests.size();
-        f.preferences.refresh();
-        QCOMPARE(f.transport.requests.size(), before + 1);
-        QVERIFY(f.lastIs("GET", QStringLiteral("/api/v9/me/preferences")));
-        f.transport.respondLast(FakeTransport::answer(200, preferencesBody({30, 5, 15, 4})));
-
-        QVERIFY(f.preferences.save(30, 5, 61, 4));
-        QCOMPARE(f.transport.requests.size(), before + 2);
-        QVERIFY(f.lastIs("POST", QStringLiteral("/api/v9/me/preferences")));
-        QCOMPARE(f.lastBody(), (QJsonObject{{longRestKey, 61}}));
-        f.transport.respondLast(FakeTransport::answer(400, message("Invalid pomodoro_long_break_interval_in_minutes: expected an integer from 1 to 60")));
-        QCOMPARE(f.preferences.longRestMinutesError(), QStringLiteral("Invalid pomodoro_long_break_interval_in_minutes: expected an integer from 1 to 60"));
-        QVERIFY(f.preferences.errorString().isEmpty());
-
-        // Another account on a current server: the app path.
-        QVERIFY(connectAccount(f, instanceB, 3, 7));
-        QVERIFY(f.lastIs("GET", QStringLiteral("/tokkl/api/app/me/preferences")));
+        QVERIFY(connectAccount(f, instanceA, 3, 7));
         f.transport.respondLast(FakeTransport::answer(200, preferencesBody({25, 5, 15, 4})));
-        QVERIFY(f.preferences.save(26, 5, 15, 4));
-        QVERIFY(f.lastIs("POST", QStringLiteral("/tokkl/api/app/me/preferences")));
-        QCOMPARE(f.lastBody(), (QJsonObject{{workKey, 26}}));
-        f.transport.respondLast(FakeTransport::answer(200, preferencesBody({26, 5, 15, 4})));
-        QCOMPARE(f.preferences.config(), (PomodoroConfig{26, 5, 15, 4}));
-        QVERIFY(!f.preferences.isSaving());
+        QVERIFY(f.preferences.save(25, 5, 61, 4));
+        f.transport.respondLast(FakeTransport::answer(400, message("Invalid pomodoro_long_break_interval_in_minutes: expected an integer from 1 to 60")));
+        QVERIFY(f.preferences.longRestMinutesError().isEmpty());
+        QCOMPARE(f.preferences.errorString(), QStringLiteral("Invalid pomodoro_long_break_interval_in_minutes: expected an integer from 1 to 60"));
+    }
+
+    // A server below the floor binds no account, so nothing is read and
+    // nothing can be saved.
+    void olderServerReadsNothing()
+    {
+        Fixture f;
+        f.transport.status = FakeTransport::olderStatus();
+        QVERIFY(configure(f, instanceA));
+        f.transport.respondLast(FakeTransport::answer(200, meBody(3, 7)));
+        QCOMPARE(f.connection.state(), Connection::Error);
+        QCOMPARE(f.transport.requests.size(), 1);
+        QVERIFY(!f.preferences.isEditable());
+        QVERIFY(!f.preferences.save(30, 5, 15, 4));
+        QCOMPARE(f.transport.requests.size(), 1);
     }
 
     // On a current server a 404 from the app path is a refusal like any

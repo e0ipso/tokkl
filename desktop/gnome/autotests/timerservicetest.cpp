@@ -1904,7 +1904,9 @@ private Q_SLOTS:
         // Nothing else is sent while the save runs.
         QCOMPARE(f.result(QStringLiteral("SetPomodoroLengths"), {2, 1, 1, 2}).toBool(), false);
         const QString refused = QStringLiteral("Invalid pomodoro_focus_interval_in_minutes: expected an integer from 1 to 180");
-        f.respond(saves.first(), FakeTransport::answer(400, errorBody("Invalid pomodoro_focus_interval_in_minutes: expected an integer from 1 to 180")));
+        HttpResponse refusal = FakeTransport::answer(400, errorBody("Invalid pomodoro_focus_interval_in_minutes: expected an integer from 1 to 180"));
+        refusal.errorField = "pomodoro_focus_interval_in_minutes";
+        f.respond(saves.first(), refusal);
         const StringMap workError{{QStringLiteral("work"), refused}};
         QCOMPARE(qdbus_cast<StringMap>(f.get(QStringLiteral("PomodoroLengthErrors"))), workError);
         QCOMPARE(qdbus_cast<IntMap>(f.get(QStringLiteral("PomodoroLengths"))), lengthsMap(lengths));

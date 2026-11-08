@@ -136,26 +136,15 @@ private Q_SLOTS:
         QVERIFY(TimerView::sameChain(std::nullopt, std::nullopt));
     }
 
-    // A v9 reply holds only the entry: the state a read sent after it
-    // brings shows the change.
-    void anAppliedEntryWriteSettles()
-    {
-        MutationGate gate;
-        gate.begin();
-        QVERIFY(gate.running());
-        const MutationGate::Ending ending = gate.finish(Outcome::Applied, ApiError(), false, true);
-        QVERIFY(!gate.running());
-        QVERIFY(ending.settle);
-        QVERIFY(!ending.refresh);
-        QCOMPARE(ending.message, Message::Clear);
-    }
-
     // A timer action's reply is the state, which the client adopted.
     void anAppliedTimerActionReadsNothing()
     {
         MutationGate gate;
         gate.begin();
-        const MutationGate::Ending ending = gate.finish(Outcome::Applied, ApiError(), true, false);
+        QVERIFY(gate.running());
+        const MutationGate::Ending ending = gate.finish(Outcome::Applied, ApiError(), true);
+        QVERIFY(!gate.running());
+        QCOMPARE(ending.message, Message::Clear);
         QVERIFY(!ending.settle);
         QVERIFY(!ending.refresh);
     }
@@ -164,7 +153,7 @@ private Q_SLOTS:
     {
         MutationGate gate;
         gate.begin();
-        const MutationGate::Ending ending = gate.finish(Outcome::Unknown, error(ApiError::Kind::Timeout), false, true);
+        const MutationGate::Ending ending = gate.finish(Outcome::Unknown, error(ApiError::Kind::Timeout), false);
         QVERIFY(ending.settle);
         QVERIFY(!ending.refresh);
         QCOMPARE(ending.message, Message::Show);
@@ -175,27 +164,27 @@ private Q_SLOTS:
         MutationGate gate;
         gate.settleWhenDone(); // nothing runs: nothing to settle
         gate.begin();
-        QVERIFY(!gate.finish(Outcome::Applied, ApiError(), false, false).settle);
+        QVERIFY(!gate.finish(Outcome::Applied, ApiError(), false).settle);
         gate.begin();
         gate.settleWhenDone();
-        QVERIFY(gate.finish(Outcome::Applied, ApiError(), false, false).settle);
+        QVERIFY(gate.finish(Outcome::Applied, ApiError(), false).settle);
         // Asked once.
         gate.begin();
-        QVERIFY(!gate.finish(Outcome::Applied, ApiError(), false, false).settle);
+        QVERIFY(!gate.finish(Outcome::Applied, ApiError(), false).settle);
     }
 
     void aConflictSaysSo()
     {
         MutationGate gate;
         gate.begin();
-        QCOMPARE(gate.finish(Outcome::Conflict, error(ApiError::Kind::Client), true, false).message, Message::Conflict);
+        QCOMPARE(gate.finish(Outcome::Conflict, error(ApiError::Kind::Client), true).message, Message::Conflict);
     }
 
     void aForbiddenWriteLosesTheWorkspace()
     {
         MutationGate gate;
         gate.begin();
-        QCOMPARE(gate.finish(Outcome::Refused, error(ApiError::Kind::Forbidden), false, true).message, Message::LoseWorkspace);
+        QCOMPARE(gate.finish(Outcome::Refused, error(ApiError::Kind::Forbidden), false).message, Message::LoseWorkspace);
     }
 
     void aWriteRefusedBeforeSendingReadsNothing()
@@ -203,7 +192,7 @@ private Q_SLOTS:
         MutationGate gate;
         for (const ApiError::Kind kind : {ApiError::Kind::RateLimited, ApiError::Kind::NotConnected, ApiError::Kind::AuthenticationPaused}) {
             gate.begin();
-            const MutationGate::Ending ending = gate.finish(Outcome::Refused, error(kind), true, false);
+            const MutationGate::Ending ending = gate.finish(Outcome::Refused, error(kind), true);
             QCOMPARE(ending.message, Message::Show);
             QVERIFY(!ending.refresh);
         }
@@ -213,12 +202,12 @@ private Q_SLOTS:
     {
         MutationGate gate;
         gate.begin();
-        MutationGate::Ending ending = gate.finish(Outcome::Refused, error(ApiError::Kind::Client), true, true);
+        MutationGate::Ending ending = gate.finish(Outcome::Refused, error(ApiError::Kind::Client), true);
         QCOMPARE(ending.message, Message::Keep);
         QVERIFY(ending.refresh);
         QVERIFY(!ending.settle);
         gate.begin();
-        ending = gate.finish(Outcome::Refused, error(ApiError::Kind::Client), false, true);
+        ending = gate.finish(Outcome::Refused, error(ApiError::Kind::Client), false);
         QCOMPARE(ending.message, Message::Show);
         QVERIFY(ending.refresh);
     }
@@ -231,7 +220,7 @@ private Q_SLOTS:
         gate.reset();
         QVERIFY(!gate.running());
         gate.begin();
-        QVERIFY(!gate.finish(Outcome::Applied, ApiError(), false, false).settle);
+        QVERIFY(!gate.finish(Outcome::Applied, ApiError(), false).settle);
     }
 
     void projectChoicesOrderTheMenu()

@@ -377,14 +377,8 @@ void TimerModel::showState()
     Q_EMIT statusChanged();
 }
 
-void TimerModel::entryEnded(const TimeEntry &reply)
-{
-    m_stopReply = reply;
-}
-
 void TimerModel::resetContext()
 {
-    m_stopReply.reset();
     m_catalog->reset();
     m_next->reset();
     const Change change = stage();
@@ -498,16 +492,8 @@ void TimerModel::applyDefaults(const Change &change)
 {
     std::optional<qint64> stoppedProject;
     if (change.stopped) {
-        if (m_stopReply && m_stopReply->id == change.was->id) {
-            stoppedProject = m_stopReply->projectId;
-        } else {
-            // A pause names the project the server stopped.
-            stoppedProject = m_shown.paused() ? m_shown.chain->projectId : change.was->projectId;
-        }
-    }
-    // A stop reply counts only for the stop of the entry it names.
-    if (m_stopReply && (change.stopped || !m_shown.entry || m_stopReply->id != m_shown.entry->id)) {
-        m_stopReply.reset();
+        // A pause names the project the server stopped.
+        stoppedProject = m_shown.paused() ? m_shown.chain->projectId : change.was->projectId;
     }
     if (m_shown.entry) {
         m_next->entryRunning();

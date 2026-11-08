@@ -25,7 +25,7 @@ const QByteArray listPath = "/me/time_entries";
 const QByteArray startPath = "/app/timer/start";
 const QByteArray stopPath = "/app/timer/stop";
 const QByteArray editPath = "/app/timer/edit";
-// The v9 route of a server from before the app's start and stop.
+// The v9 create route, which a start never uses.
 const QByteArray v9StartPath = "/v9/workspaces/7/time_entries";
 
 // The account. What its server announces comes from GET /api/app/status.
@@ -212,9 +212,6 @@ class TimerControllerTest : public QObject
         TimerController timer{&clock};
         QSet<qsizetype> answered;
         qint64 revision = 0; // of the last state built
-        // connectAccount() signs in to a server from before the
-        // capabilities.
-        bool olderServer = false;
 
         Fixture()
         {
@@ -309,7 +306,6 @@ class TimerControllerTest : public QObject
                                const QJsonValue &pause = QJsonValue::Null,
                                const QJsonValue &pomodoro = QJsonValue::Null)
     {
-        f.transport.status = f.olderServer ? FakeTransport::olderStatus() : FakeTransport::currentStatus();
         f.store.secrets.insert(credentialKey(parseInstanceUrl(url), AuthMode::Token, QString()), token);
         const qsizetype before = f.transport.requests.size();
         f.connection.setInstanceUrl(url);
@@ -757,55 +753,30 @@ private Q_SLOTS:
         QCOMPARE(f.find("POST", startPath).size(), 1);
     }
 
-    // A server that does not announce timer-actions gets the v9 start,
-    // whose reply is an entry, so the state that shows it comes from a
-    // read, and the v9 stop. The app routes are never tried on it. Another
-    // account on a current server gets the app routes.
-    void olderServerGetsTheV9Writes()
+    // A server below the floor binds no account: the timer shows the
+    // connection's error, which asks for a server update, and no write or
+    // timer read goes out.
+    void olderServerIsTooOld()
     {
         Fixture f;
-        f.olderServer = true;
-        QVERIFY(connectAccount(f, instanceA, 3, 7, "null"));
-        QVERIFY(f.timer.chooseProject(11));
-        QVERIFY(f.timer.start());
-        QVERIFY(f.find("POST", startPath).isEmpty());
-        QVERIFY(f.timer.isBusy());
-        const qsizetype post = f.last("POST", v9StartPath);
-        QVERIFY(f.unanswered(post));
-        const QJsonObject body = QJsonDocument::fromJson(f.transport.requests.at(post).body).object();
-        QCOMPARE(body.value(QStringLiteral("duration")).toInt(), -1);
-        QCOMPARE(body.value(QStringLiteral("project_id")).toInteger(), 11);
-        QCOMPARE(body.value(QStringLiteral("created_with")).toString(), testClientName());
-        QVERIFY(!body.contains(QStringLiteral("revision")));
+        f.transport.status = FakeTransport::olderStatus();
+        f.store.secrets.insert(credentialKey(parseInstanceUrl(instanceA), AuthMode::Token, QString()), token);
+        f.connection.setInstanceUrl(instanceA);
+        QTRY_COMPARE(f.transport.requests.size(), 1);
+        f.respond(0, FakeTransport::answer(200, meBody(3, 7)));
+        QCOMPARE(f.timer.status(), TimerController::Error);
+        QCOMPARE(f.timer.errorString(), QStringLiteral("This Tokkl server is too old for this app; update the server."));
+        QVERIFY(!f.timer.isConnected());
+        QVERIFY(!f.timer.start());
+        QCOMPARE(f.transport.requests.size(), 1);
 
-        const qsizetype reads = f.stateReads();
-        f.respond(post, FakeTransport::answer(200, entryBody(21, 7, startedAt, true, 11)));
-        QVERIFY(f.timer.isBusy());
-        QVERIFY(!f.timer.isRunning());
-        QCOMPARE(f.stateReads(), reads + 1);
-        QVERIFY(f.answerState(entryBody(21, 7, startedAt, true, 11)));
-        QVERIFY(f.timer.isRunning());
-        QVERIFY(!f.timer.isBusy());
-
-        // The stop goes to v9, and its reply names the project the server
-        // stopped: none, as the web cleared it since the last read.
-        QVERIFY(f.timer.stop());
-        QCOMPARE(f.find("POST", stopPath).size(), 0);
-        const qsizetype stop = f.last("PATCH", "/v9/workspaces/7/time_entries/21/stop");
-        QVERIFY(f.unanswered(stop));
-        f.respond(stop, FakeTransport::answer(200, entryBody(21, 7, startedAt, false)));
-        QVERIFY(f.timer.isBusy());
-        QVERIFY(f.answerState("null"));
-        QVERIFY(!f.timer.isRunning());
-        QVERIFY(f.timer.chosenProjectId().isNull());
-        QVERIFY(f.find("POST", startPath).isEmpty());
-
-        // Another account on a current server: the app route.
-        f.olderServer = false;
-        QVERIFY(connectAccount(f, instanceB, 4, 7, "null"));
-        QVERIFY(f.timer.start());
-        QCOMPARE(f.find("POST", startPath).size(), 1);
-        QCOMPARE(f.find("POST", v9StartPath).size(), 1);
+        // Updated: a reconnect asks the server again and binds.
+        f.transport.status = FakeTransport::currentStatus();
+        f.timer.reconnect();
+        QTRY_COMPARE(f.transport.requests.size(), 2);
+        QCOMPARE(f.transport.statusRequests.size(), 2);
+        f.respond(1, FakeTransport::answer(200, meBody(3, 7)));
+        QVERIFY(f.timer.isConnected());
     }
 
     // On a current server a 404 from the app stop, an entry or workspace
@@ -1448,39 +1419,6 @@ private Q_SLOTS:
         QVERIFY(f.find("PUT", "/time_entries/5").isEmpty());
     }
 
-    // On a server without timer-edit the billable edit is a v9 PUT whose
-    // reply is an entry. What the menu shows comes from the state a read
-    // sent after the reply brings, never from the reply.
-    void billableEditShowsTheStateAfterIt()
-    {
-        Fixture f;
-        f.olderServer = true;
-        QVERIFY(connectAccount(f));
-        QVERIFY(!f.timer.chosenBillable());
-        QVERIFY(f.timer.chooseBillable(true));
-        const qsizetype put = f.last("PUT", "/time_entries/5");
-        const qsizetype readsBefore = f.stateReads();
-
-        QJsonObject edited = entryObject(5, 7, startedAt);
-        edited.insert(QStringLiteral("billable"), true);
-        f.respond(put, FakeTransport::answer(200, json(edited)));
-        QVERIFY(f.timer.isBusy());
-        QVERIFY(!f.timer.chosenBillable());
-        QCOMPARE(f.stateReads(), readsBefore + 1);
-
-        // An event from the stream shows the edit but does not end the wait:
-        // only a read sent after the reply does.
-        QVERIFY(f.push(json(edited)));
-        QVERIFY(f.timer.chosenBillable());
-        QVERIFY(f.timer.isBusy());
-        QVERIFY(f.answerState(json(edited)));
-        QVERIFY(!f.timer.isBusy());
-        QVERIFY(f.timer.chosenBillable());
-        QVERIFY(f.timer.canWrite());
-        QCOMPARE(f.find("PUT", "/time_entries/5").size(), 1);
-        QCOMPARE(f.stateReads(), readsBefore + 1);
-    }
-
     void panelStopDefaultsToTheEntryProject()
     {
         Fixture f;
@@ -1793,39 +1731,6 @@ private Q_SLOTS:
         QVERIFY(f.timer.canWrite());
         QCOMPARE(f.stateReads(), reads);
         QCOMPARE(f.find("POST", stopPath).size(), 1);
-    }
-
-    // On a server without the app routes, a v9 stop of an entry stopped or
-    // deleted elsewhere is refused with an entry error: a read shows what
-    // the server has.
-    void stoppedConflictReconciles_data()
-    {
-        QTest::addColumn<int>("status");
-        QTest::addColumn<QByteArray>("body");
-        QTest::newRow("already stopped") << 409 << QByteArray("\"Time entry already stopped\"");
-        QTest::newRow("deleted") << 404 << QByteArray("\"Time entry not found\"");
-    }
-
-    void stoppedConflictReconciles()
-    {
-        QFETCH(int, status);
-        QFETCH(QByteArray, body);
-        Fixture f;
-        f.olderServer = true;
-        QVERIFY(connectAccount(f));
-        QVERIFY(f.timer.stop());
-        f.respond(f.last("PATCH", "/v9/workspaces/7/time_entries/5/stop"), FakeTransport::answer(status, body));
-        QVERIFY(!f.timer.isBusy());
-        QVERIFY(!f.timer.errorString().isEmpty());
-        const qsizetype read = f.last("GET", statePath);
-        QVERIFY(f.unanswered(read));
-
-        f.respond(read, f.stateAnswer());
-        QVERIFY(!f.timer.isRunning());
-        QVERIFY(f.timer.errorString().isEmpty());
-        QVERIFY(f.find("POST", stopPath).isEmpty());
-        QCOMPARE(f.find("PATCH", "/stop").size(), 1);
-        QVERIFY(f.timer.canWrite());
     }
 
     void ambiguousStartIsNeverReplayed_data()

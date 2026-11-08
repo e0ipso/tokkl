@@ -334,6 +334,16 @@ public:
         setupTransport()->respond(index, FakeTransport::answer(status, body.toUtf8()));
     }
 
+    // A 400 whose Tokkl-Error-Field header names field, as the server
+    // refuses a preference.
+    Q_INVOKABLE void refuse(int index, const QString &field, const QString &body)
+    {
+        setupAnswered().insert(index);
+        HttpResponse response = FakeTransport::answer(400, body.toUtf8());
+        response.errorField = field.toLatin1();
+        setupTransport()->respond(index, response);
+    }
+
     // No HTTP answer, as when the network is down.
     Q_INVOKABLE void failNetwork(int index)
     {

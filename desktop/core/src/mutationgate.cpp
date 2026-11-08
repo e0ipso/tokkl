@@ -24,14 +24,13 @@ void MutationGate::settleWhenDone()
     }
 }
 
-MutationGate::Ending MutationGate::finish(Outcome outcome, const ApiError &error, bool start, bool entryReply)
+MutationGate::Ending MutationGate::finish(Outcome outcome, const ApiError &error, bool start)
 {
     m_running = false;
     Ending ending;
-    // The server may have acted, or did and answered with an entry only.
-    // The timer actions have asked the state client to settle already, and
-    // adopted the state of an applied one; a v9 write has done neither.
-    ending.settle = std::exchange(m_settleWhenDone, false) || outcome == Outcome::Unknown || (outcome == Outcome::Applied && entryReply);
+    // The server may have acted. The timer actions have asked the state
+    // client to settle already, and adopted the state of an applied one.
+    ending.settle = std::exchange(m_settleWhenDone, false) || outcome == Outcome::Unknown;
 
     switch (outcome) {
     case Outcome::Applied:

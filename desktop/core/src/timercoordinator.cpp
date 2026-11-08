@@ -14,15 +14,6 @@ namespace
 {
 using Outcome = TimerActionResult::Outcome;
 
-// The outcome of the billable edit, a v9 write whose reply is an entry.
-Outcome outcomeOf(const ApiError &error, bool succeeded)
-{
-    if (succeeded) {
-        return Outcome::Applied;
-    }
-    return error.outcomeUnknown() ? Outcome::Unknown : Outcome::Refused;
-}
-
 // The messages keep the context they had when the controller held them, so
 // a catalog made for it still applies.
 QString tr(const char *text)
@@ -200,7 +191,7 @@ bool TimerCoordinator::start()
     beginMutation();
 
     m_model->stateClient()->start(entry, m_epoch.guard(this, [this](const TimerActionResult &result) {
-        finishMutation(result.outcome, result.error, true, result.entry.has_value());
+        finishMutation(result.outcome, result.error, true);
     }));
     return true;
 }
@@ -223,15 +214,10 @@ bool TimerCoordinator::stop()
     if (!m_model->canWrite() || !m_model->isRunning()) {
         return false;
     }
-    const qint64 entryId = m_model->currentEntry()->id;
     beginMutation();
 
-    m_model->stateClient()->stop(entryId, m_epoch.guard(this, [this](const TimerActionResult &result) {
-        // A v9 stop's reply names the project the server stopped.
-        if (result.entry) {
-            m_state->entryEnded(*result.entry);
-        }
-        finishMutation(result.outcome, result.error, false, result.entry.has_value());
+    m_model->stateClient()->stop(m_epoch.guard(this, [this](const TimerActionResult &result) {
+        finishMutation(result.outcome, result.error);
     }));
     return true;
 }
@@ -314,18 +300,7 @@ bool TimerCoordinator::updateEntry(const TimeEntryUpdate &update)
     // start, description, tags and the rest, and it keeps running.
     const qint64 entryId = m_model->currentEntry()->id;
     beginMutation();
-    if (m_model->connection()->server().timerEdit) {
-        editRunningEntry(entryId, update, true);
-        return true;
-    }
-
-    m_model->connection()->updateEntry(entryId, update, m_epoch.guard(this, [this](const ApiResult<TimeEntry> &result) {
-        // Stopped elsewhere before the edit: the reply names its project.
-        if (result.ok() && !result.value->isRunning()) {
-            m_state->entryEnded(*result.value);
-        }
-        finishMutation(outcomeOf(result.error, result.ok()), result.error, false, true);
-    }));
+    editRunningEntry(entryId, update, true);
     return true;
 }
 
@@ -357,20 +332,20 @@ void TimerCoordinator::beginMutation()
     m_state->activityChanged();
 }
 
-void TimerCoordinator::finishMutation(Outcome outcome, const ApiError &error, bool start, bool entryReply)
+void TimerCoordinator::finishMutation(Outcome outcome, const ApiError &error, bool start)
 {
-    endMutation(outcome, error, start, entryReply);
+    endMutation(outcome, error, start);
     const bool ok = outcome == Outcome::Applied;
     Q_EMIT writeFinished(ok, ok ? QString() : (m_error.isEmpty() ? error.message : m_error));
 }
 
-void TimerCoordinator::endMutation(Outcome outcome, const ApiError &error, bool start, bool entryReply)
+void TimerCoordinator::endMutation(Outcome outcome, const ApiError &error, bool start)
 {
     if (outcome != Outcome::Applied) {
         qCInfo(lcTimer) << "Timer change ended with" << outcome << error.message;
     }
     TimerStateClient *client = m_model->stateClient();
-    const MutationGate::Ending ending = m_gate.finish(outcome, error, start, entryReply);
+    const MutationGate::Ending ending = m_gate.finish(outcome, error, start);
     if (ending.settle && client && !client->settling()) {
         client->settle();
     }

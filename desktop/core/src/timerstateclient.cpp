@@ -467,13 +467,9 @@ void TimerStateClient::start(const StartEntry &entry, ActionCallback done)
         std::move(done));
 }
 
-void TimerStateClient::stop(qint64 entryId, ActionCallback done)
+void TimerStateClient::stop(ActionCallback done)
 {
-    withRevision(
-        [entryId](Connection &connection, qint64 revision, ActionCallback adopted) {
-            connection.stopTimer(revision, entryId, std::move(adopted));
-        },
-        std::move(done));
+    withRevision(&Connection::stopTimer, std::move(done));
 }
 
 void TimerStateClient::pause(ActionCallback done)

@@ -2003,7 +2003,9 @@ private Q_SLOTS:
         window.m_saveButton->click();
         const qsizetype post = f.last("POST", "/me/preferences");
         QVERIFY(post >= 0);
-        f.respond(post, 400, QByteArrayLiteral(R"("Invalid pomodoro_long_break_interval_in_minutes: expected an integer from 1 to 60")"));
+        HttpResponse refusal = FakeTransport::answer(400, QByteArrayLiteral(R"("Invalid pomodoro_long_break_interval_in_minutes: expected an integer from 1 to 60")"));
+        refusal.errorField = "pomodoro_long_break_interval_in_minutes";
+        f.transport.respond(post, refusal);
         QTRY_VERIFY(lengthError(window, PomodoroField::LongRestMinutes)->isVisibleTo(&window));
         QCOMPARE(lengthError(window, PomodoroField::LongRestMinutes)->text(),
                  QStringLiteral("Invalid pomodoro_long_break_interval_in_minutes: expected an integer from 1 to 60"));

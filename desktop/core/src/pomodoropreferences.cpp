@@ -12,18 +12,15 @@ constexpr PomodoroField fields[] = {
     PomodoroField::LongRestEvery,
 };
 
-// The field a refused save names. A server that sends the Tokkl-Error-Field
-// header names the key there, and a key that is none of the four is no
-// field's error. An older server only says it in the message, 400 "Invalid
-// <key>: expected an integer from <min> to <max>", which is searched then.
+// The field a refused save names in its Tokkl-Error-Field header. A key
+// that is none of the four is no field's error.
 std::optional<PomodoroField> refusedField(const ApiError &error)
 {
     if (error.kind != ApiError::Kind::Client || error.status != 400) {
         return std::nullopt;
     }
     for (const PomodoroField field : fields) {
-        const QString key = pomodoroPreferenceKey(field);
-        if (error.field.isEmpty() ? error.message.contains(key) : error.field == key) {
+        if (error.field == pomodoroPreferenceKey(field)) {
             return field;
         }
     }

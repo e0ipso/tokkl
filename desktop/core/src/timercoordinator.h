@@ -43,18 +43,13 @@ class ProjectLoader;
 // the state they return. A 409 adopts the server's state, ends the action
 // and leaves a message until the next user action, so a start never
 // replaces one another device made first. The billable edit goes through
-// the timer too, against the revision shown, on a server that announces
-// timer-edit. A 409 whose state still runs the same entry is the one case
-// a write is sent twice: only the revision moved, and the edit, which only
-// sets fields, is applied once more at the new revision. Any other 409
-// shows as a conflict. On a server without timer-edit the billable edit is
-// a v9 PUT, and on one without timer-actions so are the start and stop:
-// their reply is an entry, not the state, so once one is applied the timer
-// stays busy while the client settles, until a read sent after the reply
-// brings the state that shows it. A failure that
-// leaves the outcome unknown (no answer, timeout, 5xx, unreadable answer)
-// keeps the timer busy while the client settles it the same way. No write
-// is ever sent again.
+// the timer too, against the revision shown. A 409 whose state still runs
+// the same entry is the one case a write is sent twice: only the revision
+// moved, and the edit, which only sets fields, is applied once more at the
+// new revision. Any other 409 shows as a conflict. A failure that leaves
+// the outcome unknown (no answer, timeout, 5xx, unreadable answer) keeps
+// the timer busy while the client settles it, until a read sent after the
+// failure brings a state. No write is ever sent again.
 //
 // While the state holds a Pomodoro session, start(), stop(), pause(),
 // resume() and toggle() do nothing.
@@ -68,9 +63,8 @@ class ProjectLoader;
 // answers.
 //
 // The next start defaults to the project of the last entry: of the entry
-// that stopped (as a v9 stop reply names it, when the panel stopped it), and
-// of the newest entry the API lists when a connection starts or reconnect()
-// runs with nothing running. Only an active project of the workspace counts.
+// that stopped, and of the newest entry the API lists when a connection
+// starts or reconnect() runs with nothing running. Only an active project of the workspace counts.
 //
 // chooseProject() sets only the project of the next start and is refused
 // while an entry runs, a chain is paused or a session is active: the
@@ -173,11 +167,9 @@ private:
     // The edit through the timer, against the revision held. A 409 for the
     // same running entry is applied again once, while mayReapply.
     void editRunningEntry(qint64 entryId, const TimeEntryUpdate &update, bool mayReapply);
-    // start is true for a start or resume, and entryReply for a write that
-    // went to v9, whose reply is an entry rather than the whole state, so
-    // the state that shows it comes from a read.
-    void finishMutation(TimerActionResult::Outcome outcome, const ApiError &error, bool start = false, bool entryReply = false);
-    void endMutation(TimerActionResult::Outcome outcome, const ApiError &error, bool start, bool entryReply);
+    // start is true for a start or resume.
+    void finishMutation(TimerActionResult::Outcome outcome, const ApiError &error, bool start = false);
+    void endMutation(TimerActionResult::Outcome outcome, const ApiError &error, bool start);
     void loseWorkspace(const ApiError &error);
     void setError(const QString &error);
     // Clears the message of a refused start or resume, or of a 409, on a

@@ -32,7 +32,13 @@ inline QJsonObject currentServerApi()
     return QJsonObject{
         {QStringLiteral("api_version"), 1},
         {QStringLiteral("capabilities"),
-         QJsonArray{QStringLiteral("app-preferences"), QStringLiteral("timer-actions"), QStringLiteral("timer-edit"), QStringLiteral("pomodoro-revision")}},
+         QJsonArray{QStringLiteral("app-preferences"),
+                    QStringLiteral("timer-actions"),
+                    QStringLiteral("timer-edit"),
+                    QStringLiteral("pomodoro-revision"),
+                    QStringLiteral("pause-revision"),
+                    QStringLiteral("timer-edit-entry"),
+                    QStringLiteral("idempotency-keys")}},
     };
 }
 
@@ -93,8 +99,8 @@ class FakeTransport : public Tokkl::Transport
 public:
     using Tokkl::Transport::Transport;
 
-    // GET /api/app/status of a server from before the announcement, and of
-    // a current one.
+    // GET /api/app/status of a server from before the announcement, which
+    // this app no longer supports, and of a current one.
     static Tokkl::HttpResponse olderStatus()
     {
         return answer(200, R"({"setup_required":false})");
@@ -191,7 +197,7 @@ public:
     QList<Tokkl::HttpRequest> requests;
     QList<QPointer<FakeReply>> replies;
     // The answer GET /api/app/status gets, and whether it waits for the test.
-    Tokkl::HttpResponse status = olderStatus();
+    Tokkl::HttpResponse status = currentStatus();
     bool holdStatus = false;
     QList<Tokkl::HttpRequest> statusRequests;
     QList<QPointer<FakeReply>> statusReplies;

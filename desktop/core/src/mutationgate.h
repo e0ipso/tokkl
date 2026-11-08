@@ -11,10 +11,8 @@ namespace Tokkl
 // A write whose outcome is unknown (no answer, timeout, 5xx, unreadable
 // answer) leaves the state to settle: the controller stays busy until a read
 // sent after the failure brings a state, and never sends the write again.
-// The same holds for a write that was in flight when the workspace was lost,
-// and for an applied v9 write (the billable edit, start or stop on a server
-// without the timer-edit or timer-actions capability), whose reply is an entry rather than the
-// state: the state a read sent after it brings is what the panel shows.
+// The same holds for a write that was in flight when the workspace was lost:
+// the state a read sent after it brings is what the panel shows.
 class MutationGate
 {
 public:
@@ -41,9 +39,8 @@ public:
     void begin();
     // The workspace was lost. A write in flight settles once it answers.
     void settleWhenDone();
-    // Ends the write. start is true for a start or a resume, and entryReply
-    // for a v9 write, whose reply is an entry rather than the whole state.
-    Ending finish(TimerActionResult::Outcome outcome, const ApiError &error, bool start, bool entryReply);
+    // Ends the write. start is true for a start or a resume.
+    Ending finish(TimerActionResult::Outcome outcome, const ApiError &error, bool start);
     // Forgets the write, as for a new generation.
     void reset();
 

@@ -296,17 +296,40 @@ private:
                        .toJson(QJsonDocument::Compact);
         } else if (request.path.endsWith("/me/time_entries/current")) {
             body = "null";
-        } else if (request.method == "POST" && request.path.endsWith("/api/v9/workspaces/7/time_entries")) {
+        } else if (request.path.endsWith("/api/app/status")) {
+            // A server at the floor the core supports.
             body = QJsonDocument(QJsonObject{
-                                     {QStringLiteral("id"), 5},
-                                     {QStringLiteral("workspace_id"), 7},
-                                     {QStringLiteral("project_id"), QJsonValue::Null},
-                                     {QStringLiteral("billable"), false},
-                                     {QStringLiteral("start"), QStringLiteral("2026-10-16T08:00:00+00:00")},
-                                     {QStringLiteral("stop"), QJsonValue::Null},
-                                     {QStringLiteral("duration"), -1792137600},
-                                     {QStringLiteral("description"), QString()},
-                                     {QStringLiteral("tags"), QJsonArray()},
+                                     {QStringLiteral("setup_required"), false},
+                                     {QStringLiteral("api_version"), 1},
+                                     {QStringLiteral("capabilities"),
+                                      QJsonArray{QStringLiteral("app-preferences"),
+                                                 QStringLiteral("timer-actions"),
+                                                 QStringLiteral("timer-edit"),
+                                                 QStringLiteral("pomodoro-revision"),
+                                                 QStringLiteral("pause-revision"),
+                                                 QStringLiteral("timer-edit-entry"),
+                                                 QStringLiteral("idempotency-keys")}},
+                                 })
+                       .toJson(QJsonDocument::Compact);
+        } else if (request.method == "POST" && request.path.endsWith("/api/app/timer/start")) {
+            body = QJsonDocument(QJsonObject{
+                                     {QStringLiteral("revision"), 1},
+                                     {QStringLiteral("server_time"), QStringLiteral("2026-10-16T08:00:00Z")},
+                                     {QStringLiteral("running_entry"),
+                                      QJsonObject{
+                                          {QStringLiteral("id"), 5},
+                                          {QStringLiteral("workspace_id"), 7},
+                                          {QStringLiteral("project_id"), QJsonValue::Null},
+                                          {QStringLiteral("billable"), false},
+                                          {QStringLiteral("start"), QStringLiteral("2026-10-16T08:00:00+00:00")},
+                                          {QStringLiteral("stop"), QJsonValue::Null},
+                                          {QStringLiteral("duration"), -1792137600},
+                                          {QStringLiteral("description"), QString()},
+                                          {QStringLiteral("tags"), QJsonArray()},
+                                      }},
+                                     {QStringLiteral("pause"), QJsonValue::Null},
+                                     {QStringLiteral("pomodoro"), QJsonValue::Null},
+                                     {QStringLiteral("discarded_pomodoro"), QJsonValue::Null},
                                  })
                        .toJson(QJsonDocument::Compact);
         }
@@ -557,8 +580,8 @@ private Q_SLOTS:
         StartEntry start;
         start.start = QDateTime::currentDateTimeUtc();
         bool started = false;
-        connection.startEntry(start, [&started](const ApiResult<TimeEntry> &result) {
-            started = result.ok() && result.value->isRunning();
+        connection.startTimer(0, start, [&started](const TimerActionResult &result) {
+            started = result.outcome == TimerActionResult::Outcome::Applied && result.state && result.state->runningEntry;
         });
         QTRY_VERIFY(started);
 
@@ -566,7 +589,7 @@ private Q_SLOTS:
             return request.method == "POST";
         });
         QVERIFY(posted != m_server.requests.cend());
-        QCOMPARE(posted->path, QByteArray("/client/api/v9/workspaces/7/time_entries"));
+        QCOMPARE(posted->path, QByteArray("/client/api/app/timer/start"));
         QCOMPARE(QJsonDocument::fromJson(posted->body).object().value(QLatin1String("created_with")).toString(), QStringLiteral("tokkl-kde"));
         for (const ReceivedRequest &request : std::as_const(m_server.requests)) {
             if (request.path.startsWith("/client/")) {

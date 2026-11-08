@@ -22,10 +22,13 @@ namespace Tokkl
 // email; the secret comes from the credential store. SessionCredentials
 // holds both. GET /api/v9/me validates them and binds the account and its
 // default workspace to the current generation. Before the first /me of a
-// generation, GET /api/app/status reads what the server announces, so the
-// routes are known once the account is bound. A failed or older answer
-// announces nothing, and the account binds all the same. Until the server
-// answers it, each later /me of the generation asks again first.
+// generation, GET /api/app/status reads what the server announces. An
+// account binds only on a server at ServerFloor or newer; an older one, or
+// one that announces nothing, leaves the state Error with a message that
+// asks for a server update. A status read that fails as /me can (no answer,
+// a timeout, a 5xx or a 429) fails the validation the same way, without
+// sending /me. Until the server announces a supported API, each later
+// validation of the generation asks again first.
 //
 // Changing a setting or the stored secret starts a new generation: the
 // account is cleared at once, requests in flight are aborted, and replies
@@ -123,12 +126,11 @@ private:
         quint64 generation = 0;
         Me me;
     };
-    // The GET /api/app/status of one generation. known once the server
-    // answered it; no answer, a timeout or a 5xx leaves it unknown.
+    // The GET /api/app/status of one generation. A failed read leaves
+    // server empty, which is below the floor.
     struct Announcement {
         quint64 generation = 0;
         bool pending = false;
-        bool known = false;
         ServerApi server;
     };
 
@@ -141,6 +143,8 @@ private:
     void readAnnouncement();
     void sendMe();
     void handleMe(const HttpResponse &response);
+    // A failed /me, or a failed status read before it.
+    void handleFailure(const HttpResponse &response, const ApiError &error);
     void refuseCredentials(const ApiError &error);
     void pauseAuthentication(const QString &message);
     void bind(const Me &me);

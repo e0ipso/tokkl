@@ -128,12 +128,10 @@ class TimerStateClientTest : public QObject
         }
     };
 
-    // Configure token auth for the instance and answer /me, on a current
-    // server or, with current false, on one from before the capabilities.
-    // The client then reads the state and opens the stream.
-    static bool connectAccount(Fixture &f, const QString &url = instanceA, qint64 userId = 3, bool current = true)
+    // Configure token auth for the instance and answer /me. The client then
+    // reads the state and opens the stream.
+    static bool connectAccount(Fixture &f, const QString &url = instanceA, qint64 userId = 3)
     {
-        f.transport.status = current ? FakeTransport::currentStatus() : FakeTransport::olderStatus();
         f.store.secrets.insert(credentialKey(parseInstanceUrl(url), AuthMode::Token, QString()), token);
         const qsizetype before = f.transport.requests.size();
         f.connection.setInstanceUrl(url);
@@ -517,8 +515,7 @@ private Q_SLOTS:
 
     // A Pomodoro start applies to the state the user saw: refused without
     // one, sent with its revision, and a 409 brings the server's state,
-    // which the client adopts. A server without pomodoro-revision gets no
-    // revision.
+    // which the client adopts.
     void pomodoroStartCarriesTheRevision()
     {
         Fixture f;
@@ -541,13 +538,6 @@ private Q_SLOTS:
         QVERIFY(results.last().outcome == TimerActionResult::Outcome::Conflict);
         QCOMPARE(f.client.state()->revision, 7);
         QCOMPARE(f.find("POST", QStringLiteral("/api/app/pomodoro")).size(), 1);
-
-        QVERIFY(connectAccount(f, instanceB, 3, false));
-        f.answerRead(stateBody(2, f.clock.now()));
-        f.client.startPomodoro(PomodoroStart(), record);
-        post = f.transport.requests.size() - 1;
-        QVERIFY(f.transport.requests.at(post).url.path().endsWith(QLatin1String("/api/app/pomodoro")));
-        QVERIFY(!QJsonDocument::fromJson(f.transport.requests.at(post).body).object().contains(QLatin1String("revision")));
     }
 
     // Each action posts to its route and takes the state it gets back, on

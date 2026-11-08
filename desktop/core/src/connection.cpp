@@ -247,59 +247,24 @@ void Connection::fetchRecentEntries(Callback<QList<ListedEntry>> done)
     m_session.api().call<QList<ListedEntry>>("GET", api(QStringLiteral("/me/time_entries?meta=true")), QByteArray(), ApiAccess::Read, &decodeListedEntries, std::move(done));
 }
 
-void Connection::startEntry(const StartEntry &entry, Callback<TimeEntry> done)
-{
-    const qint64 workspace = workspaceId();
-    m_session.api().call<TimeEntry>("POST",
-                                    api(QStringLiteral("/workspaces/%1/time_entries").arg(workspace)),
-                                    encodeStartEntry(entry, workspace, m_clientName),
-                                    ApiAccess::Write,
-                                    &decodeTimeEntry,
-                                    std::move(done));
-}
-
-void Connection::stopEntry(qint64 entryId, Callback<TimeEntry> done)
-{
-    m_session.api().call<TimeEntry>("PATCH",
-                                    api(QStringLiteral("/workspaces/%1/time_entries/%2/stop").arg(workspaceId()).arg(entryId)),
-                                    QByteArray(),
-                                    ApiAccess::Write,
-                                    &decodeTimeEntry,
-                                    std::move(done));
-}
-
-void Connection::updateEntry(qint64 entryId, const TimeEntryUpdate &update, Callback<TimeEntry> done)
-{
-    m_session.api().call<TimeEntry>("PUT",
-                                    api(QStringLiteral("/workspaces/%1/time_entries/%2").arg(workspaceId()).arg(entryId)),
-                                    encodeTimeEntryUpdate(update),
-                                    ApiAccess::Write,
-                                    &decodeTimeEntry,
-                                    std::move(done));
-}
-
 void Connection::fetchPreferences(Callback<PomodoroConfig> done)
 {
-    preferencesCall("GET", QByteArray(), ApiAccess::Read, std::move(done));
+    m_session.api().call<PomodoroConfig>("GET", app(QStringLiteral("/me/preferences")), QByteArray(), ApiAccess::Read, &decodePomodoroPreferences, std::move(done));
 }
 
 void Connection::savePreferences(const PomodoroConfigUpdate &update, Callback<PomodoroConfig> done)
 {
-    preferencesCall("POST", encodePomodoroConfigUpdate(update), ApiAccess::Write, std::move(done));
+    m_session.api().call<PomodoroConfig>("POST",
+                                         app(QStringLiteral("/me/preferences")),
+                                         encodePomodoroConfigUpdate(update),
+                                         ApiAccess::Write,
+                                         &decodePomodoroPreferences,
+                                         std::move(done));
 }
 
 ServerApi Connection::server() const
 {
     return m_session.server();
-}
-
-void Connection::preferencesCall(const QByteArray &method, const QByteArray &body, ApiAccess access, Callback<PomodoroConfig> done)
-{
-    // A server without the app route has the v9 one, whose refusals name
-    // the field only in their message.
-    const QString path = QStringLiteral("/me/preferences");
-    const QUrl url = server().appPreferences ? app(path) : api(path);
-    m_session.api().call<PomodoroConfig>(method, url, body, access, &decodePomodoroPreferences, std::move(done));
 }
 
 void Connection::fetchTimerState(Callback<TimerState> done)
@@ -324,9 +289,7 @@ void Connection::discardPause(qint64 revision, ActionCallback done)
 
 void Connection::startPomodoro(qint64 revision, const PomodoroStart &start, ActionCallback done)
 {
-    // A server without pomodoro-revision starts whatever the timer holds.
-    const std::optional<qint64> checked = server().pomodoroRevision ? std::optional(revision) : std::nullopt;
-    m_session.api().action(app(QStringLiteral("/pomodoro")), encodePomodoroStart(start, workspaceId(), m_clientName, checked), std::move(done));
+    m_session.api().action(app(QStringLiteral("/pomodoro")), encodePomodoroStart(start, workspaceId(), m_clientName, revision), std::move(done));
 }
 
 void Connection::nextPomodoroPhase(qint64 revision, ActionCallback done)
@@ -339,46 +302,13 @@ void Connection::endPomodoro(qint64 revision, ActionCallback done)
     m_session.api().action(app(QStringLiteral("/pomodoro/end")), encodeRevision(revision), std::move(done));
 }
 
-namespace
-{
-TimerActionResult entryWrite(const ApiResult<TimeEntry> &reply)
-{
-    TimerActionResult result;
-    result.error = reply.error;
-    if (reply.ok()) {
-        result.outcome = TimerActionResult::Outcome::Applied;
-        result.entry = *reply.value;
-    } else {
-        result.outcome = reply.error.outcomeUnknown() ? TimerActionResult::Outcome::Unknown : TimerActionResult::Outcome::Refused;
-    }
-    return result;
-}
-
-Connection::Callback<TimeEntry> asAction(Connection::ActionCallback done)
-{
-    return [done = std::move(done)](const ApiResult<TimeEntry> &reply) {
-        if (done) {
-            done(entryWrite(reply));
-        }
-    };
-}
-}
-
 void Connection::startTimer(qint64 revision, const StartEntry &entry, ActionCallback done)
 {
-    if (!server().timerActions) {
-        startEntry(entry, asAction(std::move(done)));
-        return;
-    }
     m_session.api().action(app(QStringLiteral("/timer/start")), encodeTimerStart(revision, entry, workspaceId(), m_clientName), std::move(done));
 }
 
-void Connection::stopTimer(qint64 revision, qint64 entryId, ActionCallback done)
+void Connection::stopTimer(qint64 revision, ActionCallback done)
 {
-    if (!server().timerActions) {
-        stopEntry(entryId, asAction(std::move(done)));
-        return;
-    }
     m_session.api().action(app(QStringLiteral("/timer/stop")), encodeRevision(revision), std::move(done));
 }
 

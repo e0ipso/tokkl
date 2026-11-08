@@ -93,11 +93,9 @@ public:
     // The connection's timer actions. The ones that apply to a revision send
     // the one held, and are refused without sending while no state is held.
     //
-    // A start, or a stop of the running entry, entryId. On a server without
-    // timer-actions they go to v9 and answer with the entry instead of the
-    // state; see Connection::startTimer(). The caller settles that.
+    // A start, or a stop of the running entry.
     void start(const StartEntry &entry, ActionCallback done = {});
-    void stop(qint64 entryId, ActionCallback done = {});
+    void stop(ActionCallback done = {});
     void pause(ActionCallback done = {});
     void resume(ActionCallback done = {});
     void discard(ActionCallback done = {});
@@ -107,10 +105,10 @@ public:
     void nextPhase(ActionCallback done = {}) override;
     void endPomodoro(ActionCallback done = {}) override;
 
-    // A write made elsewhere, such as a v9 edit, had an unknown outcome or
-    // answered with less than the state: read the state and stay settling
-    // until a read sent from now on answers. The actions above do this
-    // themselves for an unknown outcome.
+    // A write had an unknown outcome, or was in flight when the workspace
+    // was lost: read the state and stay settling until a read sent from now
+    // on answers. The actions above do this themselves for an unknown
+    // outcome.
     void settle();
 
 public Q_SLOTS:

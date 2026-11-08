@@ -74,24 +74,37 @@ std::optional<TransitionKind> parseTransitionKind(QStringView name);
 bool isTimeResolution(qint64 minutes);
 
 // What the server's /api/app offers, as GET /api/app/status announces it in
-// api_version and capabilities. A server from before the announcement
-// sends neither and has none of the capabilities; names the client does not
-// know are ignored. The client picks its routes from these and never from
-// a 404, which a current server also answers for a missing project or
-// workspace.
+// api_version and capabilities. A server from before the announcement sends
+// neither. The client never picks a route from a 404, which a current
+// server also answers for a missing project or workspace.
 struct ServerApi {
     // 0 when the server announces no version.
     qint64 version = 0;
-    // "app-preferences": GET and POST /api/app/me/preferences.
-    bool appPreferences = false;
-    // "timer-actions": the revisioned start and stop under /api/app/timer.
-    bool timerActions = false;
-    // "timer-edit": POST /api/app/timer/edit.
-    bool timerEdit = false;
-    // "pomodoro-revision": POST /api/app/pomodoro checks a revision.
-    bool pomodoroRevision = false;
+    // The capability names as announced, also the ones this client does not
+    // know.
+    QStringList capabilities;
+
+    // The server is ServerFloor or newer.
+    bool isSupported() const;
 
     bool operator==(const ServerApi &other) const = default;
+};
+
+// The oldest Tokkl server this app supports, stated here and nowhere else:
+// the first release after 2.1.0. Its GET /api/app/status announces
+// api_version 1 and these capabilities, and the client relies on each:
+//   "app-preferences": GET and POST /api/app/me/preferences.
+//   "timer-actions": the revisioned start and stop under /api/app/timer.
+//   "pause-revision": POST /api/app/timer/pause checks a revision.
+//   "pomodoro-revision": POST /api/app/pomodoro checks a revision.
+//   "timer-edit-entry": POST /api/app/timer/edit names the running entry.
+//   "idempotency-keys": the timer and Pomodoro starts take an
+//   Idempotency-Key.
+// Against an older server no account binds, and the connection says the
+// server needs an update.
+struct ServerFloor {
+    static constexpr qint64 apiVersion = 1;
+    static QStringList capabilities();
 };
 
 // GET /api/v9/me. The response also carries api_token, which is a credential
@@ -163,8 +176,7 @@ struct ListedEntry {
     bool projectBillable = false;
 };
 
-// A running entry to start: the body of POST /api/app/timer/start, or of POST
-// /workspaces/{wid}/time_entries on a server without that route. A task and
+// A running entry to start: the body of POST /api/app/timer/start. A task and
 // tags are sent only when set. Tags go by name, and the server creates a name
 // the workspace lacks.
 struct StartEntry {
@@ -176,8 +188,10 @@ struct StartEntry {
     QStringList tags;
 };
 
-// Fields to change with PUT /workspaces/{wid}/time_entries/{id}. Unset fields
-// are left out of the request, so the server keeps them. A project or task of
+// Fields to change on an entry, with POST /api/app/timer/edit for the
+// running one (encodeTimerEdit) or PUT /workspaces/{wid}/time_entries/{id}
+// (encodeTimeEntryUpdate). Unset fields are left out of the request, so the
+// server keeps them. A project or task of
 // std::nullopt inside the outer optional is sent as null and clears it.
 struct TimeEntryUpdate {
     std::optional<QString> description;
@@ -358,17 +372,14 @@ public:
     Outcome outcome = Outcome::Unknown;
     std::optional<TimerState> state; // for Applied and Conflict
     ApiError error; // Kind::None for Applied
-    // For an Applied start or stop that went to a v9 entry route instead,
-    // on a server without the app route: the entry it answered with, and
-    // no state.
-    std::optional<TimeEntry> entry;
 };
 
 // Decoders for the API's bare JSON bodies. Each returns nullopt when the
 // value does not have the expected shape.
 std::optional<Me> decodeMe(const QJsonValue &value);
 // The api_version and capabilities of a GET /api/app/status object. Never
-// fails: a field missing or unreadable reads as not announced.
+// fails: a field missing or unreadable reads as not announced, which leaves
+// the server below ServerFloor.
 ServerApi decodeServerApi(const QJsonObject &status);
 std::optional<Project> decodeProject(const QJsonValue &value);
 std::optional<QList<Project>> decodeProjects(const QJsonValue &value);
@@ -400,12 +411,11 @@ ApiError errorFromResponse(const HttpResponse &response);
 ApiResult<Me> meFromResponse(const HttpResponse &response);
 
 // What an answer to GET /api/app/status announces. Anything but a 2xx JSON
-// object, such as a failure or an older server's 404, announces nothing.
+// object, such as an older server's 404, announces nothing.
 ServerApi serverApiFromResponse(const HttpResponse &response);
 
-// createdWith names the client that starts the entry. The v9 body carries
-// duration -1; the timer start carries the revision it applies to instead.
-QByteArray encodeStartEntry(const StartEntry &entry, qint64 workspaceId, const QString &createdWith);
+// createdWith names the client that starts the entry, and revision is the
+// state it applies to.
 QByteArray encodeTimerStart(qint64 revision, const StartEntry &entry, qint64 workspaceId, const QString &createdWith);
 QByteArray encodeTimeEntryUpdate(const TimeEntryUpdate &update);
 // POST /api/app/timer/edit: the fields update sets, apart from start, and
@@ -415,8 +425,8 @@ QByteArray encodePomodoroConfigUpdate(const PomodoroConfigUpdate &update);
 // {"revision":n}, for an action that applies only to the state it was sent
 // against.
 QByteArray encodeRevision(qint64 revision);
-// With a revision, the server starts the session only on the state the
+// The server starts the session only on the state at revision, the one the
 // user saw.
-QByteArray encodePomodoroStart(const PomodoroStart &start, qint64 workspaceId, const QString &createdWith, std::optional<qint64> revision = std::nullopt);
+QByteArray encodePomodoroStart(const PomodoroStart &start, qint64 workspaceId, const QString &createdWith, qint64 revision);
 
 }

@@ -331,7 +331,7 @@ Item {
                 pomodoro_long_break_every: 4
             });
             const reason = "Invalid pomodoro_long_break_every: expected an integer from 1 to 12";
-            network.respond(post, 400, JSON.stringify(reason));
+            network.refuse(post, "pomodoro_long_break_every", JSON.stringify(reason));
 
             const error = findChild(field("longRestEvery"), "error");
             verify(error);
@@ -372,7 +372,7 @@ Item {
             page.destroy();
             tryVerify(() => lengths === null, 3000, "the page and its lengths client are gone");
             const reason = "Invalid pomodoro_focus_interval_in_minutes: expected an integer from 1 to 180";
-            network.respond(post, 400, JSON.stringify(reason));
+            network.refuse(post, "pomodoro_focus_interval_in_minutes", JSON.stringify(reason));
             compare(status.refusal, reason);
 
             // The next save of the account clears it.
