@@ -20,10 +20,11 @@ namespace Tokkl
 
 // The timer's actions and what keeps them safe: start, stop, pause, resume
 // and the project and billable choices, the connection they act on, the
-// settling of each write, the recovery from a lost workspace, and the
-// next-start defaults. It drives a TimerModel, which shows the result; the
-// model's canWrite() is what every action asks first. A Pomodoro session
-// works with it through TimerActions.
+// settling of each write and the recovery from a lost workspace. It drives
+// a TimerModel through the model's interface for it; the model shows the
+// result, owns the project catalog and the next start's selection, and
+// applies the next-start defaults. The model's canWrite() is what every
+// action asks first. A Pomodoro session works with it through TimerActions.
 //
 // The timer state is the server's, from a TimerStateClient, and the
 // connection is the client's. The client reads the state, follows its event
@@ -145,9 +146,6 @@ private:
     void reset();
     void beginMutation();
     void fetchProjects();
-    // Shows the state held, with the next-start defaults the change asks
-    // for applied before the panels hear of it.
-    void applyView();
     bool updateEntry(const TimeEntryUpdate &update);
     // start is true for a start or resume, and entryReply for a v9 write,
     // whose reply is an entry rather than the whole state, so the state
@@ -170,11 +168,6 @@ private:
     // The data of the current context was requested once.
     bool m_loaded = false;
 
-    // The server's reply to a stop or edit from here that ended the entry
-    // shown. It names the project the server stopped, which another device
-    // may have changed since the last state; the state that shows the stop
-    // uses it for the next-start default.
-    std::optional<TimeEntry> m_stopReply;
     QString m_error;
 
     // The write that runs, and the settling a lost workspace asks of it.

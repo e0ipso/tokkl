@@ -27,6 +27,11 @@ TimerModel::TimerModel(QObject *parent)
     connect(m_next, &NextStartSelection::changed, this, &TimerModel::selectionChanged);
     connect(m_catalog, &ProjectCatalog::listChanged, this, &TimerModel::projectsChanged);
     connect(m_catalog, &ProjectCatalog::projectResolved, this, &TimerModel::resolveProject);
+    connect(m_catalog, &ProjectCatalog::listLoaded, this, [this] {
+        m_next->listLoaded();
+        resolveProject();
+    });
+    connect(m_catalog, &ProjectCatalog::readFailed, this, &TimerModel::onProjectReadFailed);
     connect(m_chosen, &ChosenProject::entryProjectChanged, this, &TimerModel::entryProjectChanged);
     connect(m_chosen, &ChosenProject::indicatorChanged, this, &TimerModel::indicatorChanged);
     connect(this, &TimerModel::selectionChanged, this, &TimerModel::choiceChanged);
@@ -69,16 +74,6 @@ void TimerModel::bind(TimerStateClient *client, Clock *clock)
 Clock *TimerModel::clock() const
 {
     return m_clock;
-}
-
-ProjectCatalog *TimerModel::catalog() const
-{
-    return m_catalog;
-}
-
-NextStartSelection *TimerModel::next() const
-{
-    return m_next;
 }
 
 TimerStateClient *TimerModel::stateClient() const
@@ -342,7 +337,7 @@ QString TimerModel::formatElapsed(qint64 seconds)
     return QStringLiteral("%1:%2").arg(seconds / 3600).arg((seconds % 3600) / 60, 2, 10, QLatin1Char('0'));
 }
 
-// ----- driven by the coordinator -------------------------------------------
+// ----- driven by TimerCoordinator ------------------------------------------
 
 const std::optional<TimerState> &TimerModel::heldState() const
 {
@@ -353,6 +348,98 @@ const std::optional<TimerState> &TimerModel::heldState() const
 bool TimerModel::readable() const
 {
     return m_connection && m_connection->isConnected() && !workspaceAccessLost() && !m_connection->rateLimitedUntil().isValid();
+}
+
+void TimerModel::showState()
+{
+    const Change change = stage();
+    applyDefaults(change);
+    publish(change);
+}
+
+void TimerModel::entryEnded(const TimeEntry &reply)
+{
+    m_stopReply = reply;
+}
+
+void TimerModel::resetContext()
+{
+    m_stopReply.reset();
+    m_catalog->reset();
+    m_next->reset();
+    showState();
+    m_catalog->clearList();
+    resolveProject();
+}
+
+void TimerModel::forgetWorkspace()
+{
+    m_catalog->forget();
+    showState();
+    m_catalog->clearList();
+    m_next->forget();
+}
+
+void TimerModel::fetchProjects()
+{
+    if (readable()) {
+        m_catalog->fetch(m_connection);
+    }
+}
+
+NextStartSelection::Choice TimerModel::nextStart() const
+{
+    return {m_next->projectId(), m_next->billable()};
+}
+
+void TimerModel::startSent()
+{
+    m_next->started();
+}
+
+std::optional<NextStartSelection::Choice> TimerModel::choiceFor(const QVariant &projectId) const
+{
+    return NextStartSelection::forProject(projectId, m_catalog->projects());
+}
+
+void TimerModel::pick(const NextStartSelection::Choice &choice)
+{
+    m_next->pick(choice);
+}
+
+void TimerModel::pickProjectId(const QVariant &projectId)
+{
+    m_next->pickProjectId(projectId);
+}
+
+void TimerModel::pickBillable(bool billable)
+{
+    m_next->pickBillable(billable);
+}
+
+void TimerModel::wantLastEntry()
+{
+    m_next->wantLastEntry();
+}
+
+void TimerModel::readLastEntryIfWanted()
+{
+    // The first state of a connection. A running entry sets the default
+    // when it stops; otherwise ask for the last one.
+    if (!isSessionActive() && m_next->takeLastEntryWanted() && !isRunning() && readable()) {
+        m_next->readLastEntry([this] {
+            return !workspaceAccessLost() && !isRunning();
+        });
+    }
+}
+
+void TimerModel::onProjectReadFailed(const ApiError &error)
+{
+    if (error.kind == ApiError::Kind::Forbidden) {
+        Q_EMIT workspaceRefused(error);
+    } else {
+        Q_EMIT statusChanged();
+    }
 }
 
 TimerModel::Change TimerModel::stage()
@@ -366,6 +453,29 @@ TimerModel::Change TimerModel::stage()
     change.stopped = change.was.has_value() && !shown.entry.has_value() && heldState() && !workspaceAccessLost() && !shown.session;
     m_shown = shown;
     return change;
+}
+
+void TimerModel::applyDefaults(const Change &change)
+{
+    std::optional<qint64> stoppedProject;
+    if (change.stopped) {
+        if (m_stopReply && m_stopReply->id == change.was->id) {
+            stoppedProject = m_stopReply->projectId;
+        } else {
+            // A pause names the project the server stopped.
+            stoppedProject = m_shown.paused() ? m_shown.chain->projectId : change.was->projectId;
+        }
+    }
+    // A stop reply counts only for the stop of the entry it names.
+    if (m_stopReply && (change.stopped || !m_shown.entry || m_stopReply->id != m_shown.entry->id)) {
+        m_stopReply.reset();
+    }
+    if (m_shown.entry) {
+        m_next->entryRunning();
+    }
+    if (change.stopped) {
+        m_next->stopped(stoppedProject);
+    }
 }
 
 void TimerModel::publish(const Change &change)
