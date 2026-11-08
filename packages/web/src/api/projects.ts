@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useWid } from './account.ts';
 import { api } from './client.ts';
+import { postCreate } from './idempotency.ts';
 import { invalidate } from './invalidate.ts';
 import { keys, stale } from './keys.ts';
 import { V9, wsPath } from './paths.ts';
@@ -62,15 +63,19 @@ export interface ProjectBody {
 /** What happens to a deleted project's entries: they lose the project, or go to the trash. */
 export type ProjectDeletionMode = 'unassign' | 'delete';
 
-/** Project and task writes. Pass them to a mutation together with the matching `stale` list. */
+/**
+ * Project and task writes. Pass them to a mutation together with the matching `stale` list. A
+ * create carries an `Idempotency-Key` (`postCreate` in idempotency.ts).
+ */
 export const projectRequests = {
-  create: (wid: number, body: Partial<Project> & { name: string }) => api.post<Project>(wsPath(wid, 'projects'), body),
+  create: (wid: number, body: Partial<Project> & { name: string }) =>
+    postCreate<Project>(wsPath(wid, 'projects'), body),
   update: (wid: number, id: number, body: Partial<ProjectBody> & { active?: boolean }) =>
     api.put<Project>(wsPath(wid, 'projects', id), body),
   remove: (wid: number, id: number, mode: ProjectDeletionMode) =>
     api.delete(`${wsPath(wid, 'projects', id)}?teDeletionMode=${mode}`),
   createTask: (wid: number, projectId: number, name: string) =>
-    api.post<Task>(wsPath(wid, 'projects', projectId, 'tasks'), { name }),
+    postCreate<Task>(wsPath(wid, 'projects', projectId, 'tasks'), { name }),
   updateTask: (wid: number, projectId: number, id: number, changes: Partial<Pick<Task, 'name' | 'active'>>) =>
     api.put<Task>(wsPath(wid, 'projects', projectId, 'tasks', id), changes),
   removeTask: (wid: number, projectId: number, id: number) =>

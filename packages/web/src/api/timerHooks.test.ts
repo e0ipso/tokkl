@@ -6,6 +6,7 @@ import { ApiError, UnparsableReplyError, api } from './client.ts';
 import {
   acceptTimerState,
   attemptTimerRequest,
+  pauseTimer,
   startPomodoro,
   startTimer,
   stopTimer,
@@ -105,14 +106,16 @@ test('the running entry lives only in the timer state, so an older reply cannot 
  */
 function answering(...replies: Array<{ status: number; body?: unknown; raw?: string } | { fail: Error }>) {
   const sent: Array<{ path: string; method: string; body: unknown }> = [];
+  const keys: Array<string | undefined> = [];
   const fetch = (path: string, init: RequestInit) => {
     sent.push({ path, method: init.method ?? 'GET', body: init.body ? JSON.parse(String(init.body)) : undefined });
+    keys.push((init.headers as Record<string, string> | undefined)?.['Idempotency-Key']);
     const reply = replies.shift();
     if (!reply) throw new Error(`No reply for ${path}`);
     if ('fail' in reply) return Promise.reject(reply.fail);
     return Promise.resolve(new Response(reply.raw ?? JSON.stringify(reply.body), { status: reply.status }));
   };
-  return { fetch, sent };
+  return { fetch, sent, keys };
 }
 
 test('Start posts the new entry at the cached revision and takes the reply as the timer state', async t => {
@@ -159,6 +162,22 @@ test('Stop posts the stop time at the cached revision; a 409 hands over the curr
   assert.equal(qc.getQueryData<TimerState>(keys.timer)?.running_entry, null);
 });
 
+test('Pause posts at the cached revision; a 409 hands over the current state', async t => {
+  const qc = seeded();
+  qc.setQueryData(keys.timer, state(3, running(5)));
+  const { fetch, sent } = answering({ status: 409, body: state(4, running(6)) }, { status: 200, body: state(5) });
+  t.mock.method(globalThis, 'fetch', fetch);
+  await assert.rejects(
+    pauseTimer(qc),
+    (error: unknown) => error instanceof TimerActionError && error.kind === 'conflict',
+  );
+  assert.deepEqual(sent[0], { path: '/api/app/timer/pause', method: 'POST', body: { revision: 3 } });
+  assert.equal(qc.getQueryData<TimerState>(keys.timer)?.running_entry?.id, 6, 'the conflict state is adopted');
+  await pauseTimer(qc);
+  assert.deepEqual(sent[1]?.body, { revision: 4 });
+  assert.equal(qc.getQueryData<TimerState>(keys.timer)?.revision, 5);
+});
+
 test('a Pomodoro start posts at the cached revision; a 409 hands over the current state', async t => {
   const qc = seeded();
   qc.setQueryData(keys.timer, state(3));
@@ -194,9 +213,14 @@ test('a Start that got no reply fails with the offline message', async t => {
 
 const isApiErrorWith = (error: unknown, status: number) => error instanceof ApiError && error.status === status;
 
-test('a Start answered with a 5xx keeps its message, and the next timer write reads the state first', async t => {
+test('a Start answered twice with a 5xx keeps its message, and the next timer write reads the state first', async t => {
   const qc = seeded();
-  const { fetch, sent } = answering(
+  const {
+    fetch,
+    sent,
+    keys: sentKeys,
+  } = answering(
+    { status: 502, body: 'Bad Gateway' },
     { status: 502, body: 'Bad Gateway' },
     // The lost Start landed: the state moved on to a running entry.
     { status: 200, body: state(2, running(5)) },
@@ -210,8 +234,11 @@ test('a Start answered with a 5xx keeps its message, and the next timer write re
   );
   assert.deepEqual(
     sent.map(request => `${request.method} ${request.path}`),
-    ['POST /api/app/timer/start', 'GET /api/app/timer'],
+    ['POST /api/app/timer/start', 'POST /api/app/timer/start', 'GET /api/app/timer'],
   );
+  assert.deepEqual(sent[1]?.body, sent[0]?.body, 'the retry repeats the request');
+  assert.ok(sentKeys[0], 'the Start carries a key');
+  assert.equal(sentKeys[1], sentKeys[0], 'the retry reuses the key');
   assert.equal(qc.getQueryData<TimerState>(keys.timer)?.running_entry?.id, 5, 'the read state is adopted');
 });
 
@@ -268,6 +295,7 @@ test('a reconciling read that fails sends nothing and keeps the outcome unknown'
   const qc = seeded();
   const { fetch, sent } = answering(
     { status: 500, body: 'boom' },
+    { status: 500, body: 'boom' },
     { fail: new TypeError('Failed to fetch') },
     { status: 200, body: state(1) },
     { status: 200, body: state(2, running(6)) },
@@ -281,9 +309,15 @@ test('a reconciling read that fails sends nothing and keeps the outcome unknown'
   await startTimer(qc, { description: 'C' });
   assert.deepEqual(
     sent.map(request => `${request.method} ${request.path}`),
-    ['POST /api/app/timer/start', 'GET /api/app/timer', 'GET /api/app/timer', 'POST /api/app/timer/start'],
+    [
+      'POST /api/app/timer/start',
+      'POST /api/app/timer/start',
+      'GET /api/app/timer',
+      'GET /api/app/timer',
+      'POST /api/app/timer/start',
+    ],
   );
-  assert.deepEqual(sent[3]?.body, { created_with: 'tokkl-web', description: 'C', revision: 1 });
+  assert.deepEqual(sent[4]?.body, { created_with: 'tokkl-web', description: 'C', revision: 1 });
 });
 
 test('a typed entry that got no reply fails with the offline message; other failures pass through', async () => {

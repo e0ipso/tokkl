@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useWid } from './account.ts';
 import { api } from './client.ts';
+import { postCreate } from './idempotency.ts';
 import { invalidate } from './invalidate.ts';
 import { keys, stale } from './keys.ts';
 import { wsPath } from './paths.ts';
@@ -16,9 +17,12 @@ export function useTags() {
   });
 }
 
-/** Tag writes. Pass them to a mutation together with `stale.tags` or `stale.tagCreated`. */
+/**
+ * Tag writes. Pass them to a mutation together with `stale.tags` or `stale.tagCreated`. A create
+ * carries an `Idempotency-Key` (`postCreate` in idempotency.ts).
+ */
 export const tagRequests = {
-  create: (wid: number, name: string) => api.post<Tag>(wsPath(wid, 'tags'), { name }),
+  create: (wid: number, name: string) => postCreate<Tag>(wsPath(wid, 'tags'), { name }),
   rename: (wid: number, id: number, name: string) => api.put<Tag>(wsPath(wid, 'tags', id), { name }),
   remove: (wid: number, id: number) => api.delete(wsPath(wid, 'tags', id)),
 };

@@ -3,14 +3,13 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tansta
 import { useWid } from './account.ts';
 import { api } from './client.ts';
 import { coversPreviousRange } from './entriesPlaceholder.ts';
+import { postCreate } from './idempotency.ts';
 import { invalidate } from './invalidate.ts';
 import { keys, stale } from './keys.ts';
 import { APP, V9, wsPath } from './paths.ts';
 import { entryBoundsReply, entryListReply, timeEntryReply } from './replies.ts';
-import { useSettings } from './settings.ts';
-import { editRunningEntry, timerWrite, type RunningEntryChanges } from './timerHooks.ts';
+import { attemptTimerRequest, editRunningEntry, timerWrite, type RunningEntryChanges } from './timerHooks.ts';
 import { MOVES_TIMER } from './timerState.ts';
-import { addTypedEntry, type TypedEntryInput } from './typedEntries.ts';
 import type { BulkPatchResult, PatchOperation, TimeEntry, TimeEntryInput, TimerState } from './types.ts';
 
 /** Time entries: lists, writes and the trash. The running entry comes from the timer state (timerHooks.ts). */
@@ -47,7 +46,10 @@ export function useTrash() {
   });
 }
 
-/** Entry reads and writes outside the hooks below, such as opening one entry from a report row. */
+/**
+ * Entry reads and writes outside the hooks below, such as opening one entry from a report row. A
+ * create carries an `Idempotency-Key` (`postCreate` in idempotency.ts).
+ */
 export const entryRequests = {
   /** Entries that started from startDate to endDate, both "YYYY-MM-DD" in the account timezone. */
   list: (startDate: string, endDate: string, signal?: AbortSignal) =>
@@ -57,7 +59,7 @@ export const entryRequests = {
     }),
   get: (id: number) => api.get(`${V9}/me/time_entries/${id}?meta=true`, { decode: timeEntryReply }),
   create: (wid: number, input: TimeEntryInput) =>
-    api.post<TimeEntry>(`${wsPath(wid, 'time_entries')}?meta=true`, { created_with: 'tokkl-web', ...input }),
+    postCreate<TimeEntry>(`${wsPath(wid, 'time_entries')}?meta=true`, { created_with: 'tokkl-web', ...input }),
   update: (wid: number, id: number, input: TimeEntryInput) =>
     api.put<TimeEntry>(`${wsPath(wid, 'time_entries', id)}?meta=true`, input),
   remove: (wid: number, id: number) => api.delete<null>(wsPath(wid, 'time_entries', id)),
@@ -104,8 +106,8 @@ function inEntryScope<T>(qc: QueryClient, id: number, write: () => Promise<T>, o
 
 /**
  * Sends an edit of entry `update.id` as a v9 update, in that entry's scope (`entryScope`). Edits of
- * stopped entries go this way, and so does a running entry's edit in the entry editor: it can move
- * the start, which `/api/app/timer/edit` never changes.
+ * stopped entries go this way; edits of the running entry go through the timer
+ * (`updateRunningEntry`).
  */
 export function updateEntry(qc: QueryClient, wid: number, { id, ...input }: EntryUpdate): Promise<TimeEntry> {
   return inEntryScope(
@@ -120,9 +122,9 @@ export function updateEntry(qc: QueryClient, wid: number, { id, ...input }: Entr
 export type RunningEntryUpdate = RunningEntryChanges & { id: number };
 
 /**
- * Sends an edit of the running entry through the timer (`editRunningEntry` in timerHooks.ts), at
- * the revision this tab saw, in the entry's scope, so it stays in order with the other edits of
- * it. The reply is the new timer state, and a conflict hands over the server's.
+ * Sends an edit of the running entry through the timer (`editRunningEntry` in timerHooks.ts),
+ * naming the entry, in the entry's scope, so it stays in order with the other edits of it. The
+ * reply is the new timer state, and a conflict, once the entry stopped, hands over the server's.
  */
 export function updateRunningEntry(qc: QueryClient, { id, ...changes }: RunningEntryUpdate): Promise<TimerState> {
   return inEntryScope(qc, id, () => editRunningEntry(qc, id, changes));
@@ -157,28 +159,25 @@ export function useUpdateRunningEntry(): EntryUpdater<RunningEntryUpdate, TimerS
   return useMemo(() => updaterOf((update: RunningEntryUpdate) => updateRunningEntry(qc, update)), [qc]);
 }
 
+/** A finished entry typed into the idle timer bar: the draft's fields and the span it covers. */
+export type TypedEntryInput = TimeEntryInput & { start: string; stop: string };
+
 /**
- * Saves the finished entry typed into the idle timer bar as a duration. Like the timer actions it
- * is tried at once even offline (`networkMode: 'always'`), so it never goes out later with the time
- * of the click; other creates use `useCreateEntry`, which waits for the connection. A create whose
- * reply was lost is looked up before it fails, so it is not sent twice (`addTypedEntry`). Start and
- * Stop are timer actions (`useStartTimer` and `useStopTimer` in timerHooks.ts).
+ * Saves the finished entry typed into the idle timer bar as a duration, as a timer write
+ * (`attemptTimerRequest`). Like the timer actions it is tried at once even offline
+ * (`networkMode: 'always'`), so it never goes out later with the time of the click; other creates
+ * use `useCreateEntry`, which waits for the connection. A create whose reply was lost goes out
+ * again with its `Idempotency-Key` (idempotency.ts), so it is stored once. Start and Stop are timer
+ * actions (`useStartTimer` and `useStopTimer` in timerHooks.ts).
  */
 export function useAddTypedEntry() {
   const qc = useQueryClient();
   const wid = useWid();
-  const settings = useSettings();
   const onSuccess = useInvalidateEntries();
   return useMutation({
     networkMode: 'always',
     meta: MOVES_TIMER,
-    mutationFn: (input: TypedEntryInput) =>
-      addTypedEntry(
-        qc,
-        { create: typed => entryRequests.create(wid, typed), day: day => entryRequests.list(day, day) },
-        input,
-        settings,
-      ),
+    mutationFn: (input: TypedEntryInput) => attemptTimerRequest(qc, () => entryRequests.create(wid, input)),
     onSuccess,
   });
 }
@@ -231,14 +230,15 @@ export interface SplitSpans {
 /**
  * Splits a stopped entry in two at the halves' shared boundary. The server cuts the entry's
  * snapped span there and writes both halves in one transaction, so a failed split changes nothing.
- * Answers the new second half.
+ * It carries an `Idempotency-Key` (`postCreate`), so a split whose reply was lost is not made
+ * twice. Answers the new second half.
  */
 export function useSplitEntry() {
   const onSettled = useInvalidateEntries();
   return useMutation({
     meta: MOVES_TIMER,
     mutationFn: async ({ entry, halves }: { entry: TimeEntry; halves: SplitSpans }) => {
-      const { second } = await api.post<{ first: TimeEntry; second: TimeEntry }>(
+      const { second } = await postCreate<{ first: TimeEntry; second: TimeEntry }>(
         `${APP}/time_entries/${entry.id}/split`,
         { at: halves.second.start.toISOString(), created_with: 'tokkl-web' },
       );

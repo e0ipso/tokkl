@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { QueryClient } from '@tanstack/react-query';
 import { updateEntry, updateRunningEntry } from './entries.ts';
 import { keys } from './keys.ts';
-import { TimerActionError, settleOtherWrites } from './timerState.ts';
+import { TimerActionError, isTimerUnknown, markTimerUnknown, settleOtherWrites } from './timerState.ts';
 import type { TimeEntry, TimerState } from './types.ts';
 
 const entry = (id: number, description: string): TimeEntry => ({
@@ -36,17 +36,18 @@ const EDIT_PATH = '/api/app/timer/edit';
 
 /**
  * A fetch that holds every request until the test answers it, in any order. A v9 update is
- * answered with the entry; a running-entry edit with a state at the revision after the one sent,
- * running entry 7.
+ * answered with the entry; a running-entry edit with a state running entry 7, at revisions 4, 5
+ * and on.
  */
 function holding() {
   const requests: Array<{ path: string; body: Record<string, unknown>; answer: () => void }> = [];
+  let revision = 3;
   const fetch = (path: string, init: RequestInit) => {
     const body = JSON.parse(String(init.body)) as Record<string, unknown>;
     const description = String(body.description);
     const reply =
       path === EDIT_PATH
-        ? state(Number(body.revision) + 1, entry(7, description))
+        ? state((revision += 1), entry(7, description))
         : entry(Number(path.split(/[/?]/)[6]), description);
     return new Promise<Response>(resolve => {
       requests.push({ path, body, answer: () => resolve(new Response(JSON.stringify(reply))) });
@@ -90,7 +91,7 @@ test('edits of one entry go out one at a time, in the order made; edits of anoth
   assert.equal((await second).running_entry?.description, 'Write');
 });
 
-test('a running-entry edit goes through the timer at the seen revision; the next one sends the revision it moved to', async t => {
+test('a running-entry edit goes through the timer naming its entry, with no revision', async t => {
   const qc = withTimer(3);
   const { fetch, requests } = holding();
   t.mock.method(globalThis, 'fetch', fetch);
@@ -99,23 +100,24 @@ test('a running-entry edit goes through the timer at the seen revision; the next
   await tick();
   assert.deepEqual(
     requests.map(request => [request.path, request.body]),
-    [[EDIT_PATH, { description: 'Write', tags: ['a'], project_id: null, revision: 3 }]],
+    [[EDIT_PATH, { description: 'Write', tags: ['a'], project_id: null, entry_id: 7 }]],
   );
   requests[0]!.answer();
   await first;
   assert.equal(qc.getQueryData<TimerState>(keys.timer)?.revision, 4, 'the reply is the new timer state');
   await tick();
-  assert.deepEqual(requests[1]?.body, { billable: true, description: 'Write', revision: 4 });
+  assert.deepEqual(requests[1]?.body, { billable: true, description: 'Write', entry_id: 7 });
   requests[1]!.answer();
   await second;
   assert.equal(qc.getQueryData<TimerState>(keys.timer)?.revision, 5);
 });
 
-/** A fetch that answers each request with the next of `replies` and records the bodies sent. */
+/** A fetch that answers each request with the next of `replies` and records what was sent. */
 function answering(...replies: Array<{ status: number; body: unknown }>) {
-  const sent: Array<Record<string, unknown>> = [];
-  const fetch = (_path: string, init: RequestInit) => {
-    sent.push(JSON.parse(String(init.body)) as Record<string, unknown>);
+  const sent: Array<{ request: string; body?: Record<string, unknown> }> = [];
+  const fetch = (path: string, init: RequestInit) => {
+    const request = `${init.method ?? 'GET'} ${path}`;
+    sent.push(init.body ? { request, body: JSON.parse(String(init.body)) as Record<string, unknown> } : { request });
     const reply = replies.shift();
     if (!reply) return Promise.reject(new Error('No reply left'));
     return Promise.resolve(new Response(JSON.stringify(reply.body), { status: reply.status }));
@@ -125,37 +127,19 @@ function answering(...replies: Array<{ status: number; body: unknown }>) {
 
 const isConflict = (error: unknown) => error instanceof TimerActionError && error.kind === 'conflict';
 
-test('a running-entry edit that conflicts only because the revision moved goes out once more and keeps the typing', async t => {
+test("the entry editor's save of the running entry sends its labels and moved start through the timer", async t => {
   const qc = withTimer(3);
-  // Another device tagged entry 7: the revision moved, the entry did not.
-  const tagged = state(6, { ...entry(7, 'Wr'), tags: ['remote'] });
-  const saved = state(7, { ...entry(7, 'Write'), tags: ['remote'] });
-  const { fetch, sent } = answering({ status: 409, body: tagged }, { status: 200, body: saved });
+  const moved = { ...entry(7, 'Write'), start: '2026-10-27T08:30:00.000Z' };
+  const { fetch, sent } = answering({ status: 200, body: state(4, moved) });
   t.mock.method(globalThis, 'fetch', fetch);
-  const reply = await updateRunningEntry(qc, { id: 7, description: 'Write' });
+  const reply = await updateRunningEntry(qc, { id: 7, description: 'Write', start: moved.start });
   assert.deepEqual(sent, [
-    { description: 'Write', revision: 3 },
-    { description: 'Write', revision: 6 },
+    { request: `POST ${EDIT_PATH}`, body: { description: 'Write', start: moved.start, entry_id: 7 } },
   ]);
-  assert.equal(reply.revision, 7);
-  const cached = qc.getQueryData<TimerState>(keys.timer)?.running_entry;
-  assert.equal(cached?.description, 'Write', 'the typed description is saved, not dropped');
-  assert.deepEqual(cached?.tags, ['remote'], 'the change from the other device stays');
+  assert.equal(reply.running_entry?.start, moved.start);
 });
 
-test('a running-entry edit whose retry conflicts too fails with the conflict and is not sent a third time', async t => {
-  const qc = withTimer(3);
-  const { fetch, sent } = answering(
-    { status: 409, body: state(6, entry(7, 'Wr')) },
-    { status: 409, body: state(8, entry(7, 'Wr')) },
-  );
-  t.mock.method(globalThis, 'fetch', fetch);
-  await assert.rejects(updateRunningEntry(qc, { id: 7, description: 'Write' }), isConflict);
-  assert.equal(sent.length, 2);
-  assert.equal(qc.getQueryData<TimerState>(keys.timer)?.revision, 8);
-});
-
-test('a running-entry edit that conflicts because another entry runs fails with the conflict, without a resend', async t => {
+test('a running-entry edit refused because another entry runs fails with the conflict and is not sent again', async t => {
   const qc = withTimer(3);
   const current = state(6, entry(9, 'Started elsewhere'));
   const { fetch, sent } = answering({ status: 409, body: current });
@@ -165,13 +149,38 @@ test('a running-entry edit that conflicts because another entry runs fails with 
   assert.deepEqual(qc.getQueryData<TimerState>(keys.timer), current);
 });
 
-test('a running-entry edit that conflicts because nothing runs fails with the conflict, without a resend', async t => {
+test('a running-entry edit refused because nothing runs fails with the conflict and is not sent again', async t => {
   const qc = withTimer(3);
   const { fetch, sent } = answering({ status: 409, body: state(6, null) });
   t.mock.method(globalThis, 'fetch', fetch);
   await assert.rejects(updateRunningEntry(qc, { id: 7, description: 'Late' }), isConflict);
   assert.equal(sent.length, 1);
   assert.equal(qc.getQueryData<TimerState>(keys.timer)?.running_entry, null);
+});
+
+test('after an unknown outcome a running-entry edit reads the state, and goes out although the revision moved', async t => {
+  const qc = withTimer(3);
+  markTimerUnknown(qc);
+  const { fetch, sent } = answering(
+    { status: 200, body: state(5, { ...entry(7, 'Wr'), tags: ['remote'] }) },
+    { status: 200, body: state(6, { ...entry(7, 'Write'), tags: ['remote'] }) },
+  );
+  t.mock.method(globalThis, 'fetch', fetch);
+  const reply = await updateRunningEntry(qc, { id: 7, description: 'Write' });
+  assert.deepEqual(
+    sent.map(request => request.request),
+    ['GET /api/app/timer', `POST ${EDIT_PATH}`],
+  );
+  assert.equal(reply.revision, 6);
+  assert.equal(isTimerUnknown(qc), false);
+});
+
+test('a running-entry edit with an unknown outcome leaves the timer unknown for the next timer write', async t => {
+  const qc = withTimer(3);
+  const { fetch } = answering({ status: 502, body: 'Bad Gateway' });
+  t.mock.method(globalThis, 'fetch', fetch);
+  await assert.rejects(updateRunningEntry(qc, { id: 7, description: 'Lost' }));
+  assert.equal(isTimerUnknown(qc), true);
 });
 
 test('a running-entry edit that got no reply keeps the error an entry edit shows', async t => {

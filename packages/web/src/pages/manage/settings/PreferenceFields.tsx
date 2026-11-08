@@ -1,4 +1,5 @@
 import { formatDuration } from '@tokkl/common/duration';
+import type { PomodoroLimits } from '../../../api/types.ts';
 import type { useFieldErrors } from '../../../components/FieldError.tsx';
 import { LengthStepper, LengthStepperGrid } from '../../../components/LengthStepper.tsx';
 import { formatDate, formatTime } from '../../../lib/format.ts';
@@ -150,21 +151,26 @@ export function TimerReminderFields({ draft, set, fields }: PreferenceFieldsProp
   );
 }
 
-/** The lengths a new Pomodoro session starts with. */
-export function PomodoroDefaults({ draft, set, fields }: PreferenceFieldsProps & { fields: NumberFieldErrors }) {
+/** The lengths a new Pomodoro session starts with, within the server's `limits`. */
+export function PomodoroDefaults({
+  draft,
+  set,
+  fields,
+  limits,
+}: PreferenceFieldsProps & { fields: NumberFieldErrors; limits: PomodoroLimits }) {
   return (
     <>
       <h3 className="settings-subheading" id="pomodoro-title">
         {t('settings.pomodoroDefaults')}
       </h3>
       <LengthStepperGrid aria-labelledby="pomodoro-title">
-        {POMODORO_NUMBERS.map(({ key, label, shortUnit, unit, range }) => (
+        {POMODORO_NUMBERS.map(({ key, label, shortUnit, unit, limit }) => (
           <LengthStepper
             key={key}
             label={t(label)}
             unit={t(shortUnit)}
             spokenUnit={t(unit)}
-            range={range}
+            range={limits[limit]}
             value={draft[key]}
             onChange={text => {
               set(key, text);
