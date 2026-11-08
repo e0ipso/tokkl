@@ -3,7 +3,7 @@ import { downloadReportCsv, type ReportFilterBody } from '../../api/reports.ts';
 import type { DurationFormat, Grouping } from '../../api/types.ts';
 import { Icon } from '../../components/Icon.tsx';
 import { useToast } from '../../components/Toast.tsx';
-import { reportUnlessCancelled, useUnmountSignal } from '../../components/useUnmountSignal.ts';
+import { reportUnlessCancelled, useCancellable } from '../../components/useUnmountSignal.ts';
 import type { DateRange } from './range.ts';
 import type { SortDir, SortKey, SubGrouping } from './urlState.ts';
 import { t } from '../../i18n/messages.ts';
@@ -12,7 +12,7 @@ type Kind = 'detailed' | 'summary';
 
 /**
  * CSV downloads of the report on screen: same range, filters, rounding, grouping and sort order.
- * Leaving the page cancels a download without an error.
+ * While one runs, Cancel stops it, and so does leaving the page, without an error.
  */
 export function ExportButtons({
   range,
@@ -33,9 +33,9 @@ export function ExportButtons({
 }) {
   const toast = useToast();
   const [busy, setBusy] = useState<Kind | null>(null);
-  const unmountSignal = useUnmountSignal();
+  const downloads = useCancellable(busy !== null);
 
-  const run = async (kind: Kind) => {
+  const run = async (kind: Kind, origin: HTMLElement) => {
     setBusy(kind);
     const body = {
       ...filters,
@@ -45,7 +45,7 @@ export function ExportButtons({
         : { sort, dir }),
     };
     await reportUnlessCancelled(
-      unmountSignal(),
+      downloads.start(origin),
       signal => downloadReportCsv(kind, body, `tokkl-${kind}-${range.from}-to-${range.to}.csv`, signal),
       toast.error,
     );
@@ -60,12 +60,23 @@ export function ExportButtons({
           type="button"
           className="button button-ghost"
           disabled={busy !== null}
-          onClick={() => void run(kind)}
+          onClick={event => void run(kind, event.currentTarget)}
         >
           <Icon name="download" size={16} />
           {kind === 'detailed' ? t('reports.csvDetailed') : t('reports.csvSummary')}
         </button>
       ))}
+      {busy !== null ? (
+        <button
+          type="button"
+          className="button button-ghost"
+          aria-label={t('common.cancelDownload')}
+          onClick={downloads.cancel}
+        >
+          <Icon name="x" size={16} />
+          {t('common.cancel')}
+        </button>
+      ) : null}
     </div>
   );
 }

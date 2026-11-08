@@ -4,6 +4,7 @@ import type { MessageGroup } from '../catalog.ts';
 export const common = {
   close: 'Close',
   cancel: 'Cancel',
+  cancelDownload: 'Cancel download',
   save: 'Save',
   delete: 'Delete',
   done: 'Done',
