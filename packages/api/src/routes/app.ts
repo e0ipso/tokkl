@@ -9,8 +9,13 @@ import { dateKey } from '@tokkl/common/time';
 import { serializeTimeEntry } from '../presenters/toggl.ts';
 import { parseEntrySplit } from '../commands/timeEntries.ts';
 import { readJson } from '../http/request.ts';
+import { getPreferences } from '../domain/accountValues.ts';
+import { parsePreferenceChanges } from '../commands/accounts.ts';
 
-export type AppRouteDeps = Pick<Deps, 'auth' | 'sessions' | 'readFor' | 'entriesFor' | 'exportAccount'>;
+export type AppRouteDeps = Pick<
+  Deps,
+  'auth' | 'sessions' | 'readFor' | 'entriesFor' | 'exportAccount' | 'preferencesFor'
+>;
 
 export function appRoutes(deps: AppRouteDeps): Router {
   const { sessions } = deps;
@@ -24,6 +29,16 @@ export function appRoutes(deps: AppRouteDeps): Router {
   app.post('/password-resets/:token', sessions.resetPassword);
   app.post('/login', sessions.login);
   app.post('/logout', sessions.logout);
+  // The same reads and saves as the v9 `/me/preferences`, with the validation headers of /api/app.
+  app.get(
+    '/me/preferences',
+    auth,
+    jsonRead(deps, (_req, res) => getPreferences(res.locals.auth.user)),
+  );
+  app.post('/me/preferences', auth, async (req, res) => {
+    const changes = parsePreferenceChanges(readJson(req));
+    res.json(await deps.preferencesFor(res.locals.auth).savePreferences(res.locals.auth.user.id, changes));
+  });
   app.post('/time_entries/:id/restore', auth, async (req, res) => {
     const entry = await deps.entriesFor(res.locals.auth).restore(parseId(req.params.id));
     return res.json(serializeTimeEntry(entry, { meta: true, user: res.locals.auth.user }));

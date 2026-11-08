@@ -158,25 +158,109 @@ test('a reserved place counts toward the queue limit until its holder queues a j
   const runner = new ReportRunner(INLINE, { readSnapshot: () => Promise.reject(new Error('unused')) }, { maxQueue: 1 });
   t.after(() => runner.close());
   let release!: () => void;
-  const preparing = runner.reserve({}, () => new Promise<void>(resolve => (release = resolve)));
+  const preparing = runner.reserve({ userId: 1 }, () => new Promise<void>(resolve => (release = resolve)));
   await assert.rejects(
-    runner.reserve({}, async () => {}),
+    runner.reserve({ userId: 2 }, async () => {}),
     /Report queue is full/,
   );
   release();
   await preparing;
   await assert.rejects(
-    runner.reserve({}, async () => {
+    runner.reserve({ userId: 1 }, async () => {
       throw new Error('bad request');
     }),
     /bad request/,
   );
-  assert.equal(await runner.reserve({}, async () => 'free again'), 'free again');
+  assert.equal(await runner.reserve({ userId: 1 }, async () => 'free again'), 'free again');
   await assert.rejects(
-    runner.reserve({}, async slot => {
+    runner.reserve({ userId: 1 }, async slot => {
       await slot.run(1, 1, WEEKLY as never).catch(() => {});
       return slot.run(1, 1, WEEKLY as never);
     }),
     /A report slot queues one job/,
   );
+});
+
+/**
+ * A report source whose snapshots wait, one gate per snapshot, and record the user each job reads
+ * for. Every job then fails the credential lookup, which is all these tests need.
+ */
+function gatedSource() {
+  const order: number[] = [];
+  const gates: Array<() => void> = [];
+  const source: ReportSource = {
+    readSnapshot: work =>
+      work({
+        users: {
+          get: async (id: number) => {
+            order.push(id);
+            await new Promise<void>(resolve => gates.push(resolve));
+            return undefined;
+          },
+        },
+      } as never),
+  };
+  /** Waits until `count` jobs have started reading. */
+  const reading = async (count: number) => {
+    while (order.length < count) await new Promise(resolve => setImmediate(resolve));
+  };
+  return { source, order, reading, release: () => gates.shift()?.() };
+}
+
+test('one account cannot take more than its share of the report queue', async t => {
+  const { source, reading, release } = gatedSource();
+  const runner = new ReportRunner(INLINE, source, { maxQueue: 8, maxPerUser: 3 });
+  t.after(() => runner.close());
+  const mine = [1, 2, 3].map(() => runner.run(1, 1, WEEKLY as never).catch(error => error));
+  await reading(1);
+  await assert.rejects(
+    runner.run(1, 1, WEEKLY as never),
+    error =>
+      error instanceof ApplicationError &&
+      error.kind === 'unavailable' &&
+      error.message === 'Report queue is full' &&
+      error.retryAfterSeconds === 2,
+  );
+  // A place this account is still preparing counts toward its share too.
+  await assert.rejects(
+    runner.reserve({ userId: 1 }, async () => {}),
+    /Report queue is full/,
+  );
+  const theirs = runner.run(2, 2, WEEKLY as never).catch(error => error);
+  for (let i = 0; i < 4; i++) {
+    await reading(i + 1);
+    release();
+  }
+  for (const result of await Promise.all([...mine, theirs])) assert.ok(result instanceof ApplicationError);
+  // Once its jobs finish, the account has its whole share again.
+  const again = [1, 2, 3].map(() => runner.run(1, 1, WEEKLY as never).catch(error => error));
+  for (let i = 4; i < 7; i++) {
+    await reading(i + 1);
+    release();
+  }
+  for (const result of await Promise.all(again)) assert.ok(result instanceof ApplicationError);
+});
+
+test('queued reports take turns between accounts', async t => {
+  const { source, order, reading, release } = gatedSource();
+  const runner = new ReportRunner(INLINE, source, { maxQueue: 16, maxPerUser: 4 });
+  t.after(() => runner.close());
+  const jobs = [
+    ...[1, 1, 1, 1].map(user => runner.run(user, user, WEEKLY as never).catch(() => {})),
+    ...[2, 2].map(user => runner.run(user, user, WEEKLY as never).catch(() => {})),
+    runner.run(3, 3, WEEKLY as never).catch(() => {}),
+  ];
+  for (let i = 0; i < jobs.length; i++) {
+    await reading(i + 1);
+    release();
+  }
+  await Promise.all(jobs);
+  // Account 1 was running when the others queued; after it, each account takes the next turn.
+  assert.deepEqual(order, [1, 2, 3, 1, 2, 1, 1]);
+});
+
+test('the per-account share must fit the queue', () => {
+  const source: ReportSource = { readSnapshot: () => Promise.reject(new Error('unused')) };
+  for (const maxPerUser of [0, 1.5, 17])
+    assert.throws(() => new ReportRunner(INLINE, source, { maxQueue: 16, maxPerUser }), /Invalid report share/);
 });

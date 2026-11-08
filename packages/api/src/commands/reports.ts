@@ -7,7 +7,14 @@ import type { DurationFormat } from '@tokkl/types';
 import { isRoundingMinutes, ROUNDING_MINUTES } from '../domain/workspaceValues.ts';
 import { invalidInput } from '../lib/errors.ts';
 import type { JsonBody } from '../lib/values.ts';
-import type { Dimension, IdFilter, OrderBy, ReportFilter, SortDirection } from '../domain/reportCommands.ts';
+import type {
+  DetailedOrderBy,
+  Dimension,
+  IdFilter,
+  OrderBy,
+  ReportFilter,
+  SortDirection,
+} from '../domain/reportCommands.ts';
 import type { Workspace } from '../storage/domain.ts';
 
 const MAX_RANGE_DAYS = 3660;
@@ -123,7 +130,8 @@ const GROUPINGS: Readonly<Record<string, Dimension>> = {
 /** A grouping by its request name, `fallback` when absent or empty; the name and the dimension. */
 export function parseGrouping(value: unknown, fallback: string, field: string): [string, Dimension] {
   const name = value === undefined || value === null || value === '' ? fallback : String(value);
-  const dim = GROUPINGS[name];
+  // Own names only: `constructor` or `toString` is no grouping.
+  const dim = Object.hasOwn(GROUPINGS, name) ? GROUPINGS[name] : undefined;
   if (!dim) throw invalidInput(`Invalid '${field}' value, allowed values are: '${Object.keys(GROUPINGS).join(', ')}'`);
   return [name, dim];
 }
@@ -136,13 +144,13 @@ export function parsePositiveInt(value: unknown, fallback: number, field: string
   return value;
 }
 
-/** The web app's detailed report order. */
-export function parseDetailedOrder(body: JsonBody) {
+/** The web app's detailed report order, from its `sort` and lower-case `dir`. */
+export function parseDetailedOrder(body: JsonBody): { orderBy: DetailedOrderBy; orderDir: SortDirection } {
   const sort = body.sort ?? 'date';
   if (sort !== 'date' && sort !== 'duration' && sort !== 'description') {
     throw invalidInput("Invalid 'sort' value, allowed values are: 'date, duration, description'");
   }
   const dir = body.dir ?? 'desc';
   if (dir !== 'asc' && dir !== 'desc') throw invalidInput("Invalid 'dir' value, allowed values are: 'asc, desc'");
-  return { sort, dir } as const;
+  return { orderBy: sort, orderDir: dir === 'asc' ? 'ASC' : 'DESC' };
 }

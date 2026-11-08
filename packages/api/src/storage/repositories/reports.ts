@@ -1,10 +1,10 @@
-import { sql, type Kysely } from 'kysely';
+import { sql, type Kysely, type RawBuilder } from 'kysely';
 import type { Backend } from '../config.ts';
 import type { PhysicalDatabase } from '../physical.ts';
-import type { Repositories, ReportSelection } from '../contracts.ts';
-import type { TagLabel } from '../domain.ts';
-import { booleanValue, entityId, finiteNumber, utcInstant } from '../conversion.ts';
-import { reportContains, reportDuration, reportIds, reportTags } from './report-sql.ts';
+import type { ReportOrder, Repositories, ReportSelection } from '../contracts.ts';
+import type { ReportEntryProjection, TagLabel } from '../domain.ts';
+import { booleanValue, entityId, finiteNumber, safeInteger, utcInstant } from '../conversion.ts';
+import { reportContains, reportDuration, reportIds, reportRoundedSeconds, reportTags } from './report-sql.ts';
 
 const nullableId = (v: number | string | null) => (v === null ? null : entityId(v));
 
@@ -69,21 +69,20 @@ export function createReportRepositories(
         'c.name as client_name',
         't.name as task_name',
       ])
-      .orderBy('e.start')
-      .orderBy('e.id')
       .execute();
-  /** Each selected entry's tags. Reuses the relational selection, not an unbounded IN list or one
-   * tag lookup per entry. */
-  const entryTags = async (q: Selection): Promise<Map<number, TagLabel[]>> => {
+  type EntryRow = Awaited<ReturnType<typeof entryRows>>[number];
+  /** The ordered tags of a bounded set of entries. */
+  const entryTags = async (ids: readonly number[]): Promise<Map<number, TagLabel[]>> => {
+    const tags = new Map<number, TagLabel[]>();
+    if (!ids.length) return tags;
     const labels = await db
       .selectFrom('time_entry_tags as et')
       .innerJoin('tags as g', 'g.id', 'et.tag_id')
       .select(['et.time_entry_id', 'g.id', 'g.name'])
-      .where('et.time_entry_id', 'in', q.select('e.id'))
+      .where('et.time_entry_id', 'in', ids)
       .orderBy('g.name_key')
       .orderBy('g.id')
       .execute();
-    const tags = new Map<number, TagLabel[]>();
     for (const r of labels) {
       const id = entityId(r.time_entry_id),
         list = tags.get(id) ?? [];
@@ -92,7 +91,7 @@ export function createReportRepositories(
     }
     return tags;
   };
-  const reportEntry = (r: Awaited<ReturnType<typeof entryRows>>[number], tags: Map<number, TagLabel[]>) => ({
+  const reportEntry = (r: EntryRow, tags: Map<number, TagLabel[]>): ReportEntryProjection => ({
     id: entityId(r.id),
     userId: entityId(r.user_id),
     workspaceId: entityId(r.workspace_id),
@@ -113,13 +112,65 @@ export function createReportRepositories(
     taskName: r.task_name,
     tags: tags.get(entityId(r.id)) ?? [],
   });
+  const withTags = async (rows: EntryRow[]) => {
+    const tags = await entryTags(rows.map(r => entityId(r.id)));
+    return rows.map(r => reportEntry(r, tags));
+  };
+  const orderKey = (order: ReportOrder) =>
+    order.by === 'start'
+      ? sql.ref('e.start')
+      : order.by === 'updated'
+        ? sql.ref('e.updated_at')
+        : reportRoundedSeconds(backend, order.rounding);
+  const count = (expression: RawBuilder<unknown>) => sql<number | string | null>`coalesce(sum(${expression}), 0)`;
   return {
     reports: {
-      async collect(userId, workspaceId, selection) {
-        const q = selected(userId, workspaceId, selection);
-        const rows = await entryRows(q);
-        const tags = await entryTags(q);
-        return rows.map(r => reportEntry(r, tags));
+      async count(userId, workspaceId, selection) {
+        const row = await selected(userId, workspaceId, selection)
+          .select([
+            sql<number | string>`count(*)`.as('entries'),
+            count(sql`case when e.billable = 1 then 1 else 0 end`).as('billable'),
+            count(sql`case when e.billable = 1 and p.rate is not null then 1 else 0 end`).as('rated'),
+          ])
+          .executeTakeFirstOrThrow();
+        return {
+          entries: safeInteger(Number(row.entries)),
+          billable: safeInteger(Number(row.billable)),
+          billableWithProjectRate: safeInteger(Number(row.rated)),
+        };
+      },
+      async ids(userId, workspaceId, selection, order, window) {
+        const direction = order.direction === 'ASC' ? 'asc' : 'desc';
+        let q = selected(userId, workspaceId, selection)
+          .select('e.id')
+          .orderBy(orderKey(order), direction)
+          .orderBy('e.id', direction);
+        if (window) q = q.limit(window.limit).offset(window.offset);
+        return (await q.execute()).map(r => entityId(r.id));
+      },
+      async descriptions(userId, workspaceId, selection) {
+        const rows = await selected(userId, workspaceId, selection).select(['e.id', 'e.description']).execute();
+        return rows.map(r => ({ id: entityId(r.id), description: r.description }));
+      },
+      async entries(userId, workspaceId, selection, ids) {
+        if (!ids.length) return [];
+        const found = new Map(
+          (await withTags(await entryRows(selected(userId, workspaceId, selection).where('e.id', 'in', ids)))).map(
+            entry => [entry.id, entry],
+          ),
+        );
+        return ids.flatMap(id => found.get(id) ?? []);
+      },
+      async batch(userId, workspaceId, selection, after, limit) {
+        let q = selected(userId, workspaceId, selection);
+        if (after)
+          q = q.where(eb =>
+            eb.or([
+              eb('e.start', '>', after.start),
+              eb.and([eb('e.start', '=', after.start), eb('e.id', '>', after.id)]),
+            ]),
+          );
+        return withTags(await entryRows(q.orderBy('e.start').orderBy('e.id').limit(limit)));
       },
     },
   };

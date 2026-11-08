@@ -33,4 +33,6 @@ export interface ReportFilter {
 export type Dimension = 'project' | 'client' | 'tag' | 'description' | 'task' | 'none';
 
 export type OrderBy = 'date' | 'user' | 'duration' | 'description' | 'last_update';
+/** The orders the web app's detailed report offers. */
+export type DetailedOrderBy = Extract<OrderBy, 'date' | 'duration' | 'description'>;
 export type SortDirection = 'ASC' | 'DESC';

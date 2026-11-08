@@ -2,11 +2,11 @@
 import { formatDuration } from '@tokkl/common/duration';
 import { daysBetween } from '@tokkl/common/time';
 import type { DurationFormat } from '@tokkl/types';
-import type { Dimension, OrderBy, SortDirection } from '../domain/reportCommands.ts';
+import type { Dimension } from '../domain/reportCommands.ts';
 import { toCsv } from '../lib/csv.ts';
 import { togglTime } from '../lib/values.ts';
-import type { Group } from './reportAggregates.ts';
-import { toTogglCsv } from './exports.ts';
+import type { Aggregate, Group } from './reportAggregates.ts';
+import { togglCsvHeader, togglCsvLines } from './exports.ts';
 /** A finished response: a JSON or CSV body plus any extra headers. */
 export interface JobResult {
   type: 'json' | 'csv';
@@ -15,27 +15,6 @@ export interface JobResult {
   headers: Record<string, string>;
 }
 import type { ReportEntry, ReportUser } from './reports.ts';
-
-export function sortDetailed(entries: ReportEntry[], orderBy: OrderBy, direction: SortDirection): ReportEntry[] {
-  const dir = direction === 'ASC' ? 1 : -1;
-  const sorted = [...entries];
-  switch (orderBy) {
-    case 'date':
-    case 'user':
-      sorted.sort((a, b) => dir * (a.start.localeCompare(b.start) || a.id - b.id));
-      break;
-    case 'duration':
-      sorted.sort((a, b) => dir * (a.seconds - b.seconds || a.id - b.id));
-      break;
-    case 'description':
-      sorted.sort((a, b) => dir * (a.description.localeCompare(b.description) || a.id - b.id));
-      break;
-    case 'last_update':
-      sorted.sort((a, b) => dir * (a.at.localeCompare(b.at) || a.id - b.id));
-      break;
-  }
-  return sorted;
-}
 
 export function detailedRow(
   entry: ReportEntry,
@@ -88,16 +67,16 @@ export function summaryGroup(group: Group, groupingDimension: Dimension, include
   };
 }
 
-/** Toggl's detailed CSV layout. */
-export function detailedCsv(entries: ReportEntry[], user: ReportUser, durationFormat: DurationFormat): string {
-  return toTogglCsv(
-    entries.map(entry => ({
-      ...entry,
-      tags: entry.tags.map(tag => tag.name),
-    })),
-    user,
-    durationFormat,
-  );
+const csvItem = (entry: ReportEntry) => ({ ...entry, tags: entry.tags.map(tag => tag.name) });
+/** Toggl's detailed CSV layout, built a batch at a time: the header, then each batch's lines. */
+export function detailedCsvWriter(user: ReportUser, durationFormat: DurationFormat) {
+  const chunks = [togglCsvHeader()];
+  return {
+    add(entries: ReportEntry[]) {
+      chunks.push(togglCsvLines(entries.map(csvItem), user, durationFormat));
+    },
+    result: () => chunks.join(''),
+  };
 }
 
 /** One row per group, or per sub-group when the groups have them. */
@@ -148,34 +127,39 @@ export const csv = (body: string, filename: string, headers: Record<string, stri
   headers,
 });
 
-export function v3Weekly(entries: ReportEntry[], user: ReportUser, weekStart: string) {
-  const rows = new Map<string, ReturnType<typeof emptyWeeklyRow>>();
-  function emptyWeeklyRow(entry: ReportEntry) {
-    return {
-      user_id: user.id,
-      user_name: user.fullName,
-      project_id: entry.projectId,
-      project_name: entry.projectName,
-      project_color: entry.projectColor,
-      project_hex_color: entry.projectColor,
-      client_name: entry.clientName,
-      planned_task_id: null,
-      seconds: Array<number>(7).fill(0),
-      billable_seconds: Array<number>(7).fill(0),
-      billable_amounts_in_cents: Array<number>(7).fill(0),
-      hourly_rate_in_cents: entry.hourlyRateCents,
-      currency: entry.currency,
-    };
-  }
-  for (const entry of entries) {
-    const key = String(entry.projectId ?? 'none');
-    let row = rows.get(key);
-    if (!row) rows.set(key, (row = emptyWeeklyRow(entry)));
-    const day = daysBetween(weekStart, entry.date);
-    if (day < 0 || day > 6) continue;
-    row.seconds[day]! += entry.seconds;
-    if (entry.billable) row.billable_seconds[day]! += entry.seconds;
-    row.billable_amounts_in_cents[day]! += entry.amountCents ?? 0;
-  }
-  return [...rows.values()];
+function emptyWeeklyRow(entry: ReportEntry, user: ReportUser) {
+  return {
+    user_id: user.id,
+    user_name: user.fullName,
+    project_id: entry.projectId,
+    project_name: entry.projectName,
+    project_color: entry.projectColor,
+    project_hex_color: entry.projectColor,
+    client_name: entry.clientName,
+    planned_task_id: null,
+    seconds: Array<number>(7).fill(0),
+    billable_seconds: Array<number>(7).fill(0),
+    billable_amounts_in_cents: Array<number>(7).fill(0),
+    hourly_rate_in_cents: entry.hourlyRateCents,
+    currency: entry.currency,
+  };
+}
+type WeeklyRow = ReturnType<typeof emptyWeeklyRow>;
+
+/** Toggl's weekly rows: one per project, in the order projects first appear, seven days each. */
+export function v3Weekly(user: ReportUser, weekStart: string): Aggregate<WeeklyRow[]> {
+  const rows = new Map<string, WeeklyRow>();
+  return {
+    add(entry) {
+      const key = String(entry.projectId ?? 'none');
+      let row = rows.get(key);
+      if (!row) rows.set(key, (row = emptyWeeklyRow(entry, user)));
+      const day = daysBetween(weekStart, entry.date);
+      if (day < 0 || day > 6) return;
+      row.seconds[day]! += entry.seconds;
+      if (entry.billable) row.billable_seconds[day]! += entry.seconds;
+      row.billable_amounts_in_cents[day]! += entry.amountCents ?? 0;
+    },
+    result: () => [...rows.values()],
+  };
 }

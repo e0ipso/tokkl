@@ -1,6 +1,17 @@
-import type { ErrorRequestHandler, Response } from 'express';
+import type { ErrorRequestHandler, RequestHandler, Response } from 'express';
 import { ApplicationError, RequestCancelled, StateConflict, type FailureKind } from '../lib/errors.ts';
 import type { Logger } from '../lib/logger.ts';
+
+declare module 'express-serve-static-core' {
+  interface Locals {
+    /** Set under `/api/app`: refused input there names its code and field in headers. */
+    validationHeaders?: boolean;
+  }
+}
+
+/** The response headers that carry a refusal's `ValidationDetail`. */
+export const ERROR_CODE_HEADER = 'Tokkl-Error-Code';
+export const ERROR_FIELD_HEADER = 'Tokkl-Error-Field';
 
 const STATUS: Readonly<Record<FailureKind, number>> = {
   invalid: 400,
@@ -18,10 +29,19 @@ export interface ErrorReply {
   body: unknown;
 }
 
+export interface ErrorReplyOptions {
+  /** Adds the validation code and field headers. The body stays the same either way. */
+  validationHeaders?: boolean;
+}
+
 /** The reply for an application failure. A refused state change answers with the current state. */
-function applicationErrorReply(error: ApplicationError): ErrorReply {
+function applicationErrorReply(error: ApplicationError, options: ErrorReplyOptions): ErrorReply {
   const headers: Record<string, string> =
     error.retryAfterSeconds === undefined ? {} : { 'Retry-After': String(error.retryAfterSeconds) };
+  if (options.validationHeaders && error.validation) {
+    headers[ERROR_CODE_HEADER] = error.validation.code;
+    if (error.validation.field !== undefined) headers[ERROR_FIELD_HEADER] = error.validation.field;
+  }
   return {
     status: STATUS[error.kind],
     headers,
@@ -42,10 +62,19 @@ function frameworkErrorReply(error: unknown): ErrorReply | undefined {
 }
 
 /** The client's reply for any thrown value. Unexpected errors become a 500 that reveals nothing. */
-export function errorReply(error: unknown): ErrorReply {
-  if (error instanceof ApplicationError) return applicationErrorReply(error);
+export function errorReply(error: unknown, options: ErrorReplyOptions = {}): ErrorReply {
+  if (error instanceof ApplicationError) return applicationErrorReply(error, options);
   return frameworkErrorReply(error) ?? { status: 500, headers: {}, body: 'Internal Server Error' };
 }
+
+/**
+ * Mounted on `/api/app`, the web app's own API: its refusals carry the validation headers. The
+ * Toggl-compatible API answers exactly as before.
+ */
+export const validationHeaders: RequestHandler = (_req, res, next) => {
+  res.locals.validationHeaders = true;
+  next();
+};
 
 /** True once the client's connection is gone, so nothing written would reach it. */
 const disconnected = (res: Response) => res.destroyed || !res.socket || res.socket.destroyed;
@@ -63,7 +92,7 @@ export function errorHandler(logger: Logger): ErrorRequestHandler {
       return;
     }
     if (res.headersSent) return next(error);
-    const reply = errorReply(error);
+    const reply = errorReply(error, { validationHeaders: res.locals.validationHeaders === true });
     if (!(error instanceof ApplicationError) && reply.status >= 500) log.error('Request failed', { error });
     else if (reply.status >= 500) log.warn('Request refused', { status: reply.status, reason: reply.body });
     res.status(reply.status).set(reply.headers).json(reply.body);

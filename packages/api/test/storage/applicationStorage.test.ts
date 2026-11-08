@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { parseStorageConfig } from '../../src/storage/config.ts';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
+import type { Repositories } from '../../src/storage/contracts.ts';
 import { createStorage } from '../fixtures/storageShortcuts.ts';
 import { entryAccount } from './support/entry-timer.ts';
 
@@ -36,7 +37,7 @@ test('composed storage shares rollback, snapshots, dry runs and awaited closure'
     { dryRun: true },
   );
   assert.equal(await storage.workspaces.get(dryId!), undefined);
-  await assert.rejects(storage.readSnapshot(r => r.workspaces.create('forbidden')));
+  await assert.rejects(storage.readSnapshot(r => (r as Repositories).workspaces.create('forbidden')));
   await storage.readSnapshot(async r => assert.equal(await r.users.count(), 0));
   await storage.close();
   await storage.close();
@@ -109,7 +110,7 @@ test('entry inserts retain facade transactions, rollback and read-only snapshot 
     /rollback insert/,
   );
   await assert.rejects(
-    storage.readSnapshot(r => r.entries.insert({ ...input, description: 'read-only' })),
+    storage.readSnapshot(r => (r as Repositories).entries.insert({ ...input, description: 'read-only' })),
     /readonly/,
   );
   assert.deepEqual(

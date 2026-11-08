@@ -1,9 +1,8 @@
 import { parentPort, workerData } from 'node:worker_threads';
 import type { StorageConfig } from '../storage/config.ts';
 import { openReportReader } from '../storage/repositories/report-reader.ts';
-import { collectReport } from './reports.ts';
 import type { ReportWork } from './reportRunner.ts';
-import { formatExportJob, formatReportJob } from './reportJobs.ts';
+import { formatExportJob, runReportJob } from './reportJobs.ts';
 import { ApplicationError } from '../lib/errors.ts';
 import { redactedDiagnostic } from '../lib/logger.ts';
 
@@ -30,11 +29,9 @@ try {
             port.postMessage({ id, result: formatExportJob(work.data, work.assembly) });
             return;
           }
-          const { userId, workspaceId, job, authentication } = work;
           port.postMessage({ id, phase: 'reading' });
-          const data = await collectReport(reader, userId, workspaceId, job.filter, authentication);
-          port.postMessage({ id, phase: 'formatting' });
-          port.postMessage({ id, result: formatReportJob(data, job) });
+          const result = await runReportJob(reader, work, () => port.postMessage({ id, phase: 'formatting' }));
+          port.postMessage({ id, result });
         } catch (error) {
           // SQL/driver messages never leave this thread. An unexpected failure sends its redacted
           // diagnostic for the parent's log; the client still gets the fixed message.

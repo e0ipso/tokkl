@@ -7,7 +7,13 @@ import type { OperationContext } from '../storage/contracts.ts';
 import type { EntryDetails, Id, PauseChain, PomodoroSession, User } from '../storage/domain.ts';
 import { calendarInput, StateConflict } from '../lib/errors.ts';
 import { getPomodoroSessionConfig } from './accountValues.ts';
-import { getTimeEntry, protectEntryOperation, type EntryContext, type EntryRepositories } from './entryAccess.ts';
+import {
+  getTimeEntry,
+  protectEntryOperation,
+  type EntryContext,
+  type EntryReaders,
+  type EntryRepositories,
+} from './entryAccess.ts';
 import type { NewEntry } from './entryCommands.ts';
 import { entryDurationSeconds, wholeSeconds } from './entrySpans.ts';
 import { memberWorkspace } from './membership.ts';
@@ -60,7 +66,7 @@ const copiedLabels = (e: EntryDetails): StartPomodoro['entry'] => ({
 });
 export interface TimerRunner<R extends EntryRepositories> {
   transaction<T>(work: (context: OperationContext<R>) => Promise<T>): Promise<T>;
-  readSnapshot<T>(work: (repositories: R) => Promise<T>): Promise<T>;
+  readSnapshot<T>(work: (repositories: EntryReaders) => Promise<T>): Promise<T>;
 }
 type ActionWork = (ctx: EntryContext, user: User) => Promise<void>;
 

@@ -14,6 +14,7 @@ import { parseArgs } from 'node:util';
 import { formatDuration } from '@tokkl/common/duration';
 import { historyBackend } from './history-options.ts';
 import { Server } from './history-server.ts';
+import { REPORT_BATCH_SIZE } from '../packages/api/src/services/reports.ts';
 import { inspectHistory } from './history-inspection.ts';
 import { HistoryFailure, historyFailure, safeHistoryError, withHistoryCleanup } from './history-errors.ts';
 
@@ -673,7 +674,12 @@ async function runFixture(spec: FixtureSpec) {
           1 + Math.ceil(expected.entries / 400),
           `${spec.name}: joined metadata and batched tags avoid per-entry queries`,
         );
-        equal(inspection.report.selects, 2, `${spec.name}: report metadata uses two executed queries`);
+        equal(
+          inspection.report.selects,
+          // Entries and their tags per full batch; a short last batch reads tags too, an empty one does not.
+          2 * Math.floor(expected.entries / REPORT_BATCH_SIZE) + (expected.entries % REPORT_BATCH_SIZE ? 2 : 1),
+          `${spec.name}: report reads entries and tags in bounded batches`,
+        );
         for (const plan of inspection.explain) {
           check(
             plan.accepted,

@@ -9,7 +9,7 @@ import type { Deps } from './routes/context.ts';
 import { ADDRESS_LIMIT, FailureLimiter, PASSWORD_WINDOW_MS, SETUP_CODE_LIMIT } from './auth/rateLimit.ts';
 import { createAuthMiddleware } from './auth/middleware.ts';
 import { createSessionHandlers, type SetupState } from './auth/sessions.ts';
-import { errorHandler } from './http/errors.ts';
+import { errorHandler, validationHeaders } from './http/errors.ts';
 import { requestLog } from './http/requestLog.ts';
 import { noStore, securityHeaders } from './http/security.ts';
 import { textBody } from './http/request.ts';
@@ -106,6 +106,7 @@ export function createApp({
     res.json({ ok: true });
   });
 
+  app.use('/api/app', validationHeaders);
   // Imports authenticate before they read their larger bodies, so they come before the 1 MB parser.
   app.use('/api/app', importRoutes(deps));
   app.use(['/api', '/reports/api'], textBody('1mb'), noStore);

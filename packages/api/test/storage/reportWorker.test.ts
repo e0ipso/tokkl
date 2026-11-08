@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { setImmediate } from 'node:timers/promises';
+import type { UsersRepository } from '../../src/storage/contracts.ts';
 import type { ReportRepositories } from '../../src/services/reports.ts';
 import { mkdtempSync, existsSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
@@ -20,9 +21,8 @@ import { createTransactionRunner } from '../../src/storage/transactions.ts';
 import { createReportRepositories } from '../../src/storage/repositories/reports.ts';
 import { ReportRunner } from '../../src/services/reportRunner.ts';
 import { errorReply } from '../../src/http/errors.ts';
-import { collectReport } from '../../src/services/reports.ts';
 import {
-  formatReportJob,
+  runReportJob,
   formatExportJob,
   type ReportJob,
   type ExportAssemblyJob,
@@ -73,20 +73,24 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
       const reader = await openReportReader(fixture.config);
       try {
         assert.deepEqual(
-          formatReportJob(await collectReport(reader, user.id, wid, job.filter), job),
-          formatReportJob(await collectReport(operations, user.id, wid, job.filter), job),
+          await runReportJob(reader, { userId: user.id, workspaceId: wid, job }),
+          await runReportJob(operations, { userId: user.id, workspaceId: wid, job }),
         );
-        await assert.rejects(reader.readSnapshot(r => r.users.updateAccount(user.id, { fullName: 'forbidden' })));
+        await assert.rejects(
+          reader.readSnapshot(r => (r.users as UsersRepository).updateAccount(user.id, { fullName: 'forbidden' })),
+        );
       } finally {
         await reader.close();
       }
-      const runner = new ReportRunner(fixture.config, operations, { maxQueue: 2 });
+      const runner = new ReportRunner(fixture.config, operations, { maxQueue: 2, maxPerUser: 2 });
       t.after(() => runner.close());
-      const expected = formatReportJob(await collectReport(operations, user.id, wid, job.filter), job);
+      const expected = await runReportJob(operations, { userId: user.id, workspaceId: wid, job });
       assert.deepEqual(await runner.run(user.id, wid, job), expected);
-      const data = await collectReport(operations, user.id, wid, job.filter);
       for (const request of jobs(job.filter))
-        assert.deepEqual(await runner.run(user.id, wid, request), formatReportJob(data, request));
+        assert.deepEqual(
+          await runner.run(user.id, wid, request),
+          await runReportJob(operations, { userId: user.id, workspaceId: wid, job: request }),
+        );
       const exported = await collectAccountExport(operations, user.id);
       for (const assembly of [
         { kind: 'export-json', exportedAt: '2026-10-30T12:00:00.000Z', filename: 'tokkl.json' },
@@ -167,8 +171,8 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
         .run(user.id, wid, {
           kind: 'app-detailed-csv',
           filter: job.filter,
-          sort: 'description',
-          dir: 'asc',
+          orderBy: 'description',
+          orderDir: 'ASC',
           durationFormat: 'improved',
         })
         .then(r => {
@@ -241,7 +245,7 @@ test('memory SQLite stays inline; reader startup never creates or migrates a fil
   t.after(() => runner.close());
   assert.deepEqual(
     await runner.run(user.id, user.defaultWorkspaceId, job),
-    formatReportJob(await collectReport(operations, user.id, user.defaultWorkspaceId, job.filter), job),
+    await runReportJob(operations, { userId: user.id, workspaceId: user.defaultWorkspaceId, job }),
   );
   assert.equal((runner as unknown as { worker: Worker | null }).worker, null);
   const exported = await collectAccountExport(operations, user.id);

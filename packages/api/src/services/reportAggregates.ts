@@ -1,7 +1,17 @@
-/** Numbers a report shows: totals, a time series, the weekly grid and the groupings of entries. */
+/**
+ * Numbers a report shows: totals, a time series, the weekly grid and the groupings of entries.
+ * Each one takes entries a batch at a time, in start/id order, and answers once all have arrived;
+ * it keeps sums and first-seen labels, never the entries themselves.
+ */
 import { addDays, daysBetween, startOfWeek } from '@tokkl/common/time';
 import type { Dimension } from '../domain/reportCommands.ts';
 import type { ReportEntry } from './reports.ts';
+
+/** Takes entries in start/id order and answers with what they add up to. */
+export interface Aggregate<T> {
+  add(entry: ReportEntry): void;
+  result(): T;
+}
 
 export interface Totals {
   seconds: number;
@@ -10,20 +20,25 @@ export interface Totals {
   amounts: Array<{ currency: string; cents: number }>;
 }
 
-export function totalsOf(entries: ReportEntry[]): Totals {
+export function totals(): Aggregate<Totals> {
   const amounts = new Map<string, number>();
   let seconds = 0;
   let billableSeconds = 0;
-  for (const entry of entries) {
-    seconds += entry.seconds;
-    if (entry.billable) billableSeconds += entry.seconds;
-    if (entry.amountCents !== null) amounts.set(entry.currency, (amounts.get(entry.currency) ?? 0) + entry.amountCents);
-  }
+  let entryCount = 0;
   return {
-    seconds,
-    billableSeconds,
-    entryCount: entries.length,
-    amounts: [...amounts].map(([currency, cents]) => ({ currency, cents })),
+    add(entry) {
+      entryCount++;
+      seconds += entry.seconds;
+      if (entry.billable) billableSeconds += entry.seconds;
+      if (entry.amountCents !== null)
+        amounts.set(entry.currency, (amounts.get(entry.currency) ?? 0) + entry.amountCents);
+    },
+    result: () => ({
+      seconds,
+      billableSeconds,
+      entryCount,
+      amounts: [...amounts].map(([currency, cents]) => ({ currency, cents })),
+    }),
   };
 }
 
@@ -37,12 +52,11 @@ export function resolutionFor(startDate: string, endDate: string): Resolution {
 }
 
 export function timeSeries(
-  entries: ReportEntry[],
   startDate: string,
   endDate: string,
   resolution: Resolution,
   beginningOfWeek: number,
-): Array<{ start: string; seconds: number; billableSeconds: number }> {
+): Aggregate<Array<{ start: string; seconds: number; billableSeconds: number }>> {
   const bucketOf = (key: string): string => {
     if (resolution === 'day') return key;
     if (resolution === 'week') return startOfWeek(key, beginningOfWeek);
@@ -58,13 +72,15 @@ export function timeSeries(
       key = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`;
     }
   }
-  for (const entry of entries) {
-    const bucket = buckets.get(bucketOf(entry.date));
-    if (!bucket) continue;
-    bucket.seconds += entry.seconds;
-    if (entry.billable) bucket.billableSeconds += entry.seconds;
-  }
-  return [...buckets].map(([start, value]) => ({ start, ...value }));
+  return {
+    add(entry) {
+      const bucket = buckets.get(bucketOf(entry.date));
+      if (!bucket) return;
+      bucket.seconds += entry.seconds;
+      if (entry.billable) bucket.billableSeconds += entry.seconds;
+    },
+    result: () => [...buckets].map(([start, value]) => ({ start, ...value })),
+  };
 }
 
 export type WeeklyRows = 'projects' | 'clients';
@@ -80,16 +96,15 @@ export interface WeeklyGrid {
 }
 
 /**
- * Totals per project or client and per day or week over every entry passed in. Week columns
- * start on `beginningOfWeek`; the first and last are clipped to the range.
+ * Totals per project or client and per day or week over every entry added. Week columns start on
+ * `beginningOfWeek`; the first and last are clipped to the range.
  */
 export function weeklyGrid(
-  entries: ReportEntry[],
   startDate: string,
   endDate: string,
   by: WeeklyRows,
   beginningOfWeek: number,
-): WeeklyGrid {
+): Aggregate<WeeklyGrid> {
   const mode = daysBetween(startDate, endDate) + 1 <= 7 ? 'days' : 'weeks';
   const columnOf = (key: string): string => (mode === 'days' ? key : startOfWeek(key, beginningOfWeek));
   const columns: WeeklyGrid['columns'] = [];
@@ -102,28 +117,32 @@ export function weeklyGrid(
   const rows = new Map<string, WeeklyGrid['rows'][number]>();
   const columnTotals = columns.map(() => 0);
   let total = 0;
-  for (const entry of entries) {
-    const column = index.get(columnOf(entry.date));
-    if (column === undefined) continue;
-    const id = by === 'projects' ? entry.projectId : entry.clientId;
-    let row = rows.get(String(id));
-    if (!row) {
-      row =
-        by === 'projects'
-          ? { id, title: entry.projectName ?? '', color: entry.projectColor, cells: columns.map(() => 0), total: 0 }
-          : { id, title: entry.clientName ?? '', color: null, cells: columns.map(() => 0), total: 0 };
-      rows.set(String(id), row);
-    }
-    row.cells[column]! += entry.seconds;
-    row.total += entry.seconds;
-    columnTotals[column]! += entry.seconds;
-    total += entry.seconds;
-  }
-  // The "without project/client" row goes last; the rest by total, then title.
-  const sorted = [...rows.values()].sort(
-    (a, b) => Number(a.id === null) - Number(b.id === null) || b.total - a.total || a.title.localeCompare(b.title),
-  );
-  return { mode, columns, rows: sorted, columnTotals, total };
+  return {
+    add(entry) {
+      const column = index.get(columnOf(entry.date));
+      if (column === undefined) return;
+      const id = by === 'projects' ? entry.projectId : entry.clientId;
+      let row = rows.get(String(id));
+      if (!row) {
+        row =
+          by === 'projects'
+            ? { id, title: entry.projectName ?? '', color: entry.projectColor, cells: columns.map(() => 0), total: 0 }
+            : { id, title: entry.clientName ?? '', color: null, cells: columns.map(() => 0), total: 0 };
+        rows.set(String(id), row);
+      }
+      row.cells[column]! += entry.seconds;
+      row.total += entry.seconds;
+      columnTotals[column]! += entry.seconds;
+      total += entry.seconds;
+    },
+    result() {
+      // The "without project/client" row goes last; the rest by total, then title.
+      const sorted = [...rows.values()].sort(
+        (a, b) => Number(a.id === null) - Number(b.id === null) || b.total - a.total || a.title.localeCompare(b.title),
+      );
+      return { mode, columns, rows: sorted, columnTotals, total };
+    },
+  };
 }
 
 export interface GroupKey {
@@ -164,27 +183,43 @@ function groupKeyString(key: GroupKey, dimension: Dimension): string {
   return dimension === 'description' ? `d:${key.title}` : `i:${key.id ?? 'none'}`;
 }
 
-export function groupEntries(entries: ReportEntry[], dimension: Dimension, subDimension: Dimension = 'none'): Group[] {
-  const groups = new Map<string, { key: GroupKey; entries: ReportEntry[] }>();
-  for (const entry of entries) {
-    for (const key of keysFor(entry, dimension)) {
-      const id = groupKeyString(key, dimension);
-      let group = groups.get(id);
-      if (!group) groups.set(id, (group = { key, entries: [] }));
-      group.entries.push(entry);
-    }
-  }
-  return [...groups.values()]
-    .map(({ key, entries: members }) => {
-      const totals = totalsOf(members);
-      return {
-        ...key,
-        seconds: totals.seconds,
-        billableSeconds: totals.billableSeconds,
-        amountCents: totals.amounts.reduce((sum, amount) => sum + amount.cents, 0),
-        entryIds: members.map(member => member.id),
-        subGroups: subDimension === 'none' ? [] : groupEntries(members, subDimension),
-      };
-    })
-    .sort((a, b) => b.seconds - a.seconds);
+/**
+ * Groups along `dimension`, each split along `subDimension`, largest first. A group keeps the key
+ * of the first entry that reached it; equal totals keep the order in which groups first appeared.
+ */
+export function grouping(dimension: Dimension, subDimension: Dimension = 'none'): Aggregate<Group[]> {
+  const groups = new Map<
+    string,
+    { key: GroupKey; totals: Aggregate<Totals>; entryIds: number[]; subGroups?: Aggregate<Group[]> }
+  >();
+  return {
+    add(entry) {
+      for (const key of keysFor(entry, dimension)) {
+        const id = groupKeyString(key, dimension);
+        let group = groups.get(id);
+        if (!group) {
+          group = { key, totals: totals(), entryIds: [] };
+          if (subDimension !== 'none') group.subGroups = grouping(subDimension);
+          groups.set(id, group);
+        }
+        group.totals.add(entry);
+        group.entryIds.push(entry.id);
+        group.subGroups?.add(entry);
+      }
+    },
+    result: () =>
+      [...groups.values()]
+        .map(({ key, totals: sums, entryIds, subGroups }) => {
+          const total = sums.result();
+          return {
+            ...key,
+            seconds: total.seconds,
+            billableSeconds: total.billableSeconds,
+            amountCents: total.amounts.reduce((sum, amount) => sum + amount.cents, 0),
+            entryIds,
+            subGroups: subGroups ? subGroups.result() : [],
+          };
+        })
+        .sort((a, b) => b.seconds - a.seconds),
+  };
 }

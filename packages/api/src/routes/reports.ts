@@ -35,13 +35,16 @@ function workspaceFor(deps: ReportRouteDeps, req: Request, res: Response): Promi
 
 /**
  * A report handler that holds a place in the report queue from the start, so a full queue answers
- * before the handler reads the workspace or parses the request.
+ * before the handler reads the workspace or parses the request. The place is the signed-in account's.
  */
 function queued(
   deps: ReportRouteDeps,
   handler: (req: Request, res: Response, slot: ReportSlot) => Promise<void>,
 ): (req: Request, res: Response) => Promise<void> {
-  return (req, res) => deps.reports.reserve({ signal: res.locals.workSignal }, slot => handler(req, res, slot));
+  return (req, res) =>
+    deps.reports.reserve({ userId: res.locals.auth.user.id, signal: res.locals.workSignal }, slot =>
+      handler(req, res, slot),
+    );
 }
 
 /** Builds the response in the report runner and sends it. */
@@ -231,11 +234,11 @@ export function appReportRoutes(deps: ReportRouteDeps): Router {
     deps.auth.requireAuth,
     queued(deps, async (req, res, slot) => {
       const { ws, body, filter } = await appFilter(req, res);
-      const { sort, dir } = parseDetailedOrder(body);
+      const { orderBy, orderDir } = parseDetailedOrder(body);
       const pageSize = parsePositiveInt(body.page_size, APP_DEFAULT_PAGE_SIZE, 'page_size');
       if (pageSize > APP_MAX_PAGE_SIZE) throw invalidInput(`'page_size' must be at most ${APP_MAX_PAGE_SIZE}`);
       const page = parsePositiveInt(body.page, 1, 'page');
-      await send(slot, res, ws, { kind: 'app-entries', filter, sort, dir, pageSize, page });
+      await send(slot, res, ws, { kind: 'app-entries', filter, orderBy, orderDir, pageSize, page });
     }),
   );
 
@@ -245,12 +248,12 @@ export function appReportRoutes(deps: ReportRouteDeps): Router {
     deps.auth.requireAuth,
     queued(deps, async (req, res, slot) => {
       const { ws, body, filter } = await appFilter(req, res);
-      const { sort, dir } = parseDetailedOrder(body);
+      const { orderBy, orderDir } = parseDetailedOrder(body);
       await send(slot, res, ws, {
         kind: 'app-detailed-csv',
         filter,
-        sort,
-        dir,
+        orderBy,
+        orderDir,
         durationFormat: parseDurationFormat(body.duration_format),
       });
     }),
