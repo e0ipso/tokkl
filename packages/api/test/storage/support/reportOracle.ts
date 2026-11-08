@@ -13,7 +13,7 @@ import { booleanValue, entityId, finiteNumber, utcInstant } from '../../../src/s
 import { reportContains, reportDuration, reportIds, reportTags } from '../../../src/storage/repositories/report-sql.ts';
 import type { Dimension, OrderBy, ReportFilter, SortDirection } from '../../../src/domain/reportCommands.ts';
 import type { ReportEntry } from '../../../src/services/reports.ts';
-import type { JobResult, ReportJob } from '../../../src/services/reportJobs.ts';
+import type { CsvDownloadJob, JobResult, ReportJob } from '../../../src/services/reportJobs.ts';
 import {
   appEntry,
   csv,
@@ -399,7 +399,7 @@ export function oracleReport(
   rows: ReportEntryProjection[],
   user: OracleUser,
   workspace: OracleWorkspace,
-  job: ReportJob,
+  job: ReportJob | CsvDownloadJob,
 ): JobResult {
   const { filter } = job;
   const entries = formatEntries(rows, user, workspace, filter);

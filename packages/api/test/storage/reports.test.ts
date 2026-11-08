@@ -15,14 +15,13 @@ import {
   type ReportReader,
 } from '../../src/services/reports.ts';
 import type { ReportFilter } from '../../src/domain/reportCommands.ts';
-import { runReportJob } from '../../src/services/reportJobs.ts';
 import type { ReportEntryProjection } from '../../src/storage/domain.ts';
 import type { ReportCursor } from '../../src/storage/contracts.ts';
 import expectedReports from './support/report-expected.json' with { type: 'json' };
 import type { PhysicalDatabase } from '../../src/storage/physical.ts';
 import type { Backend } from '../../src/storage/config.ts';
 
-import { range, jobs } from './support/report-jobs.ts';
+import { answerJob, range, jobs } from './support/report-jobs.ts';
 for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
   test(
     `${backend}: bounded report projections and every envelope match legacy reports`,
@@ -127,7 +126,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
       for (const filter of filters) {
         for (const job of jobs(filter))
           assert.deepEqual(
-            await runReportJob(operations, { userId: seeded.user.id, workspaceId: seeded.ws.id, job }),
+            await answerJob(operations, { userId: seeded.user.id, workspaceId: seeded.ws.id, job }),
             expectedReports[expectedIndex++],
             `${backend} ${job.kind} ${JSON.stringify(filter)}`,
           );

@@ -16,8 +16,15 @@ import {
   parseReportFilter,
   parseSortDirection,
 } from '../commands/reports.ts';
-import { v3WeeklyFilter, type JobResult, type ReportJob } from '../services/reportJobs.ts';
-import type { ReportSlot } from '../services/reportRunner.ts';
+import {
+  CSV_DOWNLOAD_FILENAMES,
+  v3WeeklyFilter,
+  type CsvDownloadJob,
+  type JobResult,
+  type ReportJob,
+} from '../services/reportJobs.ts';
+import type { DownloadSlot, ReportSlot } from '../services/reportRunner.ts';
+import { streamDownload } from '../http/download.ts';
 import { lenientNumber } from '../http/params.ts';
 
 type ReportRouteDeps = Pick<Deps, 'auth' | 'readFor' | 'reports'>;
@@ -45,6 +52,34 @@ function queued(
     deps.reports.reserve({ userId: res.locals.auth.user.id, signal: res.locals.workSignal }, slot =>
       handler(req, res, slot),
     );
+}
+
+/**
+ * A detailed CSV handler that holds a place in the download lane from the start, the way `queued`
+ * holds one in the report queue.
+ */
+function downloading(
+  deps: ReportRouteDeps,
+  handler: (req: Request, res: Response, slot: DownloadSlot) => Promise<void>,
+): (req: Request, res: Response) => Promise<void> {
+  return (req, res) =>
+    deps.reports.reserveDownload({ userId: res.locals.auth.user.id, signal: res.locals.workSignal }, slot =>
+      handler(req, res, slot),
+    );
+}
+
+/**
+ * Streams a detailed CSV from the download lane, a batch at a time. The headers go out with the
+ * first piece, so refusals before it keep their status.
+ */
+function sendCsv(slot: DownloadSlot, res: Response, ws: Workspace, job: CsvDownloadJob): Promise<void> {
+  const headers = {
+    'Content-Type': 'text/csv; charset=utf-8',
+    'Content-Disposition': `attachment; filename="${CSV_DOWNLOAD_FILENAMES[job.kind]}"`,
+  };
+  return streamDownload(res, headers, output =>
+    slot.report(res.locals.auth.user.id, ws.id, job, output, { authentication: res.locals.auth }),
+  );
 }
 
 /** Builds the response in the report runner and sends it. */
@@ -115,10 +150,10 @@ export function reportsV3Routes(deps: ReportRouteDeps): Router {
 
   api.post(
     '/workspace/:wid/search/time_entries.csv',
-    queued(deps, async (req, res, slot) => {
+    downloading(deps, async (req, res, slot) => {
       const { ws, body, filter } = await v3Filter(req, res);
       const orderBy = parseOrderBy(body.order_by);
-      await send(slot, res, ws, {
+      await sendCsv(slot, res, ws, {
         kind: 'v3-csv',
         filter,
         orderBy,
@@ -246,10 +281,10 @@ export function appReportRoutes(deps: ReportRouteDeps): Router {
   api.post(
     '/report/detailed.csv',
     deps.auth.requireAuth,
-    queued(deps, async (req, res, slot) => {
+    downloading(deps, async (req, res, slot) => {
       const { ws, body, filter } = await appFilter(req, res);
       const { orderBy, orderDir } = parseDetailedOrder(body);
-      await send(slot, res, ws, {
+      await sendCsv(slot, res, ws, {
         kind: 'app-detailed-csv',
         filter,
         orderBy,

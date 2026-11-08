@@ -2,7 +2,8 @@ import { parentPort, workerData } from 'node:worker_threads';
 import type { StorageConfig } from '../storage/config.ts';
 import { openReportReader } from '../storage/repositories/report-reader.ts';
 import type { ReportWork } from './reportExecution.ts';
-import { EXPORT_BYTES_AHEAD, runExportJob } from './exportJobs.ts';
+import { EXPORT_BYTES_AHEAD } from './exportJobs.ts';
+import { isDownload, runDownloadJob } from './downloadJobs.ts';
 import { runReportJob } from './reportJobs.ts';
 import { ApplicationError } from '../lib/errors.ts';
 import { redactedDiagnostic } from '../lib/logger.ts';
@@ -66,9 +67,9 @@ try {
         try {
           port.postMessage({ id, phase: 'reading' });
           const formatting = () => port.postMessage({ id, phase: 'formatting' });
-          if ('assembly' in work) {
+          if (isDownload(work)) {
             const output = (credit = new OutputCredit(id));
-            await runExportJob(
+            await runDownloadJob(
               reader,
               work,
               async chunk => {

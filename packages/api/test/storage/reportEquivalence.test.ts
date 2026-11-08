@@ -5,8 +5,9 @@ import { createTransactionRunner } from '../../src/storage/transactions.ts';
 import { createReportRepositories } from '../../src/storage/repositories/reports.ts';
 import type { Backend } from '../../src/storage/config.ts';
 import type { ReportFilter } from '../../src/domain/reportCommands.ts';
-import type { JobResult, ReportJob } from '../../src/services/reportJobs.ts';
-import { runReportJob, v3WeeklyFilter } from '../../src/services/reportJobs.ts';
+import type { JobResult } from '../../src/services/reportJobs.ts';
+import { v3WeeklyFilter } from '../../src/services/reportJobs.ts';
+import { answerJob, type AnyReportJob } from './support/report-jobs.ts';
 import { entryTimerFactory, entryAccount } from './support/entry-timer.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 import { oracleCollect, oracleReport, oracleSelection } from './support/reportOracle.ts';
@@ -44,8 +45,8 @@ const SEARCH_WINDOWS = [
 ] as const;
 
 /** Every job kind, each order in both directions, with windows rotating across them. */
-function equivalenceJobs(filter: ReportFilter): ReportJob[] {
-  const jobs: ReportJob[] = [];
+function equivalenceJobs(filter: ReportFilter): AnyReportJob[] {
+  const jobs: AnyReportJob[] = [];
   let turn = 0;
   for (const orderBy of orders)
     for (const orderDir of directions) {
@@ -239,7 +240,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
               oracleRows.set(key, expectedRows);
             }
             const expected: JobResult = oracleReport(expectedRows, user, ws, job);
-            const actual = await runReportJob(operations, { userId: user.id, workspaceId: ws.id, job });
+            const actual = await answerJob(operations, { userId: user.id, workspaceId: ws.id, job });
             assert.deepEqual(actual, expected, `${backend} ${account.name} ${JSON.stringify(job)}`);
             compared++;
           }

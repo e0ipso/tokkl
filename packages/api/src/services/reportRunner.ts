@@ -3,7 +3,7 @@ import { RequestCancelled, unavailable } from '../lib/errors.ts';
 import { silentLogger, type Logger } from '../lib/logger.ts';
 import type { Authentication } from '../domain/credentials.ts';
 import type { ExportAssemblyJob, ExportEmitter } from './exportJobs.ts';
-import type { JobResult, ReportJob } from './reportJobs.ts';
+import type { CsvDownloadJob, JobResult, ReportJob } from './reportJobs.ts';
 import {
   createReportExecution,
   type ExecutionJob,
@@ -45,7 +45,10 @@ export interface DownloadLaneLimits extends LaneLimits {
 }
 
 export interface ReportRunnerOptions extends LaneLimits {
-  /** The download lane: account exports. Default 8 places, a quarter per account, 15 minutes each. */
+  /**
+   * The download lane: account exports and detailed CSV reports. Default 8 places, a quarter per
+   * account, 15 minutes each.
+   */
   downloads?: DownloadLaneLimits;
   onPhase?: (phase: ReportPhase) => void;
   /** Where unexpected report and worker failures are logged, as redacted diagnostics. */
@@ -81,6 +84,17 @@ export interface DownloadSlot {
   export(
     userId: number,
     assembly: ExportAssemblyJob,
+    output: ExportEmitter,
+    options?: { authentication?: Authentication },
+  ): Promise<void>;
+  /**
+   * Writes the detailed CSV report `job` of `workspaceId` to `output` a batch at a time, reading it
+   * in the job's own snapshot. Settles once the last piece was taken.
+   */
+  report(
+    userId: number,
+    workspaceId: number,
+    job: CsvDownloadJob,
     output: ExportEmitter,
     options?: { authentication?: Authentication },
   ): Promise<void>;
@@ -386,6 +400,8 @@ export class ReportRunner implements ReportExecutor {
       work({
         export: (userId, assembly, output, { authentication } = {}) =>
           submit({ userId, assembly, authentication }, output).then(() => {}),
+        report: (userId, workspaceId, download, output, { authentication } = {}) =>
+          submit({ userId, workspaceId, download, authentication }, output).then(() => {}),
       }),
     );
   }

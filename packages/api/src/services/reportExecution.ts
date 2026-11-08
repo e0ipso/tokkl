@@ -9,11 +9,12 @@ import { reportRunsInline } from '../storage/repositories/report-reader.ts';
 import { ApplicationError, RequestCancelled, type FailureKind } from '../lib/errors.ts';
 import { redactedDiagnostic, type ErrorDiagnostic, type Logger } from '../lib/logger.ts';
 import type { ReportRepositories } from './reports.ts';
-import { runExportJob, type ExportEmitter, type ExportJobWork, type ExportRepositories } from './exportJobs.ts';
+import type { ExportEmitter, ExportRepositories } from './exportJobs.ts';
+import { downloadKind, isDownload, runDownloadJob, type DownloadWork } from './downloadJobs.ts';
 import { runReportJob, type JobResult, type ReportJobWork } from './reportJobs.ts';
 
-/** A report, answered whole, or an export, written a piece at a time to the job's `output`. */
-export type ReportWork = ReportJobWork | ExportJobWork;
+/** A report, answered whole, or a download, written a piece at a time to the job's `output`. */
+export type ReportWork = ReportJobWork | DownloadWork;
 
 /** What the inline execution reads: everything a report or an export job reads. */
 export interface JobSource {
@@ -24,7 +25,7 @@ export interface JobSource {
 export interface ExecutionJob {
   id: number;
   work: ReportWork;
-  /** Where an export's pieces go, in order. Each resolves once the next may follow. */
+  /** Where a download's pieces go, in order. Each resolves once the next may follow. */
   output?: ExportEmitter;
 }
 
@@ -90,7 +91,7 @@ interface Reply {
 
 /** The job's kind and the runner's id for it: what a log line may say about a job. */
 export function jobFields(job: ExecutionJob) {
-  return { jobId: job.id, jobKind: 'assembly' in job.work ? job.work.assembly.kind : job.work.job.kind };
+  return { jobId: job.id, jobKind: isDownload(job.work) ? downloadKind(job.work) : job.work.job.kind };
 }
 
 const safeError = (error: unknown): Error => (error instanceof ApplicationError ? error : new Error('Report failed'));
@@ -118,13 +119,12 @@ class InlineExecution implements ReportExecution {
   run(job: ExecutionJob): void {
     this.current = job;
     const { work } = job;
-    // A cancelled export stops at its next piece, which releases the snapshot.
+    // A cancelled download stops at its next piece, which releases the snapshot.
     const output: ExportEmitter = chunk =>
       this.current === job ? job.output!(chunk) : Promise.reject(new RequestCancelled('Report cancelled'));
-    const build: Promise<JobResult | undefined> =
-      'assembly' in work
-        ? runExportJob(this.source, work, output).then(() => undefined)
-        : runReportJob(this.source, work);
+    const build: Promise<JobResult | undefined> = isDownload(work)
+      ? runDownloadJob(this.source, work, output).then(() => undefined)
+      : runReportJob(this.source, work);
     this.work = build
       .then(result => {
         if (this.current !== job) return;
