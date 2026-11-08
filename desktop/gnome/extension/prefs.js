@@ -17,7 +17,7 @@ import { ExtensionPreferences, gettext as _ } from 'resource:///org/gnome/Shell/
 import { isInsecureUrl } from './instanceurl.js';
 import { lengthLimits } from './legacylimits.js';
 import { AUTH_MODES, describeStatus } from './timer1.js';
-import { cachedProperty, createTimer1Proxy, serviceRunning } from './timer1proxy.js';
+import { cachedProperty, createTimer1Proxy, publishedProperty, serviceRunning } from './timer1proxy.js';
 import { TypedSecret, connectionIdentity } from './typedsecret.js';
 
 function toastError(window, error) {
@@ -117,7 +117,7 @@ class PomodoroGroup {
     // The range of each row, and its value while the service has no
     // lengths for it.
     _syncLimits() {
-        const limits = lengthLimits(this._property('PomodoroLengthLimits', null));
+        const limits = lengthLimits(publishedProperty(this._proxy, 'PomodoroLengthLimits'));
         const lengths = this._property('PomodoroLengths', {});
         for (const { key, row } of this._lengths) {
             const { min, max, default: value } = limits[key];

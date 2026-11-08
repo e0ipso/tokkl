@@ -17,7 +17,7 @@ import { describeMenu, describeTime, projectChoices } from './menumodel.js';
 import { describeIndicator } from './projectindicator.js';
 import { TokklProjectIndicator } from './projectindicatorview.js';
 import { describeStatus, formatElapsed, projectLabel } from './timer1.js';
-import { cachedProperty, serviceRunning } from './timer1proxy.js';
+import { cachedProperty, publishedProperty, serviceRunning } from './timer1proxy.js';
 import { TimerRequests } from './timerrequests.js';
 
 // The properties the project submenu's items show. A change to any other
@@ -235,10 +235,10 @@ export const TokklIndicator = GObject.registerClass(
                 alarmError: this._property('AlarmError', ''),
                 // Which items show and can be chosen; a service from before
                 // Actions publishes none, and legacyactions.js stands in.
-                actions: this._property('Actions', null),
+                actions: publishedProperty(this._proxy, 'Actions'),
                 // Which parts the time's words show; a service from before
                 // Presentation publishes none, and legacyPresentation() stands in.
-                presentation: this._property('Presentation', null),
+                presentation: publishedProperty(this._proxy, 'Presentation'),
                 actionError: this._actionError,
             };
         }

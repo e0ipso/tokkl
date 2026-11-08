@@ -745,8 +745,14 @@ private Q_SLOTS:
             {QStringLiteral("Sounds"), QStringLiteral("a{ss} read")},
             {QStringLiteral("SoundChoices"), QStringLiteral("aa{sv} read")},
             {QStringLiteral("AlarmError"), QStringLiteral("s read")},
+            {QStringLiteral("InterfaceVersion"), QStringLiteral("u read")},
         };
         QCOMPARE(timer.properties, properties);
+        // The version of the interface, which the extension picks its
+        // fallbacks by.
+        const QVariant version = f.get(QStringLiteral("InterfaceVersion"));
+        QCOMPARE(version.metaType(), QMetaType::fromType<uint>());
+        QCOMPARE(version.toUInt(), 1u);
         const QMap<QString, QStringList> methods{
             {QStringLiteral("Start"), {QStringLiteral("out b")}},
             {QStringLiteral("Stop"), {QStringLiteral("out b")}},

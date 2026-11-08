@@ -163,6 +163,11 @@ QString TimerService::alarmError() const
     return m_alarm ? m_alarm->failure() : QString();
 }
 
+uint TimerService::interfaceVersion() const
+{
+    return version;
+}
+
 bool TimerService::running() const
 {
     return m_timer->isRunning();

@@ -3,9 +3,13 @@
 // extensions.gnome.org while the service comes from a package, so a new
 // extension often talks to an older service; these are the ranges and
 // defaults the preferences had built in before the service published them.
-// A current service publishes PomodoroLengthLimits, from the shared core's
-// rules, and these are not used. Remove this module once services without
-// PomodoroLengthLimits are no longer supported.
+// A service that publishes InterfaceVersion 1 or later publishes
+// PomodoroLengthLimits, from the shared core's rules (publishes() in
+// timer1.js), and these are not used for it.
+//
+// Remove this module once every supported tokkl-timerd publishes
+// InterfaceVersion; the rows then need a placeholder range only until the
+// service is reached.
 
 /** @typedef {{min: number, max: number, default: number}} LengthLimit */
 

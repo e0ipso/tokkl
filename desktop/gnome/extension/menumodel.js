@@ -149,7 +149,10 @@ const MARKS = { none: '', pending: '…', alert: '!', unconfigured: '!' };
 /**
  * The Presentation a service from before that property leaves the
  * extension to decide, by the rules the extension had: the core's
- * StatusPolicy::gnome(). The accessible name always names the project and
+ * StatusPolicy::gnome(). Also the words with no service. A service that
+ * publishes InterfaceVersion 1 or later publishes Presentation (publishes()
+ * in timer1.js); remove the older-service use once every supported
+ * tokkl-timerd publishes InterfaceVersion. The accessible name always names the project and
  * the connection, its detail when there is one, and outside a session the
  * Pomodoro mode. The status line is the session's line during a session,
  * and otherwise the connection, after the paused total while paused.

@@ -77,11 +77,15 @@ class TimerService : public QObject, protected QDBusContext
     Q_PROPERTY(QMap<QString, QString> Sounds READ sounds)
     Q_PROPERTY(QList<QVariantMap> SoundChoices READ soundCatalogue)
     Q_PROPERTY(QString AlarmError READ alarmError)
+    Q_PROPERTY(uint InterfaceVersion READ interfaceVersion)
 
 public:
     static const QString serviceName;
     static const QString objectPath;
     static const QString interfaceName;
+    // The InterfaceVersion this service publishes. Raise it by one in a
+    // release that adds members to org.tokkl.Timer1.
+    static constexpr uint version = 1;
     // The settings key of a transition's sound: "Sounds/workToShortRest" and
     // so on.
     static QString soundKey(TransitionKind kind);
@@ -159,6 +163,7 @@ public:
     QList<QVariantMap> soundCatalogue() const;
     // PomodoroAlarm::failure(), empty without an alarm.
     QString alarmError() const;
+    uint interfaceVersion() const;
 
 public Q_SLOTS:
     // The org.tokkl.Timer1 methods, called by the generated adaptor.

@@ -18,6 +18,28 @@ export const TIMER1_XML_FILE = 'org.tokkl.Timer1.xml';
 // The values of Configure's authMode argument.
 export const AUTH_MODES = ['token', 'password'];
 
+// The first InterfaceVersion that publishes each property the extension has
+// a fallback for. A service with an InterfaceVersion publishes all of them.
+const PUBLISHED_SINCE = { Actions: 1, Presentation: 1, PomodoroLengthLimits: 1 };
+
+/**
+ * Whether the service publishes a property the extension has a fallback
+ * for (legacyactions.js, legacyPresentation() in menumodel.js,
+ * legacylimits.js). A service with an InterfaceVersion says so by its
+ * version; one from before InterfaceVersion is judged by whether the
+ * property is there.
+ *
+ * @param {number} interfaceVersion the InterfaceVersion property, 0 for a
+ *     service without it
+ * @param {'Actions'|'Presentation'|'PomodoroLengthLimits'} property
+ * @param {boolean} present the proxy holds the property
+ * @returns {boolean}
+ */
+export function publishes(interfaceVersion, property, present) {
+    if (interfaceVersion > 0 && property in PUBLISHED_SINCE) return interfaceVersion >= PUBLISHED_SINCE[property];
+    return present;
+}
+
 /**
  * Seconds since startTime, never negative. startTime is the LocalStartTime
  * property, the start on this machine's clock: Unix seconds, or 0 when no

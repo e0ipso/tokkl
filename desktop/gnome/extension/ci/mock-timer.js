@@ -69,6 +69,7 @@ const types = {
     CanStartSession: 'b',
     Actions: 'a{sa{sv}}',
     Presentation: 'a{sv}',
+    InterfaceVersion: 'u',
 };
 
 const state = {
@@ -127,6 +128,7 @@ const state = {
     SessionMessage: '',
     Actions: {},
     Presentation: {},
+    InterfaceVersion: 1,
 };
 
 // The lengths on the Tokkl server behind the service. RefreshPreferences
