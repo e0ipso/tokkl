@@ -57,6 +57,8 @@ add_library(tokklcore STATIC
     projectcatalog.h
     projectchoices.cpp
     projectchoices.h
+    projectloader.cpp
+    projectloader.h
     sessioncredentials.cpp
     sessioncredentials.h
     sessionstate.h

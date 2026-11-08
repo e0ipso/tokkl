@@ -1,14 +1,11 @@
 #include "chosenproject.h"
 
-#include <utility>
-
 namespace Tokkl
 {
 
-ChosenProject::ChosenProject(ProjectCatalog *catalog, std::function<std::optional<qint64>()> chosen, QObject *parent)
+ChosenProject::ChosenProject(const ProjectCatalog *catalog, QObject *parent)
     : QObject(parent)
     , m_catalog(catalog)
-    , m_chosen(std::move(chosen))
 {
 }
 
@@ -38,13 +35,8 @@ std::optional<Project> ChosenProject::details(std::optional<qint64> id, bool ofE
     return std::nullopt;
 }
 
-void ChosenProject::update(std::optional<qint64> id, bool ofEntry, Connection *readVia, qint64 workspaceId)
+void ChosenProject::show(std::optional<qint64> id, bool ofEntry)
 {
-    if (id && readVia && m_catalog->needsLookUp(*id)) {
-        m_catalog->lookUp(readVia, *id, workspaceId, [this](qint64 projectId) {
-            return m_chosen() == projectId;
-        });
-    }
     const std::optional<Project> entryProject = id && ofEntry ? m_catalog->knownProject(*id) : std::nullopt;
     if (entryProject != m_entryProject) {
         m_entryProject = entryProject;

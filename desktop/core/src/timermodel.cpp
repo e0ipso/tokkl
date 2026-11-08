@@ -16,21 +16,12 @@ TimerModel::TimerModel(QObject *parent)
               return !workspaceAccessLost();
           },
           this))
-    , m_chosen(new ChosenProject(
-          m_catalog,
-          [this] {
-              return chosenProject();
-          },
-          this))
+    , m_chosen(new ChosenProject(m_catalog, this))
     , m_next(new NextStartSelection(m_catalog, this))
 {
     connect(m_next, &NextStartSelection::changed, this, &TimerModel::selectionChanged);
     connect(m_catalog, &ProjectCatalog::listChanged, this, &TimerModel::projectsChanged);
-    connect(m_catalog, &ProjectCatalog::projectResolved, this, &TimerModel::resolveProject);
-    connect(m_catalog, &ProjectCatalog::listLoaded, this, [this] {
-        m_next->listLoaded();
-        resolveProject();
-    });
+    connect(m_catalog, &ProjectCatalog::listLoaded, m_next, &NextStartSelection::listLoaded);
     connect(m_catalog, &ProjectCatalog::readFailed, this, &TimerModel::onProjectReadFailed);
     connect(m_chosen, &ChosenProject::entryProjectChanged, this, &TimerModel::entryProjectChanged);
     connect(m_chosen, &ChosenProject::indicatorChanged, this, &TimerModel::indicatorChanged);
@@ -40,8 +31,6 @@ TimerModel::TimerModel(QObject *parent)
     for (auto signal : {&TimerModel::choiceChanged, &TimerModel::entryProjectChanged, &TimerModel::projectsChanged}) {
         connect(this, signal, this, &TimerModel::chosenProjectDetailsChanged);
     }
-    // A new next-start project may need its details read.
-    connect(this, &TimerModel::selectionChanged, this, &TimerModel::resolveProject);
     for (auto signal : {&TimerModel::choiceChanged, &TimerModel::entryProjectChanged, &TimerModel::projectsChanged}) {
         connect(this, signal, this, &TimerModel::updateProjectChoices);
     }
@@ -337,7 +326,7 @@ QString TimerModel::formatElapsed(qint64 seconds)
     return QStringLiteral("%1:%2").arg(seconds / 3600).arg((seconds % 3600) / 60, 2, 10, QLatin1Char('0'));
 }
 
-// ----- driven by TimerCoordinator ------------------------------------------
+// ----- TimerModelUpdates ----------------------------------------------------
 
 const std::optional<TimerState> &TimerModel::heldState() const
 {
@@ -350,11 +339,29 @@ bool TimerModel::readable() const
     return m_connection && m_connection->isConnected() && !workspaceAccessLost() && !m_connection->rateLimitedUntil().isValid();
 }
 
+void TimerModel::connectionReplaced()
+{
+    Q_EMIT connectionChanged();
+    Q_EMIT selectionChanged();
+}
+
+void TimerModel::contextUpdated()
+{
+    Q_EMIT contextChanged();
+    Q_EMIT statusChanged();
+}
+
+void TimerModel::activityChanged()
+{
+    Q_EMIT statusChanged();
+}
+
 void TimerModel::showState()
 {
     const Change change = stage();
     applyDefaults(change);
     publish(change);
+    Q_EMIT statusChanged();
 }
 
 void TimerModel::entryEnded(const TimeEntry &reply)
@@ -367,24 +374,24 @@ void TimerModel::resetContext()
     m_stopReply.reset();
     m_catalog->reset();
     m_next->reset();
-    showState();
+    const Change change = stage();
+    applyDefaults(change);
+    publish(change);
     m_catalog->clearList();
-    resolveProject();
+    showChosenProject();
+    contextUpdated();
 }
 
 void TimerModel::forgetWorkspace()
 {
     m_catalog->forget();
-    showState();
+    const Change change = stage();
+    applyDefaults(change);
+    publish(change);
     m_catalog->clearList();
     m_next->forget();
-}
-
-void TimerModel::fetchProjects()
-{
-    if (readable()) {
-        m_catalog->fetch(m_connection);
-    }
+    showChosenProject();
+    Q_EMIT statusChanged();
 }
 
 NextStartSelection::Choice TimerModel::nextStart() const
@@ -422,15 +429,19 @@ void TimerModel::wantLastEntry()
     m_next->wantLastEntry();
 }
 
-void TimerModel::readLastEntryIfWanted()
+ProjectCatalog &TimerModel::catalog()
 {
-    // The first state of a connection. A running entry sets the default
-    // when it stops; otherwise ask for the last one.
-    if (!isSessionActive() && m_next->takeLastEntryWanted() && !isRunning() && readable()) {
-        m_next->readLastEntry([this] {
-            return !workspaceAccessLost() && !isRunning();
-        });
-    }
+    return *m_catalog;
+}
+
+NextStartSelection &TimerModel::selection()
+{
+    return *m_next;
+}
+
+void TimerModel::showChosenProject()
+{
+    m_chosen->show(chosenProject(), isRunning() || isPaused());
 }
 
 void TimerModel::onProjectReadFailed(const ApiError &error)
@@ -490,12 +501,6 @@ void TimerModel::publish(const Change &change)
         Q_EMIT sessionActiveChanged();
     }
     updateElapsed();
-    resolveProject();
-}
-
-void TimerModel::resolveProject()
-{
-    m_chosen->update(chosenProject(), isRunning() || isPaused(), readable() ? m_connection.data() : nullptr, workspaceId());
 }
 
 void TimerModel::updateElapsed()

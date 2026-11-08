@@ -10,7 +10,7 @@ TimerController::TimerController(QObject *parent)
 
 TimerController::TimerController(Clock *clock, QObject *parent)
     : TimerModel(parent)
-    , m_coordinator(new TimerCoordinator(this, clock, this))
+    , m_coordinator(new TimerCoordinator(this, this, clock, this))
 {
     setActivity(m_coordinator);
 }

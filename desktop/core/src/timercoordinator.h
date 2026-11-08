@@ -18,13 +18,18 @@
 namespace Tokkl
 {
 
+class ProjectLoader;
+
 // The timer's actions and what keeps them safe: start, stop, pause, resume
 // and the project and billable choices, the connection they act on, the
-// settling of each write and the recovery from a lost workspace. It drives
-// a TimerModel through the model's interface for it; the model shows the
-// result, owns the project catalog and the next start's selection, and
-// applies the next-start defaults. The model's canWrite() is what every
-// action asks first. A Pomodoro session works with it through TimerActions.
+// settling of each write and the recovery from a lost workspace. It reads
+// a TimerModel through its public interface and changes it only through
+// TimerModelUpdates, whose operations send the model's notifications; the
+// model shows the result, owns the project catalog and the next start's
+// selection, and applies the next-start defaults. The coordinator's
+// ProjectLoader does the reads of projects and of the last entry. The
+// model's canWrite() is what every action asks first. A Pomodoro session
+// works with it through TimerActions.
 //
 // The timer state is the server's, from a TimerStateClient, and the
 // connection is the client's. The client reads the state, follows its event
@@ -85,9 +90,10 @@ class TimerCoordinator : public TimerActions, public TimerActivity
     Q_OBJECT
 
 public:
-    // Drives model, which must outlive it. A null clock follows the clock of
-    // the state client it is given.
-    TimerCoordinator(TimerModel *model, Clock *clock, QObject *parent = nullptr);
+    // Reads model and changes it through updates, the same model's; it
+    // must outlive the coordinator. A null clock follows the clock of the
+    // state client it is given.
+    TimerCoordinator(TimerModel *model, TimerModelUpdates *updates, Clock *clock, QObject *parent = nullptr);
     ~TimerCoordinator() override;
 
     TimerModel *model() const;
@@ -167,6 +173,8 @@ private:
     void clearKeptError();
 
     TimerModel *m_model;
+    TimerModelUpdates *m_updates;
+    ProjectLoader *m_loader;
     // The clock given, or the state client's when none was.
     QPointer<Clock> m_fixedClock;
     bool m_clientClock;
