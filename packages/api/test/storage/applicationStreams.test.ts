@@ -5,7 +5,12 @@ import type { AddressInfo } from 'node:net';
 import type { TimerState } from '@tokkl/types';
 import { errorHandler } from '../../src/http/errors.ts';
 import { silentLogger } from '../../src/lib/logger.ts';
-import { TimerStreams, type StreamCredentialResult } from '../../src/services/timerStreams.ts';
+import { EventEmitter } from 'node:events';
+import {
+  TimerStreams,
+  type EventStreamResponse,
+  type StreamCredentialResult,
+} from '../../src/services/timerStreams.ts';
 const state = (revision: number): TimerState => ({
   revision,
   server_time: '2026-10-30T12:00:00.000Z',
@@ -249,4 +254,71 @@ test('streams still opening count toward the process-wide cap', { timeout: 10000
     await response.body!.cancel();
   }
   assert.equal(checked.includes(3), false);
+});
+
+/** A stream response whose socket takes writes only while `accepting`, like a client that stops reading. */
+class SlowResponse extends EventEmitter implements EventStreamResponse {
+  destroyed = false;
+  headersSent = false;
+  socket = { destroyed: false };
+  writableLength = 0;
+  accepting = true;
+  ended = false;
+  readonly written: string[] = [];
+  writeHead(): void {
+    this.headersSent = true;
+  }
+  flushHeaders(): void {}
+  write(chunk: string): boolean {
+    this.written.push(chunk);
+    if (!this.accepting) this.writableLength += Buffer.byteLength(chunk);
+    return this.accepting;
+  }
+  end(): void {
+    this.ended = true;
+  }
+  /** The client reads again: the buffer empties and the socket asks for more. */
+  drain(): void {
+    this.writableLength = 0;
+    this.accepting = true;
+    this.emit('drain');
+  }
+}
+const passing = async (): Promise<StreamCredentialResult> => ({ valid: true, revision: 0 });
+
+test('a stream whose socket is full waits for it to drain instead of ending', { timeout: 10000 }, async t => {
+  const streams = new TimerStreams(async () => state(1), { drainTimeoutMs: 5000 });
+  t.after(() => streams.closeAll());
+  const res = new SlowResponse();
+  res.accepting = false;
+  await streams.open(1, res, passing);
+  assert.equal(res.ended, false, 'a full socket gets time to drain');
+  res.drain();
+  await streams.publish(1, state(2));
+  assert.equal(res.ended, false);
+  assert.match(res.written.at(-1)!, /"revision":2/);
+});
+
+test('a stream that does not drain in time ends', { timeout: 10000 }, async t => {
+  const streams = new TimerStreams(async () => state(1), { drainTimeoutMs: 20 });
+  t.after(() => streams.closeAll());
+  const res = new SlowResponse();
+  res.accepting = false;
+  await streams.open(1, res, passing);
+  assert.equal(res.ended, false);
+  while (!res.ended) await new Promise(resolve => setTimeout(resolve, 5));
+  assert.equal(streams.hasStreams(1), false);
+});
+
+test('a stream ends when a write would pass its unsent byte bound', { timeout: 10000 }, async t => {
+  const streams = new TimerStreams(async () => state(1), { drainTimeoutMs: 5000, maxBufferedBytes: 300 });
+  t.after(() => streams.closeAll());
+  const res = new SlowResponse();
+  res.accepting = false;
+  await streams.open(1, res, passing);
+  assert.equal(res.ended, false, 'the first state is written into an empty buffer');
+  assert.ok(res.writableLength > 0 && res.writableLength < 300);
+  await streams.publish(1, state(2));
+  assert.equal(res.ended, true);
+  assert.equal(res.written.length, 1, 'the write that would pass the bound is not made');
 });

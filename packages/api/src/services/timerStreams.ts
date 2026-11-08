@@ -9,7 +9,11 @@ export interface EventStreamResponse {
   readonly destroyed: boolean;
   readonly headersSent: boolean;
   readonly socket: { readonly destroyed: boolean } | null;
+  /** Bytes written and not yet handed to the socket. */
+  readonly writableLength: number;
   on(event: 'close', listener: () => void): unknown;
+  once(event: 'drain', listener: () => void): unknown;
+  off(event: 'drain', listener: () => void): unknown;
   writeHead(status: number, headers: Record<string, string>): unknown;
   flushHeaders(): void;
   write(chunk: string): boolean;
@@ -27,6 +31,10 @@ const refused = () => forbidden('Incorrect username and/or password');
 const STREAMS_FULL_RETRY_SECONDS = 5;
 export interface TimerStreamOptions {
   keepAliveMs?: number;
+  /** How long a stream whose socket stopped taking data may wait for it to drain before it ends. Default 30 s. */
+  drainTimeoutMs?: number;
+  /** Bytes a stream may hold unsent. A write that would pass it ends the stream. Default 64 KiB. */
+  maxBufferedBytes?: number;
   /** Open and opening streams one user may hold. A new one past it ends the user's oldest. Default 10. */
   maxPerUser?: number;
   /** Open and opening streams in this process. A new one past it is refused with a 503. Default 1000. */
@@ -41,6 +49,8 @@ interface Stream {
   revision: number;
   timer?: NodeJS.Timeout;
   ticking: boolean;
+  /** Set while the socket is full: the drain listener and the timeout that ends the stream. */
+  draining?: { listener: () => void; timeout: NodeJS.Timeout };
 }
 interface Group {
   streams: Set<Stream>;
@@ -61,6 +71,8 @@ export class TimerStreams {
     this.#state = state;
     this.#options = {
       keepAliveMs: options.keepAliveMs ?? 25000,
+      drainTimeoutMs: options.drainTimeoutMs ?? 30000,
+      maxBufferedBytes: options.maxBufferedBytes ?? 64 * 1024,
       maxPerUser: options.maxPerUser ?? 10,
       maxStreams: options.maxStreams ?? 1000,
     };
@@ -125,6 +137,7 @@ export class TimerStreams {
   }
   #end(id: number, group: Group, stream: Stream): void {
     clearInterval(stream.timer);
+    this.#stopDraining(stream);
     group.streams.delete(stream);
     try {
       stream.res.end();
@@ -133,13 +146,39 @@ export class TimerStreams {
     }
     if (!group.streams.size && this.#users.get(id) === group) this.#users.delete(id);
   }
+  /**
+   * Writes `message` unless the stream holds too much unsent. A full socket does not end the
+   * stream: it gets `drainTimeoutMs` to drain, and only a stream still full after that ends.
+   */
   #write(id: number, group: Group, stream: Stream, message: string): void {
     if (group.retired || !group.streams.has(stream)) return;
     try {
-      if (!stream.res.write(message)) this.#end(id, group, stream);
+      const buffered = stream.res.writableLength;
+      if (buffered > 0 && buffered + Buffer.byteLength(message) > this.#options.maxBufferedBytes) {
+        this.#end(id, group, stream);
+        return;
+      }
+      if (!stream.res.write(message)) this.#awaitDrain(id, group, stream);
     } catch {
       this.#end(id, group, stream);
     }
+  }
+  #awaitDrain(id: number, group: Group, stream: Stream): void {
+    if (stream.draining || !group.streams.has(stream)) return;
+    const listener = () => {
+      if (stream.draining?.listener !== listener) return;
+      clearTimeout(stream.draining.timeout);
+      stream.draining = undefined;
+    };
+    const timeout = setTimeout(() => this.#end(id, group, stream), this.#options.drainTimeoutMs);
+    stream.draining = { listener, timeout };
+    stream.res.once('drain', listener);
+  }
+  #stopDraining(stream: Stream): void {
+    if (!stream.draining) return;
+    clearTimeout(stream.draining.timeout);
+    stream.res.off('drain', stream.draining.listener);
+    stream.draining = undefined;
   }
   open(id: number, res: EventStreamResponse, check: () => Promise<StreamCredentialResult>): Promise<void> {
     return this.#track(this.#open(id, res, check));
@@ -206,7 +245,10 @@ export class TimerStreams {
     if (!group.streams.has(stream)) return;
     stream.timer = setInterval(() => this.#tick(id, group, stream), this.#options.keepAliveMs);
   }
-  /** A keep-alive: recheck the credential, send the event, and ask for a refresh if this process is behind. */
+  /**
+   * A keep-alive: recheck the credential, send the event, and ask for a refresh if this process is
+   * behind. A stream whose socket is still draining skips the event.
+   */
   #tick(id: number, group: Group, stream: Stream): void {
     if (stream.ticking) return;
     stream.ticking = true;
@@ -217,7 +259,7 @@ export class TimerStreams {
         this.#end(id, group, stream);
         return;
       }
-      this.#write(id, group, stream, 'event: keep-alive\ndata:\n\n');
+      if (!stream.draining) this.#write(id, group, stream, 'event: keep-alive\ndata:\n\n');
       // This tick holds the group queue and the refresh delivers through it, so never await here.
       if (group.streams.has(stream) && result.revision > Math.max(stream.revision, group.latest?.revision ?? -1))
         this.#behind(id, result.revision);
@@ -230,6 +272,7 @@ export class TimerStreams {
   /** Forgets a stream that never sent its headers, so the error handler can still answer. */
   #discard(id: number, group: Group, stream: Stream): void {
     clearInterval(stream.timer);
+    this.#stopDraining(stream);
     group.streams.delete(stream);
     if (!group.streams.size && this.#users.get(id) === group) this.#users.delete(id);
   }
