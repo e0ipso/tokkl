@@ -213,7 +213,11 @@ for (const backend of backends.filter(b => !args[3] || b === args[3])) {
     const html = await fetch(base + '/');
     assert.equal(html.status, 200);
     assert.match(await html.text(), /<html/);
-    assert.deepEqual(await (await fetch(base + '/api/app/status')).json(), { setup_required: true });
+    assert.deepEqual(await (await fetch(base + '/api/app/status')).json(), {
+      setup_required: true,
+      api_version: 1,
+      capabilities: ['app-preferences', 'timer-actions', 'timer-edit', 'pomodoro-revision'],
+    });
     const setup = await fetch(base + '/api/app/setup', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-tokkl-csrf': '1' },
@@ -337,7 +341,11 @@ for (const backend of backends.filter(b => !args[3] || b === args[3])) {
     await sessionsClosed();
     await docker(['start', app]);
     await healthy();
-    assert.deepEqual(await json('/api/app/status'), { setup_required: false });
+    assert.deepEqual(await json('/api/app/status'), {
+      setup_required: false,
+      api_version: 1,
+      capabilities: ['app-preferences', 'timer-actions', 'timer-edit', 'pomodoro-revision'],
+    });
     assert.equal((await json<{ id: number }>('/api/v9/me')).id, me.id);
     assert.equal((await json<{ running_entry: { id: number } }>('/api/app/timer')).running_entry.id, running.id);
     assert.equal((await json<{ time_entries: unknown[] }>('/api/app/export.json')).time_entries.length, 30001);

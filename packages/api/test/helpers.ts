@@ -215,3 +215,9 @@ export async function independentReportServer(ctx: TestContext): Promise<TestCon
   if (ctx.db.backend === 'sqlite') return fileBackedCopy(ctx);
   return serve(await reopenDatabase(ctx.db), ctx.user);
 }
+
+/** The API version and capabilities this server names next to `setup_required` in GET /api/app/status. */
+export const SERVER_API = {
+  api_version: 1,
+  capabilities: ['app-preferences', 'timer-actions', 'timer-edit', 'pomodoro-revision'],
+} as const;

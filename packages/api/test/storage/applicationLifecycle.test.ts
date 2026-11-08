@@ -12,6 +12,7 @@ import { databaseUrl, openTimerStream, startApi } from './support/apiProcess.ts'
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createStorage } from '../../src/storage/index.ts';
 import type { TimerState } from '@tokkl/types';
+import { SERVER_API } from '../helpers.ts';
 
 for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
   test(
@@ -44,7 +45,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         return value as T;
       }
       assert.deepEqual(await json('GET', '/healthz', undefined, false), { ok: true });
-      assert.deepEqual(await json('GET', '/api/app/status', undefined, false), { setup_required: true });
+      assert.deepEqual(await json('GET', '/api/app/status', undefined, false), { setup_required: true, ...SERVER_API });
       const setup = await request(
         'POST',
         '/api/app/setup',
@@ -162,7 +163,10 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       if (fixture.config.backend !== 'sqlite') assert.ok(!logs.includes(fixture.config.password));
       console.log(`${backend} first lifecycle: ${logs.trim()}`);
       app = await startApi(databaseUrl(fixture.config), dir);
-      assert.deepEqual(await json('GET', '/api/app/status', undefined, false), { setup_required: false });
+      assert.deepEqual(await json('GET', '/api/app/status', undefined, false), {
+        setup_required: false,
+        ...SERVER_API,
+      });
       assert.equal((await json<TimerState>('GET', '/api/app/timer')).running_entry!.description, 'persist');
       assert.equal((await json<{ time_entries: unknown[] }>('GET', '/api/app/export.json')).time_entries.length, 301);
       const revisions = events.states.map(s => s.revision);
