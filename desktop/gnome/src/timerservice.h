@@ -15,6 +15,7 @@
 #include <QDBusContext>
 #include <QList>
 #include <QMap>
+#include <QMetaProperty>
 #include <QObject>
 #include <QPointer>
 #include <QString>
@@ -190,7 +191,7 @@ private:
     void onWriteFinished(bool ok, const QString &message);
 
     // The properties in groups that change together. Each core signal marks
-    // the groups it can change, and only those are read again.
+    // the groups it can change (watch()), and only those are read again.
     enum Group : unsigned {
         TimerGroup = 1u << 0, // the entry, chain, choice, indicator and status
         ProjectsGroup = 1u << 1,
@@ -202,13 +203,26 @@ private:
         AllGroups = (1u << 7) - 1,
     };
 
-    QVariantMap timerProperties() const;
-    QVariantMap projectProperties() const;
-    QVariantMap sessionProperties() const;
-    QVariantMap actionProperties() const;
-    QVariantMap lengthProperties() const;
-    QVariantMap soundProperties() const;
-    QVariantMap fixedProperties() const;
+    // A published property: its name on the bus, its group and the
+    // Q_PROPERTY its value is read through.
+    struct Published {
+        QString name;
+        unsigned group;
+        QMetaProperty meta;
+    };
+    using Publication = QList<Published>;
+    // Every org.tokkl.Timer1 property, from the table in timerservice.cpp.
+    static const Publication &publication();
+    // Marks groups whenever one of sender's signals fires.
+    template<typename Sender, typename... Signals>
+    void watch(unsigned groups, Sender *sender, Signals... signals)
+    {
+        (connect(sender, signals, this,
+                 [this, groups] {
+                     mark(groups);
+                 }),
+         ...);
+    }
     // The values of the given groups, as the adaptor reads them.
     QVariantMap read(unsigned groups) const;
     // Marks the groups and publishes them when the event loop next runs.
