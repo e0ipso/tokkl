@@ -1,6 +1,7 @@
 import { useEffect, useEffectEvent, useRef, useState, type RefObject } from 'react';
 import { useUpdateRunningEntry } from '../api/entries.ts';
-import type { TimeEntry, TimeEntryInput } from '../api/types.ts';
+import type { RunningEntryChanges } from '../api/timerHooks.ts';
+import type { TimeEntry } from '../api/types.ts';
 import type { EntryFieldsHandle } from './EntryFields.tsx';
 import { useToast } from './Toast.tsx';
 import { followRunningEntry, type OwnStart } from './runningDraftSync.ts';
@@ -61,7 +62,7 @@ export function useRunningDraft(current: TimeEntry | null, fields: RefObject<Ent
   useEffect(() => follow(), [signature]);
 
   /** Saves an edit to the running entry. While a start is loading the sync above saves it instead. */
-  const patchRunning = (changes: TimeEntryInput) => {
+  const patchRunning = (changes: RunningEntryChanges) => {
     if (!current || ownStart.current) return;
     update.mutate({ id: current.id, ...changes }, { onError: toast.error });
   };

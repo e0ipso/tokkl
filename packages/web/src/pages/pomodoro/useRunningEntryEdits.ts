@@ -1,6 +1,6 @@
 import { useEffect, useEffectEvent, useRef } from 'react';
 import { useUpdateRunningEntry } from '../../api/entries.ts';
-import type { TimeEntryInput } from '../../api/types.ts';
+import type { RunningEntryChanges } from '../../api/timerHooks.ts';
 import { useToast } from '../../components/Toast.tsx';
 import type { EntryDraft } from '../../components/useEntryFields.ts';
 
@@ -8,7 +8,7 @@ import type { EntryDraft } from '../../components/useEntryFields.ts';
 const DESCRIPTION_SAVE_DELAY_MS = 800;
 
 /**
- * Saves edits of the open pomodoro to its running entry with v9 updates. Typing waits a moment and
+ * Saves edits of the open pomodoro to its running entry through the timer (`useUpdateRunningEntry`). Typing waits a moment and
  * saves on blur; other fields save at once. `settle` sends a waiting description now. Next phase and
  * End session call it first, and the actions wait for the edit, so the next pomodoro copies it.
  */
@@ -16,7 +16,7 @@ export function useRunningEntryEdits(entryId: number | null) {
   const update = useUpdateRunningEntry();
   const toast = useToast();
   const waiting = useRef<{ id: number; description: string; timer: ReturnType<typeof setTimeout> } | null>(null);
-  const send = (id: number, changes: TimeEntryInput) =>
+  const send = (id: number, changes: RunningEntryChanges) =>
     update.mutateAsync({ id, ...changes }).then(() => {}, toast.error);
   const settle = (): Promise<void> => {
     const pending = waiting.current;

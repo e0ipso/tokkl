@@ -7,9 +7,9 @@ import { invalidate } from './invalidate.ts';
 import { keys, stale } from './keys.ts';
 import { APP, V9, wsPath } from './paths.ts';
 import { entryBoundsReply, entryListReply, timeEntryReply } from './replies.ts';
-import { attemptTimerRequest, timerWrite } from './timerHooks.ts';
+import { attemptTimerRequest, editRunningEntry, timerWrite, type RunningEntryChanges } from './timerHooks.ts';
 import { MOVES_TIMER } from './timerState.ts';
-import type { BulkPatchResult, PatchOperation, TimeEntry, TimeEntryInput } from './types.ts';
+import type { BulkPatchResult, PatchOperation, TimeEntry, TimeEntryInput, TimerState } from './types.ts';
 
 /** Time entries: lists, writes and the trash. The running entry comes from the timer state (timerHooks.ts). */
 
@@ -88,58 +88,69 @@ export type EntryUpdate = TimeEntryInput & { id: number };
 export const entryScope = (id: number) => ({ id: `entry:${id}` });
 
 /**
- * Sends an edit of entry `update.id` in that entry's scope (`entryScope`). `running` marks an edit
- * of the running entry, which is a timer write (`timerWrite` in timerHooks.ts): after one whose
- * outcome is unknown, the timer state is read before it goes out. A scope is fixed per mutation,
+ * Runs `write` as a mutation in entry `id`'s scope (`entryScope`). A scope is fixed per mutation,
  * so each edit builds its own mutation instead of sharing one `useMutation`.
  */
-export function updateEntry(
-  qc: QueryClient,
-  wid: number,
-  { id, ...input }: EntryUpdate,
-  { running = false }: { running?: boolean } = {},
-): Promise<TimeEntry> {
-  const send = () => entryRequests.update(wid, id, input);
+function inEntryScope<T>(qc: QueryClient, id: number, write: () => Promise<T>, onSuccess?: () => unknown): Promise<T> {
   return qc
     .getMutationCache()
-    .build(qc, {
-      meta: MOVES_TIMER,
-      scope: entryScope(id),
-      mutationFn: () => (running ? timerWrite(qc, send) : send()),
-      onSuccess: () => invalidate(qc, stale.entries),
-    })
+    .build(qc, { meta: MOVES_TIMER, scope: entryScope(id), mutationFn: write, onSuccess })
     .execute(undefined);
 }
 
-/** What the entry edit hooks return: `mutate` reports a failure to `onError` only. */
-export interface EntryUpdater {
-  mutate(update: EntryUpdate, options?: { onError?: (error: Error) => void }): void;
-  mutateAsync(update: EntryUpdate): Promise<TimeEntry>;
+/**
+ * Sends an edit of entry `update.id` as a v9 update, in that entry's scope (`entryScope`). Edits of
+ * stopped entries go this way, and so does a running entry's edit in the entry editor: it can move
+ * the start, which `/api/app/timer/edit` never changes.
+ */
+export function updateEntry(qc: QueryClient, wid: number, { id, ...input }: EntryUpdate): Promise<TimeEntry> {
+  return inEntryScope(
+    qc,
+    id,
+    () => entryRequests.update(wid, id, input),
+    () => invalidate(qc, stale.entries),
+  );
 }
 
-function useEntryUpdater(running: boolean): EntryUpdater {
-  const qc = useQueryClient();
-  const wid = useWid();
-  return useMemo(() => {
-    const mutateAsync = (update: EntryUpdate) => updateEntry(qc, wid, update, { running });
-    return {
-      mutateAsync,
-      mutate: (update, options) =>
-        void mutateAsync(update).catch((error: unknown) =>
-          options?.onError?.(error instanceof Error ? error : new Error(String(error))),
-        ),
-    };
-  }, [qc, wid, running]);
+/** An edit of the running entry: its id, which picks the scope, and the fields that change. */
+export type RunningEntryUpdate = RunningEntryChanges & { id: number };
+
+/**
+ * Sends an edit of the running entry through the timer (`editRunningEntry` in timerHooks.ts), at
+ * the revision this tab saw, in the entry's scope, so it stays in order with the other edits of
+ * it. The reply is the new timer state, and a conflict hands over the server's.
+ */
+export function updateRunningEntry(qc: QueryClient, { id, ...changes }: RunningEntryUpdate): Promise<TimerState> {
+  return inEntryScope(qc, id, () => editRunningEntry(qc, changes));
+}
+
+/** What the entry edit hooks return: `mutate` reports a failure to `onError` only. */
+export interface EntryUpdater<Update = EntryUpdate, Reply = TimeEntry> {
+  mutate(update: Update, options?: { onError?: (error: Error) => void }): void;
+  mutateAsync(update: Update): Promise<Reply>;
+}
+
+function updaterOf<Update, Reply>(mutateAsync: (update: Update) => Promise<Reply>): EntryUpdater<Update, Reply> {
+  return {
+    mutateAsync,
+    mutate: (update, options) =>
+      void mutateAsync(update).catch((error: unknown) =>
+        options?.onError?.(error instanceof Error ? error : new Error(String(error))),
+      ),
+  };
 }
 
 /** Saves an edit of an entry, in order with the other edits of that entry (`updateEntry`). */
 export function useUpdateEntry(): EntryUpdater {
-  return useEntryUpdater(false);
+  const qc = useQueryClient();
+  const wid = useWid();
+  return useMemo(() => updaterOf((update: EntryUpdate) => updateEntry(qc, wid, update)), [qc, wid]);
 }
 
-/** Saves an edit of the running entry, in order with the other edits of it, as a timer write. */
-export function useUpdateRunningEntry(): EntryUpdater {
-  return useEntryUpdater(true);
+/** Saves an edit of the running entry, in order with the other edits of it (`updateRunningEntry`). */
+export function useUpdateRunningEntry(): EntryUpdater<RunningEntryUpdate, TimerState> {
+  const qc = useQueryClient();
+  return useMemo(() => updaterOf((update: RunningEntryUpdate) => updateRunningEntry(qc, update)), [qc]);
 }
 
 /**
@@ -166,7 +177,7 @@ export function useDeleteEntry() {
   return useMutation({ meta: MOVES_TIMER, mutationFn: (id: number) => entryRequests.remove(wid, id), onSuccess });
 }
 
-/** Discards the running entry: a delete sent as a timer write, like `useUpdateRunningEntry`. */
+/** Discards the running entry: a v9 delete sent as a timer write (`timerWrite` in timerHooks.ts). */
 export function useDiscardRunningEntry() {
   const qc = useQueryClient();
   const wid = useWid();
