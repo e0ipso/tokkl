@@ -678,7 +678,7 @@ TestCase {
         connectAccount(instanceA, 3, 7);
         const list = waitFor("GET", "/me/time_entries");
         compare(fixture.request(list).query.meta, "true");
-        compare(Object.keys(fixture.request(list).query), ["meta"], "no date range: the API's last 9 days");
+        compare(Object.keys(fixture.request(list).query).sort(), ["end_date", "meta", "start_date"], "the last two days first");
         fixture.respond(list, 200, JSON.stringify([listedEntry(8, 11, true, true), listedEntry(6, 12, true, false)]));
         tryCompare(button.timer, "chosenProjectId", 11);
         const menu = button.menu;

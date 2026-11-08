@@ -1,5 +1,7 @@
 #include "connection.h"
 
+#include "apijson.h"
+
 #include <QSet>
 
 #include <utility>
@@ -267,6 +269,15 @@ void Connection::fetchRecentEntries(Callback<QList<ListedEntry>> done)
     // Without dates the API answers with the entries started in the last 9
     // days.
     m_session.api().call<QList<ListedEntry>>("GET", api(QStringLiteral("/me/time_entries?meta=true")), QByteArray(), ApiAccess::Read, &decodeListedEntries, std::move(done));
+}
+
+void Connection::fetchEntriesStarted(const QDateTime &from, const QDateTime &to, Callback<QList<ListedEntry>> done)
+{
+    // RFC 3339 instants in UTC; the API takes them as the bounds of the
+    // entries' starts.
+    const QString path =
+        QStringLiteral("/me/time_entries?meta=true&start_date=%1&end_date=%2").arg(Json::utcTimestamp(from), Json::utcTimestamp(to));
+    m_session.api().call<QList<ListedEntry>>("GET", api(path), QByteArray(), ApiAccess::Read, &decodeListedEntries, std::move(done));
 }
 
 void Connection::fetchPreferences(Callback<PomodoroConfig> done)

@@ -91,6 +91,12 @@ public:
         return m_lastEntryRead;
     }
 
+    // The read numbered number is the one that may set the default.
+    bool lastEntryReadIs(quint64 number) const
+    {
+        return m_lastEntryRead == number;
+    }
+
     // The read numbered number may still set the default. Once asked, it
     // may not again.
     bool takeLastEntryRead(quint64 number)

@@ -1537,10 +1537,20 @@ private Q_SLOTS:
         QVERIFY(f.unanswered(read));
         const QUrl url = f.transport.requests.at(read).url;
         QCOMPARE(url.path(), QStringLiteral("/api/v9/me/time_entries"));
-        QCOMPARE(url.query(), QStringLiteral("meta=true"));
+        // The entries of the last two days on the server's clock, up to a
+        // day ahead.
+        QCOMPARE(url.query(), QStringLiteral("meta=true&start_date=2026-10-14T09:00:00Z&end_date=2026-10-17T09:00:00Z"));
 
         QSignalSpy choice(&f.timer, &TimerController::choiceChanged);
         f.respond(read, FakeTransport::answer(200, list));
+        if (list == "[]") {
+            // None there: the API's last 9 days follow.
+            const qsizetype wider = f.last("GET", listPath);
+            QVERIFY(wider > read);
+            QCOMPARE(f.transport.requests.at(wider).url.query(), QStringLiteral("meta=true"));
+            f.respond(wider, FakeTransport::answer(200, list));
+        }
+        const qsizetype reads = f.find("GET", listPath).size();
         if (project.isNull()) {
             QVERIFY(f.timer.chosenProjectId().isNull());
         } else {
@@ -1553,7 +1563,7 @@ private Q_SLOTS:
         QVERIFY(f.timer.chooseProject(QVariant::fromValue(nullptr)));
         poll(f);
         QVERIFY(f.answerState("null"));
-        QCOMPARE(f.find("GET", listPath).size(), 1);
+        QCOMPARE(f.find("GET", listPath).size(), reads);
         QVERIFY(f.timer.chosenProjectId().isNull());
     }
 

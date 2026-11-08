@@ -115,6 +115,9 @@ public:
     // The account's entries of the last 9 days in every workspace, newest
     // first, with project metadata (GET /me/time_entries?meta=true).
     void fetchRecentEntries(Callback<QList<ListedEntry>> done = {});
+    // As fetchRecentEntries(), for the entries that started from from up to
+    // before to.
+    void fetchEntriesStarted(const QDateTime &from, const QDateTime &to, Callback<QList<ListedEntry>> done = {});
     // The Pomodoro lengths of the account preferences, through
     // /api/app/me/preferences, whose refusals name the refused key in
     // Tokkl-Error-Field. A length outside the server's pomodoro_limits reads

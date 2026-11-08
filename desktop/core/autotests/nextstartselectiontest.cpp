@@ -189,7 +189,7 @@ private Q_SLOTS:
         QSignalSpy changed(&f.selection, &NextStartSelection::changed);
         f.selection.readLastEntry([] {
             return true;
-        });
+        }, QDateTime());
         const HttpRequest &request = f.transport.requests.last();
         QCOMPARE(request.url.path(), QStringLiteral("/api/v9/me/time_entries"));
         QCOMPARE(request.url.query(), QStringLiteral("meta=true"));
@@ -197,6 +197,61 @@ private Q_SLOTS:
         QCOMPARE(f.selection.projectId(), 11);
         QVERIFY(f.selection.billable());
         QVERIFY(changed.count() > 0);
+    }
+
+    void theLastEntryIsLookedForInTheLastDaysFirst()
+    {
+        Fixture f;
+        QVERIFY(f.connect());
+        const QDateTime now(QDate(2026, 10, 16), QTime(9, 0), QTimeZone::UTC);
+        f.selection.readLastEntry([] {
+            return true;
+        }, now);
+        const qsizetype first = f.transport.requests.size() - 1;
+        QCOMPARE(f.transport.requests.at(first).url.path(), QStringLiteral("/api/v9/me/time_entries"));
+        QCOMPARE(f.transport.requests.at(first).url.query(),
+                 QStringLiteral("meta=true&start_date=2026-10-14T09:00:00Z&end_date=2026-10-17T09:00:00Z"));
+        f.transport.respond(first, FakeTransport::answer(200, recentBody));
+        QCOMPARE(f.selection.projectId(), 11);
+        // An entry in those days ends the search.
+        QCOMPARE(f.transport.requests.size(), first + 1);
+    }
+
+    void noEntryInTheLastDaysWidensToTheNineDays_data()
+    {
+        QTest::addColumn<QString>("action");
+        QTest::newRow("none") << QString();
+        QTest::newRow("pick") << QStringLiteral("pick");
+        QTest::newRow("no longer wanted") << QStringLiteral("unwanted");
+    }
+
+    void noEntryInTheLastDaysWidensToTheNineDays()
+    {
+        QFETCH(QString, action);
+        Fixture f;
+        QVERIFY(f.connect());
+        bool wanted = true;
+        f.selection.readLastEntry([&wanted] {
+            return wanted;
+        }, QDateTime(QDate(2026, 10, 16), QTime(9, 0), QTimeZone::UTC));
+        const qsizetype first = f.transport.requests.size() - 1;
+        if (action == QLatin1String("pick")) {
+            f.selection.pick(Choice());
+        } else if (action == QLatin1String("unwanted")) {
+            wanted = false;
+        }
+        f.transport.respond(first, FakeTransport::answer(200, "[]"));
+        if (!action.isEmpty()) {
+            // Nothing more to look for.
+            QCOMPARE(f.transport.requests.size(), first + 1);
+            QVERIFY(!f.selection.projectId());
+            return;
+        }
+        QCOMPARE(f.transport.requests.size(), first + 2);
+        QCOMPARE(f.transport.requests.last().url.query(), QStringLiteral("meta=true"));
+        f.transport.respondLast(FakeTransport::answer(200, recentBody));
+        QCOMPARE(f.selection.projectId(), 11);
+        QVERIFY(f.selection.billable());
     }
 
     void aPickOrAStartBeforeTheAnswerKeepsItsChoice_data()
@@ -217,7 +272,7 @@ private Q_SLOTS:
         bool wanted = true;
         f.selection.readLastEntry([&wanted] {
             return wanted;
-        });
+        }, QDateTime());
         const qsizetype read = f.transport.requests.size() - 1;
         if (action == QLatin1String("pick")) {
             f.selection.pick(Choice());
@@ -243,7 +298,7 @@ private Q_SLOTS:
         const qsizetype before = f.transport.requests.size();
         f.selection.readLastEntry([] {
             return true;
-        });
+        }, QDateTime());
         QCOMPARE(f.transport.requests.size(), before);
     }
 
@@ -254,7 +309,7 @@ private Q_SLOTS:
         QVERIFY(f.selection.takeLastEntryWanted());
         f.selection.readLastEntry([] {
             return true;
-        });
+        }, QDateTime());
         f.transport.respondLast(FakeTransport::answer(500, "{}"));
         QVERIFY(f.selection.takeLastEntryWanted());
     }
