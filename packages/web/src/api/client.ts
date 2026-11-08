@@ -211,40 +211,58 @@ export async function request<T>(method: Method, path: string, options: RequestO
   return options.decode ? options.decode(value) : (value as T);
 }
 
-type DownloadRequest = { method?: 'GET' | 'POST'; body?: unknown };
+/**
+ * A download request. `signal` cancels it, reply body included, such as when the view that started
+ * it goes away; the download then fails with the signal's reason.
+ */
+export interface DownloadRequest {
+  method?: 'GET' | 'POST';
+  body?: unknown;
+  signal?: AbortSignal;
+}
 
 /**
  * Sends a download request and reads the whole reply. The reply must start within `startMs`; the
  * body then takes as long as it takes. A refusal, such as a 503 from a full download lane or a 403
- * for a lost session, fails with its `ApiError` and the server's message.
+ * for a lost session, fails with its `ApiError` and the server's message. A cancel by `signal`, at
+ * any point, fails with the signal's reason, never as timed out.
  */
 export async function fetchDownload(
   path: string,
-  { method = 'GET', body }: DownloadRequest = {},
+  { method = 'GET', body, signal }: DownloadRequest = {},
   startMs: number = DOWNLOAD_START_MS,
 ): Promise<Blob> {
+  signal?.throwIfAborted();
   // A controller the body read outlives: an AbortSignal.timeout would cut the body off later.
   const controller = new AbortController();
+  const cancel = () => controller.abort(signal?.reason);
+  signal?.addEventListener('abort', cancel, { once: true });
   const timer = setTimeout(() => controller.abort(new DOMException('No reply in time', 'TimeoutError')), startMs);
-  let response: Response;
   try {
-    response = await send(method, path, body, controller.signal);
-  } catch (error) {
-    if (controller.signal.aborted) throw new RequestTimeoutError(method, path);
-    throw error;
+    let response: Response;
+    try {
+      response = await send(method, path, body, controller.signal);
+    } catch (error) {
+      if (controller.signal.aborted && !signal?.aborted) throw new RequestTimeoutError(method, path);
+      throw error;
+    } finally {
+      clearTimeout(timer);
+    }
+    return await response.blob();
   } finally {
-    clearTimeout(timer);
+    signal?.removeEventListener('abort', cancel);
   }
-  return response.blob();
 }
 
 /**
  * Sends a request and saves the reply as a file. Exports go through fetch too, not through a link
  * the browser follows: a followed link cannot show the server's message for a refusal, and the
- * caller could not tell when the file is done.
+ * caller could not tell when the file is done. A download cancelled by `request.signal` saves
+ * nothing, even when its body had already arrived.
  */
 export async function download(path: string, filename: string, request: DownloadRequest = {}): Promise<void> {
   const blob = await fetchDownload(path, request);
+  request.signal?.throwIfAborted();
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;

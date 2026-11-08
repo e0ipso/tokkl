@@ -64,7 +64,15 @@ export function useWeeklyReport(filters: ReportFilterBody, rows: 'projects' | 'c
   });
 }
 
-/** Downloads the detailed or summary report as CSV. */
-export function downloadReportCsv(kind: 'detailed' | 'summary', body: object, filename: string): Promise<void> {
-  return download(`${APP}/report/${kind}.csv`, filename, { method: 'POST', body });
+/**
+ * Downloads the detailed or summary report as CSV. `signal` cancels the download: the POST only
+ * reads, so a cancelled one leaves nothing half done.
+ */
+export function downloadReportCsv(
+  kind: 'detailed' | 'summary',
+  body: object,
+  filename: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  return download(`${APP}/report/${kind}.csv`, filename, { method: 'POST', body, signal });
 }
