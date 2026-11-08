@@ -21,6 +21,7 @@
 #include "statusimage.h"
 #include "statusitem.h"
 #include "statusmenu.h"
+#include "statuspresentation.h"
 #include "statuswords.h"
 #include "timercontroller.h"
 
@@ -643,6 +644,28 @@ private Q_SLOTS:
         f.item.click();
         QVERIFY(f.transport.requests.isEmpty());
         QVERIFY(!f.app.m_menu.get()->m_startStopAction->isEnabled());
+    }
+
+    // The words are keyed on the core's keys: a part, status or click
+    // action the core adds without words here fails.
+    void everyCoreKeyHasWords()
+    {
+        Fixture f;
+        QVERIFY(f.connect(entryBody()));
+        const TimerModel &timer = *f.app.m_timer.get();
+        const PomodoroSession &session = *f.app.m_session.get();
+        for (const QString &part : statusPartKeys()) {
+            QVERIFY2(StatusWords::withPart(part, QStringList(), timer, session).has_value(), qPrintable(part));
+        }
+        for (const QString &status : timerStatusKeys()) {
+            QVERIFY2(!StatusWords::statusWord(status).isEmpty(), qPrintable(status));
+        }
+        for (const QString &action : primaryActionKeys()) {
+            QVERIFY2(!StatusWords::actionName(action, session).isEmpty(), qPrintable(action));
+        }
+        QVERIFY(!StatusWords::withPart(QStringLiteral("unknown"), QStringList(), timer, session).has_value());
+        QVERIFY(StatusWords::statusWord(QStringLiteral("unknown")).isEmpty());
+        QVERIFY(StatusWords::actionName(QStringLiteral("unknown"), session).isEmpty());
     }
 
     void titleShowsElapsedTime()

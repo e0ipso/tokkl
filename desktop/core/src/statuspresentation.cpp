@@ -26,6 +26,21 @@ QString statusPartKey(StatusPart part)
     return QString();
 }
 
+QStringList statusPartKeys()
+{
+    QStringList keys;
+    for (StatusPart part : {StatusPart::Activity,
+                            StatusPart::Session,
+                            StatusPart::Project,
+                            StatusPart::Connection,
+                            StatusPart::Detail,
+                            StatusPart::PomodoroMode,
+                            StatusPart::Message}) {
+        keys.append(statusPartKey(part));
+    }
+    return keys;
+}
+
 QString statusMarkKey(StatusMark mark)
 {
     switch (mark) {
@@ -39,6 +54,51 @@ QString statusMarkKey(StatusMark mark)
         return QStringLiteral("unconfigured");
     }
     return QString();
+}
+
+QStringList statusMarkKeys()
+{
+    QStringList keys;
+    for (StatusMark mark : {StatusMark::None, StatusMark::Pending, StatusMark::Alert, StatusMark::Unconfigured}) {
+        keys.append(statusMarkKey(mark));
+    }
+    return keys;
+}
+
+QString timerStatusKey(TimerModel::Status status)
+{
+    switch (status) {
+    case TimerModel::Unconfigured:
+        return QStringLiteral("unconfigured");
+    case TimerModel::Loading:
+        return QStringLiteral("loading");
+    case TimerModel::Ready:
+        return QStringLiteral("ready");
+    case TimerModel::Busy:
+        return QStringLiteral("busy");
+    case TimerModel::Stale:
+        return QStringLiteral("stale");
+    case TimerModel::AuthenticationBlocked:
+        return QStringLiteral("authentication-blocked");
+    case TimerModel::Error:
+        break;
+    }
+    return QStringLiteral("error");
+}
+
+QStringList timerStatusKeys()
+{
+    QStringList keys;
+    for (TimerModel::Status status : {TimerModel::Unconfigured,
+                                      TimerModel::Loading,
+                                      TimerModel::Ready,
+                                      TimerModel::Busy,
+                                      TimerModel::Stale,
+                                      TimerModel::AuthenticationBlocked,
+                                      TimerModel::Error}) {
+        keys.append(timerStatusKey(status));
+    }
+    return keys;
 }
 
 QString primaryActionKey(PrimaryAction action)
@@ -56,6 +116,15 @@ QString primaryActionKey(PrimaryAction action)
         return QStringLiteral("session");
     }
     return QString();
+}
+
+QStringList primaryActionKeys()
+{
+    QStringList keys;
+    for (PrimaryAction action : {PrimaryAction::Start, PrimaryAction::Pause, PrimaryAction::Resume, PrimaryAction::StartSession, PrimaryAction::Session}) {
+        keys.append(primaryActionKey(action));
+    }
+    return keys;
 }
 
 PrimaryAction primaryActionOf(const TimerModel &timer, const PomodoroSession *session)
@@ -317,6 +386,26 @@ QString StatusParts::action() const
     return m_action;
 }
 
+QString StatusParts::status() const
+{
+    return m_status;
+}
+
+QStringList StatusParts::partKeys()
+{
+    return statusPartKeys();
+}
+
+QStringList StatusParts::statusKeys()
+{
+    return timerStatusKeys();
+}
+
+QStringList StatusParts::actionKeys()
+{
+    return primaryActionKeys();
+}
+
 void StatusParts::watch()
 {
     for (const QMetaObject::Connection &connection : std::as_const(m_watches)) {
@@ -342,10 +431,12 @@ void StatusParts::update()
     const StatusInput input = m_timer ? StatusInput::of(*m_timer, m_session, m_hasMessage) : StatusInput();
     const StatusPresentation presentation = m_timer ? StatusPresentation::of(input, StatusPolicy::plasma()) : StatusPresentation();
     const QString action = primaryActionKey(m_timer ? primaryActionOf(*m_timer, m_session) : PrimaryAction::Start);
-    if (presentation != m_presentation || input.showsSession != m_showsSession || action != m_action) {
+    const QString status = timerStatusKey(input.status);
+    if (presentation != m_presentation || input.showsSession != m_showsSession || action != m_action || status != m_status) {
         m_presentation = presentation;
         m_showsSession = input.showsSession;
         m_action = action;
+        m_status = status;
         Q_EMIT changed();
     }
 }

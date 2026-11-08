@@ -204,24 +204,19 @@ export function pomodoroModeLabel(locked, _) {
 }
 
 /**
- * The words for the service's state. status is the Status property, or null
- * when nothing owns the bus name. detail is empty or a longer explanation;
+ * The words for a value of the Status property, keyed as the core keys the
+ * timer's status (timerStatusKeys() in desktop/core/src/statuspresentation.h);
+ * undefined for any other value. detail is empty or a longer explanation;
  * mark says how the panel time ends: '' when ready, '…' while loading or
  * saving, '!' when the timer cannot be trusted or used.
  *
- * @param {string|null} status
+ * @param {string} status
  * @param {string} errorString the ErrorString property
  * @param {(text: string) => string} _ gettext
- * @returns {{text: string, detail: string, mark: string}}
+ * @returns {{text: string, detail: string, mark: string} | undefined}
  */
-export function describeStatus(status, errorString, _) {
+export function statusWords(status, errorString, _) {
     switch (status) {
-        case null:
-            return {
-                text: _('Timer service not running'),
-                detail: _('Install tokkl-timerd, or check its log with journalctl --user -u tokkl-timerd.'),
-                mark: '!',
-            };
         case 'unconfigured':
             return {
                 text: _('Not configured'),
@@ -238,9 +233,32 @@ export function describeStatus(status, errorString, _) {
             return { text: _('Offline, showing the last known state'), detail: errorString, mark: '!' };
         case 'authentication-blocked':
             return { text: _('Sign-in refused'), detail: errorString, mark: '!' };
-        default:
+        case 'error':
             return { text: _('Error'), detail: errorString, mark: '!' };
+        default:
+            return undefined;
     }
+}
+
+/**
+ * The words for the service's state. status is the Status property, or null
+ * when nothing owns the bus name; a value the extension does not know reads
+ * as an error. See statusWords().
+ *
+ * @param {string|null} status
+ * @param {string} errorString the ErrorString property
+ * @param {(text: string) => string} _ gettext
+ * @returns {{text: string, detail: string, mark: string}}
+ */
+export function describeStatus(status, errorString, _) {
+    if (status === null) {
+        return {
+            text: _('Timer service not running'),
+            detail: _('Install tokkl-timerd, or check its log with journalctl --user -u tokkl-timerd.'),
+            mark: '!',
+        };
+    }
+    return statusWords(status, errorString, _) ?? statusWords('error', errorString, _);
 }
 
 /**

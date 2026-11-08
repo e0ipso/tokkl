@@ -17,16 +17,26 @@ namespace
 {
 TimerModel::Status statusOf(const QString &key)
 {
-    static const QHash<QString, TimerModel::Status> statuses{
-        {QStringLiteral("unconfigured"), TimerModel::Unconfigured},
-        {QStringLiteral("loading"), TimerModel::Loading},
-        {QStringLiteral("ready"), TimerModel::Ready},
-        {QStringLiteral("busy"), TimerModel::Busy},
-        {QStringLiteral("stale"), TimerModel::Stale},
-        {QStringLiteral("authentication-blocked"), TimerModel::AuthenticationBlocked},
-        {QStringLiteral("error"), TimerModel::Error},
-    };
-    return statuses.value(key, TimerModel::Error);
+    for (TimerModel::Status status : {TimerModel::Unconfigured,
+                                      TimerModel::Loading,
+                                      TimerModel::Ready,
+                                      TimerModel::Busy,
+                                      TimerModel::Stale,
+                                      TimerModel::AuthenticationBlocked}) {
+        if (timerStatusKey(status) == key) {
+            return status;
+        }
+    }
+    return TimerModel::Error;
+}
+
+QJsonObject fixture()
+{
+    QFile file(QStringLiteral(TOKKL_STATUS_FIXTURE));
+    if (!file.open(QIODevice::ReadOnly)) {
+        return QJsonObject();
+    }
+    return QJsonDocument::fromJson(file.readAll()).object();
 }
 
 QVariantMap expected(const QJsonObject &object)
@@ -153,27 +163,33 @@ private Q_SLOTS:
         QCOMPARE(presentation.summary.first(), StatusPart::Session);
     }
 
-    // Every part and mark has a key, and the keys differ.
+    // Every part, mark, status and action has a key, and the keys differ.
     void keysAreDistinct()
     {
-        QSet<QString> parts;
-        for (const StatusPart part : {StatusPart::Activity,
-                                      StatusPart::Session,
-                                      StatusPart::Project,
-                                      StatusPart::Connection,
-                                      StatusPart::Detail,
-                                      StatusPart::PomodoroMode,
-                                      StatusPart::Message}) {
-            parts.insert(statusPartKey(part));
+        const QList<QStringList> lists{statusPartKeys(), statusMarkKeys(), timerStatusKeys(), primaryActionKeys()};
+        const QList<qsizetype> sizes{7, 4, 7, 5};
+        for (qsizetype i = 0; i < lists.size(); ++i) {
+            const QStringList &keys = lists.at(i);
+            QCOMPARE(QSet<QString>(keys.cbegin(), keys.cend()).size(), sizes.at(i));
+            QVERIFY(!keys.contains(QString()));
         }
-        QCOMPARE(parts.size(), 7);
-        QVERIFY(!parts.contains(QString()));
-        QSet<QString> marks;
-        for (const StatusMark mark : {StatusMark::None, StatusMark::Pending, StatusMark::Alert, StatusMark::Unconfigured}) {
-            marks.insert(statusMarkKey(mark));
-        }
-        QCOMPARE(marks.size(), 4);
-        QVERIFY(!marks.contains(QString()));
+        QCOMPARE(StatusParts::partKeys(), statusPartKeys());
+        QCOMPARE(StatusParts::statusKeys(), timerStatusKeys());
+        QCOMPARE(StatusParts::actionKeys(), primaryActionKeys());
+    }
+
+    // The fixture carries the core's key lists, which the GNOME extension's
+    // tests check its words against.
+    void fixtureCarriesTheKeys()
+    {
+        const QJsonObject keys = fixture().value(QStringLiteral("keys")).toObject();
+        const auto list = [&keys](const char *name) {
+            return keys.value(QLatin1String(name)).toVariant().toStringList();
+        };
+        QCOMPARE(list("parts"), statusPartKeys());
+        QCOMPARE(list("marks"), statusMarkKeys());
+        QCOMPARE(list("statuses"), timerStatusKeys());
+        QCOMPARE(list("actions"), primaryActionKeys());
     }
 };
 

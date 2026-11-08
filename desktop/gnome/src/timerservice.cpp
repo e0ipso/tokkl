@@ -280,23 +280,7 @@ bool TimerService::billable() const
 
 QString TimerService::status() const
 {
-    switch (m_timer->status()) {
-    case TimerModel::Unconfigured:
-        return QStringLiteral("unconfigured");
-    case TimerModel::Loading:
-        return QStringLiteral("loading");
-    case TimerModel::Ready:
-        return QStringLiteral("ready");
-    case TimerModel::Busy:
-        return QStringLiteral("busy");
-    case TimerModel::Stale:
-        return QStringLiteral("stale");
-    case TimerModel::AuthenticationBlocked:
-        return QStringLiteral("authentication-blocked");
-    case TimerModel::Error:
-        break;
-    }
-    return QStringLiteral("error");
+    return timerStatusKey(m_timer->status());
 }
 
 QString TimerService::errorString() const

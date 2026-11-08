@@ -135,7 +135,9 @@ export function projectChoices(projects, chosenProject, label, _, incomplete = f
 }
 
 // How the button's time ends for each mark of the Presentation property.
-const MARKS = { none: '', pending: '…', alert: '!', unconfigured: '!' };
+// How the button's time ends for each mark of a Presentation, keyed as the
+// core keys them (statusMarkKeys() in desktop/core/src/statuspresentation.h).
+export const MARKS = { none: '', pending: '…', alert: '!', unconfigured: '!' };
 
 /**
  * @typedef {object} Presentation the Presentation property: which parts
@@ -175,6 +177,47 @@ export function legacyPresentation(time, words) {
     };
 }
 
+// The time the button shows: the phase's countdown during a session,
+// otherwise the chain total.
+function shownTime(time, nowSeconds) {
+    if (time.session) return countdown(time.session.plannedEnd, nowSeconds).text;
+    const running = time.running ? elapsedSeconds(time.startTime, nowSeconds) : 0;
+    return formatElapsed(time.chainSeconds + running);
+}
+
+/**
+ * The words of each part a Presentation names, keyed as the core keys them
+ * (statusPartKeys() in desktop/core/src/statuspresentation.h). The session's
+ * message has a menu item of its own, so its part has no words here.
+ *
+ * @param {object} time as describeTime() takes it
+ * @param {{text: string, detail: string}} words describeStatus()
+ * @param {string} indicatorLabel the project indicator's accessible name
+ * @param {number} nowSeconds the current Unix time in seconds
+ * @param {(text: string) => string} _ gettext
+ * @returns {Record<string, string>}
+ */
+export function partTexts(time, words, indicatorLabel, nowSeconds, _) {
+    let activity = '';
+    if (!time.session) {
+        const shown = shownTime(time, nowSeconds);
+        activity = _('Stopped');
+        // Translators: %s is the elapsed time as H:MM.
+        if (time.running) activity = fill(_('Running %s'), shown);
+        // Translators: %s is the paused total as H:MM.
+        else if (time.paused) activity = fill(_('Paused %s'), shown);
+    }
+    return {
+        activity,
+        session: time.session ? sessionLine(time.session, nowSeconds, _) : '',
+        project: indicatorLabel,
+        connection: words.text,
+        detail: words.detail,
+        pomodoroMode: _('Pomodoro mode'),
+        message: '',
+    };
+}
+
 /**
  * The time on the button, the menu's status line and the button's
  * accessible name. During a session they show the phase's countdown instead
@@ -203,27 +246,7 @@ export function legacyPresentation(time, words) {
  */
 export function describeTime(time, words, indicatorLabel, nowSeconds, _) {
     const presentation = time.presentation ?? legacyPresentation(time, words);
-    let shown, activity;
-    if (time.session) {
-        shown = countdown(time.session.plannedEnd, nowSeconds).text;
-        activity = '';
-    } else {
-        const running = time.running ? elapsedSeconds(time.startTime, nowSeconds) : 0;
-        shown = formatElapsed(time.chainSeconds + running);
-        activity = _('Stopped');
-        // Translators: %s is the elapsed time as H:MM.
-        if (time.running) activity = fill(_('Running %s'), shown);
-        // Translators: %s is the paused total as H:MM.
-        else if (time.paused) activity = fill(_('Paused %s'), shown);
-    }
-    const texts = {
-        activity,
-        session: time.session ? sessionLine(time.session, nowSeconds, _) : '',
-        project: indicatorLabel,
-        connection: words.text,
-        detail: words.detail,
-        pomodoroMode: _('Pomodoro mode'),
-    };
+    const texts = partTexts(time, words, indicatorLabel, nowSeconds, _);
     // The parts' words, those with any, joined by " · ".
     const render = parts =>
         parts
@@ -231,7 +254,7 @@ export function describeTime(time, words, indicatorLabel, nowSeconds, _) {
             .filter(text => text)
             .join(' · ');
     return {
-        button: `${shown}${MARKS[presentation.mark] ?? ''}`,
+        button: `${shownTime(time, nowSeconds)}${MARKS[presentation.mark] ?? ''}`,
         status: render(presentation.menuLine),
         accessibleName: render(presentation.summary),
     };

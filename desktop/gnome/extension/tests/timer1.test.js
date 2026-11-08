@@ -57,6 +57,7 @@ test('every Status value has words and a mark', () => {
     assert.equal(describeStatus('busy', '', identity).mark, '…');
     for (const status of ['unconfigured', 'stale', 'authentication-blocked', 'error', 'unknown-value', null])
         assert.equal(describeStatus(status, 'why', identity).mark, '!', String(status));
+    assert.deepEqual(describeStatus('unknown-value', 'why', identity), describeStatus('error', 'why', identity));
     assert.equal(describeStatus('stale', 'Network down', identity).detail, 'Network down');
     assert.equal(describeStatus('error', 'Server said no', identity).detail, 'Server said no');
     assert.match(describeStatus(null, '', identity).text, /not running/);

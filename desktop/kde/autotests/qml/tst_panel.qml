@@ -881,6 +881,30 @@ TestCase {
 
     // ----- states and disabled controls -----------------------------------
 
+    // The words are keyed on the core's keys: a part, status or click
+    // action the core adds without words here fails.
+    function test_everyCoreKeyHasWords() {
+        const words = button.words;
+        const parts = words.parts;
+        compare(parts.partKeys.length, 7);
+        for (const key of parts.partKeys) {
+            verify(words.partWords(key, []) !== undefined, "part " + key);
+        }
+        compare(parts.statusKeys.length, 7);
+        for (const key of parts.statusKeys) {
+            verify(words.statusWord(key) !== undefined, "status " + key);
+        }
+        compare(parts.actionKeys.length, 5);
+        for (const key of parts.actionKeys) {
+            verify(words.actionWord(key) !== undefined, "action " + key);
+        }
+        verify(words.partWords("unknown", []) === undefined);
+        verify(words.statusWord("unknown") === undefined);
+        verify(words.actionWord("unknown") === undefined);
+        compare(parts.status, "unconfigured");
+        compare(parts.action, "start");
+    }
+
     function test_unconfiguredDisablesEverything() {
         compare(button.timer.status, TokklTimer.Unconfigured);
         compare(button.words.statusText, "Not configured");
