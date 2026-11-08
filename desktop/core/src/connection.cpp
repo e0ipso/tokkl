@@ -1,5 +1,8 @@
 #include "connection.h"
 
+#include "logging.h"
+
+#include <QPointer>
 #include <QSet>
 
 #include <utility>
@@ -280,17 +283,47 @@ void Connection::updateEntry(qint64 entryId, const TimeEntryUpdate &update, Call
 
 void Connection::fetchPreferences(Callback<PomodoroConfig> done)
 {
-    m_session.api().call<PomodoroConfig>("GET", api(QStringLiteral("/me/preferences")), QByteArray(), ApiAccess::Read, &decodePomodoroPreferences, std::move(done));
+    preferencesCall("GET", QByteArray(), ApiAccess::Read, std::move(done));
 }
 
 void Connection::savePreferences(const PomodoroConfigUpdate &update, Callback<PomodoroConfig> done)
 {
-    m_session.api().call<PomodoroConfig>("POST",
-                                         api(QStringLiteral("/me/preferences")),
-                                         encodePomodoroConfigUpdate(update),
-                                         ApiAccess::Write,
-                                         &decodePomodoroPreferences,
-                                         std::move(done));
+    preferencesCall("POST", encodePomodoroConfigUpdate(update), ApiAccess::Write, std::move(done));
+}
+
+bool Connection::preferencesThroughV9() const
+{
+    return m_v9PreferencesGeneration == generation();
+}
+
+void Connection::preferencesCall(const QByteArray &method, const QByteArray &body, ApiAccess access, Callback<PomodoroConfig> done)
+{
+    const QString path = QStringLiteral("/me/preferences");
+    if (preferencesThroughV9()) {
+        m_session.api().call<PomodoroConfig>(method, api(path), body, access, &decodePomodoroPreferences, std::move(done));
+        return;
+    }
+    QPointer<Connection> self(this);
+    const quint64 sent = generation();
+    m_session.api().call<PomodoroConfig>(
+        method,
+        app(path),
+        body,
+        access,
+        &decodePomodoroPreferences,
+        [self, sent, method, body, access, done](const ApiResult<PomodoroConfig> &result) {
+            // Not a route of this server: nothing was read or changed.
+            const bool missing = result.error.kind == ApiError::Kind::Client && result.error.status == 404;
+            if (!self || !missing || self->generation() != sent) {
+                if (done) {
+                    done(result);
+                }
+                return;
+            }
+            qCInfo(lcNet) << "The server has no /api/app/me/preferences; using /api/v9/me/preferences";
+            self->m_v9PreferencesGeneration = sent;
+            self->preferencesCall(method, body, access, done);
+        });
 }
 
 void Connection::fetchTimerState(Callback<TimerState> done)

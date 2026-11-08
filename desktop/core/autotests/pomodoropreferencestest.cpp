@@ -123,7 +123,7 @@ private Q_SLOTS:
         // missing key.
         QVERIFY(connectAccount(f, instanceA, 3, 7));
         QVERIFY(f.preferences.isEditable());
-        QVERIFY(f.lastIs("GET", QStringLiteral("/api/v9/me/preferences")));
+        QVERIFY(f.lastIs("GET", QStringLiteral("/api/app/me/preferences")));
         f.transport.respondLast(FakeTransport::answer(
             200,
             QJsonDocument(QJsonObject{{workKey, 50}, {shortRestKey, QStringLiteral("10")}, {longRestKey, 61}}).toJson(QJsonDocument::Compact)));
@@ -135,7 +135,7 @@ private Q_SLOTS:
         // holds.
         QVERIFY(f.preferences.save(50, 10, 15, 4));
         QVERIFY(f.preferences.isSaving());
-        QVERIFY(f.lastIs("POST", QStringLiteral("/api/v9/me/preferences")));
+        QVERIFY(f.lastIs("POST", QStringLiteral("/api/app/me/preferences")));
         QCOMPARE(f.lastBody(), (QJsonObject{{shortRestKey, 10}}));
         f.transport.respondLast(FakeTransport::answer(200, preferencesBody({50, 10, 15, 4})));
         QVERIFY(!f.preferences.isSaving());
@@ -192,6 +192,7 @@ private Q_SLOTS:
         f.transport.respondLast(FakeTransport::answer(200, preferencesBody({25, 5, 15, 4})));
 
         QVERIFY(f.preferences.save(25, 5, 61, 13));
+        QVERIFY(f.lastIs("POST", QStringLiteral("/api/app/me/preferences")));
         HttpResponse refused = FakeTransport::answer(400, message("Invalid pomodoro_focus_interval_in_minutes: expected an integer from 1 to 180"));
         refused.errorCode = "invalid_preference";
         refused.errorField = "pomodoro_long_break_interval_in_minutes";
@@ -207,6 +208,50 @@ private Q_SLOTS:
         QVERIFY(f.preferences.longRestEveryError().isEmpty());
         QVERIFY(f.preferences.longRestMinutesError().isEmpty());
         QCOMPARE(f.preferences.errorString(), QStringLiteral("Invalid pomodoro_long_break_every: expected an integer from 1 to 12"));
+    }
+
+    // A server from before /api/app/me/preferences answers 404 there. The
+    // read and the save then go to v9 for the rest of the generation, with
+    // no second probe, and a refusal without the header is still read from
+    // its message. A new generation asks the app path again.
+    void olderServerFallsBackToV9()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f, instanceA, 3, 7));
+        QVERIFY(f.lastIs("GET", QStringLiteral("/api/app/me/preferences")));
+        f.transport.respondLast(FakeTransport::answer(404, message("Not found")));
+        QVERIFY(f.lastIs("GET", QStringLiteral("/api/v9/me/preferences")));
+        QVERIFY(f.preferences.errorString().isEmpty());
+        f.transport.respondLast(FakeTransport::answer(200, preferencesBody({30, 5, 15, 4})));
+        QCOMPARE(f.preferences.config(), (PomodoroConfig{30, 5, 15, 4}));
+        QVERIFY(f.preferences.errorString().isEmpty());
+
+        const qsizetype before = f.transport.requests.size();
+        f.preferences.refresh();
+        QCOMPARE(f.transport.requests.size(), before + 1);
+        QVERIFY(f.lastIs("GET", QStringLiteral("/api/v9/me/preferences")));
+        f.transport.respondLast(FakeTransport::answer(200, preferencesBody({30, 5, 15, 4})));
+
+        QVERIFY(f.preferences.save(30, 5, 61, 4));
+        QCOMPARE(f.transport.requests.size(), before + 2);
+        QVERIFY(f.lastIs("POST", QStringLiteral("/api/v9/me/preferences")));
+        QCOMPARE(f.lastBody(), (QJsonObject{{longRestKey, 61}}));
+        f.transport.respondLast(FakeTransport::answer(400, message("Invalid pomodoro_long_break_interval_in_minutes: expected an integer from 1 to 60")));
+        QCOMPARE(f.preferences.longRestMinutesError(), QStringLiteral("Invalid pomodoro_long_break_interval_in_minutes: expected an integer from 1 to 60"));
+        QVERIFY(f.preferences.errorString().isEmpty());
+
+        // A save the app path refuses as missing goes to v9 as well.
+        QVERIFY(connectAccount(f, instanceB, 3, 7));
+        QVERIFY(f.lastIs("GET", QStringLiteral("/tokkl/api/app/me/preferences")));
+        f.transport.respondLast(FakeTransport::answer(200, preferencesBody({25, 5, 15, 4})));
+        QVERIFY(f.preferences.save(26, 5, 15, 4));
+        QVERIFY(f.lastIs("POST", QStringLiteral("/tokkl/api/app/me/preferences")));
+        f.transport.respondLast(FakeTransport::answer(404, message("Not found")));
+        QVERIFY(f.lastIs("POST", QStringLiteral("/tokkl/api/v9/me/preferences")));
+        QCOMPARE(f.lastBody(), (QJsonObject{{workKey, 26}}));
+        f.transport.respondLast(FakeTransport::answer(200, preferencesBody({26, 5, 15, 4})));
+        QCOMPARE(f.preferences.config(), (PomodoroConfig{26, 5, 15, 4}));
+        QVERIFY(!f.preferences.isSaving());
     }
 
     void keepsTheLengthsReadWhileUnreachable()
@@ -265,8 +310,8 @@ private Q_SLOTS:
         const qsizetype read = f.transport.requests.size() - 1;
         QVERIFY(f.preferences.save(41, 8, 20, 3));
         const qsizetype post = f.transport.requests.size() - 1;
-        f.transport.respond(read, FakeTransport::answer(404, message("Not found")));
-        QCOMPARE(f.preferences.errorString(), QStringLiteral("Not found"));
+        f.transport.respond(read, FakeTransport::answer(400, message("Preferences are unavailable")));
+        QCOMPARE(f.preferences.errorString(), QStringLiteral("Preferences are unavailable"));
         QCOMPARE(refreshed.size(), 2);
 
         QVERIFY(configure(f, instanceB));
@@ -304,7 +349,7 @@ private Q_SLOTS:
         f.transport.respondLast(FakeTransport::answer(200, meBody(4, 7)));
         QCOMPARE(f.connection.state(), Connection::Connected);
         QCOMPARE(f.preferences.config(), PomodoroConfig());
-        QVERIFY(f.lastIs("GET", QStringLiteral("/api/v9/me/preferences")));
+        QVERIFY(f.lastIs("GET", QStringLiteral("/api/app/me/preferences")));
         f.transport.respondLast(FakeTransport::answer(200, preferencesBody({35, 7, 25, 5})));
         QCOMPARE(f.preferences.config(), (PomodoroConfig{35, 7, 25, 5}));
     }
