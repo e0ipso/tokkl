@@ -73,8 +73,11 @@ class ProjectLoader;
 // runs with nothing running. Only an active project of the workspace counts.
 //
 // chooseProject() sets only the project of the next start and is refused
-// while an entry runs: the project of a running entry is fixed, and changing
-// it means stopping and starting a new entry. chooseBillable() sets the next
+// while an entry runs, a chain is paused or a session is active: the
+// project of a running entry is fixed, and changing it means stopping and
+// starting a new entry. chooseBillable() is refused while paused or during
+// a session. TimerModel::canChooseProject() and canChooseBillable() are
+// the rule, and every menu shows what they allow. chooseBillable() sets the next
 // start too and, while an entry runs, edits that entry in place with one
 // write carrying only billable, so the entry is never split. Choosing a project
 // applies its billable default (false for no project); a later billable
@@ -135,11 +138,10 @@ public:
     bool resume();
     // Pauses a running entry, resumes a paused chain, otherwise starts.
     bool toggle() override;
-    // Null, 0 or an active project's id. Returns false when refused: no
-    // write possible now, an entry runs or a chain is paused, or not an
-    // active project.
+    // Null, 0 or an active project's id. Returns false when refused: not
+    // TimerModel::canChooseProject(), or not an active project.
     bool chooseProject(const QVariant &projectId);
-    // Refused while a chain is paused.
+    // Refused unless TimerModel::canChooseBillable().
     bool chooseBillable(bool billable);
 
     // Reads the state and the projects again.

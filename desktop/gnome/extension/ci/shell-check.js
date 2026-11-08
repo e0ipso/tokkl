@@ -741,14 +741,14 @@ await step('a primary click starts a session, and the label counts the phase dow
     await hourglassIs('the hourglass', { visible: true });
 });
 
-await step('the mode is locked during a session, and project and billable are not', async () => {
+await step('the mode, the project and billable are locked during a session', async () => {
     await modeItemIs('the locked switch', {
         label: 'Pomodoro mode (locked while running)',
         state: true,
         sensitive: false,
     });
-    if (!sensitive('_projectMenu') || !sensitive('_billableItem'))
-        throw new Error('the project or billable is insensitive during a session');
+    if (sensitive('_projectMenu') || sensitive('_billableItem'))
+        throw new Error('the project or billable is sensitive during a session');
     // A refused change puts the switch back.
     const before = mockCalls().length;
     shell(`${button}._modeItem.toggle()`);

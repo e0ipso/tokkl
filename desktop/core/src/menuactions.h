@@ -26,30 +26,28 @@ struct ActionState {
 
 // Where the panels' menus differ. Each companion names its own policy, so a
 // difference is written here rather than in one panel's copy of the rules.
+// What an action may do is the timer's rule, never a policy's: the policy
+// can only grey out more.
 struct MenuActionPolicy {
-    // What Start, Stop, Project and Billable wait for.
+    // What Start, Stop, Project and Billable wait for besides the timer's
+    // rule.
     enum class WriteGate {
-        // TimerModel::canWrite(): connected, the state read, nothing in
-        // flight and no workspace lost.
+        // Nothing more: TimerModel::canWrite(), canChooseProject() and
+        // canChooseBillable() alone.
         CanWrite,
-        // Status Ready, which also holds them while the last action's
-        // message shows and while the data shown is stale.
+        // Also status Ready, so the write items grey out whenever the
+        // status line shows something other than Connected: while the last
+        // action's message shows and while the data shown is stale.
         Ready,
     };
     WriteGate writeGate = WriteGate::CanWrite;
-    // A session disables Project and Billable, as neither reaches the open
-    // pomodoro. Otherwise they stay as the timer allows; the timer then sets
-    // the next start.
-    bool sessionHoldsChoices = false;
 
-    // The KDE panel: writes wait for canWrite, and a session holds the
-    // project and billable choices.
+    // The KDE panel: the timer's rule alone.
     static MenuActionPolicy plasma();
-    // The macOS menu bar app: writes wait for canWrite, and a session leaves
-    // the choices to the timer.
+    // The macOS menu bar app: the timer's rule alone.
     static MenuActionPolicy macos();
-    // The GNOME menu, which has always read the published Status: writes wait
-    // for Ready, and a session leaves the choices to the timer.
+    // The GNOME menu, which has always followed the published Status: write
+    // items also wait for Ready.
     static MenuActionPolicy gnome();
 };
 
@@ -63,10 +61,12 @@ struct MenuActionPolicy {
 // Start session shows in Pomodoro mode while no session is active and no
 // timer runs or is paused, and can be chosen when the session says so. Next
 // phase and End session show whenever a session is active, in either mode
-// and whichever device started it. Project sets only the next start and is
-// locked while an entry runs or a chain is paused. Billable is locked while
-// paused; while an entry runs the timer edits that entry. Pomodoro mode is
-// locked while a timer runs or is paused, or a session is active.
+// and whichever device started it. Project and Billable can be chosen as
+// TimerModel::canChooseProject() and canChooseBillable() allow: Project
+// sets only the next start and is locked while an entry runs, a chain is
+// paused or a session is active; Billable is locked while paused or during
+// a session, and while an entry runs the timer edits that entry. Pomodoro
+// mode is locked while a timer runs or is paused, or a session is active.
 struct MenuActionStates {
     // label "start" or "stop".
     ActionState run;

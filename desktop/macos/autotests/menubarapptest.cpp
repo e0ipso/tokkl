@@ -1224,9 +1224,10 @@ private Q_SLOTS:
         QVERIFY(menu.m_endSessionAction->isVisible());
         QCOMPARE(menu.m_endSessionAction->text(), QStringLiteral("End session"));
         QCOMPARE(menu.m_stateAction->text(), QStringLiteral("Work · 1:00 left · Pomodoro 1 of 2"));
-        QVERIFY(menu.m_projectMenu->menuAction()->isEnabled());
-        QVERIFY(projectAction(menu, QStringLiteral("Alpha"))->isEnabled());
-        QVERIFY(menu.m_billableAction->isEnabled());
+        // The open pomodoro is the session's: Project and Billable are locked.
+        QVERIFY(!menu.m_projectMenu->menuAction()->isEnabled());
+        QVERIFY(!projectAction(menu, QStringLiteral("Alpha"))->isEnabled());
+        QVERIFY(!menu.m_billableAction->isEnabled());
 
         // Next phase sends the revision shown.
         f.advance(60);

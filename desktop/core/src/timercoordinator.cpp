@@ -271,8 +271,7 @@ bool TimerCoordinator::toggle()
 
 bool TimerCoordinator::chooseProject(const QVariant &projectId)
 {
-    // The project of a running or paused entry is fixed until it stops.
-    if (!m_model->canWrite() || m_model->isRunning() || m_model->isPaused()) {
+    if (!m_model->canChooseProject()) {
         return false;
     }
     const std::optional<NextStartSelection::Choice> choice = m_selection->choiceFor(projectId);
@@ -286,8 +285,7 @@ bool TimerCoordinator::chooseProject(const QVariant &projectId)
 
 bool TimerCoordinator::chooseBillable(bool billable)
 {
-    // A resume copies the chain's flag.
-    if (!m_model->canWrite() || m_model->isPaused()) {
+    if (!m_model->canChooseBillable()) {
         return false;
     }
     clearKeptError();

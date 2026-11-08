@@ -193,8 +193,8 @@ function variant(name) {
 }
 
 // The menu actions as the service publishes them from the core's rules with
-// the GNOME policy: writes wait for Status ready, and a session leaves
-// Project and Billable to the timer.
+// the GNOME policy: writes wait for Status ready, and a session locks
+// Project and Billable, as the open pomodoro is the session's.
 function actionsOf() {
     const ready = state.Status === 'ready';
     const held = state.Running || state.Paused;
@@ -209,8 +209,8 @@ function actionsOf() {
         startSession: shown(idle && !active, state.CanStartSession, 'startSession'),
         nextPhase: shown(active, true, active ? state.UpcomingPhase : ''),
         endSession: shown(active, true, 'endSession'),
-        project: shown(true, ready && !held, project),
-        billable: shown(true, ready && !state.Paused, 'billable'),
+        project: shown(true, ready && !held && !active, project),
+        billable: shown(true, ready && !state.Paused && !active, 'billable'),
         mode: shown(true, !state.ModeLocked, state.ModeLocked ? 'pomodoroModeLocked' : 'pomodoroMode'),
     };
 }

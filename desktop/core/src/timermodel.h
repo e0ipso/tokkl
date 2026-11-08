@@ -275,6 +275,15 @@ public:
     // session's start both ask this, so the cooldown, a lost workspace and
     // a write in flight hold both.
     bool canStartNew() const;
+    // The project of the next start can be chosen now: canWrite(), and no
+    // entry runs, no chain is paused and no session is active. A held
+    // entry's project is fixed, and a session's open pomodoro is a running
+    // entry whose project is the session's.
+    bool canChooseProject() const;
+    // Billable can be chosen now: canWrite(), no chain is paused (a resume
+    // copies the chain's flag) and no session is active (the open pomodoro
+    // is the session's). While an entry runs the choice edits that entry.
+    bool canChooseBillable() const;
     QString errorString() const;
     Status status() const;
 

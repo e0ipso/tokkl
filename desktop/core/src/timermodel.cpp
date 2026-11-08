@@ -120,6 +120,16 @@ bool TimerModel::canStartNew() const
     return canWrite() && !isRunning() && !isPaused() && !isSessionActive();
 }
 
+bool TimerModel::canChooseProject() const
+{
+    return canWrite() && !isRunning() && !isPaused() && !isSessionActive();
+}
+
+bool TimerModel::canChooseBillable() const
+{
+    return canWrite() && !isPaused() && !isSessionActive();
+}
+
 QString TimerModel::errorString() const
 {
     const QString message = m_activity ? m_activity->message() : QString();
@@ -229,7 +239,7 @@ bool TimerModel::projectsIncomplete() const
 ProjectChoices TimerModel::projectChoices() const
 {
     const bool held = isRunning() || isPaused();
-    return ProjectChoices::build(m_catalog->projects(), m_catalog->incomplete(), chosenProject(), held ? m_chosen->entryProject() : std::nullopt, canWrite() && !held);
+    return ProjectChoices::build(m_catalog->projects(), m_catalog->incomplete(), chosenProject(), held ? m_chosen->entryProject() : std::nullopt, canChooseProject());
 }
 
 QVariantList TimerModel::projectChoicesVariant() const

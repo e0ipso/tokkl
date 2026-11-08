@@ -15,11 +15,11 @@ import com.canpicasoft.tokkl.backend
 // Which of Start or Stop, Start session, Next phase, End session, Project,
 // Billable and Pomodoro mode show and can be chosen comes from the core's
 // rules (TokklMenuActions, MenuActionStates in desktop/core), with the KDE
-// policy: writes wait for canWrite, and a session disables Project and
-// Billable, as neither reaches the open pomodoro. The session is the
-// server's, so Next phase and End session show whenever one is active, in
-// either mode and whichever device started it, and the state line then names
-// the phase.
+// policy: writes wait for canWrite. The timer's rule disables Project and
+// Billable during a session, as neither reaches the open pomodoro. The
+// session is the server's, so Next phase and End session show whenever one
+// is active, in either mode and whichever device started it, and the state
+// line then names the phase.
 //
 // Stop ends the timer and its pause chain; while paused it asks the server
 // to discard the chain. Project sets only the project of the next start;

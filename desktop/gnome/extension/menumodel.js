@@ -53,8 +53,8 @@ import {
  *
  * Which items show and can be chosen is the service's to say: the Actions
  * property carries the shared core's rules, the ones the KDE and macOS
- * menus follow, with GNOME's policy (writes wait for Status "ready", and a
- * session leaves Project and Billable to the timer). This turns each
+ * menus follow, with GNOME's policy (writes also wait for Status "ready").
+ * This turns each
  * action's label into words. Start, or Stop while an entry runs or a chain
  * is paused, never pauses: Stop ends the chain. Without Actions, from no
  * service or one older than the property, legacyActions() gives the rules

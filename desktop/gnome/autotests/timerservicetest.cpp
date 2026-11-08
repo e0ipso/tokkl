@@ -1587,6 +1587,14 @@ private Q_SLOTS:
         QVERIFY(f.recorder.valuesOf(QStringLiteral("ModeLocked")).contains(true));
         QCOMPARE(f.result(QStringLiteral("SetPomodoroMode"), {QVariant(false)}).toBool(), false);
         QCOMPARE(f.get(QStringLiteral("PomodoroMode")).toBool(), true);
+        // The open pomodoro is the session's: Project and Billable are locked,
+        // in Actions and in the methods.
+        const qsizetype requests = f.transport.requests.size();
+        QCOMPARE(f.result(QStringLiteral("SetProject"), {qint64(0)}).toBool(), false);
+        QCOMPARE(f.result(QStringLiteral("SetBillable"), {QVariant(false)}).toBool(), false);
+        QCOMPARE(f.transport.requests.size(), requests);
+        QCOMPARE(f.service->actions().value(QStringLiteral("project")).value(QStringLiteral("enabled")).toBool(), false);
+        QCOMPARE(f.service->actions().value(QStringLiteral("billable")).value(QStringLiteral("enabled")).toBool(), false);
 
         // The countdown is not published; the planned end is, as Ringing,
         // and the player hears the sound chosen for the transition.

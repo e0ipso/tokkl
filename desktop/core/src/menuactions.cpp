@@ -17,17 +17,17 @@ QVariantMap ActionState::toVariantMap() const
 
 MenuActionPolicy MenuActionPolicy::plasma()
 {
-    return {WriteGate::CanWrite, true};
+    return {WriteGate::CanWrite};
 }
 
 MenuActionPolicy MenuActionPolicy::macos()
 {
-    return {WriteGate::CanWrite, false};
+    return {WriteGate::CanWrite};
 }
 
 MenuActionPolicy MenuActionPolicy::gnome()
 {
-    return {WriteGate::Ready, false};
+    return {WriteGate::Ready};
 }
 
 MenuActionStates MenuActionStates::of(const TimerModel &timer, const PomodoroSession *session, const MenuActionPolicy &policy)
@@ -39,8 +39,8 @@ MenuActionStates MenuActionStates::of(const TimerModel &timer, const PomodoroSes
     // exactly when the timer shows a session.
     const bool active = session && session->isActive();
     const bool pomodoroIdle = session && session->pomodoroMode() && !held;
-    const bool writable = policy.writeGate == MenuActionPolicy::WriteGate::Ready ? timer.status() == TimerModel::Ready : timer.canWrite();
-    const bool choicesHeld = policy.sessionHoldsChoices && active;
+    const bool gateOpen = policy.writeGate == MenuActionPolicy::WriteGate::CanWrite || timer.status() == TimerModel::Ready;
+    const bool writable = gateOpen && timer.canWrite();
 
     MenuActionStates states;
     states.run.visible = !pomodoroIdle && !active;
@@ -61,7 +61,7 @@ MenuActionStates MenuActionStates::of(const TimerModel &timer, const PomodoroSes
     states.endSession.enabled = active;
     states.endSession.label = QStringLiteral("endSession");
 
-    states.project.enabled = writable && !held && !choicesHeld;
+    states.project.enabled = gateOpen && timer.canChooseProject();
     if (running) {
         states.project.label = QStringLiteral("projectRunning");
     } else if (paused) {
@@ -70,8 +70,7 @@ MenuActionStates MenuActionStates::of(const TimerModel &timer, const PomodoroSes
         states.project.label = QStringLiteral("project");
     }
 
-    // A resume copies the chain's flag.
-    states.billable.enabled = writable && !paused && !choicesHeld;
+    states.billable.enabled = gateOpen && timer.canChooseBillable();
     states.billable.label = QStringLiteral("billable");
 
     const bool locked = session && session->modeLocked();

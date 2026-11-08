@@ -418,7 +418,9 @@ private Q_SLOTS:
         QVERIFY(plasma().startSession.visible && plasma().startSession.enabled);
         QCOMPARE(actions.statesVariant().value(QStringLiteral("startSession")).toMap().value(QStringLiteral("visible")).toBool(), true);
 
-        // A session: Next phase and End session; only KDE holds the choices.
+        // A session: Next phase and End session. Its open pomodoro is a
+        // running entry, so every menu locks Project and Billable, and the
+        // timer refuses them too.
         QVERIFY(f.session->startSession());
         QVERIFY(!plasma().startSession.enabled);
         f.respond(f.last("POST", startPath), f.state(work(f.serverNow())));
@@ -430,9 +432,16 @@ private Q_SLOTS:
             QVERIFY(!states.mode.enabled);
             QCOMPARE(states.mode.label, QStringLiteral("pomodoroModeLocked"));
         }
-        QVERIFY(!plasma().project.enabled && !plasma().billable.enabled);
-        QVERIFY(macos().project.enabled && macos().billable.enabled);
-        QVERIFY(gnome().project.enabled && gnome().billable.enabled);
+        for (const MenuActionStates &states : {plasma(), macos(), gnome()}) {
+            QVERIFY(!states.project.enabled && !states.billable.enabled);
+        }
+        QVERIFY(!f.timer.canChooseProject() && !f.timer.canChooseBillable());
+        QVERIFY(!f.timer.projectChoices().choosable);
+        const qsizetype sent = f.transport.requests.size();
+        QVERIFY(!f.timer.chooseProject(11));
+        QVERIFY(!f.timer.chooseProject(QVariant::fromValue(nullptr)));
+        QVERIFY(!f.timer.chooseBillable(false));
+        QCOMPARE(f.transport.requests.size(), sent);
         QVERIFY(actions.states() == plasma());
     }
 
