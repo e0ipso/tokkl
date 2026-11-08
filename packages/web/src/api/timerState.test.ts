@@ -55,9 +55,9 @@ test('a state with a lower revision than the cached one is dropped; an equal or 
   assert.equal(planTimerUpdate(undefined, state(1), 0)?.changed, false);
 });
 
-test('the current entry comes from the state, and no running entry clears it', () => {
-  assert.equal(planTimerUpdate(undefined, state(1), 0)?.current, entry);
-  assert.equal(planTimerUpdate(state(1), state(2, { running_entry: null }), 0)?.current, null);
+test('the running entry comes with the state, and no running entry clears it', () => {
+  assert.equal(planTimerUpdate(undefined, state(1), 0)?.state.running_entry, entry);
+  assert.equal(planTimerUpdate(state(1), state(2, { running_entry: null }), 0)?.state.running_entry, null);
 });
 
 test('the clock offset is the server time minus the local time at arrival', () => {

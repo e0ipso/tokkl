@@ -3,8 +3,9 @@ import { login } from './helpers.ts';
 import { OtherDevice, countPolls, daysAgo, entryRow, setVisibility } from './groups-refresh-tests-helpers.ts';
 
 // Cross-device freshness (docs/PRD.md C3): the server pushes timer changes over the event stream,
-// the history refetches every 60 s and on window focus, and the running entry polls every 30 s only
-// while the stream is down. Another device changes entries through the API while this page only watches.
+// the history refetches every 60 s and on window focus, and the timer state, which carries the
+// running entry, polls every 30 s only while the stream is down. Another device changes entries
+// through the API while this page only watches.
 
 let device: OtherDevice;
 test.beforeEach(async ({ baseURL }) => {
@@ -55,23 +56,26 @@ test("another device's timer changes arrive by push and its history edits throug
   await expect(entryRow(page, 'Old history')).toHaveCount(1);
   const polls = countPolls(page);
 
-  // An edit leaves the timer state alone, so nothing pushes it: the history list shows it at the next 60-second tick.
-  await device.updateEntry(history.id, { description: 'Edited elsewhere' });
-  await expect(timer.getByRole('button', { name: 'Start timer' })).toBeVisible();
-  expect(polls).toEqual({ current: 0, history: 0 });
-  await page.clock.fastForward(60_000);
-  await expect(entryRow(page, 'Edited elsewhere')).toHaveCount(1);
-  await expect(entryRow(page, 'Old history')).toHaveCount(0);
-  await expect.poll(() => ({ ...polls })).toEqual({ current: 0, history: 1 });
-
-  // A start and a stop reach the timer and the history at once, with no poll and no clock jump.
+  // A start and a stop reach the timer and the history at once, with no read of the timer state
+  // and no clock jump. This runs first: the one-minute jump below outlasts the stream's silence
+  // timeout, and the stream that replaces it reads the timer state again.
   const remote = await device.startTimer('Remote timer');
   await expect(timer.getByRole('button', { name: 'Stop timer' })).toBeVisible();
   await expect(timer.getByLabel('Description')).toHaveValue('Remote timer');
   await device.stopTimer(remote.id);
   await expect(timer.getByRole('button', { name: 'Start timer' })).toBeVisible();
   await expect(entryRow(page, 'Remote timer')).toHaveCount(1);
-  expect(polls.current).toBe(0);
+  expect(polls.timer).toBe(0);
+
+  // An edit leaves the timer state alone, so nothing pushes it: the history list shows it at the next 60-second tick.
+  const pushed = polls.history;
+  await device.updateEntry(history.id, { description: 'Edited elsewhere' });
+  await expect(timer.getByRole('button', { name: 'Start timer' })).toBeVisible();
+  expect(polls.history).toBe(pushed);
+  await page.clock.fastForward(60_000);
+  await expect(entryRow(page, 'Edited elsewhere')).toHaveCount(1);
+  await expect(entryRow(page, 'Old history')).toHaveCount(0);
+  await expect.poll(() => polls.history).toBe(pushed + 1);
 });
 
 test("making the window visible again refreshes another device's history edit at once", async ({ page }) => {
@@ -86,12 +90,12 @@ test("making the window visible again refreshes another device's history edit at
 
   await setVisibility(page, 'hidden');
   await device.updateEntry(history.id, { description: 'Edited elsewhere' });
-  expect(polls).toEqual({ current: 0, history: 0 });
+  expect(polls).toEqual({ timer: 0, history: 0 });
 
   // Well inside the poll interval, so only the visibility change can fetch.
   await setVisibility(page, 'visible');
   await expect(entryRow(page, 'Edited elsewhere')).toHaveCount(1);
-  await expect.poll(() => ({ ...polls })).toEqual({ current: 1, history: 1 });
+  await expect.poll(() => ({ ...polls })).toEqual({ timer: 1, history: 1 });
 });
 
 // Clicking back into a window that stayed visible, such as one beside another app, fires focus
@@ -110,7 +114,7 @@ test("focusing a window that stayed visible refreshes another device's history e
   await device.updateEntry(history.id, { description: 'Edited elsewhere' });
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
   await expect(entryRow(page, 'Edited elsewhere')).toHaveCount(1);
-  await expect.poll(() => ({ ...polls })).toEqual({ current: 1, history: 1 });
+  await expect.poll(() => ({ ...polls })).toEqual({ timer: 1, history: 1 });
 });
 
 test('a refresh keeps the description being typed in the running timer and in a list row', async ({ page }) => {

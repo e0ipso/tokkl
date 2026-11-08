@@ -5,12 +5,11 @@ import { coversPreviousRange } from './entriesPlaceholder.ts';
 import { invalidate } from './invalidate.ts';
 import { keys, stale } from './keys.ts';
 import { APP, V9, wsPath } from './paths.ts';
-import { entryBoundsReply, entryListReply, runningEntryReply, timeEntryReply } from './replies.ts';
+import { entryBoundsReply, entryListReply, timeEntryReply } from './replies.ts';
 import { TIMER_ENTRY_OPTIONS, attemptTimerRequest } from './timerOutcome.ts';
-import { useTimerStreaming } from './timerStreaming.ts';
 import type { BulkPatchResult, PatchOperation, TimeEntry, TimeEntryInput } from './types.ts';
 
-/** Time entries: lists, the running entry, writes and the trash. */
+/** Time entries: lists, writes and the trash. The running entry comes from the timer state (timerHooks.ts). */
 
 /**
  * Entries that started from startDate to endDate, both "YYYY-MM-DD" in the account timezone. When
@@ -28,16 +27,6 @@ export function useEntries(startDate: string, endDate: string) {
     refetchInterval: 60_000,
     placeholderData: (previous, previousQuery) =>
       coversPreviousRange(previousQuery?.queryKey, startDate, endDate) ? previous : undefined,
-  });
-}
-
-/** The running entry. While the timer stream is up it is written from each state, so it does not poll. */
-export function useCurrentEntry() {
-  const streaming = useTimerStreaming();
-  return useQuery({
-    queryKey: keys.current,
-    queryFn: () => api.get(`${V9}/me/time_entries/current?meta=true`, { decode: runningEntryReply }),
-    refetchInterval: streaming ? false : 30_000,
   });
 }
 

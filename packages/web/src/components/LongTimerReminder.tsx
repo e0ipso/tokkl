@@ -2,7 +2,7 @@ import { useCallback, useEffect, useSyncExternalStore } from 'react';
 import { useIsMutating } from '@tanstack/react-query';
 import { Link } from 'wouter';
 import { useMe, usePreferences } from '../api/account.ts';
-import { useCurrentEntry } from '../api/entries.ts';
+import { useCurrentEntry } from '../api/timerHooks.ts';
 import { keys } from '../api/keys.ts';
 import { useClockSelector } from '../lib/clock.ts';
 import { notifyInBackground } from './phaseNotification.ts';

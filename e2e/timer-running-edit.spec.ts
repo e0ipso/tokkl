@@ -162,7 +162,9 @@ test('the clock keeps ticking and a refetch keeps what is being typed into the r
     data: { tags: ['remote'] },
   });
   expect(remote.ok()).toBe(true);
-  const refetched = page.waitForResponse(response => response.url().includes('/time_entries/current') && response.ok());
+  const refetched = page.waitForResponse(
+    response => new URL(response.url()).pathname === '/api/app/timer' && response.ok(),
+  );
   await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')));
   await refetched;
   await expect(timer.getByRole('button', { name: 'Tags' })).toHaveAttribute('title', 'remote');
