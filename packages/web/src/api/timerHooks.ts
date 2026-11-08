@@ -5,7 +5,11 @@ import { keys, stale } from './keys.ts';
 import { getClockOffset, serverNow, setClockOffset } from './serverClock.ts';
 import {
   TimerActionError,
+  clearTimerUnknown,
   explainTimerActionError,
+  isOutcomeUnknown,
+  isTimerUnknown,
+  markTimerUnknown,
   timerStateOf,
   planTimerUpdate,
   revisionToSend,
@@ -95,26 +99,45 @@ async function currentRevision(qc: QueryClient): Promise<number> {
 }
 
 /**
- * Timer actions run even while the browser reports being offline. TanStack's default would hold
- * them until the connection returns and then send them late; they fail at once instead, with the
- * offline message.
+ * Brings the timer state up to date after a timer write whose outcome is unknown, before the next
+ * one goes out. If the state moved past the one cached, the lost write may have landed: the read
+ * state is adopted and the write fails with a conflict, as a Start or Stop at a stale revision
+ * does. A read that fails leaves the outcome unknown, and the write does not go out.
  */
-const actionOptions = { networkMode: 'always' } as const;
+async function reconcileTimer(qc: QueryClient): Promise<void> {
+  if (!isTimerUnknown(qc)) return;
+  const seen = qc.getQueryData<TimerState>(keys.timer);
+  const fresh = await readTimerState(qc);
+  clearTimerUnknown(qc);
+  if (seen && fresh.revision !== seen.revision) throw new TimerActionError('conflict', fresh);
+}
 
 /**
- * Posts a timer action. The reply is the new state; a reply that is not a whole state fails the
- * action with the unreadable-state message and leaves the caches alone. A 409 replaces the cached
- * state with the one in its body and fails with a `TimerActionError` of kind `conflict`; no reply
- * at all fails with kind `offline`. Both carry the message to show. Other failures, a 409 without a
- * whole state among them, keep their `ApiError`.
+ * Sends a write that can start, stop or change what the timer shows: a timer action, the finished
+ * entry typed into the idle bar, an edit of the running entry or its discard. A write that fails
+ * with an unknown outcome (`isOutcomeUnknown`), such as a 502 or an unreadable reply, marks the
+ * timer unknown, and the next such write reads the state first (`reconcileTimer`). The v9 writes
+ * carry no revision, so without that read a retry after a write that landed would apply twice.
+ * Errors pass through as they are.
  */
-async function postAction(
-  qc: QueryClient,
-  path: string,
-  body: Record<string, unknown> | undefined,
-): Promise<TimerState> {
+export async function timerWrite<T>(qc: QueryClient, request: () => Promise<T>): Promise<T> {
+  await reconcileTimer(qc);
   try {
-    return acceptTimerState(qc, await api.post(path, body, { decode: timerStateOf }));
+    return await request();
+  } catch (error) {
+    if (isOutcomeUnknown(error)) markTimerUnknown(qc);
+    throw error;
+  }
+}
+
+/**
+ * A `timerWrite` whose failure is explained as a timer action's is (`explainTimerActionError`): a
+ * request that got no reply fails with the offline `TimerActionError`, and a 409 carrying a state
+ * hands that state to the caches. Other failures keep their error.
+ */
+export async function attemptTimerRequest<T>(qc: QueryClient, request: () => Promise<T>): Promise<T> {
+  try {
+    return await timerWrite(qc, request);
   } catch (error) {
     const explained = explainTimerActionError(error);
     if (explained instanceof TimerActionError && explained.state) acceptTimerState(qc, explained.state);
@@ -122,11 +145,36 @@ async function postAction(
   }
 }
 
+/**
+ * Timer actions run even while the browser reports being offline. TanStack's default would hold
+ * them until the connection returns and then send them late; they fail at once instead, with the
+ * offline message.
+ */
+const actionOptions = { networkMode: 'always' } as const;
+
+/**
+ * Posts a timer action through `attemptTimerRequest`, building its body only once the state is
+ * reconciled. The reply is the new state; a reply that is not a whole state fails the action with
+ * the unreadable-state message and leaves the caches alone. A 409 replaces the cached state with
+ * the one in its body and fails with a `TimerActionError` of kind `conflict`; no reply at all fails
+ * with kind `offline`. Both carry the message to show. Other failures, a 409 without a whole state
+ * among them, keep their `ApiError`.
+ */
+async function postAction(
+  qc: QueryClient,
+  path: string,
+  body: () => Promise<Record<string, unknown> | undefined>,
+): Promise<TimerState> {
+  return attemptTimerRequest(qc, async () =>
+    acceptTimerState(qc, await api.post(path, await body(), { decode: timerStateOf })),
+  );
+}
+
 function useRevisionAction(path: string) {
   const qc = useQueryClient();
   return useMutation<TimerState, Error, void>({
     ...actionOptions,
-    mutationFn: async () => postAction(qc, path, { revision: await currentRevision(qc) }),
+    mutationFn: () => postAction(qc, path, async () => ({ revision: await currentRevision(qc) })),
   });
 }
 
@@ -146,11 +194,11 @@ export interface StartTimerInput extends Pick<TimeEntryInput, 'description' | 'p
  * the revision moved, and the server answers with a conflict carrying its state.
  */
 export async function startTimer(qc: QueryClient, input: StartTimerInput): Promise<TimerState> {
-  return postAction(qc, `${timerPath}/start`, {
+  return postAction(qc, `${timerPath}/start`, async () => ({
     created_with: 'tokkl-web',
     ...input,
     revision: await currentRevision(qc),
-  });
+  }));
 }
 
 /**
@@ -159,7 +207,7 @@ export async function startTimer(qc: QueryClient, input: StartTimerInput): Promi
  * among others.
  */
 export async function stopTimer(qc: QueryClient, stop?: string): Promise<TimerState> {
-  return postAction(qc, `${timerPath}/stop`, { revision: await currentRevision(qc), stop });
+  return postAction(qc, `${timerPath}/stop`, async () => ({ revision: await currentRevision(qc), stop }));
 }
 
 export function useStartTimer() {
@@ -197,7 +245,7 @@ export function useStartPomodoro() {
   const qc = useQueryClient();
   return useMutation<TimerState, Error, StartPomodoroInput>({
     ...actionOptions,
-    mutationFn: input => postAction(qc, pomodoroPath, { created_with: 'tokkl-web', ...input }),
+    mutationFn: input => postAction(qc, pomodoroPath, async () => ({ created_with: 'tokkl-web', ...input })),
   });
 }
 
@@ -216,7 +264,7 @@ export function usePauseTimer() {
   const qc = useQueryClient();
   return useMutation<TimerState, Error, void>({
     ...actionOptions,
-    mutationFn: () => postAction(qc, `${timerPath}/pause`, undefined),
+    mutationFn: () => postAction(qc, `${timerPath}/pause`, async () => undefined),
   });
 }
 

@@ -1,5 +1,5 @@
-import type { Mutation, QueryClient } from '@tanstack/react-query';
-import { ApiError, RequestTimeoutError } from './client.ts';
+import { onlineManager, type Mutation, type QueryClient } from '@tanstack/react-query';
+import { ApiError, RequestTimeoutError, UnparsableReplyError } from './client.ts';
 import { DecodeError } from './decode.ts';
 import { timerStateReply } from './replies.ts';
 import { clockOffset } from './serverClock.ts';
@@ -39,12 +39,20 @@ export function isTimerState(value: unknown): value is TimerState {
   }
 }
 
+/** A reply that should have been a timer state and was not. */
+export class UnreadableTimerStateError extends Error {
+  constructor() {
+    super(t('timer.unreadableState'));
+    this.name = 'UnreadableTimerStateError';
+  }
+}
+
 /**
  * Decodes a timer state reply, failing when the server sent something else, so a malformed state
  * fails its request the way a failed request does.
  */
 export function timerStateOf(value: unknown): TimerState {
-  if (!isTimerState(value)) throw new Error(t('timer.unreadableState'));
+  if (!isTimerState(value)) throw new UnreadableTimerStateError();
   return value;
 }
 
@@ -79,8 +87,8 @@ export function planTimerUpdate(
  * Turns a failed timer request into the error the views show. A 409 whose body is a timer state
  * is a conflict, and the state rides along so it can replace the stale one. A request that never
  * got a reply (fetch rejects with a TypeError) is offline, and so is one that got none within its
- * deadline: either may have reached the server, so both leave the timer unknown until the next
- * read of its state. Anything else is returned unchanged.
+ * deadline. Anything else is returned unchanged, keeping its message. Whether the write may have
+ * landed is `isOutcomeUnknown`'s call, not this one's.
  */
 export function explainTimerActionError(error: unknown): unknown {
   if (error instanceof ApiError && error.status === 409 && isTimerState(error.body)) {
@@ -91,16 +99,38 @@ export function explainTimerActionError(error: unknown): unknown {
 }
 
 /**
- * Runs a request that writes the timer outside the timer actions, such as the finished entry typed
- * into the idle bar. A request that got no reply fails with the offline `TimerActionError`, as a
- * timer action does; other failures pass through.
+ * Whether a failed write may still have reached the server and acted. That is so when it got no
+ * reply (fetch rejects with a TypeError) or none within its deadline, when the server failed with
+ * a 5xx, which a proxy also sends for a request the server may have run, and when a 2xx reply
+ * could not be parsed or decoded. A 4xx is a refusal: the write did nothing.
  */
-export async function attemptTimerRequest<T>(request: () => Promise<T>): Promise<T> {
-  try {
-    return await request();
-  } catch (error) {
-    throw explainTimerActionError(error);
-  }
+export function isOutcomeUnknown(error: unknown): boolean {
+  return (
+    error instanceof TypeError ||
+    error instanceof RequestTimeoutError ||
+    (error instanceof ApiError && error.status >= 500) ||
+    error instanceof UnparsableReplyError ||
+    error instanceof DecodeError ||
+    error instanceof UnreadableTimerStateError
+  );
+}
+
+/** Query clients whose last timer write failed with an unknown outcome (`isOutcomeUnknown`). */
+const unknownTimers = new WeakSet<QueryClient>();
+
+/** Records that a timer write in `qc` may have landed although it failed. */
+export function markTimerUnknown(qc: QueryClient): void {
+  unknownTimers.add(qc);
+}
+
+/** Whether the next timer write in `qc` must read the state first. */
+export function isTimerUnknown(qc: QueryClient): boolean {
+  return unknownTimers.has(qc);
+}
+
+/** Records that a read after the unknown write brought the state up to date. */
+export function clearTimerUnknown(qc: QueryClient): void {
+  unknownTimers.delete(qc);
 }
 
 /**
@@ -116,6 +146,15 @@ function isPendingTimerWrite(mutation: Mutation<unknown, Error, unknown, unknown
 }
 
 /**
+ * Whether a paused write is held until the browser is back online. A write can also be paused
+ * while it waits for its turn in its scope, such as a second edit of one entry (`entryScope` in
+ * entries.ts); that one goes out once the write before it settles, so it is waited for.
+ */
+function isHeldForConnection(mutation: Mutation<unknown, Error, unknown, unknown>): boolean {
+  return mutation.state.isPaused && mutation.options.networkMode !== 'always' && !onlineManager.isOnline();
+}
+
+/**
  * Waits until no write marked `MOVES_TIMER` is in flight, and says whether it had to wait. An edit
  * of the running entry moves the revision, so an action that reads the revision while that edit is
  * pending would send a stale one and conflict with this tab's own edit. Such a write held until the
@@ -125,7 +164,7 @@ function isPendingTimerWrite(mutation: Mutation<unknown, Error, unknown, unknown
 export function settleOtherWrites(qc: QueryClient): Promise<boolean> {
   const cache = qc.getMutationCache();
   const others = () => cache.getAll().filter(isPendingTimerWrite);
-  const held = () => others().some(mutation => mutation.state.isPaused);
+  const held = () => others().some(isHeldForConnection);
   if (held()) return Promise.reject(new TimerActionError('offline'));
   if (others().length === 0) return Promise.resolve(false);
   return new Promise((resolve, reject) => {

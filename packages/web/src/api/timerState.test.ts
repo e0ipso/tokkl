@@ -7,8 +7,9 @@ import {
   TIMER_CONFLICT_MESSAGE,
   TIMER_OFFLINE_MESSAGE,
   TimerActionError,
-  attemptTimerRequest,
+  UnreadableTimerStateError,
   explainTimerActionError,
+  isOutcomeUnknown,
   isTimerState,
   planTimerUpdate,
   revisionToSend,
@@ -16,7 +17,8 @@ import {
   timerStateOf,
 } from './timerState.ts';
 import { t } from '../i18n/messages.ts';
-import { ApiError, RequestTimeoutError } from './client.ts';
+import { ApiError, RequestTimeoutError, UnparsableReplyError } from './client.ts';
+import { DecodeError } from './decode.ts';
 import { clockOffset, serverNow } from './serverClock.ts';
 
 const entry: TimeEntry = {
@@ -153,7 +155,10 @@ test('a state needs a whole revision and real instants', () => {
 
 test('a malformed timer state fails its request with the unreadable-state message', () => {
   assert.equal(timerStateOf(state(3)).revision, 3);
-  assert.throws(() => timerStateOf({ ...state(3), pause: { paused: true } }), { message: t('timer.unreadableState') });
+  assert.throws(
+    () => timerStateOf({ ...state(3), pause: { paused: true } }),
+    (error: unknown) => error instanceof UnreadableTimerStateError && error.message === t('timer.unreadableState'),
+  );
 });
 
 test('a 409 whose body is not a whole state stays a plain ApiError', () => {
@@ -188,17 +193,26 @@ test('a 409 carrying a state explains itself and hands the state over; other fai
   assert.equal(explainTimerActionError(unknown), unknown);
 });
 
-test('a typed entry that got no reply fails with the offline message; other failures pass through', async () => {
-  await assert.rejects(
-    attemptTimerRequest(() => Promise.reject(new TypeError('Failed to fetch'))),
-    error => error instanceof TimerActionError && error.kind === 'offline' && error.message === TIMER_OFFLINE_MESSAGE,
-  );
-  const refused = new ApiError(400, 'Bad request');
-  await assert.rejects(
-    attemptTimerRequest(() => Promise.reject(refused)),
-    error => error === refused,
-  );
-  assert.equal(await attemptTimerRequest(() => Promise.resolve(5)), 5);
+test('a write that got no reply, a 5xx, or a 2xx that does not parse or decode may have landed; a 4xx did not', () => {
+  const unknown = [
+    new TypeError('Failed to fetch'),
+    new RequestTimeoutError('POST', '/api/app/timer/stop'),
+    new ApiError(500, 'Internal Server Error'),
+    new ApiError(502, 'Bad Gateway'),
+    new ApiError(503, 'Unavailable'),
+    new UnparsableReplyError('PUT', '/api/v9/workspaces/1/time_entries/7', new SyntaxError('Unexpected token <')),
+    new DecodeError('reply.id', 'a whole number'),
+    new UnreadableTimerStateError(),
+  ];
+  for (const error of unknown) assert.equal(isOutcomeUnknown(error), true, error.message);
+  const refused = [
+    new ApiError(400, 'Invalid revision'),
+    new ApiError(403, 'Forbidden'),
+    new ApiError(409, 'Conflict'),
+    new TimerActionError('conflict', state(2)),
+    new RangeError('x'),
+  ];
+  for (const error of refused) assert.equal(isOutcomeUnknown(error), false, error.message);
 });
 
 /**

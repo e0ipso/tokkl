@@ -2,8 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { QueryClient, type QueryKey } from '@tanstack/react-query';
 import { keys, stale } from './keys.ts';
-import { acceptTimerState, startTimer, stopTimer } from './timerHooks.ts';
-import { TimerActionError } from './timerState.ts';
+import { ApiError, UnparsableReplyError, api } from './client.ts';
+import { acceptTimerState, attemptTimerRequest, startTimer, stopTimer, timerWrite } from './timerHooks.ts';
+import { TIMER_OFFLINE_MESSAGE, TimerActionError, UnreadableTimerStateError } from './timerState.ts';
 import type { TimeEntry, TimerState } from './types.ts';
 
 const state = (revision: number, running_entry: TimeEntry | null = null): TimerState => ({
@@ -91,14 +92,18 @@ test('the running entry lives only in the timer state, so an older reply cannot 
   );
 });
 
-/** A fetch that records each request and answers it with the next of `replies`. */
-function answering(...replies: Array<{ status: number; body: unknown }>) {
+/**
+ * A fetch that records each request and answers it with the next of `replies`: `body` as JSON,
+ * `raw` as it is, or `fail` thrown as fetch throws.
+ */
+function answering(...replies: Array<{ status: number; body?: unknown; raw?: string } | { fail: Error }>) {
   const sent: Array<{ path: string; method: string; body: unknown }> = [];
   const fetch = (path: string, init: RequestInit) => {
     sent.push({ path, method: init.method ?? 'GET', body: init.body ? JSON.parse(String(init.body)) : undefined });
     const reply = replies.shift();
     if (!reply) throw new Error(`No reply for ${path}`);
-    return Promise.resolve(new Response(JSON.stringify(reply.body), { status: reply.status }));
+    if ('fail' in reply) return Promise.reject(reply.fail);
+    return Promise.resolve(new Response(reply.raw ?? JSON.stringify(reply.body), { status: reply.status }));
   };
   return { fetch, sent };
 }
@@ -155,4 +160,113 @@ test('a Start that got no reply fails with the offline message', async t => {
     (error: unknown) => error instanceof TimerActionError && error.kind === 'offline',
   );
   assert.equal(qc.getQueryData<TimerState>(keys.timer)?.revision, 1, 'the cached state stays');
+});
+
+const isApiErrorWith = (error: unknown, status: number) => error instanceof ApiError && error.status === status;
+
+test('a Start answered with a 5xx keeps its message, and the next timer write reads the state first', async t => {
+  const qc = seeded();
+  const { fetch, sent } = answering(
+    { status: 502, body: 'Bad Gateway' },
+    // The lost Start landed: the state moved on to a running entry.
+    { status: 200, body: state(2, running(5)) },
+  );
+  t.mock.method(globalThis, 'fetch', fetch);
+  await assert.rejects(startTimer(qc, { description: 'Write' }), (error: unknown) => isApiErrorWith(error, 502));
+  // A duration typed into the bar, which the bar still showed idle, is not sent on top of the landed Start.
+  await assert.rejects(
+    attemptTimerRequest(qc, () => api.post('/api/v9/workspaces/1/time_entries', { description: 'Typed' })),
+    (error: unknown) => error instanceof TimerActionError && error.kind === 'conflict',
+  );
+  assert.deepEqual(
+    sent.map(request => `${request.method} ${request.path}`),
+    ['POST /api/app/timer/start', 'GET /api/app/timer'],
+  );
+  assert.equal(qc.getQueryData<TimerState>(keys.timer)?.running_entry?.id, 5, 'the read state is adopted');
+});
+
+test('after an unknown outcome a read that finds the state unchanged lets the write go out, and reads once', async t => {
+  const qc = seeded();
+  qc.setQueryData(keys.timer, state(3, running(5)));
+  const { fetch, sent } = answering(
+    { status: 200, raw: '<html>proxy page</html>' },
+    { status: 200, body: state(3, running(5)) },
+    { status: 200, body: { ...running(5), description: 'Second' } },
+    { status: 200, body: { ...running(5), description: 'Third' } },
+  );
+  t.mock.method(globalThis, 'fetch', fetch);
+  const edit = (description: string) =>
+    timerWrite(qc, () => api.put('/api/v9/workspaces/1/time_entries/5', { description }));
+  await assert.rejects(edit('First'), (error: unknown) => error instanceof UnparsableReplyError);
+  await edit('Second');
+  await edit('Third');
+  assert.deepEqual(
+    sent.map(request => `${request.method} ${request.path}`),
+    [
+      'PUT /api/v9/workspaces/1/time_entries/5',
+      'GET /api/app/timer',
+      'PUT /api/v9/workspaces/1/time_entries/5',
+      'PUT /api/v9/workspaces/1/time_entries/5',
+    ],
+  );
+});
+
+test('an action reply that is not a whole state leaves the outcome unknown; a refusal does not', async t => {
+  const qc = seeded();
+  qc.setQueryData(keys.timer, state(3, running(5)));
+  const { fetch, sent } = answering(
+    { status: 400, body: 'Invalid stop' },
+    { status: 200, body: { revision: 4 } },
+    { status: 200, body: state(4) },
+  );
+  t.mock.method(globalThis, 'fetch', fetch);
+  await assert.rejects(stopTimer(qc), (error: unknown) => isApiErrorWith(error, 400));
+  await assert.rejects(stopTimer(qc), (error: unknown) => error instanceof UnreadableTimerStateError);
+  // The Stop landed: the read finds the timer stopped, so the next Start fails without being sent.
+  await assert.rejects(
+    startTimer(qc, { description: 'Next' }),
+    (error: unknown) => error instanceof TimerActionError && error.kind === 'conflict',
+  );
+  assert.deepEqual(
+    sent.map(request => `${request.method} ${request.path}`),
+    ['POST /api/app/timer/stop', 'POST /api/app/timer/stop', 'GET /api/app/timer'],
+  );
+  assert.equal(qc.getQueryData<TimerState>(keys.timer)?.running_entry, null);
+});
+
+test('a reconciling read that fails sends nothing and keeps the outcome unknown', async t => {
+  const qc = seeded();
+  const { fetch, sent } = answering(
+    { status: 500, body: 'boom' },
+    { fail: new TypeError('Failed to fetch') },
+    { status: 200, body: state(1) },
+    { status: 200, body: state(2, running(6)) },
+  );
+  t.mock.method(globalThis, 'fetch', fetch);
+  await assert.rejects(startTimer(qc, { description: 'A' }), (error: unknown) => isApiErrorWith(error, 500));
+  await assert.rejects(
+    startTimer(qc, { description: 'B' }),
+    (error: unknown) => error instanceof TimerActionError && error.message === TIMER_OFFLINE_MESSAGE,
+  );
+  await startTimer(qc, { description: 'C' });
+  assert.deepEqual(
+    sent.map(request => `${request.method} ${request.path}`),
+    ['POST /api/app/timer/start', 'GET /api/app/timer', 'GET /api/app/timer', 'POST /api/app/timer/start'],
+  );
+  assert.deepEqual(sent[3]?.body, { created_with: 'tokkl-web', description: 'C', revision: 1 });
+});
+
+test('a typed entry that got no reply fails with the offline message; other failures pass through', async () => {
+  const qc = seeded();
+  await assert.rejects(
+    attemptTimerRequest(qc, () => Promise.reject(new TypeError('Failed to fetch'))),
+    error => error instanceof TimerActionError && error.kind === 'offline' && error.message === TIMER_OFFLINE_MESSAGE,
+  );
+  const qc2 = seeded();
+  const refused = new ApiError(400, 'Bad request');
+  await assert.rejects(
+    attemptTimerRequest(qc2, () => Promise.reject(refused)),
+    error => error === refused,
+  );
+  assert.equal(await attemptTimerRequest(qc2, () => Promise.resolve(5)), 5);
 });

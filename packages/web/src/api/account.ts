@@ -1,9 +1,9 @@
 import { mutationOptions, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { api } from './client.ts';
+import { api, type Checked } from './client.ts';
 import { keys } from './keys.ts';
 import { V9, wsPath } from './paths.ts';
 import { createPreferenceSaves, type PreferenceSaves } from './preferenceSaves.ts';
-import { meReply, workspaceReply } from './replies.ts';
+import { meReply, preferencesReply, workspaceReply } from './replies.ts';
 import type { Me, Preferences, Workspace } from './types.ts';
 
 /** The signed-in account: /me, its preferences and its workspace. */
@@ -25,7 +25,7 @@ export function useWid(): number {
 export function usePreferences() {
   return useQuery({
     queryKey: keys.preferences,
-    queryFn: ({ signal }) => api.get<Preferences>(`${V9}/me/preferences`, { signal }),
+    queryFn: ({ signal }) => api.get(`${V9}/me/preferences`, { signal, decode: preferencesReply }),
     staleTime: 60_000,
   });
 }
@@ -41,13 +41,17 @@ function savesOf(qc: QueryClient): PreferenceSaves {
   return saves;
 }
 
-const sendPreferences = (changes: Partial<Preferences>) => api.post<Preferences>(`${V9}/me/preferences`, changes);
+/** Sends preference changes. The reply replaces the cached preferences, so it must be `Checked`. */
+export type SendPreferences = (changes: Partial<Preferences>) => Promise<Checked<Preferences>>;
+
+const sendPreferences: SendPreferences = changes =>
+  api.post(`${V9}/me/preferences`, changes, { decode: preferencesReply });
 
 /**
  * Saving preference changes: shown at once, sent one at a time in the order made, and on failure
  * only the failed save's own changes are dropped (see `PreferenceSaves`).
  */
-export function savePreferencesOptions(qc: QueryClient, send = sendPreferences) {
+export function savePreferencesOptions(qc: QueryClient, send: SendPreferences = sendPreferences) {
   const show = (preferences: Preferences | undefined) => {
     if (preferences) qc.setQueryData(keys.preferences, preferences);
   };

@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from './client.ts';
 import { keys } from './keys.ts';
 import { APP } from './paths.ts';
-import type { AppStatus, UserRole } from './types.ts';
+import { appStatusReply, inviteCheckReply, resetCheckReply } from './replies.ts';
 
 /** Signing in and out, first-run setup, and the one-time invite and password reset links. */
 
@@ -10,7 +10,7 @@ import type { AppStatus, UserRole } from './types.ts';
 export function useAppStatus() {
   return useQuery({
     queryKey: keys.status,
-    queryFn: ({ signal }) => api.get<AppStatus>(`${APP}/status`, { signal }),
+    queryFn: ({ signal }) => api.get(`${APP}/status`, { signal, decode: appStatusReply }),
     staleTime: Infinity,
   });
 }
@@ -30,8 +30,8 @@ export const authRequests = {
   login: (body: { email: string; password: string }) => api.post(`${APP}/login`, body),
   setup: (body: NewAccount & { setup_code: string }) => api.post(`${APP}/setup`, body),
   logout: () => api.post(`${APP}/logout`),
-  checkInvite: (token: string) => api.get<{ role: UserRole }>(invitePath(token)),
+  checkInvite: (token: string) => api.get(invitePath(token), { decode: inviteCheckReply }),
   acceptInvite: (token: string, body: NewAccount) => api.post(invitePath(token), body),
-  checkReset: (token: string) => api.get<{ email: string }>(resetPath(token)),
+  checkReset: (token: string) => api.get(resetPath(token), { decode: resetCheckReply }),
   resetPassword: (token: string, password: string) => api.post(resetPath(token), { password }),
 };

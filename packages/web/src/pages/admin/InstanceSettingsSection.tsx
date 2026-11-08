@@ -1,5 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { adminRequests } from '../../api/admin.ts';
+import type { Checked } from '../../api/client.ts';
 import { keys, stale } from '../../api/keys.ts';
 import type { InstanceSettings } from '../../api/types.ts';
 import { useFieldErrors } from '../../components/FieldError.tsx';
@@ -59,7 +60,8 @@ export function InstanceSettingsSection({ server }: { server: InstanceSettings }
   const queryClient = useQueryClient();
   const fields = useFieldErrors<SettingsKey>();
 
-  const save = useAction<Partial<InstanceSettings>, InstanceSettings>({
+  // Only a checked reply goes into the cache.
+  const save = useAction<Partial<InstanceSettings>, Checked<InstanceSettings>>({
     mutationFn: adminRequests.saveSettings,
     invalidate: stale.adminSettings,
     success: t('admin.instanceSaved'),

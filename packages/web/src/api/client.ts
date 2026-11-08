@@ -46,15 +46,54 @@ export class RequestTimeoutError extends Error {
 }
 
 /**
+ * A 2xx reply whose body is not JSON. The server answered, so for a write it may have acted, and
+ * the outcome is unknown. It keeps the parser's message.
+ */
+export class UnparsableReplyError extends SyntaxError {
+  readonly request: { readonly method: Method; readonly path: string };
+
+  constructor(method: Method, path: string, cause: unknown) {
+    super(cause instanceof Error ? cause.message : String(cause), { cause });
+    this.name = 'UnparsableReplyError';
+    this.request = { method, path };
+  }
+}
+
+function parseReply(text: string, method: Method, path: string): unknown {
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    throw new UnparsableReplyError(method, path, error);
+  }
+}
+
+/**
  * How long a request may take, reply body included, before it is given up:
  * - `read` (20 s): a GET, or a report query sent as a POST. TanStack Query retries a failed read,
  *   so a stalled one gives way to a fresh attempt.
  * - `write` (30 s): any other request. It waits longer, because giving up on a write leaves its
  *   outcome unknown.
- * - `transfer` (5 min): an import upload, an export download or a CSV download, which can carry a
- *   whole account's entries.
+ * - `transfer` (5 min): an import upload, which can carry a whole account's entries. A download
+ *   (an export or a CSV report) gets it only for its reply to start: see `DOWNLOAD_DEADLINE_MS`.
  */
 export const DEADLINE_MS = { read: 20_000, write: 30_000, transfer: 300_000 } as const;
+
+/** How long a download may go without progress (see `withProgressDeadline`). */
+export interface DownloadDeadline {
+  /** For the reply to start. The server may queue a download behind others before it answers. */
+  readonly start: number;
+  /** Between one piece of the body and the next. */
+  readonly stall: number;
+}
+
+/**
+ * The server streams an export a batch at a time, at the pace the client reads, so a large one on
+ * a slow link can take far longer than any fixed deadline. A download waits as long as bytes keep
+ * coming: its reply must start within the transfer deadline, then each piece of the body must
+ * come within a minute of the one before.
+ */
+export const DOWNLOAD_DEADLINE_MS: DownloadDeadline = { start: DEADLINE_MS.transfer, stall: 60_000 };
 
 export type RequestKind = keyof typeof DEADLINE_MS;
 
@@ -90,12 +129,23 @@ export interface RequestOptions<T> {
   /** Which deadline applies (see `DEADLINE_MS`). By default it follows from the method and body (`requestKind`). */
   kind?: RequestKind;
   /**
-   * Checks the reply (see decode.ts). Without one the reply is trusted to match `T`, as for write
-   * replies the views only refresh from: the server is this app's own same-origin API and both
-   * sides compile against @tokkl/types.
+   * Checks the reply (see decode.ts). A GET must pass one (`api.get`), and so must a write whose
+   * reply goes into the cache, which takes only a `Checked` value. Without one the reply is
+   * trusted to match `T`, as for write replies the views only refresh from or show once: the
+   * server is this app's own same-origin API and both sides compile against @tokkl/types.
    */
   decode?: Decoder<T>;
 }
+
+declare const checked: unique symbol;
+
+/**
+ * A reply its decoder checked. Only a request given `decode` returns one, so code that writes a
+ * reply into the cache asks for `Checked<T>` and cannot be handed an unchecked reply.
+ */
+export type Checked<T> = T & { readonly [checked]: true };
+
+type Decoded<T> = RequestOptions<T> & { decode: Decoder<T> };
 
 function isDeadline(error: unknown, deadline: AbortSignal): boolean {
   return deadline.aborted && error instanceof DOMException && error.name === 'TimeoutError';
@@ -156,26 +206,86 @@ async function send(method: Method, path: string, body: unknown, signal: AbortSi
   return response;
 }
 
+/** Sends a request and returns its reply: `Checked` when a decoder checked it, trusted otherwise. */
+export function request<T>(method: Method, path: string, options: Decoded<T>): Promise<Checked<T>>;
+export function request<T>(method: Method, path: string, options?: RequestOptions<T>): Promise<T>;
 export async function request<T>(method: Method, path: string, options: RequestOptions<T> = {}): Promise<T> {
   const ms = DEADLINE_MS[requestKind(method, options.body, options.kind)];
   const text = await withDeadline(ms, { method, path }, options.signal, async signal => {
     const response = await send(method, path, options.body, signal);
     return response.text();
   });
-  const value: unknown = text ? JSON.parse(text) : null;
+  const value = parseReply(text, method, path);
   return options.decode ? options.decode(value) : (value as T);
 }
 
-/** Sends a request and saves the reply as a file, within the transfer deadline. */
-export async function download(
+/**
+ * Runs `work` with a signal that aborts once no progress came for a while: `start` ms from the
+ * call, then `stall` ms from each call of `progress`. Running out of time fails with a
+ * `RequestTimeoutError`, as `withDeadline` does.
+ */
+export async function withProgressDeadline<T>(
+  { start, stall }: DownloadDeadline,
+  request: { method: Method; path: string },
+  work: (signal: AbortSignal, progress: () => void) => Promise<T>,
+): Promise<T> {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const wait = (ms: number) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => controller.abort(new DOMException('No progress in time', 'TimeoutError')), ms);
+  };
+  wait(start);
+  try {
+    return await work(controller.signal, () => wait(stall));
+  } catch (error) {
+    if (controller.signal.aborted) throw new RequestTimeoutError(request.method, request.path);
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Reads a reply body piece by piece, calling `progress` after each one. */
+async function readBody(response: Response, progress: () => void): Promise<Blob> {
+  const type = response.headers.get('Content-Type') ?? '';
+  if (!response.body) return response.blob();
+  const reader = response.body.getReader();
+  const pieces: BlobPart[] = [];
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) return new Blob(pieces, { type });
+    pieces.push(value);
+    progress();
+  }
+}
+
+type DownloadRequest = { method?: 'GET' | 'POST'; body?: unknown };
+
+/**
+ * Sends a download request and reads the whole reply under `deadline`. A refusal, such as a 503
+ * from a full download lane or a 403 for a lost session, fails with its `ApiError` and the
+ * server's message.
+ */
+export function fetchDownload(
   path: string,
-  filename: string,
-  { method = 'GET', body }: { method?: 'GET' | 'POST'; body?: unknown } = {},
-): Promise<void> {
-  const blob = await withDeadline(DEADLINE_MS.transfer, { method, path }, undefined, async signal => {
+  { method = 'GET', body }: DownloadRequest = {},
+  deadline: DownloadDeadline = DOWNLOAD_DEADLINE_MS,
+): Promise<Blob> {
+  return withProgressDeadline(deadline, { method, path }, async (signal, progress) => {
     const response = await send(method, path, body, signal);
-    return response.blob();
+    progress();
+    return readBody(response, progress);
   });
+}
+
+/**
+ * Sends a request and saves the reply as a file. Exports go through fetch too, not through a link
+ * the browser follows: a followed link cannot show the server's message for a refusal, and the
+ * caller could not tell when the file is done.
+ */
+export async function download(path: string, filename: string, request: DownloadRequest = {}): Promise<void> {
+  const blob = await fetchDownload(path, request);
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
@@ -186,10 +296,21 @@ export async function download(
 
 type Options<T> = Omit<RequestOptions<T>, 'body'>;
 
+/** A write: `Checked` when given a decoder, trusted otherwise (see `RequestOptions.decode`). */
+interface Write {
+  <T>(path: string, body: unknown, options: Omit<Decoded<T>, 'body'>): Promise<Checked<T>>;
+  <T>(path: string, body?: unknown, options?: Options<T>): Promise<T>;
+}
+
+// `request` brands a decoded reply itself; one signature cannot state both overloads.
+const write = (method: Exclude<Method, 'GET'>) =>
+  (<T>(path: string, body?: unknown, options?: Options<T>) => request<T>(method, path, { ...options, body })) as Write;
+
 export const api = {
-  get: <T>(path: string, options?: Options<T>) => request<T>('GET', path, options),
-  post: <T>(path: string, body?: unknown, options?: Options<T>) => request<T>('POST', path, { ...options, body }),
-  put: <T>(path: string, body?: unknown, options?: Options<T>) => request<T>('PUT', path, { ...options, body }),
-  patch: <T>(path: string, body?: unknown, options?: Options<T>) => request<T>('PATCH', path, { ...options, body }),
-  delete: <T>(path: string, body?: unknown, options?: Options<T>) => request<T>('DELETE', path, { ...options, body }),
+  /** A read. It must check its reply: every GET feeds a query, and so the cache. */
+  get: <T>(path: string, options: Omit<Decoded<T>, 'body'>) => request<T>('GET', path, options),
+  post: write('POST'),
+  put: write('PUT'),
+  patch: write('PATCH'),
+  delete: write('DELETE'),
 };
