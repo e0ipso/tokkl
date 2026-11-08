@@ -49,7 +49,12 @@ import type {
 const role = oneOf('admin', 'user');
 
 /** GET /api/app/status. */
-export const appStatusReply: Decoder<AppStatus> = object<AppStatus>({ setup_required: boolean });
+export const appStatusReply: Decoder<AppStatus> = object<AppStatus>({
+  setup_required: boolean,
+  // The web app ships with its server, so it knows every capability its server names.
+  api_version: integer,
+  capabilities: array(oneOf('app-preferences', 'timer-actions', 'timer-edit', 'pomodoro-revision')),
+});
 
 /** GET /api/app/invites/:token: the role the invite grants. */
 export const inviteCheckReply = object<{ role: UserRole }>({ role });

@@ -77,8 +77,8 @@ export function createSessionHandlers<R extends AccountRepositories>(
     );
     return { token, user };
   };
-  const status: RequestHandler = async (_req, res) =>
-    res.json({ setup_required: (await runner.readSnapshot(ctx => ctx.users.count())) === 0 });
+  /** True until the first admin exists. */
+  const setupRequired = async () => (await runner.readSnapshot(ctx => ctx.users.count())) === 0;
   const login: RequestHandler = async (req, res) => {
     requireCsrfHeader(req);
     const body = readJson(req),
@@ -136,7 +136,7 @@ export function createSessionHandlers<R extends AccountRepositories>(
     return res.json({ ok: true });
   };
   return {
-    status,
+    setupRequired,
     login,
     firstAdmin,
     inviteInfo,

@@ -177,8 +177,10 @@ test('a preference the views read that has the wrong shape fails the reply, nami
 });
 
 test('the status, invite and reset link checks and the admin lists decode their replies', () => {
-  assert.deepEqual(appStatusReply({ setup_required: false }), { setup_required: false });
-  assert.throws(() => appStatusReply({ setup_required: 'no' }), at('reply.setup_required'));
+  const status = { setup_required: false, api_version: 1, capabilities: ['timer-actions', 'timer-edit'] };
+  assert.deepEqual(appStatusReply(status), status);
+  assert.throws(() => appStatusReply({ ...status, setup_required: 'no' }), at('reply.setup_required'));
+  assert.throws(() => appStatusReply({ ...status, capabilities: ['teleport'] }), at('reply.capabilities[0]'));
   assert.deepEqual(inviteCheckReply({ role: 'admin' }), { role: 'admin' });
   assert.throws(() => inviteCheckReply({ role: 'owner' }), at('reply.role'));
   assert.deepEqual(resetCheckReply({ email: 'a@example.com' }), { email: 'a@example.com' });

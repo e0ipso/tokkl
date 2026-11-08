@@ -423,8 +423,11 @@ export interface JsonRestoreResult {
   errors: Array<{ entity: string; id: unknown; message: string }>;
 }
 
-/** GET /api/app/status: whether the server still needs its first admin. */
-export interface AppStatus {
+/**
+ * GET /api/app/status: whether the server still needs its first admin, and the API version and
+ * capabilities it offers. A server from before the announcement sends only `setup_required`.
+ */
+export interface AppStatus extends ServerApi {
   setup_required: boolean;
 }
 

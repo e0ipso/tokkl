@@ -1,4 +1,4 @@
-/** The API version and capabilities this server announces in `GET /api/v9/me`. */
+/** The API version and capabilities this server announces in `GET /api/app/status`. */
 import type { ServerApi, ServerCapability } from '@tokkl/types';
 
 const CAPABILITIES: readonly ServerCapability[] = Object.freeze([

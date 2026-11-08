@@ -12,6 +12,7 @@ import { readJson } from '../http/request.ts';
 import { streamDownload } from '../http/download.ts';
 import { getPreferences } from '../domain/accountValues.ts';
 import { parsePreferenceChanges } from '../commands/accounts.ts';
+import { presentServerApi } from '../presenters/serverApi.ts';
 
 export type AppRouteDeps = Pick<
   Deps,
@@ -22,7 +23,11 @@ export function appRoutes(deps: AppRouteDeps): Router {
   const { sessions } = deps;
   const app = createRouter(),
     auth = deps.auth.requireAuth;
-  app.get('/status', sessions.status);
+  // The status reply also names this server's API version and capabilities, so a client picks its
+  // routes from them, and never from a 404.
+  app.get('/status', async (_req, res) => {
+    res.json({ setup_required: await sessions.setupRequired(), ...presentServerApi() });
+  });
   app.post('/setup', sessions.firstAdmin);
   app.get('/invites/:token', sessions.inviteInfo);
   app.post('/invites/:token', sessions.acceptInvite);

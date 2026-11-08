@@ -94,7 +94,9 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       const app = express();
       app.set('trust proxy', true);
       app.use(express.text({ type: () => true }));
-      app.get('/status', sessions.status);
+      app.get('/status', async (_req, res) => {
+        res.json({ setup_required: await sessions.setupRequired() });
+      });
       app.post('/setup', sessions.firstAdmin);
       app.post('/login', sessions.login);
       app.post('/logout', sessions.logout);

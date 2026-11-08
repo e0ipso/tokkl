@@ -22,6 +22,13 @@ import {
 import { PHONE, expectFits, expectNoPageOverflow } from './mobile-tests-helpers.ts';
 import { chooseJson, transferFixture } from './transfer-tests-helpers.ts';
 
+/** GET /api/app/status of a server with no admin yet, with the API version and capabilities it names. */
+const FRESH_STATUS = {
+  setup_required: true,
+  api_version: 1,
+  capabilities: ['app-preferences', 'timer-actions', 'timer-edit', 'pomodoro-revision'],
+};
+
 // Failed setup and login in the browser, and what logout leaves behind.
 
 test('a wrong setup code shows an error, and a retry with the right code creates the account', async ({
@@ -50,7 +57,7 @@ test('a wrong setup code shows an error, and a retry with the right code creates
 
   await expect(page.getByRole('alert')).toHaveText('Invalid setup code. It is printed in the server log on startup.');
   await expect(page.getByRole('heading', { name: 'Create the first admin' })).toBeVisible();
-  expect(await (await page.request.get(`${server.baseURL}/api/app/status`)).json()).toEqual({ setup_required: true });
+  expect(await (await page.request.get(`${server.baseURL}/api/app/status`)).json()).toEqual(FRESH_STATUS);
   expect((await page.context().cookies(server.baseURL)).some(c => c.name === 'tokkl_session')).toBe(false);
 
   // The form keeps what was typed, so only the code needs fixing.
@@ -190,7 +197,7 @@ test('ten wrong setup codes lock setup on this address, and the setup form says 
   await page.getByRole('button', { name: 'Create admin account' }).click();
   expect(retryAfter(await locked)).toBeGreaterThan(LIMIT_WINDOW_SECONDS - 60);
   await expect(page.getByRole('alert')).toHaveText('Too many failed attempts, try again later');
-  expect(await (await page.request.get(`${server.baseURL}/api/app/status`)).json()).toEqual({ setup_required: true });
+  expect(await (await page.request.get(`${server.baseURL}/api/app/status`)).json()).toEqual(FRESH_STATUS);
 });
 
 test('wrong credentials show an error and keep the browser logged out until a valid retry', async ({
@@ -356,7 +363,7 @@ test('login, setup and invite acceptance without the CSRF header are refused and
     // More wrong codes than the setup limit allows, then the right one: none of them is counted.
     for (let i = 0; i < 11; i++) await refused('/api/app/setup', { setup_code: 'WRONG-CODE', ...ACCOUNT });
     await refused('/api/app/setup', { setup_code: SETUP_CODE, ...ACCOUNT });
-    expect(await (await api.get('/api/app/status')).json()).toEqual({ setup_required: true });
+    expect(await (await api.get('/api/app/status')).json()).toEqual(FRESH_STATUS);
     const { apiToken } = await createAccount(server.baseURL);
 
     for (let i = 0; i < 11; i++) await refused('/api/app/login', { email: ACCOUNT.email, password: 'wrong password' });

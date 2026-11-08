@@ -20,7 +20,6 @@ import {
   serializeUser,
   serializeWorkspace,
 } from '../../presenters/toggl.ts';
-import { presentServerApi } from '../../presenters/serverApi.ts';
 import { entryPresentation, timeEntryFilter } from './shared.ts';
 
 const presentProject = ({ project, defaultCurrency }: WorkspaceProject) => serializeProject(project, defaultCurrency);
@@ -37,8 +36,7 @@ function presentRelated(related: RelatedData) {
 }
 
 /**
- * The signed-in user: profile, preferences and everything across their workspaces. `GET /me` also
- * names this server's API version and capabilities, which every client reads at sign-in.
+ * The signed-in user: profile, preferences and everything across their workspaces.
  */
 export function meRoutes(deps: Pick<Deps, 'readFor' | 'accountsFor' | 'preferencesFor' | 'loginLimiter'>): Router {
   const api = createRouter();
@@ -50,7 +48,6 @@ export function meRoutes(deps: Pick<Deps, 'readFor' | 'accountsFor' | 'preferenc
         ...serializeUser(user, { includeToken: true }),
         role: user.role,
         time_resolution_minutes: (await queries.instanceSettings()).timeResolutionMinutes,
-        ...presentServerApi(),
       };
       return queryFlag(req, 'with_related_data')
         ? { ...body, ...presentRelated(await queries.relatedData(user)) }
