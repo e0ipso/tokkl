@@ -8,7 +8,6 @@
 
 #include <memory>
 
-class MenuBarAppTest;
 class QSettings;
 
 namespace Tokkl
@@ -83,6 +82,16 @@ public:
     // settings window.
     void start();
 
+    // The parts the app is made of, for whoever embeds it. None is null.
+    Connection *connection() const;
+    TimerController *timer() const;
+    PomodoroSession *session() const;
+    PomodoroPreferences *preferences() const;
+    SoundChoices *sounds() const;
+    PomodoroAlarm *alarm() const;
+    StatusMenu *menu() const;
+    SettingsWindow *settingsWindow() const;
+
 public Q_SLOTS:
     void showSettings();
     // Gives the connection the address, sign-in method and email in the
@@ -99,9 +108,6 @@ Q_SIGNALS:
     void quitRequested();
 
 private:
-    // The app's tests drive and read its parts.
-    friend class ::MenuBarAppTest;
-
     // A primary click on the item.
     void activate();
     void updateItem();

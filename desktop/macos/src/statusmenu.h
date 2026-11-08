@@ -14,7 +14,6 @@
 
 class QAction;
 class QMenu;
-class MenuBarAppTest;
 
 namespace Tokkl
 {
@@ -67,6 +66,9 @@ public:
     StatusMenu(TimerModel *timer, TimerCoordinator *actions, PomodoroSession *session, PomodoroAlarm *alarm = nullptr, QObject *parent = nullptr);
     ~StatusMenu() override;
 
+    // The menu. Its items have object names: state, message, startStop,
+    // startSession, nextPhase, endSession, pomodoroMode, project (the
+    // submenu), billable, reconnect, open, settings and quit.
     QMenu *menu() const;
 
 Q_SIGNALS:
@@ -75,9 +77,6 @@ Q_SIGNALS:
     void quitRequested();
 
 private:
-    // The app's tests trigger and read the actions.
-    friend class ::MenuBarAppTest;
-
     void rebuildProjects(const MenuActionStates &actions);
     void fillProjectMenu(const ProjectChoices &choices);
     // A checkable item that chooses projectId, null for no project.

@@ -112,6 +112,26 @@ StatusMenu::StatusMenu(TimerModel *timer, TimerCoordinator *actions, PomodoroSes
     m_quitAction->setMenuRole(QAction::QuitRole);
     connect(m_quitAction, &QAction::triggered, this, &StatusMenu::quitRequested);
 
+    // Stable names, so automation finds each item whatever its text.
+    m_projectMenu->setObjectName(QStringLiteral("project"));
+    const std::pair<QAction *, QString> named[] = {
+        {m_stateAction, QStringLiteral("state")},
+        {m_messageAction, QStringLiteral("message")},
+        {m_startStopAction, QStringLiteral("startStop")},
+        {m_startSessionAction, QStringLiteral("startSession")},
+        {m_nextPhaseAction, QStringLiteral("nextPhase")},
+        {m_endSessionAction, QStringLiteral("endSession")},
+        {m_pomodoroModeAction, QStringLiteral("pomodoroMode")},
+        {m_billableAction, QStringLiteral("billable")},
+        {m_reconnectAction, QStringLiteral("reconnect")},
+        {m_openAction, QStringLiteral("open")},
+        {m_settingsAction, QStringLiteral("settings")},
+        {m_quitAction, QStringLiteral("quit")},
+    };
+    for (const auto &[action, name] : named) {
+        action->setObjectName(name);
+    }
+
     if (m_timer) {
         connect(m_timer, &TimerModel::elapsedChanged, this, &StatusMenu::refreshState);
         for (auto signal : {&TimerModel::statusChanged,

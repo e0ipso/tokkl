@@ -31,7 +31,7 @@
 - Open [**Desktop app identifiers use the canpicasoft.com domain**](practice-desktop-app-identifiers-use-the-canpicasoft-com-domain.md) — KDE, macOS and GNOME identifiers use com.canpicasoft.tokkl / tokkl@canpicasoft.com, never com.github.e0ipso or e0ipso.github.com.
 ### #gnome
 - Open [**GNOME Shell extension panel button and menu**](gnome-shell-extension/map-gnome-shell-extension-panel-button-and-menu.md) — desktop/gnome/extension drives tokkl-timerd; Shell 46-51; click and key activation; Shell 50 click gesture; Shell 51 key controller
-- Open [**GNOME Shell extension project indicator and chosen project label**](gnome-shell-extension/map-gnome-shell-extension-project-indicator-and-chosen-project-label.md) — projectindicator.js decides, indicator.js draws; pulse check lifts enable-animations; chosenProjectLabel falls back to ChosenProjectName
+- Open [**GNOME Shell extension project indicator and chosen project label**](gnome-shell-extension/map-gnome-shell-extension-project-indicator-and-chosen-project-label.md) — projectindicator.js decides, indicator.js draws; pulse check lifts enable-animations; chosenProjectLabel words the service's ChosenProjectLabel parts
 - Open [**GNOME Shell extension packaging and preferences**](gnome-shell-extension/map-gnome-shell-extension-packaging-and-preferences.md) — pack-extension.sh packs every *.js, *.png and *.svg and the D-Bus interface description as extra sources; panel logo tokkl.png; prefs.js keeps only non-secret fields in GSettings
 ### #ci
 - Open [**KDE real-server test**](kde-companion/kde-ci-and-release-pipeline/map-kde-real-server-test.md) — realservertest.cpp, driven by realserver.test.ts, runs the companion against fixture Tokkl servers behind proxies and checks the data.
