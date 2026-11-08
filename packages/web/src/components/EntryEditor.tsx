@@ -15,6 +15,7 @@ import { ProjectLabel } from './ProjectLabel.tsx';
 import { ProjectPicker } from './ProjectPicker.tsx';
 import { TagPicker } from './TagPicker.tsx';
 import { useToast } from './Toast.tsx';
+import { useExclusive } from './useExclusive.ts';
 import { draftOf, projectChanges, type EntryDraft } from './useEntryFields.ts';
 import { useEntryTimes, type TimeFieldKey } from './useEntryTimes.ts';
 import { t } from '../i18n/messages.ts';
@@ -23,7 +24,11 @@ function isStopped(entry: TimeEntry): entry is TimeEntry & { stop: string } {
   return entry.stop !== null;
 }
 
-/** Full editor for one entry: every field, plus duplicate, split and delete. */
+/**
+ * Full editor for one entry: every field, plus duplicate, split and delete. One of Save, Duplicate,
+ * Split and Delete runs at a time, and the others are disabled until it is done, so a double click
+ * never saves twice or duplicates an entry that is being deleted.
+ */
 export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () => void }) {
   const settings = useSettings();
   const now = useNow(entry.stop ? 60_000 : 1000);
@@ -40,39 +45,45 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
   const restore = useRestoreEntry();
   const toast = useToast();
   const fields = useFieldErrors<TimeFieldKey>();
+  const actions = useExclusive();
   const edit = (changes: Partial<EntryDraft>) => setDraft(current => ({ ...current, ...changes }));
 
-  const save = async () => {
-    const timeChanges = times.changes(fields.validate);
-    if (!timeChanges) return;
-    try {
-      await update.mutateAsync({ id: entry.id, ...draft, ...timeChanges });
-      onClose();
-    } catch (error) {
-      toast.error(error);
-    }
-  };
+  const save = () =>
+    actions.run(async () => {
+      const timeChanges = times.changes(fields.validate);
+      if (!timeChanges) return;
+      try {
+        await update.mutateAsync({ id: entry.id, ...draft, ...timeChanges });
+        onClose();
+      } catch (error) {
+        toast.error(error);
+      }
+    });
 
-  const duplicate = async () => {
-    if (!entry.stop) return;
-    try {
-      await create.mutateAsync(duplicateInput(entry, settings.timeZone));
-      toast.show(t('entries.duplicated'));
-      onClose();
-    } catch (error) {
-      toast.error(error);
-    }
-  };
+  const duplicate = () =>
+    actions.run(async () => {
+      if (!entry.stop) return;
+      try {
+        await create.mutateAsync(duplicateInput(entry, settings.timeZone));
+        toast.show(t('entries.duplicated'));
+        onClose();
+      } catch (error) {
+        toast.error(error);
+      }
+    });
 
-  const destroy = async () => {
-    try {
-      await remove.mutateAsync(entry.id);
-      toast.show(t('entries.deleted'), { action: { label: t('common.undo'), run: () => restore.mutate(entry.id) } });
-      onClose();
-    } catch (error) {
-      toast.error(error);
-    }
-  };
+  const destroy = () =>
+    actions.run(async () => {
+      try {
+        await remove.mutateAsync(entry.id);
+        toast.show(t('entries.deleted'), {
+          action: { label: t('common.undo'), run: () => restore.mutate(entry.id) },
+        });
+        onClose();
+      } catch (error) {
+        toast.error(error);
+      }
+    });
 
   const project = projects.find(p => p.id === draft.project_id);
   const rangeStop = times.range?.stop ?? null;
@@ -82,21 +93,26 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
       onClose={onClose}
       footer={
         <>
-          <button type="button" className="button button-danger-ghost" onClick={() => void destroy()}>
+          <button
+            type="button"
+            className="button button-danger-ghost"
+            onClick={() => void destroy()}
+            disabled={actions.busy}
+          >
             <Icon name="trash" size={16} /> {t('common.delete')}
           </button>
           <span className="spacer" />
           {!running ? (
-            <button type="button" className="button button-ghost" onClick={() => void duplicate()}>
+            <button
+              type="button"
+              className="button button-ghost"
+              onClick={() => void duplicate()}
+              disabled={actions.busy}
+            >
               <Icon name="copy" size={16} /> {t('entries.duplicate')}
             </button>
           ) : null}
-          <button
-            type="button"
-            className="button button-primary"
-            onClick={() => void save()}
-            disabled={update.isPending}
-          >
+          <button type="button" className="button button-primary" onClick={() => void save()} disabled={actions.busy}>
             {t('common.save')}
           </button>
         </>
@@ -214,7 +230,7 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
           <p className="field-full hint">{t('entries.endsNextDay', { day: localDay(rangeStop, settings.timeZone) })}</p>
         ) : null}
         {isStopped(entry) && !times.noTimes && !entry.all_day ? (
-          <EntrySplitField entry={entry} settings={settings} onSplit={onClose} />
+          <EntrySplitField entry={entry} settings={settings} actions={actions} onSplit={onClose} />
         ) : null}
         <button type="submit" hidden />
       </form>

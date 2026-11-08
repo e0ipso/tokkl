@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useRef, useState } from 'react';
+import { Suspense, useEffect, useEffectEvent, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Redirect, Route, Switch, useLocation } from 'wouter';
 import { version } from '../../../../package.json';
@@ -9,21 +9,25 @@ import { ErrorBoundary } from '../components/ErrorBoundary.tsx';
 import { Icon } from '../components/Icon.tsx';
 import { LongTimerReminder } from '../components/LongTimerReminder.tsx';
 import { closeModalThen } from '../components/Overlay.tsx';
+import { Loading } from '../components/PageState.tsx';
 import { PomodoroSessionBanner } from '../components/PomodoroSessionBanner.tsx';
 import { usePomodoroSession } from '../components/PomodoroSessionProvider.tsx';
 import { useToast } from '../components/Toast.tsx';
 import { logOut, takeLogoutFailure } from '../lib/session.ts';
 import { useMediaQuery } from '../lib/useMediaQuery.ts';
 import { t } from '../i18n/messages.ts';
-import { AdminPage } from '../pages/AdminPage.tsx';
-import { ClientsPage } from '../pages/ClientsPage.tsx';
-import { ProjectsPage } from '../pages/ProjectsPage.tsx';
-import { ReportsPage } from '../pages/ReportsPage.tsx';
-import { SettingsPage } from '../pages/SettingsPage.tsx';
-import { TagsPage } from '../pages/TagsPage.tsx';
 import { TimerPage } from '../pages/TimerPage.tsx';
-import { PomodoroPage } from '../pages/PomodoroPage.tsx';
-import { TrashPage } from '../pages/TrashPage.tsx';
+import {
+  AdminPage,
+  ClientsPage,
+  PomodoroPage,
+  ProjectsPage,
+  ReportsPage,
+  SettingsPage,
+  TagsPage,
+  TrashPage,
+  retryFailedPages,
+} from './lazyPages.tsx';
 import { MoreSheet } from './MoreSheet.tsx';
 import { NAV, PHONE_QUERY, isActive, sectionOf, type NavItem } from './nav.ts';
 import { NavLink, RunningTitle, SignedInUser, useTheme } from './ShellParts.tsx';
@@ -60,22 +64,34 @@ function useLogoutFailureNotice(retry: () => void) {
   useEffect(() => notice(), []);
 }
 
+/**
+ * The page for the current route. While a page's code loads, the route shows the same Loading
+ * state a page shows while its data loads.
+ */
 function Routes() {
   return (
-    <Switch>
-      <Route path="/" component={TimerPage} />
-      <Route path="/pomodoro" component={PomodoroPage} />
-      <Route path="/reports" component={ReportsPage} />
-      <Route path="/projects" component={ProjectsPage} />
-      <Route path="/clients" component={ClientsPage} />
-      <Route path="/tags" component={TagsPage} />
-      <Route path="/trash" component={TrashPage} />
-      <Route path="/settings" component={SettingsPage} />
-      <Route path="/admin" component={AdminPage} />
-      <Route>
-        <Redirect to="/" />
-      </Route>
-    </Switch>
+    <Suspense
+      fallback={
+        <div className="page">
+          <Loading />
+        </div>
+      }
+    >
+      <Switch>
+        <Route path="/" component={TimerPage} />
+        <Route path="/pomodoro" component={PomodoroPage} />
+        <Route path="/reports" component={ReportsPage} />
+        <Route path="/projects" component={ProjectsPage} />
+        <Route path="/clients" component={ClientsPage} />
+        <Route path="/tags" component={TagsPage} />
+        <Route path="/trash" component={TrashPage} />
+        <Route path="/settings" component={SettingsPage} />
+        <Route path="/admin" component={AdminPage} />
+        <Route>
+          <Redirect to="/" />
+        </Route>
+      </Switch>
+    </Suspense>
   );
 }
 
@@ -175,7 +191,7 @@ export function Shell() {
       <main className="content" data-section={sectionOf(location)}>
         <LongTimerReminder />
         <PomodoroSessionBanner />
-        <ErrorBoundary resetKey={location}>
+        <ErrorBoundary resetKey={location} onRetry={retryFailedPages}>
           <Routes />
         </ErrorBoundary>
       </main>

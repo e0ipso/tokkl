@@ -7,6 +7,7 @@ import {
   TIMER_CONFLICT_MESSAGE,
   TIMER_OFFLINE_MESSAGE,
   TimerActionError,
+  attemptTimerRequest,
   explainTimerActionError,
   isTimerState,
   planTimerUpdate,
@@ -105,7 +106,12 @@ test('only objects shaped like a timer state pass the guard', () => {
   assert.equal(isTimerState(state(1, { running_entry: null, pause })), true);
   assert.equal(isTimerState(state(1, { pomodoro })), true);
   assert.equal(
-    isTimerState(state(1, { running_entry: null, discarded_pomodoro: { entry_id: 7, start: 'a', stop: 'b' } })),
+    isTimerState(
+      state(1, {
+        running_entry: null,
+        discarded_pomodoro: { entry_id: 7, start: '2026-10-27T09:00:00.000Z', stop: '2026-10-27T09:00:00.000Z' },
+      }),
+    ),
     true,
   );
   assert.equal(isTimerState(null), false);
@@ -131,6 +137,16 @@ test('a state whose nested parts are malformed or missing fails the guard', () =
   );
   assert.equal(
     isTimerState(state(1, { discarded_pomodoro: { entry_id: 7 } as unknown as TimerState['discarded_pomodoro'] })),
+    false,
+  );
+});
+
+test('a state needs a whole revision and real instants', () => {
+  assert.equal(isTimerState(state(1.5)), false);
+  assert.equal(isTimerState(state(1, { server_time: '2026-10-27T10:00:05' })), false);
+  assert.equal(isTimerState(state(1, { server_time: 'yesterday' })), false);
+  assert.equal(
+    isTimerState(state(1, { discarded_pomodoro: { entry_id: 7, start: '2026-10-27T10:00:00Z', stop: 'soon' } })),
     false,
   );
 });
@@ -170,6 +186,19 @@ test('a 409 carrying a state explains itself and hands the state over; other fai
   assert.equal(explainTimerActionError(bad), bad);
   const unknown = new RangeError('x');
   assert.equal(explainTimerActionError(unknown), unknown);
+});
+
+test('a typed entry that got no reply fails with the offline message; other failures pass through', async () => {
+  await assert.rejects(
+    attemptTimerRequest(() => Promise.reject(new TypeError('Failed to fetch'))),
+    error => error instanceof TimerActionError && error.kind === 'offline' && error.message === TIMER_OFFLINE_MESSAGE,
+  );
+  const refused = new ApiError(400, 'Bad request');
+  await assert.rejects(
+    attemptTimerRequest(() => Promise.reject(refused)),
+    error => error === refused,
+  );
+  assert.equal(await attemptTimerRequest(() => Promise.resolve(5)), 5);
 });
 
 /**

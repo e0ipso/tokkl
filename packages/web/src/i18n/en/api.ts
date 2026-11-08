@@ -9,6 +9,8 @@ export const api = {
   unreadableReply: 'The server sent an unreadable reply: {at} is not {expected}.',
   expectText: 'text',
   expectNumber: 'a number',
+  expectInteger: 'a whole number',
+  expectInstant: 'a date and time with a time zone',
   expectBoolean: 'true or false',
   expectOneOf: 'one of {values}',
   expectList: 'a list',

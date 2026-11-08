@@ -1,6 +1,18 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { DecodeError, array, boolean, nullable, number, object, oneOf, optional, string } from './decode.ts';
+import {
+  DecodeError,
+  array,
+  boolean,
+  instant,
+  integer,
+  nullable,
+  number,
+  object,
+  oneOf,
+  optional,
+  string,
+} from './decode.ts';
 
 interface Item {
   id: number;
@@ -53,4 +65,29 @@ test('nullable accepts null and checks anything else', () => {
   assert.equal(maybe(null), null);
   assert.equal(maybe(4), 4);
   assert.throws(() => maybe(undefined), DecodeError);
+});
+
+test('numbers must be finite and integers safe', () => {
+  assert.equal(number(1.5), 1.5);
+  for (const value of [Number.NaN, Infinity, -Infinity, '1']) {
+    assert.throws(() => number(value), { message: 'The server sent an unreadable reply: reply is not a number.' });
+  }
+  assert.equal(integer(-1), -1);
+  assert.equal(integer(Number.MAX_SAFE_INTEGER), Number.MAX_SAFE_INTEGER);
+  for (const value of [1.5, 2 ** 53, Number.NaN, '7']) {
+    assert.throws(() => integer(value), {
+      message: 'The server sent an unreadable reply: reply is not a whole number.',
+    });
+  }
+});
+
+test('an instant is an RFC 3339 date and time with a zone', () => {
+  for (const value of ['2026-10-27T10:00:00Z', '2026-10-27T10:00:00.123Z', '2026-10-27T12:00:00+02:00']) {
+    assert.equal(instant(value), value);
+  }
+  for (const value of ['2026-10-27', '2026-10-27T10:00:00', '2026-02-30T10:00:00Z', '2026-10-27 10:00:00Z', 0, null]) {
+    assert.throws(() => instant(value, 'reply.start'), {
+      message: 'The server sent an unreadable reply: reply.start is not a date and time with a time zone.',
+    });
+  }
 });

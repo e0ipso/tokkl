@@ -6,8 +6,7 @@ import { invalidate } from './invalidate.ts';
 import { keys, stale } from './keys.ts';
 import { APP, V9, wsPath } from './paths.ts';
 import { entryBoundsReply, entryListReply, timeEntryReply } from './replies.ts';
-import { TIMER_ENTRY_OPTIONS, attemptTimerRequest } from './timerOutcome.ts';
-import { MOVES_TIMER } from './timerState.ts';
+import { MOVES_TIMER, attemptTimerRequest } from './timerState.ts';
 import type { BulkPatchResult, PatchOperation, TimeEntry, TimeEntryInput } from './types.ts';
 
 /** Time entries: lists, writes and the trash. The running entry comes from the timer state (timerHooks.ts). */
@@ -87,36 +86,18 @@ export function useUpdateEntry() {
 }
 
 /**
- * Starts the timer, or saves a finished entry typed into the idle bar. It is tried at once even
- * offline (`TIMER_ENTRY_OPTIONS`); other creates use `useCreateEntry`, which waits for the connection.
+ * Saves the finished entry typed into the idle timer bar as a duration. Like the timer actions it
+ * is tried at once even offline (`networkMode: 'always'`), so it never goes out later with the time
+ * of the click; other creates use `useCreateEntry`, which waits for the connection. Start and Stop
+ * are timer actions (`useStartTimer` and `useStopTimer` in timerHooks.ts).
  */
-export function useStartEntry() {
+export function useAddTypedEntry() {
   const wid = useWid();
   const onSuccess = useInvalidateEntries();
   return useMutation({
-    ...TIMER_ENTRY_OPTIONS,
+    networkMode: 'always',
     meta: MOVES_TIMER,
     mutationFn: (input: TimeEntryInput) => attemptTimerRequest(() => entryRequests.create(wid, input)),
-    onSuccess,
-  });
-}
-
-/** Stops the running entry, tried at once even offline like `useStartEntry`. */
-export function useStopEntry() {
-  const wid = useWid();
-  const onSuccess = useInvalidateEntries();
-  return useMutation({
-    ...TIMER_ENTRY_OPTIONS,
-    meta: MOVES_TIMER,
-    mutationFn: (input: number | { id: number; stop: string }) => {
-      const id = typeof input === 'number' ? input : input.id;
-      return attemptTimerRequest(() =>
-        api.patch<TimeEntry>(
-          `${wsPath(wid, 'time_entries', id, 'stop')}?meta=true`,
-          typeof input === 'number' ? undefined : { stop: input.stop },
-        ),
-      );
-    },
     onSuccess,
   });
 }

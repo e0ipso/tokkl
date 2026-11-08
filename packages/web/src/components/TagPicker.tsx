@@ -3,6 +3,7 @@ import { useCreateTag, useTags } from '../api/tags.ts';
 import { Icon } from './Icon.tsx';
 import { Popover } from './Overlay.tsx';
 import { useToast } from './Toast.tsx';
+import { useExclusive } from './useExclusive.ts';
 import { t } from '../i18n/messages.ts';
 
 /** Multi-select tag chooser; unknown names can be created. Works with tag names, like the Toggl API. */
@@ -21,6 +22,8 @@ export function TagPicker({
   const { data: tags = [] } = useTags();
   const createTag = useCreateTag();
   const toast = useToast();
+  // Enter and a click on Create can arrive before the first create shows up; the tag is made once.
+  const creating = useExclusive();
   const selected = new Set(value.map(name => name.toLowerCase()));
   const visible = tags.filter(tag => tag.name.toLowerCase().includes(query.toLowerCase()));
   const exact = tags.some(tag => tag.name.toLowerCase() === query.trim().toLowerCase());
@@ -30,17 +33,18 @@ export function TagPicker({
       selected.has(name.toLowerCase()) ? value.filter(v => v.toLowerCase() !== name.toLowerCase()) : [...value, name],
     );
   };
-  const create = async () => {
-    const name = query.trim();
-    if (!name || exact) return;
-    try {
-      const tag = await createTag.mutateAsync(name);
-      onChange([...value, tag.name]);
-      setQuery('');
-    } catch (error) {
-      toast.error(error);
-    }
-  };
+  const create = () =>
+    creating.run(async () => {
+      const name = query.trim();
+      if (!name || exact) return;
+      try {
+        const tag = await createTag.mutateAsync(name);
+        onChange([...value, tag.name]);
+        setQuery('');
+      } catch (error) {
+        toast.error(error);
+      }
+    });
 
   return (
     <Popover anchor={anchor} label={t('entries.tags')} onClose={onClose} width={260}>

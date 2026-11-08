@@ -83,7 +83,8 @@ test('edits made right after Start, before the running entry loads, are saved to
   const timer = page.getByRole('region', { name: 'Timer' });
   await timer.getByLabel('Description').fill('Draft');
 
-  // Hold every timer state read until the edits are done, like a slow server.
+  // Hold every timer state read, and the Start reply, which carries the state, until the edits are
+  // done, like a slow server. The server starts the entry as soon as the request arrives.
   let release!: () => void;
   const gate = new Promise<void>(resolve => {
     release = resolve;
@@ -92,17 +93,23 @@ test('edits made right after Start, before the running entry loads, are saved to
     await gate;
     await route.continue();
   });
-  const created = page.waitForResponse(
-    response => response.request().method() === 'POST' && /\/time_entries\?/.test(response.url()),
-  );
+  const START = (url: URL) => url.pathname === '/api/app/timer/start';
+  await page.route(START, async route => {
+    const response = await route.fetch();
+    await gate;
+    await route.fulfill({ response });
+  });
+  const sent = page.waitForRequest(request => START(new URL(request.url())));
+  const started = page.waitForResponse(response => START(new URL(response.url())));
   await timer.getByRole('button', { name: 'Start timer' }).click();
-  const entry = (await (await created).json()) as { id: number };
+  await sent;
 
   await timer.getByLabel('Description').fill('Draft the spec');
   await timer.getByLabel('Description').blur();
   await timer.getByRole('button', { name: 'Billable' }).click();
   // Later timer state reads pass straight through the open gate.
   release();
+  const entry = ((await (await started).json()) as { running_entry: { id: number } }).running_entry;
 
   await expect(timer.getByRole('button', { name: 'Stop timer' })).toBeVisible();
   await expect
