@@ -29,6 +29,7 @@ const EVENT_STREAM_HEADERS = {
 const refused = () => forbidden('Incorrect username and/or password');
 /** A full process sheds the stream; the client polls meanwhile and tries again. */
 const STREAMS_FULL_RETRY_SECONDS = 5;
+const KEEP_ALIVE_EVENT = 'event: keep-alive\ndata:\n\n';
 export interface TimerStreamOptions {
   keepAliveMs?: number;
   /** How long a stream whose socket stopped taking data may wait for it to drain before it ends. Default 30 s. */
@@ -42,13 +43,14 @@ export interface TimerStreamOptions {
   /** Called, never awaited, when a keep-alive check reads a revision newer than this process delivered. */
   onBehind?: (id: number, revision: number) => void;
 }
+type PassingCheck = Extract<StreamCredentialResult, { valid: true }>;
 interface Stream {
   res: EventStreamResponse;
   check: () => Promise<StreamCredentialResult>;
+  /** Streams with the same key hold the same credential, so one check answers for all of them. */
+  credential: string | symbol;
   ready: boolean;
   revision: number;
-  timer?: NodeJS.Timeout;
-  ticking: boolean;
   /** Set while the socket is full: the drain listener and the timeout that ends the stream. */
   draining?: { listener: () => void; timeout: NodeJS.Timeout };
 }
@@ -57,8 +59,14 @@ interface Group {
   queue: Promise<void>;
   latest?: TimerState;
   retired?: boolean;
+  /** One keep-alive timer for the group's ready streams. */
+  timer?: NodeJS.Timeout;
+  ticking: boolean;
 }
-/** Process-local delivery of committed states. Credential checks serialize per user. */
+/**
+ * Process-local delivery of committed states. Credential checks serialize per user, and streams of
+ * one credential share each check's result.
+ */
 export class TimerStreams {
   readonly #state: (id: number) => Promise<TimerState>;
   readonly #users = new Map<number, Group>();
@@ -81,7 +89,7 @@ export class TimerStreams {
   #group(id: number): Group {
     let group = this.#users.get(id);
     if (!group) {
-      group = { streams: new Set(), queue: Promise.resolve() };
+      group = { streams: new Set(), queue: Promise.resolve(), ticking: false };
       this.#users.set(id, group);
     }
     return group;
@@ -123,28 +131,51 @@ export class TimerStreams {
     }
     return group;
   }
-  /** The passing check result, or undefined when the stream must not receive anything. */
-  async #valid(group: Group, stream: Stream): Promise<Extract<StreamCredentialResult, { valid: true }> | undefined> {
-    try {
-      if (this.#closed || group.retired || !group.streams.has(stream) || stream.res.destroyed) return undefined;
-      const result = await stream.check();
-      return result.valid && !this.#closed && !group.retired && group.streams.has(stream) && !stream.res.destroyed
-        ? result
-        : undefined;
-    } catch {
-      return undefined;
+  #live(group: Group, stream: Stream): boolean {
+    return !this.#closed && !group.retired && group.streams.has(stream) && !stream.res.destroyed;
+  }
+  /**
+   * The passing check result of each of `streams` that may still receive. Each credential is
+   * checked once, in order; a check that throws fails every stream holding that credential.
+   */
+  async #passing(group: Group, streams: Stream[]): Promise<Map<Stream, PassingCheck>> {
+    const results = new Map<string | symbol, StreamCredentialResult>();
+    const passing = new Map<Stream, PassingCheck>();
+    for (const stream of streams) {
+      if (!this.#live(group, stream)) continue;
+      let result = results.get(stream.credential);
+      if (!result) {
+        result = await stream.check().catch((): StreamCredentialResult => ({ valid: false }));
+        results.set(stream.credential, result);
+      }
+      if (result.valid && this.#live(group, stream)) passing.set(stream, result);
     }
+    return passing;
+  }
+  /** The passing check result, or undefined when the stream must not receive anything. */
+  async #valid(group: Group, stream: Stream): Promise<PassingCheck | undefined> {
+    return (await this.#passing(group, [stream])).get(stream);
   }
   #end(id: number, group: Group, stream: Stream): void {
-    clearInterval(stream.timer);
-    this.#stopDraining(stream);
-    group.streams.delete(stream);
+    this.#forget(id, group, stream);
     try {
       stream.res.end();
     } catch {
       /* A broken subscriber cannot suppress another. */
     }
-    if (!group.streams.size && this.#users.get(id) === group) this.#users.delete(id);
+  }
+  /** Drops `stream` from its group, and the group's timer and entry once it holds none. */
+  #forget(id: number, group: Group, stream: Stream): void {
+    if (stream.draining) {
+      clearTimeout(stream.draining.timeout);
+      stream.res.off('drain', stream.draining.listener);
+      stream.draining = undefined;
+    }
+    group.streams.delete(stream);
+    if (group.streams.size) return;
+    clearInterval(group.timer);
+    group.timer = undefined;
+    if (this.#users.get(id) === group) this.#users.delete(id);
   }
   /**
    * Writes `message` unless the stream holds too much unsent. A full socket does not end the
@@ -174,23 +205,31 @@ export class TimerStreams {
     stream.draining = { listener, timeout };
     stream.res.once('drain', listener);
   }
-  #stopDraining(stream: Stream): void {
-    if (!stream.draining) return;
-    clearTimeout(stream.draining.timeout);
-    stream.res.off('drain', stream.draining.listener);
-    stream.draining = undefined;
-  }
-  open(id: number, res: EventStreamResponse, check: () => Promise<StreamCredentialResult>): Promise<void> {
-    return this.#track(this.#open(id, res, check));
+  /**
+   * Opens a stream of `id`'s states. `credential` names the credential `check` tests: streams of
+   * one user that pass the same key share each check. Without one, the stream is checked alone.
+   */
+  open(
+    id: number,
+    res: EventStreamResponse,
+    check: () => Promise<StreamCredentialResult>,
+    credential: string | symbol = Symbol('stream'),
+  ): Promise<void> {
+    return this.#track(this.#open(id, res, check, credential));
   }
   /**
    * Admits the stream, checks the credential, builds the first state, then sends the headers and
    * that state. Until the headers go out a refusal or failure still reaches the client as a normal
    * JSON error. A stream ended while it opens, by the cap or its client, stops where it is.
    */
-  async #open(id: number, res: EventStreamResponse, check: () => Promise<StreamCredentialResult>): Promise<void> {
+  async #open(
+    id: number,
+    res: EventStreamResponse,
+    check: () => Promise<StreamCredentialResult>,
+    credential: string | symbol,
+  ): Promise<void> {
     if (this.#closed) throw refused();
-    const stream: Stream = { res, check, ready: false, revision: -1, ticking: false };
+    const stream: Stream = { res, check, credential, ready: false, revision: -1 };
     const group = this.#join(id, stream);
     res.on('close', () => this.#end(id, group, stream));
     const ended = () => group.retired || !group.streams.has(stream);
@@ -243,38 +282,44 @@ export class TimerStreams {
     stream.revision = current.revision;
     this.#write(id, group, stream, timerEvent(current));
     if (!group.streams.has(stream)) return;
-    stream.timer = setInterval(() => this.#tick(id, group, stream), this.#options.keepAliveMs);
+    group.timer ??= setInterval(() => this.#tick(id, group), this.#options.keepAliveMs);
   }
   /**
-   * A keep-alive: recheck the credential, send the event, and ask for a refresh if this process is
-   * behind. A stream whose socket is still draining skips the event.
+   * A keep-alive for every ready stream of the group: recheck each credential once, send the event
+   * to the streams that pass, and ask for a refresh if this process is behind. A stream whose
+   * socket is still draining skips the event.
    */
-  #tick(id: number, group: Group, stream: Stream): void {
-    if (stream.ticking) return;
-    stream.ticking = true;
+  #tick(id: number, group: Group): void {
+    if (group.ticking) return;
+    group.ticking = true;
+    const ready = () => [...group.streams].filter(stream => stream.ready);
     void this.#enqueue(group, async () => {
-      if (!group.streams.has(stream)) return;
-      const result = await this.#valid(group, stream);
-      if (!result) {
-        this.#end(id, group, stream);
-        return;
+      const streams = ready();
+      const passing = await this.#passing(group, streams);
+      let behind = -1;
+      for (const stream of streams) {
+        const result = passing.get(stream);
+        if (!result) {
+          this.#end(id, group, stream);
+          continue;
+        }
+        if (!stream.draining) this.#write(id, group, stream, KEEP_ALIVE_EVENT);
+        if (group.streams.has(stream) && result.revision > Math.max(stream.revision, group.latest?.revision ?? -1))
+          behind = Math.max(behind, result.revision);
       }
-      if (!stream.draining) this.#write(id, group, stream, 'event: keep-alive\ndata:\n\n');
       // This tick holds the group queue and the refresh delivers through it, so never await here.
-      if (group.streams.has(stream) && result.revision > Math.max(stream.revision, group.latest?.revision ?? -1))
-        this.#behind(id, result.revision);
+      if (behind >= 0) this.#behind(id, behind);
     })
       .finally(() => {
-        stream.ticking = false;
+        group.ticking = false;
       })
-      .catch(() => this.#end(id, group, stream));
+      .catch(() => {
+        for (const stream of ready()) this.#end(id, group, stream);
+      });
   }
   /** Forgets a stream that never sent its headers, so the error handler can still answer. */
   #discard(id: number, group: Group, stream: Stream): void {
-    clearInterval(stream.timer);
-    this.#stopDraining(stream);
-    group.streams.delete(stream);
-    if (!group.streams.size && this.#users.get(id) === group) this.#users.delete(id);
+    this.#forget(id, group, stream);
   }
   #behind(id: number, revision: number): void {
     try {
@@ -288,14 +333,16 @@ export class TimerStreams {
     if (this.#closed || !group || (group.latest && group.latest.revision >= state.revision)) return Promise.resolve();
     group.latest = structuredClone(state);
     return this.#enqueue(group, async () => {
-      for (const stream of [...group.streams]) {
-        if (!stream.ready || stream.revision >= state.revision) continue;
-        if (!(await this.#valid(group, stream))) {
+      const due = [...group.streams].filter(stream => stream.ready && stream.revision < state.revision);
+      const passing = await this.#passing(group, due);
+      const message = timerEvent(state);
+      for (const stream of due) {
+        if (!passing.has(stream)) {
           this.#end(id, group, stream);
           continue;
         }
         stream.revision = state.revision;
-        this.#write(id, group, stream, timerEvent(state));
+        this.#write(id, group, stream, message);
       }
     });
   }
@@ -307,7 +354,9 @@ export class TimerStreams {
     const group = this.#users.get(id);
     if (!group) return Promise.resolve();
     return this.#enqueue(group, async () => {
-      for (const stream of [...group.streams]) if (!(await this.#valid(group, stream))) this.#end(id, group, stream);
+      const streams = [...group.streams];
+      const passing = await this.#passing(group, streams);
+      for (const stream of streams) if (!passing.has(stream)) this.#end(id, group, stream);
     });
   }
   forgetUser(id: number): void {

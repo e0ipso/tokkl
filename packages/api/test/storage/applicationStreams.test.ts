@@ -6,6 +6,9 @@ import type { TimerState } from '@tokkl/types';
 import { errorHandler } from '../../src/http/errors.ts';
 import { silentLogger } from '../../src/lib/logger.ts';
 import { EventEmitter } from 'node:events';
+import type { Authentication } from '../../src/domain/credentials.ts';
+import type { User } from '../../src/storage/domain.ts';
+import { credentialKey } from '../../src/services/streamCredentials.ts';
 import {
   TimerStreams,
   type EventStreamResponse,
@@ -285,6 +288,7 @@ class SlowResponse extends EventEmitter implements EventStreamResponse {
   }
 }
 const passing = async (): Promise<StreamCredentialResult> => ({ valid: true, revision: 0 });
+const settled = () => new Promise(resolve => setImmediate(resolve));
 
 test('a stream whose socket is full waits for it to drain instead of ending', { timeout: 10000 }, async t => {
   const streams = new TimerStreams(async () => state(1), { drainTimeoutMs: 5000 });
@@ -321,4 +325,61 @@ test('a stream ends when a write would pass its unsent byte bound', { timeout: 1
   await streams.publish(1, state(2));
   assert.equal(res.ended, true);
   assert.equal(res.written.length, 1, 'the write that would pass the bound is not made');
+});
+
+test('streams of one credential share each keep-alive, publish and recheck check', { timeout: 10000 }, async t => {
+  t.mock.timers.enable({ apis: ['setInterval'] });
+  const streams = new TimerStreams(async () => state(1), { keepAliveMs: 1000 });
+  t.after(() => streams.closeAll());
+  const checks = { shared: 0, other: 0 };
+  let sharedValid = true;
+  const check = (key: keyof typeof checks) => async (): Promise<StreamCredentialResult> => {
+    checks[key]++;
+    return key === 'shared' && !sharedValid ? { valid: false } : { valid: true, revision: 0 };
+  };
+  const shared = [new SlowResponse(), new SlowResponse(), new SlowResponse()];
+  const other = new SlowResponse();
+  for (const res of shared) await streams.open(1, res, check('shared'), 'shared-credential');
+  await streams.open(1, other, check('other'), 'other-credential');
+  const reset = () => Object.assign(checks, { shared: 0, other: 0 });
+
+  reset();
+  t.mock.timers.tick(1000);
+  await settled();
+  await settled();
+  assert.deepEqual(checks, { shared: 1, other: 1 }, 'one keep-alive check per credential');
+  for (const res of [...shared, other]) assert.equal(res.written.at(-1), 'event: keep-alive\ndata:\n\n');
+
+  reset();
+  await streams.publish(1, state(2));
+  assert.deepEqual(checks, { shared: 1, other: 1 }, 'one publish check per credential');
+  for (const res of [...shared, other]) assert.match(res.written.at(-1)!, /"revision":2/);
+
+  reset();
+  sharedValid = false;
+  await streams.recheck(1);
+  assert.deepEqual(checks, { shared: 1, other: 1 }, 'one recheck per credential');
+  for (const res of shared) assert.equal(res.ended, true, 'a failing credential ends every stream holding it');
+  assert.equal(other.ended, false);
+});
+
+test('streams share a credential key only when their checks compare the same things', () => {
+  const user = { id: 7, passwordHash: 'hash-a', apiToken: 'token-a' } as User;
+  const auth = (credential: Authentication['credential'], seen: Partial<User> = {}): Authentication => ({
+    user: { ...user, ...seen },
+    credential,
+    authMethod: credential.kind === 'session' ? 'session' : 'basic',
+  });
+  const session = credentialKey(auth({ kind: 'session', token: 's1' }));
+  assert.equal(credentialKey(auth({ kind: 'session', token: 's1' })), session);
+  const others = [
+    auth({ kind: 'session', token: 's2' }),
+    auth({ kind: 'session', token: 's1' }, { passwordHash: 'hash-b' }),
+    auth({ kind: 'session', token: 's1' }, { id: 8 }),
+    auth({ kind: 'api-token', token: 's1' }),
+    auth({ kind: 'password' }),
+    auth({ kind: 'password' }, { apiToken: 'token-b' }),
+  ].map(credentialKey);
+  assert.equal(new Set([session, ...others]).size, others.length + 1);
+  assert.ok(!session.includes('s1') && !session.includes('hash-a'), 'the key holds no credential in the clear');
 });

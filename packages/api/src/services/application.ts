@@ -32,7 +32,7 @@ import type { ExportAssemblyJob, ExportEmitter } from './exportJobs.ts';
 import type { ReportExecutor } from './reportRunner.ts';
 import { createCatalogOperations } from './catalogOperations.ts';
 import { createEntryOperations } from './entryOperations.ts';
-import { credentialCheck } from './streamCredentials.ts';
+import { credentialCheck, credentialKey } from './streamCredentials.ts';
 import { createTimerDelivery } from './timerDelivery.ts';
 import { presentTimerOperations } from './timerReplies.ts';
 import type { EventStreamResponse, TimerStreamOptions } from './timerStreams.ts';
@@ -160,7 +160,12 @@ export function createApplicationServices({
     /** The claim runs before the stream joins, so it never shares a group with a deleted account's streams. */
     openTimerStream(authentication: Authentication, res: EventStreamResponse): Promise<void> {
       publish.claim(authentication.user.id, authentication.user.createdAt);
-      return timerStreams.open(authentication.user.id, res, streamCredentials.check(authentication));
+      return timerStreams.open(
+        authentication.user.id,
+        res,
+        streamCredentials.check(authentication),
+        credentialKey(authentication),
+      );
     },
     readFor,
     /** Admits an import before it reads its file, or refuses it with a 503 and `Retry-After`. */

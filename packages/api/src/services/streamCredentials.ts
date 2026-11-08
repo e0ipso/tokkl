@@ -1,4 +1,5 @@
 import type { AccountRepositories, AccountRunner } from '../domain/accountGuards.ts';
+import { sha256 } from '../lib/crypto.ts';
 import { credentialHolds, type Authentication } from '../domain/credentials.ts';
 import type { SessionsReader, UsersReader } from '../storage/contracts.ts';
 import type { StreamCredentialResult } from './timerStreams.ts';
@@ -30,4 +31,14 @@ export function credentialCheck<R extends AccountRepositories>(
       return { valid: false };
     }
   };
+}
+
+/**
+ * The key of the credential a stream check tests. Checks of one key always agree: they compare the
+ * same account, verified password hash and presented token. Streams that share it share each check.
+ */
+export function credentialKey(auth: Authentication): string {
+  const { user, credential } = auth;
+  const presented = credential.kind === 'password' ? user.apiToken : credential.token;
+  return sha256(JSON.stringify([user.id, user.passwordHash, credential.kind, presented]));
 }
