@@ -10,6 +10,7 @@ import type { Settings } from '../lib/settings.ts';
 import { entrySeconds, snappedSeconds } from '../lib/snapping.ts';
 import { useFieldErrors } from './FieldError.tsx';
 import { useToast } from './Toast.tsx';
+import { useExclusive } from './useExclusive.ts';
 import type { EntryDraft } from './useEntryFields.ts';
 import { t } from '../i18n/messages.ts';
 
@@ -27,6 +28,8 @@ export function useManualEntry(settings: Settings, { onAdded }: { onAdded: () =>
   const [noTimes, setNoTimes] = useState(false);
   const [durationText, setDurationText] = useState('');
   const errors = useFieldErrors<'start' | 'end' | 'duration'>();
+  // A double click on Add or a repeated Enter adds the entry once.
+  const adding = useExclusive();
 
   const save = async (input: TimeEntryInput, shownStop: Date) => {
     const saved = await create.mutateAsync(input);
@@ -48,7 +51,7 @@ export function useManualEntry(settings: Settings, { onAdded }: { onAdded: () =>
     }
   };
 
-  const add = async (draft: EntryDraft) => {
+  const addDraft = async (draft: EntryDraft) => {
     if (noTimes) return addNoTimes(draft);
     const options = {
       timeZone: settings.timeZone,
@@ -77,6 +80,8 @@ export function useManualEntry(settings: Settings, { onAdded }: { onAdded: () =>
       toast.error(failure);
     }
   };
+
+  const add = (draft: EntryDraft) => adding.run(() => addDraft(draft));
 
   const switchNoTimes = (on: boolean) => {
     setNoTimes(on);

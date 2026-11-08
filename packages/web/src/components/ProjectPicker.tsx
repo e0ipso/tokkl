@@ -6,6 +6,7 @@ import { Popover } from './Overlay.tsx';
 import { ProjectDot } from './ProjectLabel.tsx';
 import { groupPickerProjects, pickerOptions } from './projectPickerOptions.ts';
 import { useToast } from './Toast.tsx';
+import { useExclusive } from './useExclusive.ts';
 import { t } from '../i18n/messages.ts';
 
 /** Scrolls the active option into view when it becomes active (a ref callback, so no lookup by id). */
@@ -73,6 +74,8 @@ export function ProjectPicker({
   const { data: tasks = [] } = useTasks();
   const createProject = useCreateProject();
   const toast = useToast();
+  // Enter and a click on Create can arrive before the first create shows up; the project is made once.
+  const creating = useExclusive();
 
   const groups = useMemo(() => groupPickerProjects(projects, tasks, query), [projects, tasks, query]);
   const options = useMemo(() => pickerOptions(groups, query), [groups, query]);
@@ -87,17 +90,18 @@ export function ProjectPicker({
     activeOption?.projectId === pid && activeOption.taskId === tid;
 
   const exact = projects.some(p => p.name.toLowerCase() === query.trim().toLowerCase());
-  const create = async () => {
-    const name = query.trim();
-    if (!name || exact) return;
-    try {
-      const project = await createProject.mutateAsync({ name });
-      onChange(project.id, null);
-      onClose();
-    } catch (error) {
-      toast.error(error);
-    }
-  };
+  const create = () =>
+    creating.run(async () => {
+      const name = query.trim();
+      if (!name || exact) return;
+      try {
+        const project = await createProject.mutateAsync({ name });
+        onChange(project.id, null);
+        onClose();
+      } catch (error) {
+        toast.error(error);
+      }
+    });
   const pick = (pid: number | null, tid: number | null) => {
     onChange(pid, tid);
     onClose();

@@ -11,6 +11,7 @@ import { snappedSplit, type SplitHalves } from '../lib/snapping.ts';
 import { useFieldErrors } from './FieldError.tsx';
 import { Icon } from './Icon.tsx';
 import { useToast } from './Toast.tsx';
+import type { Exclusive } from './useExclusive.ts';
 import { t, type MessageKey } from '../i18n/messages.ts';
 
 const SPLIT_PROBLEMS = {
@@ -45,14 +46,19 @@ function splitHalves(
   return snappedSplit(new Date(entry.start), new Date(entry.stop), at, settings);
 }
 
-/** The entry editor's "Split at" field for a stopped, timed entry, with a preview of both halves. */
+/**
+ * The entry editor's "Split at" field for a stopped, timed entry, with a preview of both halves.
+ * The split runs through the editor's `actions`, so it never overlaps a save, duplicate or delete.
+ */
 export function EntrySplitField({
   entry,
   settings,
+  actions,
   onSplit,
 }: {
   entry: TimeEntry & { stop: string };
   settings: Settings;
+  actions: Exclusive;
   onSplit: () => void;
 }) {
   const [text, setText] = useState('');
@@ -61,17 +67,18 @@ export function EntrySplitField({
   const toast = useToast();
   const halves = splitHalves(entry, text, settings);
 
-  const run = async () => {
-    const problem = typeof halves === 'string' && t(SPLIT_PROBLEMS[halves]);
-    if (!fields.validate([['split', problem]]) || typeof halves === 'string') return;
-    try {
-      await split.mutateAsync({ entry, halves });
-      toast.show(t('entries.splitDone'));
-      onSplit();
-    } catch (error) {
-      toast.error(error);
-    }
-  };
+  const run = () =>
+    actions.run(async () => {
+      const problem = typeof halves === 'string' && t(SPLIT_PROBLEMS[halves]);
+      if (!fields.validate([['split', problem]]) || typeof halves === 'string') return;
+      try {
+        await split.mutateAsync({ entry, halves });
+        toast.show(t('entries.splitDone'));
+        onSplit();
+      } catch (error) {
+        toast.error(error);
+      }
+    });
 
   return (
     <div className="field field-full">
@@ -83,7 +90,7 @@ export function EntrySplitField({
           placeholder={t('entries.splitPlaceholder')}
           onChange={event => setText(event.target.value)}
         />
-        <button type="button" className="button button-ghost" onClick={() => void run()}>
+        <button type="button" className="button button-ghost" onClick={() => void run()} disabled={actions.busy}>
           <Icon name="split" size={16} /> {t('entries.split')}
         </button>
       </div>
