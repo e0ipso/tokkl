@@ -2,6 +2,8 @@
 
 #include "logging.h"
 
+#include <QUuid>
+
 #include <utility>
 
 namespace Tokkl
@@ -77,7 +79,7 @@ void ApiClient::later(std::function<void()> f)
         Qt::QueuedConnection);
 }
 
-void ApiClient::send(const QByteArray &method, const QUrl &url, const QByteArray &body, ResponseHandler handler)
+void ApiClient::send(const QByteArray &method, const QUrl &url, const QByteArray &body, ResponseHandler handler, const QByteArray &idempotencyKey)
 {
     if (!m_transport) {
         // The transport went first, as at shutdown. The request fails like
@@ -90,7 +92,7 @@ void ApiClient::send(const QByteArray &method, const QUrl &url, const QByteArray
         return;
     }
     const quint64 generation = m_session.generation();
-    PendingReply *reply = m_transport->send(HttpRequest{method, url, m_session.authorization(), body});
+    PendingReply *reply = m_transport->send(HttpRequest{method, url, m_session.authorization(), body, idempotencyKey});
     m_replies.insert(reply);
     connect(reply, &PendingReply::finished, this, [this, reply, generation, handler = std::move(handler)](const HttpResponse &response) {
         m_replies.remove(reply);
@@ -134,7 +136,17 @@ void ApiClient::request(const QByteArray &method, const QUrl &url, const QByteAr
     });
 }
 
+QByteArray ApiClient::newIdempotencyKey()
+{
+    return QUuid::createUuid().toByteArray(QUuid::Id128);
+}
+
 void ApiClient::action(const QUrl &url, const QByteArray &body, ActionCallback done)
+{
+    keyedAction(url, body, QByteArray(), std::move(done));
+}
+
+void ApiClient::keyedAction(const QUrl &url, const QByteArray &body, const QByteArray &idempotencyKey, ActionCallback done)
 {
     if (const std::optional<ApiError> refused = m_session.refusal(ApiAccess::Write)) {
         if (done) {
@@ -144,7 +156,26 @@ void ApiClient::action(const QUrl &url, const QByteArray &body, ActionCallback d
         }
         return;
     }
+    if (idempotencyKey.isEmpty()) {
+        sendAction(url, body, idempotencyKey, std::move(done));
+        return;
+    }
+    sendAction(url, body, idempotencyKey, [this, url, body, idempotencyKey, done = std::move(done)](const TimerActionResult &first) {
+        // The same key and body, so a server that acted on the first answers
+        // with what it did then.
+        if (first.outcome != TimerActionResult::Outcome::Unknown || m_session.refusal(ApiAccess::Write)) {
+            if (done) {
+                done(first);
+            }
+            return;
+        }
+        qCInfo(lcNet) << "POST" << url.path() << "outcome unknown; sending it once more with its Idempotency-Key";
+        sendAction(url, body, idempotencyKey, done);
+    });
+}
 
+void ApiClient::sendAction(const QUrl &url, const QByteArray &body, const QByteArray &idempotencyKey, ActionCallback done)
+{
     send("POST", url, body, [this, path = url.path(), done = std::move(done)](const HttpResponse &response) {
         TimerActionResult result;
         if (isSuccess(response)) {
@@ -175,7 +206,7 @@ void ApiClient::action(const QUrl &url, const QByteArray &body, ActionCallback d
         if (done) {
             done(result);
         }
-    });
+    }, idempotencyKey);
 }
 
 PendingStream *ApiClient::openStream(const QUrl &url)

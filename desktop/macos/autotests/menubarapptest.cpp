@@ -703,7 +703,7 @@ private Q_SLOTS:
         const HttpRequest pause = f.transport.requests.last();
         QCOMPARE(pause.method, QByteArray("POST"));
         QCOMPARE(pause.url.path(), QStringLiteral("/api/app/timer/pause"));
-        QCOMPARE(pause.body, QByteArray("{}"));
+        QCOMPARE(jsonBody(pause), (QJsonObject{{QStringLiteral("revision"), f.revision}}));
         // The item shows the mutation in flight and ignores another click.
         QCOMPARE(f.item.title, QStringLiteral("0:10 …"));
         f.item.click();
@@ -846,7 +846,8 @@ private Q_SLOTS:
         QCOMPARE(update.method, QByteArray("POST"));
         QCOMPARE(update.url.path(), QStringLiteral("/api/app/timer/edit"));
         QCOMPARE(jsonBody(update).value(QStringLiteral("billable")), QJsonValue(true));
-        QVERIFY(jsonBody(update).value(QStringLiteral("revision")).isDouble());
+        QVERIFY(jsonBody(update).value(QStringLiteral("entry_id")).isDouble());
+        QVERIFY(!jsonBody(update).contains(QStringLiteral("revision")));
         QCOMPARE(jsonBody(update).size(), 2);
     }
 

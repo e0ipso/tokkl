@@ -564,7 +564,7 @@ private Q_SLOTS:
         f.client.pause(record);
         qsizetype post = f.last("POST", QStringLiteral("/api/app/timer/pause"));
         QVERIFY(post >= 0);
-        QCOMPARE(f.transport.requests.at(post).body, QByteArray("{}"));
+        QCOMPARE(f.transport.requests.at(post).body, QByteArray(R"({"revision":5})"));
         f.respond(post, FakeTransport::answer(200, stateBody(6, f.clock.now(), 300)));
         QCOMPARE(results.size(), 2);
         QVERIFY(results.last().outcome == TimerActionResult::Outcome::Applied);
@@ -637,6 +637,34 @@ private Q_SLOTS:
         QCOMPARE(results.last().error.status, 400);
         QCOMPARE(f.client.state()->revision, 10);
         QVERIFY(!f.client.settling());
+    }
+
+    // A pause applies to the state the user saw, so it is refused without
+    // one. An edit names its entry instead and needs none.
+    void pauseNeedsAStateAndEditNamesItsEntry()
+    {
+        Fixture f;
+        QList<TimerActionResult> results;
+        const auto record = [&results](const TimerActionResult &result) {
+            results.append(result);
+        };
+        QVERIFY(connectAccount(f));
+        const qsizetype sent = f.transport.requests.size();
+        f.client.pause(record);
+        QTRY_COMPARE(results.size(), 1);
+        QVERIFY(results.last().outcome == TimerActionResult::Outcome::Refused);
+        QCOMPARE(f.transport.requests.size(), sent);
+
+        TimeEntryUpdate update;
+        update.billable = true;
+        f.client.edit(5, update, record);
+        const qsizetype post = f.last("POST", QStringLiteral("/api/app/timer/edit"));
+        QVERIFY(post >= 0);
+        QCOMPARE(QJsonDocument::fromJson(f.transport.requests.at(post).body).object(),
+                 QJsonObject({{QStringLiteral("billable"), true}, {QStringLiteral("entry_id"), 5}}));
+        f.respond(post, FakeTransport::answer(200, stateBody(4, f.clock.now())));
+        QVERIFY(results.last().outcome == TimerActionResult::Outcome::Applied);
+        QCOMPARE(f.client.state()->revision, 4);
     }
 
     // After an unknown outcome the client is settling until a read sent

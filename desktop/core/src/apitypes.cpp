@@ -311,12 +311,12 @@ QByteArray encodeTimeEntryUpdate(const TimeEntryUpdate &update)
     return QJsonDocument(object).toJson(QJsonDocument::Compact);
 }
 
-QByteArray encodeTimerEdit(qint64 revision, const TimeEntryUpdate &update)
+QByteArray encodeTimerEdit(qint64 entryId, const TimeEntryUpdate &update)
 {
     QJsonObject object = QJsonDocument::fromJson(encodeTimeEntryUpdate(update)).object();
     // The running entry's start is the timer's, not an edit's.
     object.remove(QStringLiteral("start"));
-    object.insert(QStringLiteral("revision"), revision);
+    object.insert(QStringLiteral("entry_id"), entryId);
     return QJsonDocument(object).toJson(QJsonDocument::Compact);
 }
 

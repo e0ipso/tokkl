@@ -186,10 +186,22 @@ private Q_SLOTS:
         QCOMPARE(fields.value("accept"), QByteArray("application/json"));
         QCOMPARE(fields.value("user-agent"), QByteArray("tokkl-test/" TOKKL_VERSION_STRING));
 
+        QVERIFY(!fields.contains("idempotency-key"));
+
         // A cookie the server set is not sent back.
         sendAndWait(transport, HttpRequest{"GET", server.url(QStringLiteral("/api/v9/me")), "Basic eA==", {}});
         QCOMPARE(server.requests.size(), 2);
         QVERIFY(!headerFields(server.requests.last()).contains("cookie"));
+    }
+
+    void idempotencyKeyHeader()
+    {
+        LoopbackServer server;
+        server.response = httpResponse("200 OK", "", "{}");
+        NetworkTransport transport(clientName);
+        sendAndWait(transport, HttpRequest{"POST", server.url(QStringLiteral("/api/app/timer/start")), "Basic eA==", "{}", "0123456789abcdef0123456789abcdef"});
+        QCOMPARE(server.requests.size(), 1);
+        QCOMPARE(headerFields(server.requests.first()).value("idempotency-key"), QByteArray("0123456789abcdef0123456789abcdef"));
     }
 
     void jsonBody()

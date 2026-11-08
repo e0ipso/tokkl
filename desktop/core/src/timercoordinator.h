@@ -39,17 +39,17 @@ class ProjectLoader;
 //
 // One mutation runs at a time; clicks while it runs are ignored. Start,
 // stop, pause, resume and stop while paused are the server's timer actions,
-// sent against the revision shown (pause excepted), and the client adopts
-// the state they return. A 409 adopts the server's state, ends the action
-// and leaves a message until the next user action, so a start never
-// replaces one another device made first. The billable edit goes through
-// the timer too, against the revision shown. A 409 whose state still runs
-// the same entry is the one case a write is sent twice: only the revision
-// moved, and the edit, which only sets fields, is applied once more at the
-// new revision. Any other 409 shows as a conflict. A failure that leaves
-// the outcome unknown (no answer, timeout, 5xx, unreadable answer) keeps
-// the timer busy while the client settles it, until a read sent after the
-// failure brings a state. No write is ever sent again.
+// sent against the revision shown, and the client adopts the state they
+// return. A 409 adopts the server's state, ends the action and leaves a
+// message until the next user action, so a start never replaces one another
+// device made first. The billable edit goes through the timer too and names
+// the running entry, so a change elsewhere that leaves it running does not
+// refuse it; it gets a 409 only once that entry stopped. Each start carries
+// an Idempotency-Key of its own, and one whose outcome is unknown goes out
+// once more with it. A failure that leaves the outcome unknown (no answer,
+// timeout, 5xx, unreadable answer) keeps the timer busy while the client
+// settles it, until a read sent after the failure brings a state. Nothing
+// else is ever sent again.
 //
 // While the state holds a Pomodoro session, start(), stop(), pause(),
 // resume() and toggle() do nothing.
@@ -164,9 +164,6 @@ private:
     void beginMutation();
     void fetchProjects();
     bool updateEntry(const TimeEntryUpdate &update);
-    // The edit through the timer, against the revision held. A 409 for the
-    // same running entry is applied again once, while mayReapply.
-    void editRunningEntry(qint64 entryId, const TimeEntryUpdate &update, bool mayReapply);
     // start is true for a start or resume.
     void finishMutation(TimerActionResult::Outcome outcome, const ApiError &error, bool start = false);
     void endMutation(TimerActionResult::Outcome outcome, const ApiError &error, bool start);

@@ -191,8 +191,8 @@ struct StartEntry {
 // Fields to change on an entry, with POST /api/app/timer/edit for the
 // running one (encodeTimerEdit) or PUT /workspaces/{wid}/time_entries/{id}
 // (encodeTimeEntryUpdate). Unset fields are left out of the request, so the
-// server keeps them. A project or task of
-// std::nullopt inside the outer optional is sent as null and clears it.
+// server keeps them. A project or task of std::nullopt inside the outer
+// optional is sent as null and clears it.
 struct TimeEntryUpdate {
     std::optional<QString> description;
     std::optional<std::optional<qint64>> projectId;
@@ -419,8 +419,9 @@ ServerApi serverApiFromResponse(const HttpResponse &response);
 QByteArray encodeTimerStart(qint64 revision, const StartEntry &entry, qint64 workspaceId, const QString &createdWith);
 QByteArray encodeTimeEntryUpdate(const TimeEntryUpdate &update);
 // POST /api/app/timer/edit: the fields update sets, apart from start, and
-// the revision the edit applies to.
-QByteArray encodeTimerEdit(qint64 revision, const TimeEntryUpdate &update);
+// the running entry the edit applies to. The server refuses it with a 409
+// only once that entry has stopped, whatever else changed since.
+QByteArray encodeTimerEdit(qint64 entryId, const TimeEntryUpdate &update);
 QByteArray encodePomodoroConfigUpdate(const PomodoroConfigUpdate &update);
 // {"revision":n}, for an action that applies only to the state it was sent
 // against.

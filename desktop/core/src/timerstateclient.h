@@ -38,9 +38,11 @@ class Clock;
 // stream at once.
 //
 // Actions go through the client so it adopts the state they return, the new
-// one or, on a 409, the server's current one. After an unknown outcome it
-// never sends the action again: it is settling until a read sent after the
-// outcome brings a state. A read already on its way does not count, as the
+// one or, on a 409, the server's current one. A start or Pomodoro start
+// whose outcome is unknown goes out once more with the same Idempotency-Key
+// (Connection::startTimer()); after an unknown outcome the client sends
+// nothing again: it is settling until a read sent after the outcome brings
+// a state. A read already on its way does not count, as the
 // server may have answered it before the action. While settling, a failed
 // read is tried again every 30 s, also while the stream delivers.
 //
@@ -99,8 +101,9 @@ public:
     void pause(ActionCallback done = {});
     void resume(ActionCallback done = {});
     void discard(ActionCallback done = {});
-    // Edits the running entry; see Connection::editTimer().
-    void edit(const TimeEntryUpdate &update, ActionCallback done = {});
+    // Edits the running entry entryId; see Connection::editTimer(). It needs
+    // no state held.
+    void edit(qint64 entryId, const TimeEntryUpdate &update, ActionCallback done = {});
     void startPomodoro(const PomodoroStart &start, ActionCallback done = {}) override;
     void nextPhase(ActionCallback done = {}) override;
     void endPomodoro(ActionCallback done = {}) override;

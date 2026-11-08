@@ -366,11 +366,11 @@ never the only sign.
   Reconnect replaces only an automatic default, never a choice you made. A
   choice made before a stop does not carry over it.
 - While an entry runs, Billable also changes that entry in place with
-  `POST /api/app/timer/edit`, sending only `billable` and the revision shown.
+  `POST /api/app/timer/edit`, sending only `billable` and the entry's id.
   The description, tags, start and the rest stay as they are, and the entry
-  is not split. If the server answers 409 and its state still runs the same
-  entry, only the revision moved, so the widget sends the edit once more at
-  the new revision; any other 409 shows as a change on another device.
+  is not split. A change on another device that leaves the entry running
+  does not refuse the edit. The server answers 409 only once the entry
+  stopped, which shows as a change on another device.
 - Project and Billable are disabled whenever the timer cannot write: not
   configured, loading, busy, offline before the entry is known, refused
   credentials, a lost workspace or a cooldown.
@@ -419,8 +419,8 @@ pause chain and the session all come from it.
   server the widget shows the Error status with "This Tokkl server is too old
   for this app; update the server." and sends nothing else; Reconnect asks
   the server again.
-- Pause (`POST /api/app/timer/pause`) asks the server to stop the running
-  entry and keep a chain: the entry's description, project, task, tags and
+- Pause (`POST /api/app/timer/pause`, against the revision shown) asks the
+  server to stop the running entry and keep a chain: the entry's description, project, task, tags and
   billable flag, and the seconds it stored. Resume (`POST
   /api/app/timer/resume`) starts a clone of that entry on the server, against
   the revision shown. The elapsed time is then the chain total, the seconds the
@@ -435,8 +435,10 @@ pause chain and the session all come from it.
 - One start, pause, resume or stop runs at a time and clicks meanwhile are
   ignored. A read sent before one cannot overwrite its result. When one gets
   no clear answer (no response, timeout, 5xx or an unreadable body)
-  the timer stays busy until a read shows what the server did; it never sends
-  the request again. A 409 on a timer action adopts the state the server sent
+  the timer stays busy until a read shows what the server did. Start and
+  Start session carry an `Idempotency-Key`, a new one per click, and go out
+  once more at once with the same body and key, so a server that acted on
+  the first answers with what it did then. Nothing else is sent again. A 409 on a timer action adopts the state the server sent
   and shows "The timer changed on another device first."; any other refusal
   reads the state again.
 - Connection failures keep the last entry, marked stale. After a failed read

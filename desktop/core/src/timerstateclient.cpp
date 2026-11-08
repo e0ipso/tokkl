@@ -474,11 +474,7 @@ void TimerStateClient::stop(ActionCallback done)
 
 void TimerStateClient::pause(ActionCallback done)
 {
-    if (!m_connection) {
-        refuseLater(done, tr("Not connected to a Tokkl account."));
-        return;
-    }
-    m_connection->pauseTimer(adopting(std::move(done)));
+    withRevision(&Connection::pauseTimer, std::move(done));
 }
 
 void TimerStateClient::resume(ActionCallback done)
@@ -491,13 +487,13 @@ void TimerStateClient::discard(ActionCallback done)
     withRevision(&Connection::discardPause, std::move(done));
 }
 
-void TimerStateClient::edit(const TimeEntryUpdate &update, ActionCallback done)
+void TimerStateClient::edit(qint64 entryId, const TimeEntryUpdate &update, ActionCallback done)
 {
-    withRevision(
-        [update](Connection &connection, qint64 revision, ActionCallback adopted) {
-            connection.editTimer(revision, update, std::move(adopted));
-        },
-        std::move(done));
+    if (!m_connection) {
+        refuseLater(done, tr("Not connected to a Tokkl account."));
+        return;
+    }
+    m_connection->editTimer(entryId, update, adopting(std::move(done)));
 }
 
 void TimerStateClient::startPomodoro(const PomodoroStart &start, ActionCallback done)

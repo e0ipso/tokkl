@@ -124,9 +124,11 @@ public:
     void fetchTimerState(Callback<TimerState> done = {});
     // The timer actions. Each needs canWrite(), and done tells apart a change
     // made, a 409 with the server's state, nothing changed, and an unknown
-    // outcome. Resume, discard, next phase, end and a Pomodoro start apply
-    // only to the state at revision, the one the user saw.
-    void pauseTimer(ActionCallback done = {});
+    // outcome. Pause, resume, discard, next phase, end and a Pomodoro start
+    // apply only to the state at revision, the one the user saw. A Pomodoro
+    // start carries an Idempotency-Key of its own, and one whose outcome is
+    // unknown goes out once more with it (ApiClient::keyedAction()).
+    void pauseTimer(qint64 revision, ActionCallback done = {});
     void resumeTimer(qint64 revision, ActionCallback done = {});
     void discardPause(qint64 revision, ActionCallback done = {});
     void startPomodoro(qint64 revision, const PomodoroStart &start, ActionCallback done = {});
@@ -135,14 +137,15 @@ public:
     // Start a running entry and stop the running one through POST
     // /api/app/timer/start and /api/app/timer/stop, like the actions above:
     // a 409 brings the server's state when the timer changed since
-    // revision, or for a stop when nothing runs.
+    // revision, or for a stop when nothing runs. A start carries an
+    // Idempotency-Key like a Pomodoro start.
     void startTimer(qint64 revision, const StartEntry &entry, ActionCallback done = {});
     void stopTimer(qint64 revision, ActionCallback done = {});
-    // Edits the running entry through POST /api/app/timer/edit, against
-    // revision; only the fields update sets travel, and start never does.
-    // A 409 brings the server's state when the timer changed since revision
-    // or nothing runs.
-    void editTimer(qint64 revision, const TimeEntryUpdate &update, ActionCallback done = {});
+    // Edits the running entry entryId through POST /api/app/timer/edit; only
+    // the fields update sets travel, and start never does. A change to the
+    // timer that leaves the entry running does not refuse it. A 409 brings
+    // the server's state once the entry has stopped.
+    void editTimer(qint64 entryId, const TimeEntryUpdate &update, ActionCallback done = {});
     // Opens GET /api/app/timer/events, or returns nullptr without a bound
     // account or during a 429 cooldown. The caller reads the stream's
     // signals; the connection deletes it after finished(). A new generation

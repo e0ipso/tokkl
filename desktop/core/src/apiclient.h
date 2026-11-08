@@ -66,8 +66,9 @@ public:
 
     // Sends the request without asking the session. handler gets the raw
     // response, later, and only within this generation. Without a transport
-    // the request fails as one that found no network.
-    void send(const QByteArray &method, const QUrl &url, const QByteArray &body, ResponseHandler handler);
+    // the request fails as one that found no network. A nonempty
+    // idempotencyKey goes out as the Idempotency-Key header.
+    void send(const QByteArray &method, const QUrl &url, const QByteArray &body, ResponseHandler handler, const QByteArray &idempotencyKey = QByteArray());
 
     // A request whose 2xx answer is a JSON body that decode reads. done runs
     // later, and only within this generation, with the value, the refusal,
@@ -95,6 +96,16 @@ public:
     // A POST to a timer action. A write: done tells apart a change made, a
     // 409 with the server's state, nothing changed, and an unknown outcome.
     void action(const QUrl &url, const QByteArray &body, ActionCallback done);
+    // An action that creates something, sent with idempotencyKey. When its
+    // outcome is unknown it goes out once more at once, with the same body
+    // and key, so the server answers what the first one did if it acted,
+    // and acts now if it did not. done gets the second answer, or the first
+    // when the session refuses the second.
+    void keyedAction(const QUrl &url, const QByteArray &body, const QByteArray &idempotencyKey, ActionCallback done);
+
+    // A new Idempotency-Key: 32 random hex digits. One stands for one user
+    // intent.
+    static QByteArray newIdempotencyKey();
 
     // Opens an event stream, or returns nullptr without a transport or when
     // the session refuses a read. The caller reads the stream's signals;
@@ -113,6 +124,8 @@ private:
     using Completion = std::function<void(const std::optional<ApiError> &)>;
 
     void request(const QByteArray &method, const QUrl &url, const QByteArray &body, ApiAccess access, BodyReader read, Completion finish);
+    // Sends a timer action without asking the session.
+    void sendAction(const QUrl &url, const QByteArray &body, const QByteArray &idempotencyKey, ActionCallback done);
     // Runs f from the event loop, unless the generation changes first.
     void later(std::function<void()> f);
 

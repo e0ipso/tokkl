@@ -942,12 +942,11 @@ private Q_SLOTS:
         QCOMPARE(f.get(QStringLiteral("ChosenProject")).toLongLong(), 12);
 
         // Billable stays editable: one timer edit that carries only billable,
-        // against the revision shown.
+        // naming the running entry.
         QCOMPARE(f.result(QStringLiteral("SetBillable"), {QVariant(true)}).toBool(), true);
         const QList<qsizetype> updates = f.find("POST", "/app/timer/edit");
         QCOMPARE(updates.size(), 1);
-        QJsonObject expected = revisionBody(f.revision);
-        expected.insert(QStringLiteral("billable"), true);
+        const QJsonObject expected{{QStringLiteral("billable"), true}, {QStringLiteral("entry_id"), 5}};
         QCOMPARE(QJsonDocument::fromJson(f.transport.requests.at(updates.first()).body).object(), expected);
         QVERIFY(f.find("PUT", "/workspaces/7/time_entries/5").isEmpty());
         f.respond(updates.first(), FakeTransport::answer(200, f.change(entryObject(5, 12, true, true))));
@@ -1151,11 +1150,12 @@ private Q_SLOTS:
         qint64 total = 0;
         qint64 running = 5;
         for (const qint64 seconds : {qint64(60), qint64(300)}) {
-            // Pause sends one request, and the entry stops when the server
-            // says so.
+            // Pause sends one request against the revision shown, and the
+            // entry stops when the server says so.
+            const qint64 pausedAt = f.revision;
             QCOMPARE(f.result(QStringLiteral("Pause")).toBool(), true);
             const QList<qsizetype> pauses = f.find("POST", "/timer/pause");
-            QCOMPARE(f.transport.requests.at(pauses.last()).body, QByteArray("{}"));
+            QCOMPARE(f.transport.requests.at(pauses.last()).body, json(revisionBody(pausedAt)));
             QCOMPARE(f.result(QStringLiteral("Pause")).toBool(), false);
             QVERIFY(f.find("PATCH", "/stop").isEmpty());
             total += seconds;

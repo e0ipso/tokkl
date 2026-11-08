@@ -272,9 +272,9 @@ void Connection::fetchTimerState(Callback<TimerState> done)
     m_session.api().call<TimerState>("GET", app(QStringLiteral("/timer")), QByteArray(), ApiAccess::Account, &decodeTimerState, std::move(done));
 }
 
-void Connection::pauseTimer(ActionCallback done)
+void Connection::pauseTimer(qint64 revision, ActionCallback done)
 {
-    m_session.api().action(app(QStringLiteral("/timer/pause")), QByteArrayLiteral("{}"), std::move(done));
+    m_session.api().action(app(QStringLiteral("/timer/pause")), encodeRevision(revision), std::move(done));
 }
 
 void Connection::resumeTimer(qint64 revision, ActionCallback done)
@@ -289,7 +289,10 @@ void Connection::discardPause(qint64 revision, ActionCallback done)
 
 void Connection::startPomodoro(qint64 revision, const PomodoroStart &start, ActionCallback done)
 {
-    m_session.api().action(app(QStringLiteral("/pomodoro")), encodePomodoroStart(start, workspaceId(), m_clientName, revision), std::move(done));
+    m_session.api().keyedAction(app(QStringLiteral("/pomodoro")),
+                                encodePomodoroStart(start, workspaceId(), m_clientName, revision),
+                                ApiClient::newIdempotencyKey(),
+                                std::move(done));
 }
 
 void Connection::nextPomodoroPhase(qint64 revision, ActionCallback done)
@@ -304,7 +307,10 @@ void Connection::endPomodoro(qint64 revision, ActionCallback done)
 
 void Connection::startTimer(qint64 revision, const StartEntry &entry, ActionCallback done)
 {
-    m_session.api().action(app(QStringLiteral("/timer/start")), encodeTimerStart(revision, entry, workspaceId(), m_clientName), std::move(done));
+    m_session.api().keyedAction(app(QStringLiteral("/timer/start")),
+                                encodeTimerStart(revision, entry, workspaceId(), m_clientName),
+                                ApiClient::newIdempotencyKey(),
+                                std::move(done));
 }
 
 void Connection::stopTimer(qint64 revision, ActionCallback done)
@@ -312,9 +318,9 @@ void Connection::stopTimer(qint64 revision, ActionCallback done)
     m_session.api().action(app(QStringLiteral("/timer/stop")), encodeRevision(revision), std::move(done));
 }
 
-void Connection::editTimer(qint64 revision, const TimeEntryUpdate &update, ActionCallback done)
+void Connection::editTimer(qint64 entryId, const TimeEntryUpdate &update, ActionCallback done)
 {
-    m_session.api().action(app(QStringLiteral("/timer/edit")), encodeTimerEdit(revision, update), std::move(done));
+    m_session.api().action(app(QStringLiteral("/timer/edit")), encodeTimerEdit(entryId, update), std::move(done));
 }
 
 PendingStream *Connection::openTimerEvents()
