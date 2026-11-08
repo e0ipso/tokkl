@@ -356,6 +356,30 @@ export const rateLimitIndexes: SchemaIndex[] = [
   },
   { name: 'rate_limit_reservations_expires_at', table: 'rate_limit_reservations', columns: ['expires_at'] },
 ];
+/** Columns later migrations added to baseline tables, by table. */
+export const addedColumns: Record<string, Record<string, Column>> = {
+  // The Pomodoro session entry the revision's state showed; settlement compares it with the next.
+  timer_states: { session_entry_id: optional(integer) },
+};
+/**
+ * Adds `timer_states.session_entry_id` and fills it from the stored fingerprints, whose
+ * `session.entryId` holds the same id. A fingerprint that is not JSON, or holds no whole-number id,
+ * leaves the column null.
+ */
+export function timerSessionEntryDDL(backend: Backend): string[] {
+  const q = (v: string) => quote(backend, v);
+  const column = 'session_entry_id';
+  const add = `ALTER TABLE ${q('timer_states')} ADD COLUMN ${columnDDL(backend, column, addedColumns.timer_states![column]!)}`;
+  const f = q('fingerprint');
+  // Each inner CASE runs only on valid JSON, so no row fails the update.
+  const fill =
+    backend === 'sqlite'
+      ? `CASE WHEN json_valid(${f}) THEN CASE WHEN json_type(${f}, '$.session.entryId') = 'integer' THEN json_extract(${f}, '$.session.entryId') END END`
+      : backend === 'postgres'
+        ? `CASE WHEN ${f} IS JSON OBJECT THEN CASE WHEN jsonb_typeof(${f}::jsonb #> '{session,entryId}') = 'number' AND (${f}::jsonb #>> '{session,entryId}') ~ '^-?[0-9]{1,15}$' THEN (${f}::jsonb #>> '{session,entryId}')::bigint END END`
+        : `CASE WHEN JSON_VALID(${f}) THEN CASE WHEN JSON_TYPE(JSON_EXTRACT(${f}, '$.session.entryId')) IN ('INTEGER', 'UNSIGNED INTEGER') THEN CAST(JSON_EXTRACT(${f}, '$.session.entryId') AS SIGNED) END END`;
+  return [add, `UPDATE ${q('timer_states')} SET ${q(column)} = ${fill}`];
+}
 export function rateLimitDDL(backend: Backend): string[] {
   return [
     ...Object.entries(rateLimitTables).map(([name, columns]) => createTableDDL(backend, name, columns)),

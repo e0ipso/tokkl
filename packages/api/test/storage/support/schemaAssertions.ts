@@ -3,7 +3,9 @@ import { sql, type Kysely } from 'kysely';
 import type { Backend } from '../../../src/storage/config.ts';
 import type { PhysicalDatabase } from '../../../src/storage/physical.ts';
 import {
+  addedColumns,
   baselineTables,
+  type Column,
   baselineIndexes,
   rateLimitIndexes,
   rateLimitTables,
@@ -37,8 +39,15 @@ export async function seed(db: TestDb, backend: Backend): Promise<void> {
     await insert(db, backend, table, row);
   }
 }
+/** Every table of the current schema with its columns, those later migrations added included. */
+export const currentTables: Record<string, Record<string, Column>> = Object.fromEntries(
+  Object.entries({ ...baselineTables, ...rateLimitTables }).map(([table, columns]) => [
+    table,
+    { ...columns, ...addedColumns[table] },
+  ]),
+);
 export async function assertSchema(db: TestDb, backend: Backend): Promise<void> {
-  for (const [table, columns] of Object.entries({ ...baselineTables, ...rateLimitTables })) {
+  for (const [table, columns] of Object.entries(currentTables)) {
     const q = quote(backend, table);
     const actual =
       backend === 'sqlite'

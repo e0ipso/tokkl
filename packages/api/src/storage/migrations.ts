@@ -16,6 +16,7 @@ import {
   rateLimitDDL,
   runningEntriesDDL,
   serverDDL,
+  timerSessionEntryDDL,
   totalsIndexes,
 } from './schema.ts';
 
@@ -52,6 +53,7 @@ export function migrations(backend: Backend): readonly Migration[] {
     },
     { version: 4, name: 'running_entries_by_user', statements: runningEntriesDDL(backend) },
     { version: 5, name: 'rate_limits', statements: rateLimitDDL(backend) },
+    { version: 6, name: 'timer_session_entry', statements: timerSessionEntryDDL(backend) },
   ];
 }
 const run = (db: Kysely<PhysicalDatabase>, statement: string) => sql.raw(statement).execute(db);

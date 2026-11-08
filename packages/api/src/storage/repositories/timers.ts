@@ -133,6 +133,7 @@ export function createTimerRepositories(db: Kysely<PhysicalDatabase>, backend: B
                   start: utcInstant(r.discarded_start),
                   stop: utcInstant(r.discarded_stop),
                 },
+          sessionEntryId: r.session_entry_id === null ? null : entityId(r.session_entry_id),
         }
       );
     },
@@ -144,6 +145,7 @@ export function createTimerRepositories(db: Kysely<PhysicalDatabase>, backend: B
         discarded_entry_id: r.discardedPomodoro?.entryId ?? null,
         discarded_start: r.discardedPomodoro?.start ?? null,
         discarded_stop: r.discardedPomodoro?.stop ?? null,
+        session_entry_id: r.sessionEntryId,
       };
       const q = db.insertInto('timer_states').values(row);
       await (

@@ -176,6 +176,7 @@ export interface TimerStatesRow {
   discarded_entry_id: Int | null;
   discarded_start: string | null;
   discarded_stop: string | null;
+  session_entry_id: Int | null;
 }
 
 export interface RateLimitCountersRow {

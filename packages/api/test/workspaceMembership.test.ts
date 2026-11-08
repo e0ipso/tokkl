@@ -53,7 +53,7 @@ test('SQLite legacy schema version 2 is refused without modifying its data', asy
 
 test('a fresh database has no memberships until setup creates the first admin, who owns its workspace', async () => {
   const db = await openDatabase();
-  assert.equal(await completedMigrations(db), 5);
+  assert.equal(await completedMigrations(db), 6);
   assert.deepEqual(await memberships(db), []);
 
   const app = testServer(
