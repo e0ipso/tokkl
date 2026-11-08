@@ -1,5 +1,5 @@
 import { useEffect, useEffectEvent, useRef } from 'react';
-import { useUpdateEntry } from '../../api/entries.ts';
+import { useUpdateRunningEntry } from '../../api/entries.ts';
 import type { TimeEntryInput } from '../../api/types.ts';
 import { useToast } from '../../components/Toast.tsx';
 import type { EntryDraft } from '../../components/useEntryFields.ts';
@@ -13,7 +13,7 @@ const DESCRIPTION_SAVE_DELAY_MS = 800;
  * End session call it first, and the actions wait for the edit, so the next pomodoro copies it.
  */
 export function useRunningEntryEdits(entryId: number | null) {
-  const update = useUpdateEntry();
+  const update = useUpdateRunningEntry();
   const toast = useToast();
   const waiting = useRef<{ id: number; description: string; timer: ReturnType<typeof setTimeout> } | null>(null);
   const send = (id: number, changes: TimeEntryInput) =>

@@ -1,6 +1,6 @@
 import { useRef, useState, type RefObject } from 'react';
 import { formatDuration, parseDuration } from '@tokkl/common/duration';
-import { useAddTypedEntry, useDeleteEntry, useRestoreEntry, useUpdateEntry } from '../api/entries.ts';
+import { useAddTypedEntry, useDiscardRunningEntry, useRestoreEntry, useUpdateRunningEntry } from '../api/entries.ts';
 import { getClockOffset, serverNow } from '../api/serverClock.ts';
 import { useSettings } from '../api/settings.ts';
 import { useDiscardPause, usePauseTimer, useResumeTimer, useStartTimer, useStopTimer } from '../api/timerHooks.ts';
@@ -36,9 +36,9 @@ export function useTimerBarActions({
   const settings = useSettings();
   const startTimer = useStartTimer();
   const addTyped = useAddTypedEntry();
-  const update = useUpdateEntry();
+  const update = useUpdateRunningEntry();
   const stopTimer = useStopTimer();
-  const remove = useDeleteEntry();
+  const remove = useDiscardRunningEntry();
   const restore = useRestoreEntry();
   const pauseTimer = usePauseTimer();
   const resumeTimer = useResumeTimer();

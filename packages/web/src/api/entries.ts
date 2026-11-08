@@ -6,7 +6,8 @@ import { invalidate } from './invalidate.ts';
 import { keys, stale } from './keys.ts';
 import { APP, V9, wsPath } from './paths.ts';
 import { entryBoundsReply, entryListReply, timeEntryReply } from './replies.ts';
-import { MOVES_TIMER, attemptTimerRequest } from './timerState.ts';
+import { attemptTimerRequest, timerWrite } from './timerHooks.ts';
+import { MOVES_TIMER } from './timerState.ts';
 import type { BulkPatchResult, PatchOperation, TimeEntry, TimeEntryInput } from './types.ts';
 
 /** Time entries: lists, writes and the trash. The running entry comes from the timer state (timerHooks.ts). */
@@ -86,18 +87,35 @@ export function useUpdateEntry() {
 }
 
 /**
+ * Saves an edit of the running entry. It is a timer write (`timerWrite` in timerHooks.ts): after
+ * one whose outcome is unknown, the timer state is read before it goes out.
+ */
+export function useUpdateRunningEntry() {
+  const qc = useQueryClient();
+  const wid = useWid();
+  const onSuccess = useInvalidateEntries();
+  return useMutation({
+    meta: MOVES_TIMER,
+    mutationFn: ({ id, ...input }: TimeEntryInput & { id: number }) =>
+      timerWrite(qc, () => entryRequests.update(wid, id, input)),
+    onSuccess,
+  });
+}
+
+/**
  * Saves the finished entry typed into the idle timer bar as a duration. Like the timer actions it
  * is tried at once even offline (`networkMode: 'always'`), so it never goes out later with the time
  * of the click; other creates use `useCreateEntry`, which waits for the connection. Start and Stop
  * are timer actions (`useStartTimer` and `useStopTimer` in timerHooks.ts).
  */
 export function useAddTypedEntry() {
+  const qc = useQueryClient();
   const wid = useWid();
   const onSuccess = useInvalidateEntries();
   return useMutation({
     networkMode: 'always',
     meta: MOVES_TIMER,
-    mutationFn: (input: TimeEntryInput) => attemptTimerRequest(() => entryRequests.create(wid, input)),
+    mutationFn: (input: TimeEntryInput) => attemptTimerRequest(qc, () => entryRequests.create(wid, input)),
     onSuccess,
   });
 }
@@ -106,6 +124,18 @@ export function useDeleteEntry() {
   const wid = useWid();
   const onSuccess = useInvalidateEntries();
   return useMutation({ meta: MOVES_TIMER, mutationFn: (id: number) => entryRequests.remove(wid, id), onSuccess });
+}
+
+/** Discards the running entry: a delete sent as a timer write, like `useUpdateRunningEntry`. */
+export function useDiscardRunningEntry() {
+  const qc = useQueryClient();
+  const wid = useWid();
+  const onSuccess = useInvalidateEntries();
+  return useMutation({
+    meta: MOVES_TIMER,
+    mutationFn: (id: number) => timerWrite(qc, () => entryRequests.remove(wid, id)),
+    onSuccess,
+  });
 }
 
 export function useRestoreEntry() {

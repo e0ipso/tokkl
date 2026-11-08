@@ -46,6 +46,29 @@ export class RequestTimeoutError extends Error {
 }
 
 /**
+ * A 2xx reply whose body is not JSON. The server answered, so for a write it may have acted, and
+ * the outcome is unknown. It keeps the parser's message.
+ */
+export class UnparsableReplyError extends SyntaxError {
+  readonly request: { readonly method: Method; readonly path: string };
+
+  constructor(method: Method, path: string, cause: unknown) {
+    super(cause instanceof Error ? cause.message : String(cause), { cause });
+    this.name = 'UnparsableReplyError';
+    this.request = { method, path };
+  }
+}
+
+function parseReply(text: string, method: Method, path: string): unknown {
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    throw new UnparsableReplyError(method, path, error);
+  }
+}
+
+/**
  * How long a request may take, reply body included, before it is given up:
  * - `read` (20 s): a GET, or a report query sent as a POST. TanStack Query retries a failed read,
  *   so a stalled one gives way to a fresh attempt.
@@ -162,7 +185,7 @@ export async function request<T>(method: Method, path: string, options: RequestO
     const response = await send(method, path, options.body, signal);
     return response.text();
   });
-  const value: unknown = text ? JSON.parse(text) : null;
+  const value = parseReply(text, method, path);
   return options.decode ? options.decode(value) : (value as T);
 }
 

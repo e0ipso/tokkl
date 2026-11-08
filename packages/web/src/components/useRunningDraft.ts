@@ -1,5 +1,5 @@
 import { useEffect, useEffectEvent, useRef, useState, type RefObject } from 'react';
-import { useUpdateEntry } from '../api/entries.ts';
+import { useUpdateRunningEntry } from '../api/entries.ts';
 import type { TimeEntry, TimeEntryInput } from '../api/types.ts';
 import type { EntryFieldsHandle } from './EntryFields.tsx';
 import { useToast } from './Toast.tsx';
@@ -18,7 +18,7 @@ import { EMPTY_DRAFT, draftSignature, type EntryDraft } from './useEntryFields.t
  * Start and that first load belong to the new entry and are saved to it.
  */
 export function useRunningDraft(current: TimeEntry | null, fields: RefObject<EntryFieldsHandle | null>) {
-  const update = useUpdateEntry();
+  const update = useUpdateRunningEntry();
   const toast = useToast();
   const [draft, setDraft] = useState<EntryDraft>(EMPTY_DRAFT);
   const shownEntryId = useRef<number | null>(null);
