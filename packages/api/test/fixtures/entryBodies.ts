@@ -9,7 +9,7 @@ import type { EntryContext } from '../../src/domain/entryAccess.ts';
 import type { ExactEntryImport } from '../../src/domain/entryImport.ts';
 import type { TimerPublication } from '../../src/domain/timerSettlement.ts';
 import type { PresentedTimerOperations } from '../../src/services/timerReplies.ts';
-import type { User } from '../../src/storage/domain.ts';
+import type { User } from '../../src/domain/model.ts';
 
 export * from '../../src/domain/timeEntries.ts';
 export { getTimeEntry, protectEntryOperation } from '../../src/domain/entryAccess.ts';

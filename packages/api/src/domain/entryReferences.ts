@@ -1,5 +1,5 @@
 /** The project, task and tags an entry refers to: each must exist in the entry's workspace. */
-import type { EntryDetails, Id, ProjectRef } from '../storage/domain.ts';
+import type { EntryDetails, Id, ProjectRef } from './model.ts';
 import { invalidInput, notFound } from '../lib/errors.ts';
 import { resolveTagNames } from './catalogs.ts';
 import type { EntryContext, EntryRepositories } from './entryAccess.ts';

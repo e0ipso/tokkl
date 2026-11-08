@@ -1,5 +1,5 @@
 /** Writing imported entries with their exact times, one savepoint per record. */
-import type { Id } from '../storage/domain.ts';
+import type { Id } from './model.ts';
 import { memoizeAsync } from '../lib/boundedCache.ts';
 import { protectEntryOperation, type EntryContext } from './entryAccess.ts';
 import type { NewEntry } from './entryCommands.ts';

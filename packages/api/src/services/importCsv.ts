@@ -4,14 +4,14 @@ import { invalidInput } from '../lib/errors.ts';
 import { parseDuration } from '@tokkl/common/duration';
 import { pad2, zonedToUtc } from '@tokkl/common/time';
 import type { ImportResult, ImportUser } from '@tokkl/types';
-import type { OperationContext } from '../storage/contracts.ts';
+import type { OperationContext } from '../domain/ports.ts';
 import { createClient, createProject, createTask } from '../domain/catalogs.ts';
 import { parseNewClient, parseNewProject, parseNewTask } from '../commands/catalogs.ts';
 import { parseNewEntry } from '../commands/timeEntries.ts';
 import type { EntryRepositories } from '../domain/entryAccess.ts';
 import { withExactEntryImport, type ExactEntryImport } from '../domain/entryImport.ts';
 import { noTimeSpan } from '../domain/entrySpans.ts';
-import type { User } from '../storage/domain.ts';
+import type { User } from '../domain/model.ts';
 import type { TimerPublication } from '../domain/timerSettlement.ts';
 import { MAX_IMPORT_ERRORS, cancelBeforeCommit, checkCancelled, importError, protectImport } from './importGuards.ts';
 const HEADER_ALIASES: Record<string, string[]> = {

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { sql, type ExpressionBuilder, type Kysely } from 'kysely';
 import type { Backend } from '../config.ts';
-import type { RateLimitCounterKey, RateLimitReservation, RateLimitsRepository } from '../contracts.ts';
+import type { RateLimitCounterKey, RateLimitReservation, RateLimitsRepository } from '../../domain/ports.ts';
 import type { PhysicalDatabase } from '../physical.ts';
 import { safeInteger, utcInstant } from '../conversion.ts';
 

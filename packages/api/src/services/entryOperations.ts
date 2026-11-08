@@ -18,7 +18,7 @@ import { getTimeEntry, type EntryTransactions } from '../domain/entryAccess.ts';
 import { idempotent } from '../domain/idempotency.ts';
 import type { IdempotencyClaim } from '../lib/idempotency.ts';
 import type { TimerPublication } from '../domain/timerSettlement.ts';
-import type { EntryDetails, Id, User } from '../storage/domain.ts';
+import type { EntryDetails, Id, User } from '../domain/model.ts';
 
 /** `create` and `split` take an optional `Idempotency-Key` claim; see `domain/idempotency.ts`. */
 export interface EntryOperations {

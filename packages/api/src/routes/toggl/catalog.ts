@@ -26,7 +26,7 @@ import { invalidInput } from '../../lib/errors.ts';
 import { parseId } from '../../lib/values.ts';
 import type { SortOrder, TaskSearch, TaskSortField } from '../../domain/queries.ts';
 import { serializeClient, serializeProject, serializeTag, serializeTask } from '../../presenters/toggl.ts';
-import type { ProjectFilter } from '../../storage/contracts.ts';
+import type { ProjectFilter } from '../../domain/ports.ts';
 import { authorizedWorkspace } from './shared.ts';
 
 type CatalogRouteDeps = Pick<Deps, 'readFor' | 'catalogsFor'>;

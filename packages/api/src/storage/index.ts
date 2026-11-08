@@ -1,6 +1,6 @@
 import type { StorageConnection } from './connections.ts';
 import type { PhysicalDatabase } from './physical.ts';
-import type { RateLimitsRepository, ReadOnlyRepositories, Storage, TransactionContext } from './contracts.ts';
+import type { RateLimitsRepository, ReadOnlyRepositories, Storage, TransactionContext } from '../domain/ports.ts';
 import { createTransactionRunner } from './transactions.ts';
 import { createAccountRepositories } from './repositories/accounts.ts';
 import { createCatalogRepositories } from './repositories/catalogs.ts';

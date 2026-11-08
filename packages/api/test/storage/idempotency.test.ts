@@ -5,7 +5,7 @@ import { IDEMPOTENCY_RETENTION_MS } from '../../src/domain/idempotency.ts';
 import { idempotencyClaim } from '../../src/lib/idempotency.ts';
 import { createEntryOperations } from '../../src/services/entryOperations.ts';
 import { openConnection } from '../../src/storage/connections.ts';
-import { StorageConflict } from '../../src/storage/errors.ts';
+import { StorageConflict } from '../../src/domain/ports.ts';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import type { PhysicalDatabase } from '../../src/storage/physical.ts';
 import { createTransactionRunner } from '../../src/storage/transactions.ts';

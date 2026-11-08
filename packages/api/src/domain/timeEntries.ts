@@ -6,8 +6,8 @@
 import { MAX_DURATION_SECONDS } from '@tokkl/common/duration';
 import { snapInstant } from '@tokkl/common/snap';
 import { dateKey, startOfDay } from '@tokkl/common/time';
-import type { EntriesRepository, EntryInput, SettingsReader } from '../storage/contracts.ts';
-import type { EntryDetails, Id, TimeEntry, User } from '../storage/domain.ts';
+import type { EntriesRepository, EntryInput, SettingsReader } from './ports.ts';
+import type { EntryDetails, Id, TimeEntry, User } from './model.ts';
 import { ApplicationError, conflict, invalidInput } from '../lib/errors.ts';
 import { isoSeconds } from '../lib/values.ts';
 import { entryResolution, getEntryIn, getTimeEntry, protectEntryOperation, type EntryContext } from './entryAccess.ts';

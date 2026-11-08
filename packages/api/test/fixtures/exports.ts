@@ -1,4 +1,4 @@
-import type { Repositories } from '../../src/storage/contracts.ts';
+import type { Repositories } from '../../src/domain/ports.ts';
 import { runExportJob, type ExportAssemblyJob, type ExportSource } from '../../src/services/exportJobs.ts';
 import type { assembleJsonExport } from './exportOracle.ts';
 

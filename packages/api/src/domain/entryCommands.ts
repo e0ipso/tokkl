@@ -3,7 +3,7 @@
  * request bodies and import rows. Each optional field is absent when the client did not send it.
  */
 import type { ApplicationError } from '../lib/errors.ts';
-import type { Id } from '../storage/domain.ts';
+import type { Id } from './model.ts';
 
 export const MAX_DESCRIPTION_LENGTH = 3000;
 export const MAX_CREATED_WITH_LENGTH = 255;

@@ -1,6 +1,6 @@
 import { parseDateKey } from '@tokkl/common/time';
 import { BoundedCache } from '../lib/boundedCache.ts';
-import type { JsonObject, JsonValue, UtcInstant, DateOnly } from './domain.ts';
+import type { JsonObject, JsonValue, UtcInstant, DateOnly } from '../domain/model.ts';
 
 // Errors describe the expected representation, never the stored value.
 export function safeInteger(value: unknown): number {

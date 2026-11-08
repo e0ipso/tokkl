@@ -1,7 +1,7 @@
 import type { AccountRepositories, AccountRunner } from '../domain/accountGuards.ts';
 import { sha256 } from '../lib/crypto.ts';
 import { credentialHolds, type Authentication } from '../domain/credentials.ts';
-import type { SessionsReader, UsersReader } from '../storage/contracts.ts';
+import type { SessionsReader, UsersReader } from '../domain/ports.ts';
 import type { StreamCredentialResult } from './timerStreams.ts';
 
 async function currentCredentialRevision(

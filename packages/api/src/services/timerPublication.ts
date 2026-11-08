@@ -2,7 +2,7 @@
  * Process-local ordering of committed timer states. The domain hands each committed state to a
  * `TimerPublication`; this module turns that into per-user, revision-ordered delivery.
  */
-import type { Id } from '../storage/domain.ts';
+import type { Id } from '../domain/model.ts';
 import type { TimerView } from '../domain/timerView.ts';
 
 /** What publication orders: anything that carries the revision it was built at. */

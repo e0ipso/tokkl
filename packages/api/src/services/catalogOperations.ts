@@ -39,7 +39,7 @@ import type { IdempotencyClaim } from '../lib/idempotency.ts';
 import { noWorkspaceAccess } from '../domain/membership.ts';
 import { createCatalogTimerEffects } from '../domain/timerEffects.ts';
 import type { TimerPublication } from '../domain/timerSettlement.ts';
-import type { Client, Id, ProjectSummary, Tag, TaskSummary } from '../storage/domain.ts';
+import type { Client, Id, ProjectSummary, Tag, TaskSummary } from '../domain/model.ts';
 
 /** Each create takes an optional `Idempotency-Key` claim; see `domain/idempotency.ts`. */
 export interface CatalogOperations {

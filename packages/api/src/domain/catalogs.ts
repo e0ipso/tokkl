@@ -11,9 +11,9 @@ import type {
   Repositories,
   TagsReader,
   TasksReader,
-} from '../storage/contracts.ts';
-import type { Client, Id, ProjectSummary, TaskSummary, Tag } from '../storage/domain.ts';
-import { StorageConflict } from '../storage/errors.ts';
+} from './ports.ts';
+import type { Client, Id, ProjectSummary, TaskSummary, Tag } from './model.ts';
+import { StorageConflict } from './ports.ts';
 import { invalidInput, notFound } from '../lib/errors.ts';
 import { requireName } from '../lib/values.ts';
 import {

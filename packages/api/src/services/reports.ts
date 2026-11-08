@@ -1,14 +1,14 @@
 import { noWorkspaceAccess } from '../domain/membership.ts';
 import { forbidden } from '../lib/errors.ts';
 import { addDays, dateKey, startOfDay } from '@tokkl/common/time';
-import type { User, Workspace, ReportEntryProjection } from '../storage/domain.ts';
+import type { User, Workspace, ReportEntryProjection } from '../domain/model.ts';
 import type {
   ReadOnlyRepositories,
   ReportCursor,
   ReportOrder,
   ReportSelection,
   ReportWindow,
-} from '../storage/contracts.ts';
+} from '../domain/ports.ts';
 import { authenticatedUser, type Authentication } from '../domain/credentials.ts';
 import type { OrderBy, ReportFilter, SortDirection } from '../domain/reportCommands.ts';
 

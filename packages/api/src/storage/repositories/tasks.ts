@@ -2,9 +2,9 @@
 import { type Kysely } from 'kysely';
 import type { Backend } from '../config.ts';
 import type { PhysicalDatabase } from '../physical.ts';
-import type { Repositories, TaskInput } from '../contracts.ts';
+import type { Repositories, TaskInput } from '../../domain/ports.ts';
 import { booleanValue, entityId, utcInstant } from '../conversion.ts';
-import { StorageConflict } from '../errors.ts';
+import { StorageConflict } from '../../domain/ports.ts';
 import { catalogWrite, containsName, nameKey, taskEstimate } from './catalog-sql.ts';
 import {
   catalogTaskQuery,

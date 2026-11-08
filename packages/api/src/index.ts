@@ -7,7 +7,7 @@ import { initializeDatabase } from './storage/migrations.ts';
 import { createStorage } from './storage/index.ts';
 import { startTimerBus } from './storage/timerBus.ts';
 import type { TimerBus } from './storage/timerBus.ts';
-import type { Storage } from './storage/contracts.ts';
+import type { Storage } from './domain/ports.ts';
 import { safeDestination } from './storage/config.ts';
 import { createLogger, type Logger } from './lib/logger.ts';
 

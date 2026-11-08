@@ -1,7 +1,7 @@
 import type { TimerState } from '@tokkl/types';
 import { TimerRefusal, type TimerOperations } from '../domain/timers.ts';
 import type { TimerView } from '../domain/timerView.ts';
-import type { Id } from '../storage/domain.ts';
+import type { Id } from '../domain/model.ts';
 import { StateConflict } from '../lib/errors.ts';
 import { presentTimerState } from '../presenters/timer.ts';
 

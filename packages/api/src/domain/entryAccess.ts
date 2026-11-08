@@ -1,7 +1,7 @@
 /** Reading one user's entries and taking the guards every entry write needs, in a fixed order. */
-import type { EntriesReader, OperationContext, ReadersOf, Repositories, SettingsReader } from '../storage/contracts.ts';
-import type { EntryDetails, Id, User } from '../storage/domain.ts';
-import { StorageConflict } from '../storage/errors.ts';
+import type { EntriesReader, OperationContext, ReadersOf, Repositories, SettingsReader } from './ports.ts';
+import type { EntryDetails, Id, User } from './model.ts';
+import { StorageConflict } from './ports.ts';
 import { notFound } from '../lib/errors.ts';
 import { timeResolutionOf } from './instanceSettings.ts';
 import { noWorkspaceAccess } from './membership.ts';

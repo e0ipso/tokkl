@@ -10,7 +10,7 @@ import type { AccountRepositories, AccountRunner, AccountSecurityEffects } from 
 import type { AccountPasswordAttempt } from '../../src/domain/accounts.ts';
 import type { AccountCredential } from '../../src/domain/credentials.ts';
 import { notFound } from '../../src/lib/errors.ts';
-import type { User } from '../../src/storage/domain.ts';
+import type { User } from '../../src/domain/model.ts';
 
 export { createAccountOperations as createDomainAccountOperations } from '../../src/domain/accounts.ts';
 

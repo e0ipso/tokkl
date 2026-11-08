@@ -16,8 +16,8 @@ import { withExactEntryImport, type ExactEntryImport } from '../domain/entryImpo
 import { noTimeSpan } from '../domain/entrySpans.ts';
 import { createCatalogTimerEffects } from '../domain/timerEffects.ts';
 import type { TimerPublication } from '../domain/timerSettlement.ts';
-import type { OperationContext } from '../storage/contracts.ts';
-import type { User } from '../storage/domain.ts';
+import type { OperationContext } from '../domain/ports.ts';
+import type { User } from '../domain/model.ts';
 import { EXPORT_FORMAT, LEGACY_EXPORT_FORMAT } from './exports.ts';
 import {
   MAX_IMPORT_ERRORS,

@@ -11,8 +11,8 @@
  * A create never deletes other users' expired records while it holds its locks. The maintenance
  * job (`services/maintenance.ts`) forgets them; until then a create ignores an expired record.
  */
-import type { IdempotencyKeysRepository } from '../storage/contracts.ts';
-import type { Id } from '../storage/domain.ts';
+import type { IdempotencyKeysRepository } from './ports.ts';
+import type { Id } from './model.ts';
 import { sha256 } from '../lib/crypto.ts';
 import { unprocessable } from '../lib/errors.ts';
 import { IDEMPOTENCY_KEY_HEADER, type IdempotencyClaim } from '../lib/idempotency.ts';

@@ -17,7 +17,7 @@ import type {
   TransfersRepository,
   UsersReader,
   WorkspacesReader,
-} from '../storage/contracts.ts';
+} from './ports.ts';
 import type {
   AccountToken,
   Client,
@@ -32,7 +32,7 @@ import type {
   User,
   Workspace,
   WorkspaceMember,
-} from '../storage/domain.ts';
+} from './model.ts';
 import { memberWorkspace } from './membership.ts';
 import { getInstanceSettings } from './instanceSettings.ts';
 import { getClient, getProject, getTask } from './catalogs.ts';

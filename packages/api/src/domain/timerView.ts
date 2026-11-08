@@ -9,16 +9,8 @@ import {
   type SessionPhase,
   type TransitionKind,
 } from '@tokkl/common/pomodoroSession';
-import type { TagsReader, TimersReader } from '../storage/contracts.ts';
-import type {
-  DiscardedPomodoro,
-  EntryDetails,
-  Id,
-  PauseChain,
-  TagLabel,
-  TimerSnapshot,
-  User,
-} from '../storage/domain.ts';
+import type { TagsReader, TimersReader } from './ports.ts';
+import type { DiscardedPomodoro, EntryDetails, Id, PauseChain, TagLabel, TimerSnapshot, User } from './model.ts';
 
 export interface PomodoroView {
   config: PomodoroSessionConfig;

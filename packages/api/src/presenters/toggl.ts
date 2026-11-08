@@ -26,7 +26,7 @@ import type {
   User,
   Workspace,
   WorkspaceMember,
-} from '../storage/domain.ts';
+} from '../domain/model.ts';
 import { togglTime } from '../lib/values.ts';
 
 /** Toggl serialises an always-present timestamp too; this keeps the result typed as a string. */

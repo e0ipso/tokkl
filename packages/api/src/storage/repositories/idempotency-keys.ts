@@ -1,9 +1,10 @@
 import type { Kysely } from 'kysely';
 import type { Backend } from '../config.ts';
-import type { IdempotencyKeysRepository } from '../contracts.ts';
+import type { IdempotencyKeysRepository } from '../../domain/ports.ts';
 import type { PhysicalDatabase } from '../physical.ts';
 import { entityId, utcInstant } from '../conversion.ts';
-import { classifyConflict, StorageConflict } from '../errors.ts';
+import { StorageConflict } from '../../domain/ports.ts';
+import { classifyConflict } from '../errors.ts';
 
 /** Most expired records one call deletes. The maintenance job calls again for the rest. */
 const CLEANUP_BATCH = 100;

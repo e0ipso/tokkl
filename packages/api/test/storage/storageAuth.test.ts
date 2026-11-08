@@ -5,7 +5,7 @@ import { syncBuiltinESMExports } from 'node:module';
 import express, { type ErrorRequestHandler } from 'express';
 import type { AccountEntryEffects } from '../../src/domain/accounts.ts';
 import type { Authentication } from '../../src/domain/credentials.ts';
-import type { RateLimitsRepository } from '../../src/storage/contracts.ts';
+import type { RateLimitsRepository } from '../../src/domain/ports.ts';
 import type { FailureLimiter as Limiter, Keys } from '../../src/auth/rateLimit.ts';
 
 // Hold a real scrypt result while a second real connection commits a credential change.

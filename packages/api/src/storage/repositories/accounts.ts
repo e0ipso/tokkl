@@ -1,6 +1,6 @@
 import type { Kysely } from 'kysely';
 import type { Backend } from '../config.ts';
-import type { InstanceSettings } from '../domain.ts';
+import type { InstanceSettings } from '../../domain/model.ts';
 import type { PhysicalDatabase } from '../physical.ts';
 import { utcInstant } from '../conversion.ts';
 import { createRateLimitRepository } from './rate-limits.ts';

@@ -8,8 +8,8 @@ import {
   isActiveUser,
   unchangedActive,
 } from '../domain/credentials.ts';
-import type { User } from '../storage/domain.ts';
-import type { UsersReader } from '../storage/contracts.ts';
+import type { User } from '../domain/model.ts';
+import type { UsersReader } from '../domain/ports.ts';
 import { clientAddress, getCookie } from '../http/request.ts';
 import { forbidden, tooManyAttempts } from '../lib/errors.ts';
 import { safeEqual, verifyAgainstDummy, verifyPassword } from '../lib/crypto.ts';

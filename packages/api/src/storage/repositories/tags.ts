@@ -2,8 +2,8 @@
 import { type Kysely } from 'kysely';
 import type { Backend } from '../config.ts';
 import type { PhysicalDatabase } from '../physical.ts';
-import type { Repositories } from '../contracts.ts';
-import type { Tag } from '../domain.ts';
+import type { Repositories } from '../../domain/ports.ts';
+import type { Tag } from '../../domain/model.ts';
 import { catalogWrite, containsName, nameKey } from './catalog-sql.ts';
 import { insertId, now, required, tag } from './catalog-queries.ts';
 

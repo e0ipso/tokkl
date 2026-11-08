@@ -1,6 +1,6 @@
 import express, { type Express } from 'express';
 import type { Config } from './config.ts';
-import type { Storage } from './storage/contracts.ts';
+import type { Storage } from './domain/ports.ts';
 import { standaloneRateLimits } from './storage/index.ts';
 import { createApplicationServices } from './services/application.ts';
 import { ReportRunner, type ReportExecutor } from './services/reportRunner.ts';

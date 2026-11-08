@@ -5,7 +5,7 @@
 import { MAX_ALL_DAY_SECONDS, MAX_DURATION_SECONDS } from '@tokkl/common/duration';
 import { snapDuration, snapSpan, type SnappedSpan } from '@tokkl/common/snap';
 import { dateKey, startOfDay } from '@tokkl/common/time';
-import type { TimeEntry, User } from '../storage/domain.ts';
+import type { TimeEntry, User } from './model.ts';
 import { invalidInput, type ApplicationError } from '../lib/errors.ts';
 import type { EntryTimes } from './entryCommands.ts';
 

@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { type Kysely } from 'kysely';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import type { PhysicalDatabase } from '../../src/storage/physical.ts';
-import { StorageConflict } from '../../src/storage/errors.ts';
+import { StorageConflict } from '../../src/domain/ports.ts';
 import {
   createTransactionRunner,
   RETRY_BASE_DELAY_MS,

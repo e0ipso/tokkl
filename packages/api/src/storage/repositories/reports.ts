@@ -1,8 +1,8 @@
 import { sql, type Kysely, type RawBuilder } from 'kysely';
 import type { Backend } from '../config.ts';
 import type { PhysicalDatabase } from '../physical.ts';
-import type { ReportOrder, Repositories, ReportSelection } from '../contracts.ts';
-import type { ReportEntryProjection, TagLabel } from '../domain.ts';
+import type { ReportOrder, Repositories, ReportSelection } from '../../domain/ports.ts';
+import type { ReportEntryProjection, TagLabel } from '../../domain/model.ts';
 import { booleanValue, entityId, finiteNumber, safeInteger, utcInstant } from '../conversion.ts';
 import { reportContains, reportDuration, reportIds, reportRoundedSeconds, reportTags } from './report-sql.ts';
 

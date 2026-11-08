@@ -3,7 +3,7 @@ import { once } from 'node:events';
 import type { AddressInfo } from 'node:net';
 import type { Express } from 'express';
 import type { TimerState } from '@tokkl/types';
-import type { Storage } from '../../../src/storage/contracts.ts';
+import type { Storage } from '../../../src/domain/ports.ts';
 
 export function gate() {
   let resolve!: () => void;

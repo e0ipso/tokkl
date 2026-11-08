@@ -2,7 +2,7 @@ import { after } from 'node:test';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createStorage } from '../../src/storage/index.ts';
-import type { TransactionContext } from '../../src/storage/contracts.ts';
+import type { TransactionContext } from '../../src/domain/ports.ts';
 import type { StorageConfig, Backend } from '../../src/storage/config.ts';
 import type { ApplicationServices } from '../../src/services/application.ts';
 import { disposableBackend, type DisposableBackend } from '../storage/support/disposableBackend.ts';

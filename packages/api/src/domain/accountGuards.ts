@@ -1,7 +1,7 @@
 /** What every account operation shares: its repositories and runner, and the guards it takes. */
-import type { OperationContext, ReadersOf, Repositories } from '../storage/contracts.ts';
-import type { Id, User, UserRole } from '../storage/domain.ts';
-import { StorageConflict } from '../storage/errors.ts';
+import type { OperationContext, ReadersOf, Repositories } from './ports.ts';
+import type { Id, User, UserRole } from './model.ts';
+import { StorageConflict } from './ports.ts';
 import { forbidden, invalidInput, notFound } from '../lib/errors.ts';
 import { generateApiToken, hashPassword } from '../lib/crypto.ts';
 import type { NewAccount } from './accountCommands.ts';

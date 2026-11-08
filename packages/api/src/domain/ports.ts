@@ -30,8 +30,22 @@ import type {
   UtcInstant,
   Workspace,
   WorkspaceMember,
-} from './domain.ts';
+} from './model.ts';
 import type { RowRange } from '../lib/pagination.ts';
+
+export type StorageConflictKind = 'unique' | 'foreign-key' | 'serialization' | 'deadlock' | 'busy';
+/**
+ * What a repository throws when the database refuses a write for a conflict, which the domain maps
+ * to its own errors. No SQL, constraint names or driver cause.
+ */
+export class StorageConflict extends Error {
+  readonly kind: StorageConflictKind;
+  constructor(kind: StorageConflictKind) {
+    super(`Storage conflict (${kind})`);
+    this.name = 'StorageConflict';
+    this.kind = kind;
+  }
+}
 
 // Inputs have passed domain validation. Repositories still enforce scoping and database constraints.
 export interface NewAccount {
@@ -493,9 +507,4 @@ export interface Storage {
   readSnapshot<T>(work: (repositories: ReadOnlyRepositories) => Promise<T>): Promise<T>;
   health(): Promise<void>;
   close(): Promise<void>;
-}
-/** Startup owns migration invocation; report readers must never invoke it. */
-export interface MigrationLifecycle {
-  migrate(): Promise<void>;
-  verifyCurrent(): Promise<void>;
 }

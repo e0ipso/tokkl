@@ -4,8 +4,8 @@
  * `app.ts` builds. Each operation opens its own transaction and binds what it publishes, so a route parses, calls one
  * operation and presents the answer. Framework-free; `app.ts` composes them with the HTTP adapters.
  */
-import type { Repositories, Storage } from '../storage/contracts.ts';
-import type { Id, User } from '../storage/domain.ts';
+import type { Repositories, Storage } from '../domain/ports.ts';
+import type { Id, User } from '../domain/model.ts';
 import { createLocalTimerBus, type TimerBus } from '../storage/timerBus.ts';
 import type { InviteRequest, ProfileUpdate, SettingChanges } from '../domain/accountCommands.ts';
 import {

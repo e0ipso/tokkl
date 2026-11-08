@@ -1,7 +1,7 @@
 /** Row mappers and lookups the account repositories share. */
 import type { Kysely, Selectable } from 'kysely';
-import type { Repositories } from '../contracts.ts';
-import type { AccountToken, MembershipRole, User, UserRole, Workspace } from '../domain.ts';
+import type { Repositories } from '../../domain/ports.ts';
+import type { AccountToken, MembershipRole, User, UserRole, Workspace } from '../../domain/model.ts';
 import type { AccountTokensRow, PhysicalDatabase, UsersRow, WorkspacesRow } from '../physical.ts';
 import { entityId, finiteNumber, jsonObject, safeInteger, utcInstant } from '../conversion.ts';
 

@@ -15,7 +15,7 @@ import { ReportRunner } from '../src/services/reportRunner.ts';
 import { runReport, runExport } from './fixtures/reportRunner.ts';
 import { fakeReportWorkers, postedJobs } from './fixtures/fakeReportWorker.ts';
 import type { JobSource } from '../src/services/reportExecution.ts';
-import type { Storage } from '../src/storage/contracts.ts';
+import type { Storage } from '../src/domain/ports.ts';
 
 const INLINE = { backend: 'sqlite' as const, filename: ':memory:', busyTimeoutMs: 5000 };
 const WEEKLY = {

@@ -1,8 +1,8 @@
 import { sql, type Kysely, type Selectable, type Updateable } from 'kysely';
 import type { Backend } from '../config.ts';
 import type { PhysicalDatabase, TimeEntriesRow } from '../physical.ts';
-import type { EntryFilter, EntryInput, Repositories } from '../contracts.ts';
-import type { EntryDetails, TimeEntry, TagLabel } from '../domain.ts';
+import type { EntryFilter, EntryInput, Repositories } from '../../domain/ports.ts';
+import type { EntryDetails, TimeEntry, TagLabel } from '../../domain/model.ts';
 import { booleanValue, entityId, safeInteger, utcInstant } from '../conversion.ts';
 import { classifyConflict } from '../errors.ts';
 import { createIdempotencyKeysRepository } from './idempotency-keys.ts';
