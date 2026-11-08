@@ -22,6 +22,11 @@ class FakeSource implements TimerEventSource {
     this.readyState = 1;
     this.emit('open');
   }
+  /** Opens the source and sends the state the server sends first. */
+  start(revision: number): void {
+    this.open();
+    this.emit('timer', JSON.stringify(state(revision)));
+  }
 }
 
 const state = (revision: number): TimerState => ({
@@ -54,34 +59,77 @@ function setup() {
   return { sources, at, states, statuses, stop };
 }
 
-test('states pass to the handler, malformed events are ignored, and status reports only changes', () => {
+test('the stream counts as up from its first state, not from opening, and status reports only changes', () => {
   const { at, states, statuses, stop } = setup();
   const source = at(0);
   source.open();
+  assert.deepEqual(statuses, [], 'an open connection that sent no state yet leaves polling on');
   source.emit('timer', JSON.stringify(state(1)));
-  source.emit('timer', '{not json');
-  source.emit('timer', JSON.stringify({ revision: 'x' }));
-  // A revision and a server time are not enough: the nested parts are checked too.
-  source.emit('timer', JSON.stringify({ revision: 3, server_time: '2026-10-27T10:00:00.000Z' }));
-  source.emit('timer', JSON.stringify({ ...state(4), pause: { paused: true } }));
   source.emit('timer', JSON.stringify(state(2)));
   assert.deepEqual(
     states.map(s => s.revision),
     [1, 2],
   );
-  // The browser reconnects by itself while the source is connecting; each error and open is a change only once.
+  assert.deepEqual(statuses, [true]);
+  // The browser reconnects by itself while the source is connecting; each error is a change only once,
+  // and the reconnected source is up again with its first state.
   source.readyState = 0;
   source.emit('error');
   source.emit('error');
   source.open();
+  assert.deepEqual(statuses, [true, false]);
+  source.emit('timer', JSON.stringify(state(3)));
   assert.deepEqual(statuses, [true, false, true]);
+  stop();
+});
+
+const malformed: Array<[string, string]> = [
+  ['not JSON', '{not json'],
+  ['a wrong revision', JSON.stringify({ revision: 'x' })],
+  // A revision and a server time are not enough: the nested parts are checked too.
+  ['a state without its parts', JSON.stringify({ revision: 3, server_time: '2026-10-27T10:00:00.000Z' })],
+  ['a malformed pause', JSON.stringify({ ...state(4), pause: { paused: true } })],
+];
+
+for (const [name, data] of malformed) {
+  test(`an event with ${name} counts as down and reopens the stream after the delay`, t => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const { sources, at, states, statuses, stop } = setup();
+    at(0).start(1);
+    at(0).emit('timer', data);
+    assert.deepEqual(statuses, [true, false], 'polling takes over at once');
+    assert.equal(at(0).closed, true);
+    assert.deepEqual(
+      states.map(s => s.revision),
+      [1],
+      'nothing reaches the handler',
+    );
+    t.mock.timers.tick(4999);
+    assert.equal(sources.length, 1);
+    t.mock.timers.tick(1);
+    assert.equal(sources.length, 2);
+    at(1).start(2);
+    assert.deepEqual(statuses, [true, false, true]);
+    stop();
+  });
+}
+
+test('a first event that does not decode never brings the stream up', t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const { sources, at, statuses, stop } = setup();
+  at(0).open();
+  at(0).emit('timer', '{not json');
+  assert.deepEqual(statuses, []);
+  assert.equal(at(0).closed, true);
+  t.mock.timers.tick(5000);
+  assert.equal(sources.length, 2);
   stop();
 });
 
 test('a source the browser gave up on is closed and reopened after the delay, until stopped', t => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const { sources, at, statuses, stop } = setup();
-  at(0).open();
+  at(0).start(1);
   at(0).readyState = 2;
   at(0).emit('error');
   assert.equal(at(0).closed, true);
@@ -95,19 +143,19 @@ test('a source the browser gave up on is closed and reopened after the delay, un
   stop();
   t.mock.timers.tick(10_000);
   assert.equal(sources.length, 2, 'stopping cancels the pending reopen');
-  at(1).open();
+  at(1).start(2);
   assert.deepEqual(statuses, [true, false], 'a stopped stream reports nothing more');
 });
 
 test('a stream that stays silent past the timeout counts as down and opens again', t => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const { sources, at, states, statuses, stop } = setup();
-  at(0).open();
+  at(0).start(1);
   // Each keep-alive or state restarts the wait.
   t.mock.timers.tick(59_999);
   at(0).emit('keep-alive', '');
   t.mock.timers.tick(59_999);
-  at(0).emit('timer', JSON.stringify(state(1)));
+  at(0).emit('timer', JSON.stringify(state(2)));
   t.mock.timers.tick(59_999);
   assert.deepEqual(statuses, [true]);
   assert.equal(sources.length, 1);
@@ -117,11 +165,10 @@ test('a stream that stays silent past the timeout counts as down and opens again
   assert.deepEqual(statuses, [true, false]);
   assert.equal(at(0).closed, true);
   assert.equal(sources.length, 2);
-  at(1).open();
-  at(1).emit('timer', JSON.stringify(state(2)));
+  at(1).start(3);
   assert.deepEqual(
     states.map(s => s.revision),
-    [1, 2],
+    [1, 2, 3],
   );
   assert.deepEqual(statuses, [true, false, true]);
 
@@ -130,11 +177,37 @@ test('a stream that stays silent past the timeout counts as down and opens again
   at(1).emit('error');
   t.mock.timers.tick(120_000);
   assert.equal(sources.length, 2);
-  at(1).open();
+  at(1).start(4);
   stop();
   t.mock.timers.tick(120_000);
   assert.equal(sources.length, 2);
   assert.deepEqual(statuses, [true, false, true, false, true]);
+});
+
+test('keep-alives do not keep a connection that never sent a state', t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const { sources, at, statuses, stop } = setup();
+  at(0).open();
+  t.mock.timers.tick(30_000);
+  at(0).emit('keep-alive', '');
+  t.mock.timers.tick(29_999);
+  assert.equal(sources.length, 1);
+  t.mock.timers.tick(1);
+  assert.equal(at(0).closed, true, 'the wait runs from the open, whatever keep-alives arrive');
+  assert.equal(sources.length, 2);
+  assert.deepEqual(statuses, [], 'it never counted as up');
+
+  // After a browser reconnect, keep-alives count only once the new connection sent its state.
+  at(1).start(1);
+  at(1).readyState = 0;
+  at(1).emit('error');
+  at(1).open();
+  t.mock.timers.tick(59_999);
+  at(1).emit('keep-alive', '');
+  t.mock.timers.tick(1);
+  assert.equal(sources.length, 3);
+  assert.deepEqual(statuses, [true, false]);
+  stop();
 });
 
 test('stopping closes the open source', () => {
