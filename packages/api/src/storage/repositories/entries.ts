@@ -290,8 +290,13 @@ export function createEntryRepositories(db: Kysely<PhysicalDatabase>, backend: B
           .execute(),
       );
     },
-    async purgeDeleted(userId, id) {
-      let q = db.deleteFrom('time_entries').where('user_id', '=', userId).where('deleted_at', 'is not', null);
+    async purgeDeleted(userId, { workspaceIds, id }) {
+      if (!workspaceIds.length) return 0;
+      let q = db
+        .deleteFrom('time_entries')
+        .where('user_id', '=', userId)
+        .where('deleted_at', 'is not', null)
+        .where('workspace_id', 'in', workspaceIds);
       if (id !== undefined) q = q.where('id', '=', id);
       return safeInteger((await q.executeTakeFirstOrThrow()).numDeletedRows);
     },

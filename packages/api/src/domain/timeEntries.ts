@@ -331,15 +331,30 @@ export async function restoreTimeEntry(
   return ctx.entries.restore(user.id, id);
 }
 
+/**
+ * Deletes trashed entries for good, as many as it deleted. Purging one entry of a workspace the
+ * user left is refused with the 403 a restore gets, and one not in the trash deletes nothing.
+ * Emptying the trash deletes the entries of the user's workspaces and keeps those of workspaces
+ * the user left, since no change may touch them.
+ */
 export async function purgeDeletedEntries(
   ctx: EntryContext,
   userId: Id,
   publish: TimerPublication,
   id?: Id,
 ): Promise<number> {
-  await protectEntryOperation(ctx, userId);
-  touchTimer(ctx, userId, publish);
-  return ctx.entries.purgeDeleted(userId, id);
+  const trashed =
+    id === undefined
+      ? await ctx.entries.listDeleted(userId)
+      : [await ctx.entries.get(userId, id, true)].flatMap(entry => (entry?.deletedAt ? [entry] : []));
+  const workspaceIds = [...new Set(trashed.map(entry => entry.workspaceId))];
+  const user = await protectEntryOperation(ctx, userId, workspaceIds);
+  const member: Id[] = [];
+  for (const wid of workspaceIds)
+    if (id !== undefined) member.push((await memberWorkspace(ctx, user.id, wid)).id);
+    else if (await ctx.workspaces.forMember(user.id, wid)) member.push(wid);
+  touchTimer(ctx, user.id, publish);
+  return ctx.entries.purgeDeleted(user.id, { workspaceIds: member, id });
 }
 
 /** One operation on one entry. See `EntryPatchStep` for when each refusal is reported. */

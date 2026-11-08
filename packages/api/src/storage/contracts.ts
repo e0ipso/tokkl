@@ -265,7 +265,8 @@ export interface EntriesRepository extends EntriesReader {
   ): Promise<EntryDetails>;
   softDelete(userId: Id, workspaceId: Id, id: Id, at: UtcInstant): Promise<void>;
   restore(userId: Id, id: Id): Promise<EntryDetails>;
-  purgeDeleted(userId: Id, id?: Id): Promise<number>;
+  /** Deletes the user's trashed entries in `workspaceIds`, or only `id` among them. */
+  purgeDeleted(userId: Id, scope: { workspaceIds: Id[]; id?: Id }): Promise<number>;
 }
 export interface TimersReader {
   read(userId: Id): Promise<TimerSnapshot>;
