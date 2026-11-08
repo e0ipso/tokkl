@@ -22,16 +22,23 @@ QtObject {
     // The last refusal of a Pomodoro lengths save from the settings page,
     // which may come after the dialog has closed. Null leaves it out.
     property TokklLengthsSaveStatus lengthsSave: null
+    // The panel's alarm, whose error says why a ring was silent. Null leaves
+    // it out.
+    property TokklAlarm alarm: null
 
     // The session's last message for the user, such as a pomodoro too short
     // to save or why an action did not go through, or else why the
-    // Pomodoro lengths were not saved; empty when there is none.
+    // Pomodoro lengths were not saved, or else why the alarm was silent;
+    // empty when there is none.
     readonly property string messageText: {
         if (session !== null && session.message.length > 0) {
             return session.message;
         }
         if (lengthsSave !== null && lengthsSave.refusal.length > 0) {
             return i18nc("@info:status %1 is the server's reason", "Pomodoro lengths not saved: %1", lengthsSave.refusal);
+        }
+        if (alarm !== null && alarm.error.length > 0) {
+            return alarm.error;
         }
         return "";
     }

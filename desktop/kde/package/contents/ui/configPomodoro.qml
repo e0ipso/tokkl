@@ -334,5 +334,15 @@ KCM.SimpleKCM {
             player: previewPlayer
             onChosen: soundId => page.cfg_longRestToWorkSound = soundId
         }
+
+        // Why the last preview was silent.
+        QQC2.Label {
+            objectName: "soundError"
+            visible: text !== ""
+            text: previewPlayer.error
+            color: Kirigami.Theme.negativeTextColor
+            wrapMode: Text.Wrap
+            Layout.fillWidth: true
+        }
     }
 }

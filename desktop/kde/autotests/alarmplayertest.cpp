@@ -210,11 +210,22 @@ private Q_SLOTS:
         AlarmPlayer player;
         player.setSoundsDirectory(empty.path());
         player.setTransition(QStringLiteral("workToShortRest"));
+        QVERIFY(player.error().isEmpty());
         player.setRinging(true);
         QVERIFY(!player.isPlaying());
         QVERIFY(player.source().isEmpty());
-        player.preview(QStringLiteral("work-to-short-rest"));
+        // It says why, and keeps saying it after the ring.
+        QCOMPARE(player.error(), QStringLiteral("No alarm sound: the file for work-to-short-rest is not installed"));
+        player.setRinging(false);
+        QVERIFY(!player.error().isEmpty());
+        player.preview(QStringLiteral("work-to-long-rest"));
         QVERIFY(player.previewSource().isEmpty());
+        QCOMPARE(player.error(), QStringLiteral("No alarm sound: the file for work-to-long-rest is not installed"));
+
+        // A sound that plays clears it.
+        player.setSoundsDirectory(bundledSoundsDir());
+        player.preview(QStringLiteral("work-to-long-rest"));
+        QVERIFY(player.error().isEmpty());
     }
 };
 
