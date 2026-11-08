@@ -3,13 +3,17 @@ import { downloadReportCsv, type ReportFilterBody } from '../../api/reports.ts';
 import type { DurationFormat, Grouping } from '../../api/types.ts';
 import { Icon } from '../../components/Icon.tsx';
 import { useToast } from '../../components/Toast.tsx';
+import { reportUnlessCancelled, useUnmountSignal } from '../../components/useUnmountSignal.ts';
 import type { DateRange } from './range.ts';
 import type { SortDir, SortKey, SubGrouping } from './urlState.ts';
 import { t } from '../../i18n/messages.ts';
 
 type Kind = 'detailed' | 'summary';
 
-/** CSV downloads of the report on screen: same range, filters, rounding, grouping and sort order. */
+/**
+ * CSV downloads of the report on screen: same range, filters, rounding, grouping and sort order.
+ * Leaving the page cancels a download without an error.
+ */
 export function ExportButtons({
   range,
   filters,
@@ -29,6 +33,7 @@ export function ExportButtons({
 }) {
   const toast = useToast();
   const [busy, setBusy] = useState<Kind | null>(null);
+  const unmountSignal = useUnmountSignal();
 
   const run = async (kind: Kind) => {
     setBusy(kind);
@@ -39,13 +44,12 @@ export function ExportButtons({
         ? { grouping, sub_grouping: subGrouping === 'none' ? grouping : subGrouping }
         : { sort, dir }),
     };
-    try {
-      await downloadReportCsv(kind, body, `tokkl-${kind}-${range.from}-to-${range.to}.csv`);
-    } catch (error) {
-      toast.error(error);
-    } finally {
-      setBusy(null);
-    }
+    await reportUnlessCancelled(
+      unmountSignal(),
+      signal => downloadReportCsv(kind, body, `tokkl-${kind}-${range.from}-to-${range.to}.csv`, signal),
+      toast.error,
+    );
+    setBusy(null);
   };
 
   return (

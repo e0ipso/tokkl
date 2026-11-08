@@ -7,6 +7,7 @@ import {
   TimerActionError,
   clearTimerUnknown,
   explainTimerActionError,
+  explainTimerConflict,
   isOutcomeUnknown,
   isTimerUnknown,
   markTimerUnknown,
@@ -84,16 +85,18 @@ export function useServerNow(intervalMs = 1000): Date {
   return serverNow(useNow(intervalMs).getTime(), getClockOffset());
 }
 
+/** The cached state, read first if it has not loaded yet. */
+function seenState(qc: QueryClient): Promise<TimerState> {
+  return qc.ensureQueryData({ queryKey: keys.timer, queryFn: ({ signal }) => readTimerState(qc, signal) });
+}
+
 /**
  * The revision actions send: the cached one, read first if the state has not loaded yet. An edit
  * still in flight, such as the running entry's description saved as the user clicks Next phase,
  * moves the revision, so the action waits for it and reads the state again (see `revisionToSend`).
  */
 async function currentRevision(qc: QueryClient): Promise<number> {
-  const seen = await qc.ensureQueryData({
-    queryKey: keys.timer,
-    queryFn: ({ signal }) => readTimerState(qc, signal),
-  });
+  const seen = await seenState(qc);
   if (!(await settleOtherWrites(qc))) return seen.revision;
   return revisionToSend(seen, await readTimerState(qc));
 }
@@ -131,18 +134,30 @@ export async function timerWrite<T>(qc: QueryClient, request: () => Promise<T>):
 }
 
 /**
+ * A `timerWrite` whose failure goes through `explain`. A conflict that carries a state hands that
+ * state to the caches.
+ */
+async function explainedTimerWrite<T>(
+  qc: QueryClient,
+  request: () => Promise<T>,
+  explain: (error: unknown) => unknown,
+): Promise<T> {
+  try {
+    return await timerWrite(qc, request);
+  } catch (error) {
+    const explained = explain(error);
+    if (explained instanceof TimerActionError && explained.state) acceptTimerState(qc, explained.state);
+    throw explained;
+  }
+}
+
+/**
  * A `timerWrite` whose failure is explained as a timer action's is (`explainTimerActionError`): a
  * request that got no reply fails with the offline `TimerActionError`, and a 409 carrying a state
  * hands that state to the caches. Other failures keep their error.
  */
-export async function attemptTimerRequest<T>(qc: QueryClient, request: () => Promise<T>): Promise<T> {
-  try {
-    return await timerWrite(qc, request);
-  } catch (error) {
-    const explained = explainTimerActionError(error);
-    if (explained instanceof TimerActionError && explained.state) acceptTimerState(qc, explained.state);
-    throw explained;
-  }
+export function attemptTimerRequest<T>(qc: QueryClient, request: () => Promise<T>): Promise<T> {
+  return explainedTimerWrite(qc, request, explainTimerActionError);
 }
 
 /**
@@ -176,6 +191,55 @@ function useRevisionAction(path: string) {
     ...actionOptions,
     mutationFn: () => postAction(qc, path, async () => ({ revision: await currentRevision(qc) })),
   });
+}
+
+/** What an edit of the running entry can change. Its start and workspace never change this way. */
+export type RunningEntryChanges = Pick<
+  TimeEntryInput,
+  'description' | 'project_id' | 'task_id' | 'billable' | 'tags' | 'tag_ids'
+>;
+
+/** Posts one running-entry edit at the revision `revision` gives, and takes the reply into the caches. */
+function postRunningEdit(
+  qc: QueryClient,
+  changes: RunningEntryChanges,
+  revision: () => Promise<number>,
+): Promise<TimerState> {
+  return explainedTimerWrite(
+    qc,
+    async () =>
+      acceptTimerState(
+        qc,
+        await api.post(`${timerPath}/edit`, { ...changes, revision: await revision() }, { decode: timerStateOf }),
+      ),
+    explainTimerConflict,
+  );
+}
+
+/**
+ * Edits running entry `id` at the cached revision, and takes the reply, the new state, into the
+ * caches. Tags sent replace the entry's tags, and a null project or task clears it. The server
+ * answers with a conflict when the timer moved on; the conflict's state replaces the cached one.
+ *
+ * An edit only sets fields, so it is safe to apply again to the same entry. When the conflict's
+ * state still runs entry `id`, only the revision moved (another device tagged the entry, say), and
+ * the edit goes out once more at the new revision, so what the user typed is not lost. When that
+ * state runs another entry or none, or the second try conflicts too, the edit fails with the
+ * conflict; it never lands on an entry the user did not edit. A request that got no reply keeps its
+ * own error, as an edit of a stopped entry does.
+ *
+ * Unlike an action it does not wait for other writes that move the timer: callers send it as one
+ * of them (`MOVES_TIMER`), in the running entry's scope (`updateRunningEntry` in entries.ts), so it
+ * would wait for itself, and the edit before it in that scope has already moved the cached revision.
+ */
+export async function editRunningEntry(qc: QueryClient, id: number, changes: RunningEntryChanges): Promise<TimerState> {
+  try {
+    return await postRunningEdit(qc, changes, async () => (await seenState(qc)).revision);
+  } catch (error) {
+    const current = error instanceof TimerActionError && error.kind === 'conflict' ? error.state : null;
+    if (current?.running_entry?.id !== id) throw error;
+    return postRunningEdit(qc, changes, () => Promise.resolve(current.revision));
+  }
 }
 
 /** Fields of a timer start: the new entry's fields and when it starts (now if left out). */
@@ -240,12 +304,24 @@ export interface StartPomodoroInput extends Pick<
   long_rest_every?: number;
 }
 
-/** Starts a Pomodoro session. Fails with the conflict message while another device runs one. */
+/**
+ * Starts a Pomodoro session at the cached revision, and takes the reply into the caches. Fails with
+ * the conflict message while another device runs one, and when the timer moved on since this tab
+ * saw it; the conflict's state then replaces the cached one, as for Start.
+ */
+export async function startPomodoro(qc: QueryClient, input: StartPomodoroInput): Promise<TimerState> {
+  return postAction(qc, pomodoroPath, async () => ({
+    created_with: 'tokkl-web',
+    ...input,
+    revision: await currentRevision(qc),
+  }));
+}
+
 export function useStartPomodoro() {
   const qc = useQueryClient();
   return useMutation<TimerState, Error, StartPomodoroInput>({
     ...actionOptions,
-    mutationFn: input => postAction(qc, pomodoroPath, async () => ({ created_with: 'tokkl-web', ...input })),
+    mutationFn: input => startPomodoro(qc, input),
   });
 }
 

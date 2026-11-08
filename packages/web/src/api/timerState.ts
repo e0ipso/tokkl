@@ -84,18 +84,26 @@ export function planTimerUpdate(
 }
 
 /**
- * Turns a failed timer request into the error the views show. A 409 whose body is a timer state
- * is a conflict, and the state rides along so it can replace the stale one. A request that never
- * got a reply (fetch rejects with a TypeError) is offline, and so is one that got none within its
- * deadline. Anything else is returned unchanged, keeping its message. Whether the write may have
- * landed is `isOutcomeUnknown`'s call, not this one's.
+ * Turns a 409 whose body is a timer state into a conflict, with the state riding along so it can
+ * replace the stale one. Anything else is returned unchanged.
  */
-export function explainTimerActionError(error: unknown): unknown {
+export function explainTimerConflict(error: unknown): unknown {
   if (error instanceof ApiError && error.status === 409 && isTimerState(error.body)) {
     return new TimerActionError('conflict', error.body);
   }
-  if (error instanceof TypeError || error instanceof RequestTimeoutError) return new TimerActionError('offline');
   return error;
+}
+
+/**
+ * Turns a failed timer request into the error the views show. A 409 whose body is a timer state
+ * is a conflict (`explainTimerConflict`). A request that never got a reply (fetch rejects with a
+ * TypeError) is offline, and so is one that got none within its deadline. Anything else is
+ * returned unchanged, keeping its message. Whether the write may have landed is
+ * `isOutcomeUnknown`'s call, not this one's.
+ */
+export function explainTimerActionError(error: unknown): unknown {
+  if (error instanceof TypeError || error instanceof RequestTimeoutError) return new TimerActionError('offline');
+  return explainTimerConflict(error);
 }
 
 /**

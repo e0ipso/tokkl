@@ -5,6 +5,7 @@ import {
   DEADLINE_MS,
   RequestTimeoutError,
   api,
+  download,
   fetchDownload,
   rawBody,
   requestKind,
@@ -137,4 +138,28 @@ test("a refused download fails with the server's message", async t => {
     fetchDownload(exportPath),
     (error: unknown) => error instanceof ApiError && error.status === 503 && error.message === 'Download took too long',
   );
+});
+
+const isAbort = (error: unknown) => error instanceof DOMException && error.name === 'AbortError';
+
+test('a download cancelled before its reply starts fails with the cancel, not as timed out', async t => {
+  t.mock.method(globalThis, 'fetch', (_path: string, init: RequestInit) => hang(init.signal!));
+  const controller = new AbortController();
+  const pending = fetchDownload(exportPath, { method: 'POST', body: {}, signal: controller.signal }, 1000);
+  controller.abort();
+  await assert.rejects(pending, isAbort);
+});
+
+test('a download cancelled while its body arrives stops reading it', async t => {
+  t.mock.method(globalThis, 'fetch', streaming(['a,', 'b,', 'c,', 'd'], 20));
+  const controller = new AbortController();
+  const pending = fetchDownload(exportPath, { signal: controller.signal }, 1000);
+  setTimeout(() => controller.abort(), 30);
+  await assert.rejects(pending, isAbort);
+});
+
+test('a download cancelled before it starts sends nothing', async t => {
+  const fetch = t.mock.method(globalThis, 'fetch', () => Promise.reject(new Error('sent')));
+  await assert.rejects(download(exportPath, 'export.csv', { signal: AbortSignal.abort() }), isAbort);
+  assert.equal(fetch.mock.callCount(), 0);
 });

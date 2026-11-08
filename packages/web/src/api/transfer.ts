@@ -14,8 +14,12 @@ export function importQuery(dryRun: boolean, users: readonly string[]): string {
 }
 
 export const transferRequests = {
-  /** Saves the account's data as a file: JSON with everything, or CSV with one row per entry. */
-  export: (kind: 'json' | 'csv', filename: string) => download(`${APP}/export.${kind}`, filename),
+  /**
+   * Saves the account's data as a file: JSON with everything, or CSV with one row per entry.
+   * `signal` cancels the download.
+   */
+  export: (kind: 'json' | 'csv', filename: string, signal?: AbortSignal) =>
+    download(`${APP}/export.${kind}`, filename, { signal }),
   importTogglCsv: (text: string, dryRun: boolean, users: readonly string[]) =>
     api.post<ImportResult>(`${APP}/import/toggl-csv${importQuery(dryRun, users)}`, rawBody(text, 'text/csv')),
   restoreJson: (text: string, dryRun: boolean) =>
