@@ -26,6 +26,11 @@ export function readJson(req: Request): JsonBody {
   return body as JsonBody;
 }
 
+/** A JSON object body, or an empty one when the request sends no body, for actions whose fields are all optional. */
+export function readOptionalJson(req: Request): JsonBody {
+  return readText(req).trim() === '' ? {} : readJson(req);
+}
+
 export function readJsonArray(req: Request): unknown[] {
   const body = parseBody(req);
   if (!Array.isArray(body)) throw invalidInput('Invalid JSON input: expected an array');

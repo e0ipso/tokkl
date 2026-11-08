@@ -219,5 +219,5 @@ export async function independentReportServer(ctx: TestContext): Promise<TestCon
 /** The API version and capabilities this server names next to `setup_required` in GET /api/app/status. */
 export const SERVER_API = {
   api_version: 1,
-  capabilities: ['app-preferences', 'timer-actions', 'timer-edit', 'pomodoro-revision'],
+  capabilities: ['app-preferences', 'timer-actions', 'timer-edit', 'pomodoro-revision', 'pause-revision'],
 } as const;

@@ -65,6 +65,11 @@ export function parseStopTimer(body: JsonBody): { revision: number; stop?: Date 
   return { revision: parseRevision(body.revision), stop: optionalInstant(body.stop, 'stop') };
 }
 
+/** A pause: the revision the client saw, optional so older clients that send no body keep working. */
+export function parsePauseTimer(body: JsonBody): { revision?: number } {
+  return { revision: body.revision == null ? undefined : parseRevision(body.revision) };
+}
+
 /** A running timer edit: the revision the client saw and the labels to change. */
 export function parseEditTimer(body: JsonBody): EditTimer {
   return { revision: parseRevision(body.revision), entry: parseLabelChanges(body) };

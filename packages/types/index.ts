@@ -28,8 +28,10 @@ export type UserRole = 'admin' | 'user';
  *   actions under `/api/app/timer` and `/api/app/pomodoro`.
  * - `timer-edit`: `POST /api/app/timer/edit`.
  * - `pomodoro-revision`: `POST /api/app/pomodoro` checks an optional `revision`.
+ * - `pause-revision`: `POST /api/app/timer/pause` checks an optional `revision`.
  */
-export type ServerCapability = 'app-preferences' | 'timer-actions' | 'timer-edit' | 'pomodoro-revision';
+export type ServerCapability =
+  'app-preferences' | 'timer-actions' | 'timer-edit' | 'pomodoro-revision' | 'pause-revision';
 
 /**
  * Tokkl only, in `GET /api/v9/me`: what this server's API offers. A client tests a capability

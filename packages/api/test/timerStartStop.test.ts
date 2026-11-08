@@ -129,6 +129,33 @@ test('a stale revision or a stop with nothing running gets 409 with the state an
   assert.equal(again.body.running_entry, null);
 });
 
+test('pause checks a revision when one is sent, and pauses without one as before', async () => {
+  const ctx = await timerSetup();
+  const started = await ctx.json<TimerState>('POST', '/api/app/timer/start', { revision: 0, description: 'Kept' });
+  const before = await stored(ctx);
+  const stale = await ctx.json<TimerState>('POST', '/api/app/timer/pause', { revision: started.body.revision - 1 });
+  assert.equal(stale.status, 409);
+  assert.equal(stale.body.revision, started.body.revision, 'the 409 body is the current state');
+  assert.equal(stale.body.pause, null);
+  assert.deepEqual(await stored(ctx), before, 'a stale pause stops nothing');
+  for (const body of [{ revision: '1' }, { revision: 1.5 }, 'not an object'])
+    assert.equal((await ctx.json('POST', '/api/app/timer/pause', body)).status, 400, JSON.stringify(body));
+
+  const paused = await ctx.json<TimerState>('POST', '/api/app/timer/pause', { revision: started.body.revision });
+  assert.equal(paused.status, 200);
+  assert.equal(paused.body.pause?.paused, true);
+  // A body without a revision, or no body at all, pauses whatever runs.
+  for (const body of [{}, { revision: null }, undefined]) {
+    const resumed = await ctx.json<TimerState>('POST', '/api/app/timer/resume', {
+      revision: (await state(ctx)).revision,
+    });
+    assert.equal(resumed.status, 200);
+    const again = await ctx.json<TimerState>('POST', '/api/app/timer/pause', body);
+    assert.equal(again.status, 200, JSON.stringify(body));
+    assert.equal(again.body.pause?.paused, true);
+  }
+});
+
 test('start and stop refuse a bad body with 400 before they read the timer', async () => {
   const ctx = await timerSetup();
   for (const [path, body] of [

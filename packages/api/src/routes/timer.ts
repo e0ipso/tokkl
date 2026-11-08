@@ -1,9 +1,10 @@
 import type { Response, Router } from 'express';
 import type { Deps } from './context.ts';
 import { createRouter } from '../http/router.ts';
-import { readJson } from '../http/request.ts';
+import { readJson, readOptionalJson } from '../http/request.ts';
 import {
   parseEditTimer,
+  parsePauseTimer,
   parseRevision,
   parseStartPomodoro,
   parseStartTimer,
@@ -27,7 +28,10 @@ export function timerRoutes(deps: Pick<Deps, 'auth' | 'timersFor' | 'openTimerSt
   api.post('/timer/edit', auth, async (req, res) =>
     res.json(await timers(res).editTimer(res.locals.auth.user.id, parseEditTimer(readJson(req)))),
   );
-  api.post('/timer/pause', auth, async (_req, res) => res.json(await timers(res).pauseTimer(res.locals.auth.user.id)));
+  api.post('/timer/pause', auth, async (req, res) => {
+    const { revision } = parsePauseTimer(readOptionalJson(req));
+    res.json(await timers(res).pauseTimer(res.locals.auth.user.id, revision));
+  });
   api.post('/timer/resume', auth, async (req, res) =>
     res.json(await timers(res).resumeTimer(res.locals.auth.user.id, parseRevision(readJson(req).revision))),
   );

@@ -169,7 +169,8 @@ export function createTimerOperations<R extends EntryRepositories>(runner: Timer
     });
   }
   /** Stops the running entry and adds its stored length to the pause chain. */
-  async function pauseWork(ctx: EntryContext, user: User, now: Date) {
+  async function pauseWork(ctx: EntryContext, user: User, revision: number | undefined, now: Date) {
+    if (revision !== undefined) await checkRevision(ctx, user, revision, now);
     if (await ctx.timers.getSession(user.id)) return refusal(ctx, user, now, 'A Pomodoro session cannot be paused');
     const e = await ctx.entries.running(user.id);
     if (!e) return refusal(ctx, user, now, 'No timer is running');
@@ -277,8 +278,12 @@ export function createTimerOperations<R extends EntryRepositories>(runner: Timer
         await ctx.timers.deleteSession(user.id);
       });
     },
-    async pauseTimer(userId: Id, now = new Date()): Promise<TimerView> {
-      return action(userId, now, (ctx, user) => pauseWork(ctx, user, now));
+    /**
+     * Pauses the running entry. A `revision` is checked like any other action's; without one the
+     * pause acts on whatever runs, as it did for older clients.
+     */
+    async pauseTimer(userId: Id, revision: number | undefined, now = new Date()): Promise<TimerView> {
+      return action(userId, now, (ctx, user) => pauseWork(ctx, user, revision, now));
     },
     async resumeTimer(userId: Id, revision: number, now = new Date()): Promise<TimerView> {
       return action(userId, now, (ctx, user) => resumeWork(ctx, user, revision, now));

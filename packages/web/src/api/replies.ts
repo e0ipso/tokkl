@@ -53,7 +53,7 @@ export const appStatusReply: Decoder<AppStatus> = object<AppStatus>({
   setup_required: boolean,
   // The web app ships with its server, so it knows every capability its server names.
   api_version: integer,
-  capabilities: array(oneOf('app-preferences', 'timer-actions', 'timer-edit', 'pomodoro-revision')),
+  capabilities: array(oneOf('app-preferences', 'timer-actions', 'timer-edit', 'pomodoro-revision', 'pause-revision')),
 });
 
 /** GET /api/app/invites/:token: the role the invite grants. */

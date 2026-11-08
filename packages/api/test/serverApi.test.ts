@@ -10,6 +10,12 @@ const PROBES: Record<ServerCapability, (ctx: TestContext) => Promise<number>> = 
   'timer-edit': async ctx => (await ctx.json('POST', '/api/app/timer/edit', { revision: 0, billable: true })).status,
   // A stale revision is refused only by a server that checks it.
   'pomodoro-revision': async ctx => (await ctx.json('POST', '/api/app/pomodoro', { revision: -1 })).status,
+  // An older server pauses a running timer whatever the body says.
+  'pause-revision': async ctx => {
+    const { revision } = (await ctx.json('GET', '/api/app/timer')).body;
+    assert.equal((await ctx.json('POST', '/api/app/timer/start', { revision, description: 'probe' })).status, 200);
+    return (await ctx.json('POST', '/api/app/timer/pause', { revision: -1 })).status;
+  },
 };
 
 test('GET /api/app/status names the API version and the capabilities this server has', async () => {
@@ -18,7 +24,13 @@ test('GET /api/app/status names the API version and the capabilities this server
   assert.equal(status.status, 200);
   assert.equal(status.body.setup_required, false);
   assert.equal(status.body.api_version, 1);
-  assert.deepEqual(status.body.capabilities, ['app-preferences', 'timer-actions', 'timer-edit', 'pomodoro-revision']);
+  assert.deepEqual(status.body.capabilities, [
+    'app-preferences',
+    'timer-actions',
+    'timer-edit',
+    'pomodoro-revision',
+    'pause-revision',
+  ]);
   const me = await ctx.json<Record<string, unknown>>('GET', '/api/v9/me');
   assert.equal('api_version' in me.body || 'capabilities' in me.body, false, 'the Toggl /me body stays as it was');
   const related = await ctx.json<Record<string, unknown>>('GET', '/api/v9/me?with_related_data=true');
@@ -31,5 +43,6 @@ test('GET /api/app/status names the API version and the capabilities this server
     'timer-actions': 409,
     'timer-edit': 409,
     'pomodoro-revision': 409,
+    'pause-revision': 409,
   });
 });
