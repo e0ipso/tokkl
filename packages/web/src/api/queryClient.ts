@@ -11,6 +11,10 @@ declare module '@tanstack/react-query' {
        */
       sessionProbe?: boolean;
     };
+    mutationMeta: {
+      /** The write can move the timer revision, so timer actions wait for it (`MOVES_TIMER`). */
+      movesTimer?: boolean;
+    };
   }
 }
 

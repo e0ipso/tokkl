@@ -7,6 +7,7 @@ import { keys, stale } from './keys.ts';
 import { APP, V9, wsPath } from './paths.ts';
 import { entryBoundsReply, entryListReply, timeEntryReply } from './replies.ts';
 import { TIMER_ENTRY_OPTIONS, attemptTimerRequest } from './timerOutcome.ts';
+import { MOVES_TIMER } from './timerState.ts';
 import type { BulkPatchResult, PatchOperation, TimeEntry, TimeEntryInput } from './types.ts';
 
 /** Time entries: lists, writes and the trash. The running entry comes from the timer state (timerHooks.ts). */
@@ -64,13 +65,18 @@ function useInvalidateEntries() {
 export function useCreateEntry() {
   const wid = useWid();
   const onSuccess = useInvalidateEntries();
-  return useMutation({ mutationFn: (input: TimeEntryInput) => entryRequests.create(wid, input), onSuccess });
+  return useMutation({
+    meta: MOVES_TIMER,
+    mutationFn: (input: TimeEntryInput) => entryRequests.create(wid, input),
+    onSuccess,
+  });
 }
 
 export function useUpdateEntry() {
   const wid = useWid();
   const onSuccess = useInvalidateEntries();
   return useMutation({
+    meta: MOVES_TIMER,
     mutationFn: ({ id, ...input }: TimeEntryInput & { id: number }) => entryRequests.update(wid, id, input),
     onSuccess,
   });
@@ -85,6 +91,7 @@ export function useStartEntry() {
   const onSuccess = useInvalidateEntries();
   return useMutation({
     ...TIMER_ENTRY_OPTIONS,
+    meta: MOVES_TIMER,
     mutationFn: (input: TimeEntryInput) => attemptTimerRequest(() => entryRequests.create(wid, input)),
     onSuccess,
   });
@@ -96,6 +103,7 @@ export function useStopEntry() {
   const onSuccess = useInvalidateEntries();
   return useMutation({
     ...TIMER_ENTRY_OPTIONS,
+    meta: MOVES_TIMER,
     mutationFn: (input: number | { id: number; stop: string }) => {
       const id = typeof input === 'number' ? input : input.id;
       return attemptTimerRequest(() =>
@@ -112,12 +120,13 @@ export function useStopEntry() {
 export function useDeleteEntry() {
   const wid = useWid();
   const onSuccess = useInvalidateEntries();
-  return useMutation({ mutationFn: (id: number) => entryRequests.remove(wid, id), onSuccess });
+  return useMutation({ meta: MOVES_TIMER, mutationFn: (id: number) => entryRequests.remove(wid, id), onSuccess });
 }
 
 export function useRestoreEntry() {
   const onSuccess = useInvalidateEntries();
   return useMutation({
+    meta: MOVES_TIMER,
     mutationFn: (id: number) => api.post<TimeEntry>(`${APP}/time_entries/${id}/restore`),
     onSuccess,
   });
@@ -128,6 +137,7 @@ export function useBulkPatch() {
   const wid = useWid();
   const onSuccess = useInvalidateEntries();
   return useMutation({
+    meta: MOVES_TIMER,
     mutationFn: ({ ids, operations }: { ids: number[]; operations: PatchOperation[] }) =>
       api.patch<BulkPatchResult>(wsPath(wid, 'time_entries', ids.join(',')), operations),
     onSuccess,
@@ -148,6 +158,7 @@ export interface SplitSpans {
 export function useSplitEntry() {
   const onSettled = useInvalidateEntries();
   return useMutation({
+    meta: MOVES_TIMER,
     mutationFn: async ({ entry, halves }: { entry: TimeEntry; halves: SplitSpans }) => {
       const { second } = await api.post<{ first: TimeEntry; second: TimeEntry }>(
         `${APP}/time_entries/${entry.id}/split`,

@@ -96,6 +96,7 @@ export function TogglImport({ timeZone }: { timeZone: string }) {
 
   const runImport = useAction<{ text: string; dryRun: boolean; users: string[]; request: number }, ImportResult>({
     mutationFn: ({ text, dryRun, users }) => transferRequests.importTogglCsv(text, dryRun, users),
+    movesTimer: true,
     onSuccess: (imported, { dryRun, request }) => {
       if (!dryRun) {
         void invalidate(qc, stale.imported);

@@ -4,7 +4,6 @@ import { invalidate } from './invalidate.ts';
 import { keys, stale } from './keys.ts';
 import { getClockOffset, serverNow, setClockOffset } from './serverClock.ts';
 import {
-  TIMER_ACTION_KEY,
   TimerActionError,
   explainTimerActionError,
   timerStateOf,
@@ -114,7 +113,7 @@ async function currentRevision(qc: QueryClient): Promise<number> {
  * them until the connection returns and then send them late; they fail at once instead, with the
  * offline message.
  */
-const actionOptions = { mutationKey: TIMER_ACTION_KEY, networkMode: 'always' } as const;
+const actionOptions = { networkMode: 'always' } as const;
 
 /**
  * Posts a timer action. The reply is the new state; a reply that is not a whole state fails the

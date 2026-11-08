@@ -1,11 +1,17 @@
 import { useMutation, useQueryClient, type QueryKey } from '@tanstack/react-query';
 import { invalidate } from '../api/invalidate.ts';
+import { MOVES_TIMER } from '../api/timerState.ts';
 import { useToast } from './Toast.tsx';
 
 export interface ActionOptions<TVars, TResult> {
   mutationFn: (vars: TVars) => Promise<TResult>;
   /** Query keys to refresh after success, usually one of the `stale` lists in api/keys.ts. */
   invalidate?: readonly QueryKey[];
+  /**
+   * The write can change what the running entry shows, such as a project rename, so it moves the
+   * timer revision and timer actions wait for it (`MOVES_TIMER` in api/timerState.ts).
+   */
+  movesTimer?: boolean;
   /** Toast shown after success. */
   success?: string | ((result: TResult, vars: TVars) => string);
   onSuccess?: (result: TResult, vars: TVars) => void;
@@ -22,6 +28,7 @@ export function useAction<TVars = void, TResult = unknown>(options: ActionOption
   const toast = useToast();
   const qc = useQueryClient();
   return useMutation<TResult, Error, TVars>({
+    meta: options.movesTimer ? MOVES_TIMER : undefined,
     mutationFn: options.mutationFn,
     onSuccess: (result, vars) => {
       if (options.invalidate) void invalidate(qc, options.invalidate);

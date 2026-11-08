@@ -86,6 +86,7 @@ export function ProjectsPage() {
   const setActive = useAction<{ project: Project; active: boolean }, Project>({
     mutationFn: ({ project, active }) => projectRequests.update(wid, project.id, { active }),
     invalidate: stale.projects,
+    movesTimer: true,
     success: saved =>
       saved.active ? t('manage.restoredNamed', { name: saved.name }) : t('manage.archivedNamed', { name: saved.name }),
     // The row leaves the list when the status filter no longer matches. The menu button that ran the
@@ -98,6 +99,7 @@ export function ProjectsPage() {
   const remove = useAction<{ project: Project; mode: ProjectDeletionMode }>({
     mutationFn: ({ project, mode }) => projectRequests.remove(wid, project.id, mode),
     invalidate: stale.projectDeleted,
+    movesTimer: true,
     success: (_result, { project, mode }) =>
       mode === 'delete'
         ? t('manage.projectDeletedToTrash', { name: project.name })

@@ -42,11 +42,13 @@ function TaskRow({ project, task, onDeleted }: { project: Project; task: Task; o
   const update = useAction<Partial<Pick<Task, 'name' | 'active'>>, Task>({
     mutationFn: changes => projectRequests.updateTask(wid, project.id, task.id, changes),
     invalidate: stale.tasks,
+    movesTimer: true,
     onSuccess: saved => setName(saved.name),
   });
   const remove = useAction({
     mutationFn: () => projectRequests.removeTask(wid, project.id, task.id),
     invalidate: stale.tasks,
+    movesTimer: true,
     success: t('manage.deletedTask', { name: task.name }),
     onSuccess: onDeleted,
   });

@@ -88,23 +88,28 @@ export function explainTimerActionError(error: unknown): unknown {
   return error;
 }
 
-/** The mutation key of every timer action, so waiting for other writes can leave them out. */
-export const TIMER_ACTION_KEY = ['timerAction'] as const;
+/**
+ * Mutation meta for a write that can move the timer revision: any entry write, and an edit of what
+ * the running entry shows (its project, client, task or tags) or an import. Timer actions wait for
+ * these writes and for no others, so a preference, profile or admin save never holds one up.
+ * Timer actions themselves are not marked, so an action never waits for itself.
+ */
+export const MOVES_TIMER = { movesTimer: true } as const;
 
-function isOtherWrite(mutation: Mutation<unknown, Error, unknown, unknown>): boolean {
-  return mutation.state.status === 'pending' && mutation.options.mutationKey?.[0] !== TIMER_ACTION_KEY[0];
+function isPendingTimerWrite(mutation: Mutation<unknown, Error, unknown, unknown>): boolean {
+  return mutation.state.status === 'pending' && mutation.options.meta?.movesTimer === true;
 }
 
 /**
- * Waits until no write other than a timer action is in flight, and says whether it had to wait. An
- * edit of the running entry moves the revision, so an action that reads the revision while that
- * edit is pending would send a stale one and conflict with this tab's own edit. A write held until
- * the browser is back online would release the action only then, so the action fails at once with
- * a `TimerActionError` of kind `offline`, as one sent without a connection does.
+ * Waits until no write marked `MOVES_TIMER` is in flight, and says whether it had to wait. An edit
+ * of the running entry moves the revision, so an action that reads the revision while that edit is
+ * pending would send a stale one and conflict with this tab's own edit. Such a write held until the
+ * browser is back online would release the action only then, so the action fails at once with a
+ * `TimerActionError` of kind `offline`, as one sent without a connection does.
  */
 export function settleOtherWrites(qc: QueryClient): Promise<boolean> {
   const cache = qc.getMutationCache();
-  const others = () => cache.getAll().filter(isOtherWrite);
+  const others = () => cache.getAll().filter(isPendingTimerWrite);
   const held = () => others().some(mutation => mutation.state.isPaused);
   if (held()) return Promise.reject(new TimerActionError('offline'));
   if (others().length === 0) return Promise.resolve(false);

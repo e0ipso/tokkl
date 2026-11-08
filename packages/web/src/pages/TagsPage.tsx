@@ -21,6 +21,7 @@ function TagRow({ tag, onDelete }: { tag: Tag; onDelete: () => void }) {
   const rename = useAction<string, Tag>({
     mutationFn: name => tagRequests.rename(wid, tag.id, name),
     invalidate: stale.tags,
+    movesTimer: true,
     success: saved => t('manage.renamedTo', { name: saved.name }),
     onSuccess: () => setDraft(null),
   });
@@ -112,6 +113,7 @@ export function TagsPage() {
   const remove = useAction<Tag>({
     mutationFn: tag => tagRequests.remove(wid, tag.id),
     invalidate: stale.tags,
+    movesTimer: true,
     success: (_result, tag) => t('manage.deletedNamed', { name: tag.name }),
     onSuccess: (_result, tag) => {
       // The dialog had focus and would give it back to the row's Delete button, which goes away.

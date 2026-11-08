@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { QueryClient, onlineManager } from '@tanstack/react-query';
 import type { TimeEntry, TimerPause, TimerPomodoro, TimerState } from './types.ts';
 import {
-  TIMER_ACTION_KEY,
+  MOVES_TIMER,
   TIMER_CONFLICT_MESSAGE,
   TIMER_OFFLINE_MESSAGE,
   TimerActionError,
@@ -167,15 +167,18 @@ test('a 409 carrying a state explains itself and hands the state over; other fai
   assert.equal(explainTimerActionError(unknown), unknown);
 });
 
-/** Starts a mutation in `qc` that stays pending until the returned function is called. */
-function pendingWrite(qc: QueryClient, mutationKey?: readonly unknown[]): () => void {
+/**
+ * Starts a mutation in `qc` that stays pending until the returned function is called. It is marked
+ * as moving the timer revision unless `meta` says otherwise.
+ */
+function pendingWrite(qc: QueryClient, meta: { movesTimer?: boolean } = MOVES_TIMER): () => void {
   let release = () => {};
   const held = new Promise<void>(resolve => {
     release = resolve;
   });
   void qc
     .getMutationCache()
-    .build(qc, { mutationKey, mutationFn: () => held })
+    .build(qc, { meta, mutationFn: () => held })
     .execute(undefined);
   return release;
 }
@@ -199,13 +202,42 @@ test('a write in flight, such as an edit of the running entry, is waited for, be
   assert.equal(await waiting, true);
 });
 
-test('another timer action in flight is not waited for, so an action never waits for itself', async () => {
+test('a write that cannot move the revision is not waited for, nor is another timer action', async () => {
   const qc = new QueryClient();
-  const release = pendingWrite(qc, TIMER_ACTION_KEY);
+  // A preference or profile save, and a timer action, carry no MOVES_TIMER meta.
+  const releaseSave = pendingWrite(qc, {});
+  const releaseAction = pendingWrite(qc, {});
   try {
     assert.equal(await settleOtherWrites(qc), false);
   } finally {
+    releaseSave();
+    releaseAction();
+  }
+});
+
+test('an unrelated write held for the connection does not fail the action', async t => {
+  const qc = new QueryClient();
+  onlineManager.setOnline(false);
+  t.after(() => onlineManager.setOnline(true));
+  const release = pendingWrite(qc, {});
+  try {
+    assert.equal(qc.getMutationCache().getAll()[0]?.state.isPaused, true, 'the save waits for the connection');
+    assert.equal(await settleOtherWrites(qc), false);
+  } finally {
     release();
+  }
+});
+
+test('only the marked write is waited for while an unrelated one stays pending', async () => {
+  const qc = new QueryClient();
+  const releaseSave = pendingWrite(qc, {});
+  const releaseEdit = pendingWrite(qc);
+  try {
+    const waiting = settleOtherWrites(qc);
+    releaseEdit();
+    assert.equal(await waiting, true);
+  } finally {
+    releaseSave();
   }
 });
 
@@ -233,6 +265,7 @@ test('a write that the connection holds while the action waits for it fails the 
   void qc
     .getMutationCache()
     .build(qc, {
+      meta: MOVES_TIMER,
       retry: 1,
       retryDelay: 0,
       mutationFn: () => {
