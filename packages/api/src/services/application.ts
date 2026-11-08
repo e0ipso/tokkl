@@ -143,7 +143,7 @@ export function createApplicationServices({
       assembly: ExportAssemblyJob,
       options: { signal?: AbortSignal } = {},
     ): Promise<JobResult> {
-      return reports.reserve(options, async slot => {
+      return reports.reserve({ userId: authentication.user.id, signal: options.signal }, async slot => {
         const data = await readFor(authentication, queries => queries.accountExport(authentication.user.id));
         return slot.assembleExport(data, assembly);
       });

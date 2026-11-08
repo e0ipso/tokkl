@@ -35,13 +35,16 @@ function workspaceFor(deps: ReportRouteDeps, req: Request, res: Response): Promi
 
 /**
  * A report handler that holds a place in the report queue from the start, so a full queue answers
- * before the handler reads the workspace or parses the request.
+ * before the handler reads the workspace or parses the request. The place is the signed-in account's.
  */
 function queued(
   deps: ReportRouteDeps,
   handler: (req: Request, res: Response, slot: ReportSlot) => Promise<void>,
 ): (req: Request, res: Response) => Promise<void> {
-  return (req, res) => deps.reports.reserve({ signal: res.locals.workSignal }, slot => handler(req, res, slot));
+  return (req, res) =>
+    deps.reports.reserve({ userId: res.locals.auth.user.id, signal: res.locals.workSignal }, slot =>
+      handler(req, res, slot),
+    );
 }
 
 /** Builds the response in the report runner and sends it. */

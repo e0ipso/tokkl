@@ -82,7 +82,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
       } finally {
         await reader.close();
       }
-      const runner = new ReportRunner(fixture.config, operations, { maxQueue: 2 });
+      const runner = new ReportRunner(fixture.config, operations, { maxQueue: 2, maxPerUser: 2 });
       t.after(() => runner.close());
       const expected = await runReportJob(operations, { userId: user.id, workspaceId: wid, job });
       assert.deepEqual(await runner.run(user.id, wid, job), expected);
