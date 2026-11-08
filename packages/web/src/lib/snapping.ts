@@ -22,11 +22,19 @@ function wholeSecond(date: Date): Date {
  * holds its snapped times, and a running timer shows real seconds (`entrySeconds`).
  */
 export function snappedSeconds(start: Date, stop: Date, settings: SnapSettings): number {
+  const span = storedSpan(start, stop, settings);
+  return span ? (span.stop.getTime() - span.start.getTime()) / 1000 : 0;
+}
+
+/**
+ * The start and stop the server will store for a stopped entry from `start` to `stop`, as
+ * `snappedSeconds` measures them, or null when it refuses the span as too short.
+ */
+export function storedSpan(start: Date, stop: Date, settings: SnapSettings): SnappedSpan | null {
   const from = wholeSecond(start);
   const to = wholeSecond(stop);
-  if (to <= from) return 0;
-  const span = snapSpan(from, to, settings.timeResolution, settings.timeZone);
-  return span ? (span.stop.getTime() - span.start.getTime()) / 1000 : 0;
+  if (to <= from) return null;
+  return snapSpan(from, to, settings.timeResolution, settings.timeZone);
 }
 
 /**

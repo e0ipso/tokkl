@@ -7,8 +7,10 @@ import { invalidate } from './invalidate.ts';
 import { keys, stale } from './keys.ts';
 import { APP, V9, wsPath } from './paths.ts';
 import { entryBoundsReply, entryListReply, timeEntryReply } from './replies.ts';
-import { attemptTimerRequest, editRunningEntry, timerWrite, type RunningEntryChanges } from './timerHooks.ts';
+import { useSettings } from './settings.ts';
+import { editRunningEntry, timerWrite, type RunningEntryChanges } from './timerHooks.ts';
 import { MOVES_TIMER } from './timerState.ts';
+import { addTypedEntry, type TypedEntryInput } from './typedEntries.ts';
 import type { BulkPatchResult, PatchOperation, TimeEntry, TimeEntryInput, TimerState } from './types.ts';
 
 /** Time entries: lists, writes and the trash. The running entry comes from the timer state (timerHooks.ts). */
@@ -22,11 +24,7 @@ import type { BulkPatchResult, PatchOperation, TimeEntry, TimeEntryInput, TimerS
 export function useEntries(startDate: string, endDate: string) {
   return useQuery({
     queryKey: [...keys.entries, startDate, endDate],
-    queryFn: ({ signal }) =>
-      api.get(`${V9}/me/time_entries?start_date=${startDate}&end_date=${endDate}&meta=true`, {
-        signal,
-        decode: entryListReply,
-      }),
+    queryFn: ({ signal }) => entryRequests.list(startDate, endDate, signal),
     refetchInterval: 60_000,
     placeholderData: (previous, previousQuery) =>
       coversPreviousRange(previousQuery?.queryKey, startDate, endDate) ? previous : undefined,
@@ -51,6 +49,12 @@ export function useTrash() {
 
 /** Entry reads and writes outside the hooks below, such as opening one entry from a report row. */
 export const entryRequests = {
+  /** Entries that started from startDate to endDate, both "YYYY-MM-DD" in the account timezone. */
+  list: (startDate: string, endDate: string, signal?: AbortSignal) =>
+    api.get(`${V9}/me/time_entries?start_date=${startDate}&end_date=${endDate}&meta=true`, {
+      signal,
+      decode: entryListReply,
+    }),
   get: (id: number) => api.get(`${V9}/me/time_entries/${id}?meta=true`, { decode: timeEntryReply }),
   create: (wid: number, input: TimeEntryInput) =>
     api.post<TimeEntry>(`${wsPath(wid, 'time_entries')}?meta=true`, { created_with: 'tokkl-web', ...input }),
@@ -156,17 +160,25 @@ export function useUpdateRunningEntry(): EntryUpdater<RunningEntryUpdate, TimerS
 /**
  * Saves the finished entry typed into the idle timer bar as a duration. Like the timer actions it
  * is tried at once even offline (`networkMode: 'always'`), so it never goes out later with the time
- * of the click; other creates use `useCreateEntry`, which waits for the connection. Start and Stop
- * are timer actions (`useStartTimer` and `useStopTimer` in timerHooks.ts).
+ * of the click; other creates use `useCreateEntry`, which waits for the connection. A create whose
+ * reply was lost is looked up before it fails, so it is not sent twice (`addTypedEntry`). Start and
+ * Stop are timer actions (`useStartTimer` and `useStopTimer` in timerHooks.ts).
  */
 export function useAddTypedEntry() {
   const qc = useQueryClient();
   const wid = useWid();
+  const settings = useSettings();
   const onSuccess = useInvalidateEntries();
   return useMutation({
     networkMode: 'always',
     meta: MOVES_TIMER,
-    mutationFn: (input: TimeEntryInput) => attemptTimerRequest(qc, () => entryRequests.create(wid, input)),
+    mutationFn: (input: TypedEntryInput) =>
+      addTypedEntry(
+        qc,
+        { create: typed => entryRequests.create(wid, typed), day: day => entryRequests.list(day, day) },
+        input,
+        settings,
+      ),
     onSuccess,
   });
 }
