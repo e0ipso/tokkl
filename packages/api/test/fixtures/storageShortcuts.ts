@@ -25,7 +25,7 @@ const READS: { [R in keyof Repositories]: ReadonlyArray<MethodsOf<Repositories[R
   entries: ['list', 'get', 'running', 'bounds', 'listDeleted', 'listAllDay', 'findDuplicate'],
   timers: ['read', 'getSession', 'getPauseChain', 'getRevision', 'affectedUsers'],
   reports: ['count', 'ids', 'descriptions', 'entries', 'batch'],
-  transfers: ['exportAccount'],
+  transfers: ['exportAccount', 'exportHead', 'exportEntries'],
 };
 
 function shortcuts<R extends keyof Repositories>(storage: Storage, name: R): Repositories[R] {

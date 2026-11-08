@@ -6,7 +6,9 @@ and checks the signed-in credential around each operation. `app.ts` builds the r
 passes it in as a `ReportExecutor`. Reports and exports reserve a place in its queue before they
 read anything, and each account may hold only its share of the places. `reportRunner.ts` admits,
 cancels and orders the jobs; `reportExecution.ts` runs the chosen one, in the worker (start,
-messages, crash recovery, shutdown) or inline for in-memory SQLite. A report job reads and
+messages, crash recovery, shutdown) or inline for in-memory SQLite. Account exports are jobs too (`exportJobs.ts`): they read the
+entries a batch at a time in the job's snapshot and stream each piece to the response, never
+holding the history whole. A report job reads and
 formats in one read snapshot (`readReport` in `reports.ts`): detailed pages count and page in SQL,
 and everything else takes the entries a batch at a time. `entryOperations.ts` and
 `catalogOperations.ts` are the time entry and catalog writes of one signed-in user. Each method

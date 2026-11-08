@@ -6,11 +6,12 @@ import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { setImmediate } from 'node:timers/promises';
 import type { UsersRepository } from '../../src/storage/contracts.ts';
-import type { ReportRepositories } from '../../src/services/reports.ts';
+import type { JobSource } from '../../src/services/reportExecution.ts';
 import { mkdtempSync, existsSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { collectAccountExport } from '../fixtures/exports.ts';
+import { oracleExportBody } from '../fixtures/exportOracle.ts';
 import { createTransferRepositories } from '../../src/storage/repositories/transfers.ts';
 import { jobs } from './support/report-jobs.ts';
 import { Worker } from 'node:worker_threads';
@@ -21,12 +22,8 @@ import { createTransactionRunner } from '../../src/storage/transactions.ts';
 import { createReportRepositories } from '../../src/storage/repositories/reports.ts';
 import { ReportRunner } from '../../src/services/reportRunner.ts';
 import { errorReply } from '../../src/http/errors.ts';
-import {
-  runReportJob,
-  formatExportJob,
-  type ReportJob,
-  type ExportAssemblyJob,
-} from '../../src/services/reportJobs.ts';
+import { runReportJob, type ReportJob } from '../../src/services/reportJobs.ts';
+import type { ExportAssemblyJob } from '../../src/services/exportJobs.ts';
 import { createTimerOperations } from '../../src/domain/timers.ts';
 import { createTimerPublication } from '../../src/services/timerPublication.ts';
 import { presentTimerOperations } from '../../src/services/timerReplies.ts';
@@ -41,6 +38,15 @@ function recordedLog() {
   const lines: Array<Record<string, unknown>> = [];
   const logger = createLogger({ level: 'debug', sink: line => lines.push(JSON.parse(line)) });
   return { logger, lines };
+}
+
+/** The body `runner` streams for `userId`'s export. */
+async function streamedExport(runner: ReportRunner, userId: number, assembly: ExportAssemblyJob): Promise<string> {
+  const chunks: string[] = [];
+  await runner.export(userId, assembly, async chunk => {
+    chunks.push(chunk);
+  });
+  return chunks.join('');
 }
 
 const job: ReportJob = {
@@ -96,7 +102,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
         { kind: 'export-json', exportedAt: '2026-10-30T12:00:00.000Z', filename: 'tokkl.json' },
         { kind: 'export-csv', range: {}, filename: 'tokkl.csv' },
       ] as ExportAssemblyJob[])
-        assert.deepEqual(await runner.assembleExport(exported, assembly), formatExportJob(exported, assembly));
+        assert.equal(await streamedExport(runner, user.id, assembly), oracleExportBody(exported, assembly));
       const worker = (runner as unknown as { worker: Worker }).worker;
       assert.ok(worker instanceof Worker);
       assert.equal(
@@ -249,19 +255,15 @@ test('memory SQLite stays inline; reader startup never creates or migrates a fil
   );
   assert.equal((runner as unknown as { worker: Worker | null }).worker, null);
   const exported = await collectAccountExport(operations, user.id);
-  const withSecrets = {
-    ...exported,
-    user: { ...exported.user, passwordHash: 'private-hash', apiToken: 'private-token' },
-  };
-  const assembly = runner.assembleExport(withSecrets, {
+  const assembly: ExportAssemblyJob = {
     kind: 'export-json',
     exportedAt: '2026-10-30T12:00:00.000Z',
     filename: 'tokkl.json',
-  });
-  const work = (runner as unknown as { active: { work: { data: { user: object } } } }).active.work;
-  assert.equal('passwordHash' in work.data.user, false);
-  assert.equal('apiToken' in work.data.user, false);
-  await assembly;
+  };
+  const body = await streamedExport(runner, user.id, assembly);
+  assert.equal(body, oracleExportBody(exported, assembly));
+  // The export reads the account in its own snapshot; no credential reaches the output.
+  assert.equal(body.includes(user.apiToken), false);
   await c.db.deleteFrom('workspace_users').where('user_id', '=', user.id).execute();
   await assert.rejects(runner.run(user.id, user.defaultWorkspaceId, job), error => {
     assert.equal(errorReply(error).status, 403);
@@ -315,6 +317,7 @@ test('inline cancellation and shutdown await the actual memory snapshot release'
   const operations = createTransactionRunner(c, db => ({
     ...entryTimerFactory('sqlite')(db),
     ...createReportRepositories(db, 'sqlite'),
+    ...createTransferRepositories(db, 'sqlite'),
   }));
   const user = await operations.transaction(r => r.users.createAccount(entryAccount('held')));
   let entered!: () => void, release!: () => void;
@@ -324,8 +327,8 @@ test('inline cancellation and shutdown await the actual memory snapshot release'
   const gate = new Promise<void>(resolve => {
     release = resolve;
   });
-  const source = {
-    readSnapshot<T>(work: (r: ReportRepositories) => Promise<T>): Promise<T> {
+  const source: JobSource = {
+    readSnapshot(work) {
       return operations.readSnapshot(async r => {
         const result = await work(r);
         entered();

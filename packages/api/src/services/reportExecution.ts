@@ -6,31 +6,36 @@
 import { Worker } from 'node:worker_threads';
 import type { StorageConfig } from '../storage/config.ts';
 import { reportRunsInline } from '../storage/repositories/report-reader.ts';
-import { ApplicationError, type FailureKind } from '../lib/errors.ts';
+import { ApplicationError, RequestCancelled, type FailureKind } from '../lib/errors.ts';
 import { redactedDiagnostic, type ErrorDiagnostic, type Logger } from '../lib/logger.ts';
-import type { AccountExportProjection } from '../storage/domain.ts';
-import type { ReportSource } from './reports.ts';
-import {
-  formatExportJob,
-  runReportJob,
-  type ExportAssemblyJob,
-  type JobResult,
-  type ReportJobWork,
-} from './reportJobs.ts';
+import type { ReportRepositories } from './reports.ts';
+import { runExportJob, type ExportEmitter, type ExportJobWork, type ExportRepositories } from './exportJobs.ts';
+import { runReportJob, type JobResult, type ReportJobWork } from './reportJobs.ts';
 
-export type ReportWork = ReportJobWork | { data: AccountExportProjection; assembly: ExportAssemblyJob };
+/** A report, answered whole, or an export, written a piece at a time to the job's `output`. */
+export type ReportWork = ReportJobWork | ExportJobWork;
+
+/** What the inline execution reads: everything a report or an export job reads. */
+export interface JobSource {
+  readSnapshot<T>(work: (repositories: ReportRepositories & ExportRepositories) => Promise<T>): Promise<T>;
+}
 
 /** One job as an execution receives it: the runner's id for it and what to run. */
 export interface ExecutionJob {
   id: number;
   work: ReportWork;
+  /** Where an export's pieces go, in order. Each resolves once the next may follow. */
+  output?: ExportEmitter;
 }
 
 export type ReportPhase = 'reading' | 'formatting';
 
 /** What an execution tells the runner. */
 export interface ExecutionEvents {
-  /** The job `id` ended with `result`, or with `error`, a message safe to show the client. */
+  /**
+   * The job `id` ended with `result`, or with `error`, a message safe to show the client. An export
+   * ends without a result, once its last piece went to `output` and every piece was taken.
+   */
   settled(id: number, result?: JobResult, error?: Error): void;
   /** The execution can take a job, after it started, stopped or finished one. */
   available(): void;
@@ -64,6 +69,9 @@ interface Reply {
   id?: number;
   ready?: boolean;
   phase?: ReportPhase;
+  /** One piece of an export's output and its size in UTF-8 bytes, which the reply acknowledges. */
+  chunk?: string;
+  bytes?: number;
   result?: JobResult;
   /** An application failure keeps its kind and message; anything else arrives without a kind. */
   error?: { kind?: FailureKind; message: string; retryAfterSeconds?: number };
@@ -86,14 +94,14 @@ const WORKER_DEADLINE_MS = 30000;
 /** Runs jobs on the application's own connection. Used for in-memory SQLite, which a worker cannot open. */
 class InlineExecution implements ReportExecution {
   readonly worker = null;
-  private readonly source: ReportSource;
+  private readonly source: JobSource;
   private readonly events: ExecutionEvents;
   private readonly logger: Logger;
   private current: ExecutionJob | undefined;
   /** The running job, until its snapshot is released, even after it was cancelled. */
   private work: Promise<void> | undefined;
 
-  constructor(source: ReportSource, events: ExecutionEvents, logger: Logger) {
+  constructor(source: JobSource, events: ExecutionEvents, logger: Logger) {
     this.source = source;
     this.events = events;
     this.logger = logger;
@@ -104,9 +112,12 @@ class InlineExecution implements ReportExecution {
   run(job: ExecutionJob): void {
     this.current = job;
     const { work } = job;
-    const build =
+    // A cancelled export stops at its next piece, which releases the snapshot.
+    const output: ExportEmitter = chunk =>
+      this.current === job ? job.output!(chunk) : Promise.reject(new RequestCancelled('Report cancelled'));
+    const build: Promise<JobResult | undefined> =
       'assembly' in work
-        ? Promise.resolve().then(() => formatExportJob(work.data, work.assembly))
+        ? runExportJob(this.source, work, output).then(() => undefined)
         : runReportJob(this.source, work);
     this.work = build
       .then(result => {
@@ -211,6 +222,14 @@ class WorkerExecution implements ReportExecution {
     }
     const job = this.current;
     if (!job || message.id !== job.id) return;
+    if (message.chunk !== undefined) {
+      const { id, bytes } = message;
+      // The worker sends more only once the output took what it had sent.
+      void job.output!(message.chunk).then(() => {
+        if (this.worker === worker && this.current === job) worker.postMessage({ ack: { id, bytes } });
+      });
+      return;
+    }
     if (message.phase) {
       try {
         this.options.onPhase?.(message.phase);
@@ -274,7 +293,7 @@ class WorkerExecution implements ReportExecution {
 /** The execution for `config`: inline for in-memory SQLite, a worker for everything else. */
 export function createReportExecution(
   config: StorageConfig,
-  inline: ReportSource,
+  inline: JobSource,
   events: ExecutionEvents,
   options: ReportExecutionOptions,
 ): ReportExecution {

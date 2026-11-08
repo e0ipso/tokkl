@@ -100,6 +100,8 @@ Startup checks the selected engine version, acquires migration ownership, initia
 
 Settings → Data exports the signed-in account's accessible workspace data. JSON restore maps records into the importing account's default workspace, skips duplicates and reports records it cannot import. It preserves imported entry times. It does not restore credentials, API tokens, sessions, invites, instance settings or all accounts. It is not a lossless instance migration between database engines.
 
+Exports take a place in the report queue like a report, so a full queue answers 503 with `Retry-After`. The download streams: the server reads and writes the entries a batch at a time and keeps at most about 1 MB ahead of what the client has read. A client that reads nothing for 30 seconds is disconnected. A failure after the download started cuts the connection, so a partial file is never presented as complete.
+
 For a full instance backup, stop the application and use your database's consistent backup procedure. With SQLite, retain the database and any `-wal`/`-shm` files as one consistent set; copying only a live main file can omit committed data. With server engines, preserve the database using the engine's backup/restore tooling and retain deployment configuration and secrets separately. Restore a full backup into the same backend and a compatible schema before starting the application. Test recovery on a disposable deployment.
 
 ## Upgrading

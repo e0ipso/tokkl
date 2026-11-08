@@ -98,6 +98,29 @@ async function details(
     task: r.task_name === null ? null : { name: r.task_name, active: booleanValue(r.task_active) },
   }));
 }
+/**
+ * Up to `limit` of the user's live entries after `after`, newest or oldest first by start, then id.
+ * Newest first is the order `entries.list` answers in.
+ */
+export async function liveEntryPage(
+  db: Kysely<PhysicalDatabase>,
+  userId: number,
+  newestFirst: boolean,
+  after: { start: string; id: number } | undefined,
+  limit: number,
+): Promise<EntryDetails[]> {
+  const direction = newestFirst ? 'desc' : 'asc';
+  const beyond = newestFirst ? '<' : '>';
+  let q = entryDetailsQuery(db).where('e.user_id', '=', userId).where('e.deleted_at', 'is', null);
+  if (after)
+    q = q.where(eb =>
+      eb.or([
+        eb('e.start', beyond, after.start),
+        eb.and([eb('e.start', '=', after.start), eb('e.id', beyond, after.id)]),
+      ]),
+    );
+  return details(db, await q.orderBy('e.start', direction).orderBy('e.id', direction).limit(limit).execute());
+}
 async function write<T>(work: () => Promise<T>): Promise<T> {
   try {
     return await work();

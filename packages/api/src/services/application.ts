@@ -27,7 +27,7 @@ import { createTimerOperations } from '../domain/timers.ts';
 import { forbidden } from '../lib/errors.ts';
 import { silentLogger, type Logger } from '../lib/logger.ts';
 import { createImportOperations } from './importJson.ts';
-import type { ExportAssemblyJob, JobResult } from './reportJobs.ts';
+import type { ExportAssemblyJob, ExportEmitter } from './exportJobs.ts';
 import type { ReportExecutor } from './reportRunner.ts';
 import { createCatalogOperations } from './catalogOperations.ts';
 import { createEntryOperations } from './entryOperations.ts';
@@ -135,18 +135,20 @@ export function createApplicationServices({
     },
     readFor,
     /**
-     * Takes a place in the report queue, reads the signed-in account's export in one snapshot, then
-     * formats it on the report runner. A full queue or a cancelled request reads nothing.
+     * Takes a place in the report queue, then writes the signed-in account's export to `output` on
+     * the report runner, a batch of entries at a time, after checking the credential in the export's
+     * own snapshot. A full queue or a cancelled request reads nothing.
      */
     exportAccount(
       authentication: Authentication,
       assembly: ExportAssemblyJob,
+      output: ExportEmitter,
       options: { signal?: AbortSignal } = {},
-    ): Promise<JobResult> {
-      return reports.reserve({ userId: authentication.user.id, signal: options.signal }, async slot => {
-        const data = await readFor(authentication, queries => queries.accountExport(authentication.user.id));
-        return slot.assembleExport(data, assembly);
-      });
+    ): Promise<void> {
+      const userId = authentication.user.id;
+      return reports.reserve({ userId, signal: options.signal }, slot =>
+        slot.export(userId, assembly, output, { authentication }),
+      );
     },
     accountsFor: (authentication: Authentication): SignedInAccountOperations =>
       boundAccountOperations(

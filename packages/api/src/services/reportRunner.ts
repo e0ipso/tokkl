@@ -1,13 +1,13 @@
 import type { StorageConfig } from '../storage/config.ts';
 import { RequestCancelled, unavailable } from '../lib/errors.ts';
 import { silentLogger, type Logger } from '../lib/logger.ts';
-import type { ReportSource } from './reports.ts';
-import type { AccountExportProjection, User } from '../storage/domain.ts';
 import type { Authentication } from '../domain/credentials.ts';
-import type { ExportAssemblyJob, JobResult, ReportJob } from './reportJobs.ts';
+import type { ExportAssemblyJob, ExportEmitter } from './exportJobs.ts';
+import type { JobResult, ReportJob } from './reportJobs.ts';
 import {
   createReportExecution,
   type ExecutionJob,
+  type JobSource,
   type ReportExecution,
   type ReportPhase,
   type ReportWork,
@@ -35,7 +35,8 @@ export interface ReportRunnerOptions {
 interface Pending extends ExecutionJob {
   /** The account whose place this is. */
   userId: number;
-  resolve(result: JobResult): void;
+  /** A report's result; an export settles without one. */
+  resolve(result: JobResult | undefined): void;
   reject(error: Error): void;
   dispose(): void;
 }
@@ -47,7 +48,16 @@ export interface ReportSlot {
     job: ReportJob,
     options?: { authentication?: Authentication },
   ): Promise<JobResult>;
-  assembleExport(data: AccountExportProjection, assembly: ExportAssemblyJob): Promise<JobResult>;
+  /**
+   * Writes `userId`'s export to `output` a piece at a time, reading it in the job's own snapshot.
+   * Settles once the last piece was taken.
+   */
+  export(
+    userId: number,
+    assembly: ExportAssemblyJob,
+    output: ExportEmitter,
+    options?: { authentication?: Authentication },
+  ): Promise<void>;
 }
 
 /** Whose place a reservation is, and the request that may cancel it. */
@@ -58,7 +68,7 @@ export interface ReportReservation {
 
 /**
  * What the application needs from a report runner: reserve a place, queue a report or an export
- * assembly in it, and shut down. The composition root builds the runner and hands this to the
+ * in it, and shut down. The composition root builds the runner and hands this to the
  * application services.
  */
 export interface ReportExecutor {
@@ -71,15 +81,6 @@ export interface ReportExecutor {
   reserve<T>(options: ReportReservation, work: (slot: ReportSlot) => Promise<T>): Promise<T>;
   /** Fails every queued job and stops the worker. */
   close(): Promise<void>;
-}
-
-/** The export without the password hash and API token, which the worker never needs. */
-function credentialFree(data: AccountExportProjection): AccountExportProjection {
-  // Structural typing permits a full User where the credential-free view was expected.
-  const projection = { ...data, user: { ...data.user } };
-  delete (projection.user as Partial<User>).passwordHash;
-  delete (projection.user as Partial<User>).apiToken;
-  return projection;
 }
 
 /**
@@ -104,7 +105,8 @@ export class ReportRunner implements ReportExecutor {
   private closed = false;
   private closing: Promise<void> | undefined;
 
-  constructor(config: StorageConfig, inline: ReportSource, options: ReportRunnerOptions = {}) {
+  /** `inline` runs the jobs when the database is in-memory SQLite, which a worker cannot open. */
+  constructor(config: StorageConfig, inline: JobSource, options: ReportRunnerOptions = {}) {
     this.maxQueue = options.maxQueue ?? DEFAULT_MAX_QUEUE;
     if (!Number.isSafeInteger(this.maxQueue) || this.maxQueue < 1 || this.maxQueue > MAX_QUEUE_LIMIT)
       throw new Error('Invalid report queue limit');
@@ -136,12 +138,13 @@ export class ReportRunner implements ReportExecutor {
   ): Promise<JobResult> {
     return this.reserve({ userId, signal: options.signal }, slot => slot.run(userId, workspaceId, job, options));
   }
-  assembleExport(
-    data: AccountExportProjection,
+  export(
+    userId: number,
     assembly: ExportAssemblyJob,
-    options: { signal?: AbortSignal } = {},
-  ): Promise<JobResult> {
-    return this.reserve({ userId: data.user.id, signal: options.signal }, slot => slot.assembleExport(data, assembly));
+    output: ExportEmitter,
+    options: { signal?: AbortSignal; authentication?: Authentication } = {},
+  ): Promise<void> {
+    return this.reserve({ userId, signal: options.signal }, slot => slot.export(userId, assembly, output, options));
   }
   async reserve<T>(options: ReportReservation, work: (slot: ReportSlot) => Promise<T>): Promise<T> {
     const { userId } = options;
@@ -160,19 +163,21 @@ export class ReportRunner implements ReportExecutor {
       return true;
     };
     /** Turns the reservation into a queued job; `build` runs only once the request still stands. */
-    const submit = (build: () => ReportWork): Promise<JobResult> => {
+    const submit = (work: ReportWork, output?: ExportEmitter): Promise<JobResult | undefined> => {
       if (!release()) return Promise.reject(new Error('A report slot queues one job'));
       try {
         this.refuse(options.signal);
-        return this.enqueue(userId, build(), options.signal);
+        return this.enqueue(userId, work, output, options.signal);
       } catch (error) {
         return Promise.reject(error);
       }
     };
     const slot: ReportSlot = {
+      // A report always settles with its result.
       run: (userId, workspaceId, job, { authentication } = {}) =>
-        submit(() => ({ userId, workspaceId, job, authentication })),
-      assembleExport: (data, assembly) => submit(() => ({ data: credentialFree(data), assembly })),
+        submit({ userId, workspaceId, job, authentication }) as Promise<JobResult>,
+      export: (userId, assembly, output, { authentication } = {}) =>
+        submit({ userId, assembly, authentication }, output).then(() => {}),
     };
     try {
       return await work(slot);
@@ -212,13 +217,19 @@ export class ReportRunner implements ReportExecutor {
     return p!;
   }
   /** Queues `work` in a place `userId` reserved. */
-  private enqueue(userId: number, work: ReportWork, signal: AbortSignal | undefined): Promise<JobResult> {
+  private enqueue(
+    userId: number,
+    work: ReportWork,
+    output: ExportEmitter | undefined,
+    signal: AbortSignal | undefined,
+  ): Promise<JobResult | undefined> {
     const options = { signal };
     return new Promise((resolve, reject) => {
       const pending: Pending = {
         id: this.nextId++,
         userId,
         work: structuredClone(work),
+        output,
         resolve,
         reject,
         dispose: () => options.signal?.removeEventListener('abort', abort),
@@ -253,7 +264,7 @@ export class ReportRunner implements ReportExecutor {
     this.forgetIdle(p.userId);
     p.dispose();
     if (error) p.reject(error);
-    else p.resolve(result!);
+    else p.resolve(result);
     this.pump();
   }
   /** Fails the running job and every queued one. Reserved places stay with their callers. */

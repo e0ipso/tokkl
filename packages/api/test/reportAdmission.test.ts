@@ -12,7 +12,7 @@ import { appReportRoutes, reportsV3Routes } from '../src/routes/reports.ts';
 import type { Deps } from '../src/routes/context.ts';
 import { createApplicationServices } from '../src/services/application.ts';
 import { ReportRunner } from '../src/services/reportRunner.ts';
-import type { ReportSource } from '../src/services/reports.ts';
+import type { JobSource } from '../src/services/reportExecution.ts';
 import type { Storage } from '../src/storage/contracts.ts';
 
 const INLINE = { backend: 'sqlite' as const, filename: ':memory:', busyTimeoutMs: 5000 };
@@ -29,7 +29,7 @@ const WEEKLY = {
 function fullRunner(t: TestContext): ReportRunner {
   let release!: () => void;
   const held = new Promise<void>(resolve => (release = resolve));
-  const source: ReportSource = {
+  const source: JobSource = {
     readSnapshot: async () => {
       await held;
       throw new Error('released');
@@ -78,7 +78,11 @@ test('a full report queue refuses an account export before reading it', async t 
     authMethod: 'basic',
   };
   await assert.rejects(
-    services.exportAccount(authentication, { kind: 'export-json', exportedAt: '2026-01-01T00:00:00Z', filename: 'x' }),
+    services.exportAccount(
+      authentication,
+      { kind: 'export-json', exportedAt: '2026-01-01T00:00:00Z', filename: 'x' },
+      async () => {},
+    ),
     error =>
       error instanceof ApplicationError &&
       error.kind === 'unavailable' &&
@@ -105,6 +109,7 @@ test('a cancelled account export reads nothing', async t => {
     services.exportAccount(
       { user, credential: { kind: 'api-token', token: user.apiToken }, authMethod: 'basic' },
       { kind: 'export-json', exportedAt: '2026-01-01T00:00:00Z', filename: 'x' },
+      async () => {},
       { signal: AbortSignal.abort() },
     ),
     error => error instanceof RequestCancelled,
@@ -188,7 +193,7 @@ test('a reserved place counts toward the queue limit until its holder queues a j
 function gatedSource() {
   const order: number[] = [];
   const gates: Array<() => void> = [];
-  const source: ReportSource = {
+  const source: JobSource = {
     readSnapshot: work =>
       work({
         users: {
@@ -260,7 +265,7 @@ test('queued reports take turns between accounts', async t => {
 });
 
 test('the per-account share must fit the queue', () => {
-  const source: ReportSource = { readSnapshot: () => Promise.reject(new Error('unused')) };
+  const source: JobSource = { readSnapshot: () => Promise.reject(new Error('unused')) };
   for (const maxPerUser of [0, 1.5, 17])
     assert.throws(() => new ReportRunner(INLINE, source, { maxQueue: 16, maxPerUser }), /Invalid report share/);
 });
