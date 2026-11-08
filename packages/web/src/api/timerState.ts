@@ -1,4 +1,4 @@
-import type { Mutation, QueryClient } from '@tanstack/react-query';
+import { onlineManager, type Mutation, type QueryClient } from '@tanstack/react-query';
 import { ApiError, RequestTimeoutError, UnparsableReplyError } from './client.ts';
 import { DecodeError } from './decode.ts';
 import { timerStateReply } from './replies.ts';
@@ -146,6 +146,15 @@ function isPendingTimerWrite(mutation: Mutation<unknown, Error, unknown, unknown
 }
 
 /**
+ * Whether a paused write is held until the browser is back online. A write can also be paused
+ * while it waits for its turn in its scope, such as a second edit of one entry (`entryScope` in
+ * entries.ts); that one goes out once the write before it settles, so it is waited for.
+ */
+function isHeldForConnection(mutation: Mutation<unknown, Error, unknown, unknown>): boolean {
+  return mutation.state.isPaused && mutation.options.networkMode !== 'always' && !onlineManager.isOnline();
+}
+
+/**
  * Waits until no write marked `MOVES_TIMER` is in flight, and says whether it had to wait. An edit
  * of the running entry moves the revision, so an action that reads the revision while that edit is
  * pending would send a stale one and conflict with this tab's own edit. Such a write held until the
@@ -155,7 +164,7 @@ function isPendingTimerWrite(mutation: Mutation<unknown, Error, unknown, unknown
 export function settleOtherWrites(qc: QueryClient): Promise<boolean> {
   const cache = qc.getMutationCache();
   const others = () => cache.getAll().filter(isPendingTimerWrite);
-  const held = () => others().some(mutation => mutation.state.isPaused);
+  const held = () => others().some(isHeldForConnection);
   if (held()) return Promise.reject(new TimerActionError('offline'));
   if (others().length === 0) return Promise.resolve(false);
   return new Promise((resolve, reject) => {

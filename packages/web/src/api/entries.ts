@@ -1,4 +1,5 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMemo } from 'react';
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useWid } from './account.ts';
 import { api } from './client.ts';
 import { coversPreviousRange } from './entriesPlaceholder.ts';
@@ -76,30 +77,69 @@ export function useCreateEntry() {
   });
 }
 
-export function useUpdateEntry() {
-  const wid = useWid();
-  const onSuccess = useInvalidateEntries();
-  return useMutation({
-    meta: MOVES_TIMER,
-    mutationFn: ({ id, ...input }: TimeEntryInput & { id: number }) => entryRequests.update(wid, id, input),
-    onSuccess,
-  });
-}
+/** An edit of one entry: its id and the fields that change. */
+export type EntryUpdate = TimeEntryInput & { id: number };
 
 /**
- * Saves an edit of the running entry. It is a timer write (`timerWrite` in timerHooks.ts): after
- * one whose outcome is unknown, the timer state is read before it goes out.
+ * The mutation scope of writes to entry `id`. TanStack sends the writes in one scope one at a time,
+ * in the order made, as it does preference saves, so two quick edits of one entry cannot land out
+ * of order. Edits of different entries still go out together.
  */
-export function useUpdateRunningEntry() {
+export const entryScope = (id: number) => ({ id: `entry:${id}` });
+
+/**
+ * Sends an edit of entry `update.id` in that entry's scope (`entryScope`). `running` marks an edit
+ * of the running entry, which is a timer write (`timerWrite` in timerHooks.ts): after one whose
+ * outcome is unknown, the timer state is read before it goes out. A scope is fixed per mutation,
+ * so each edit builds its own mutation instead of sharing one `useMutation`.
+ */
+export function updateEntry(
+  qc: QueryClient,
+  wid: number,
+  { id, ...input }: EntryUpdate,
+  { running = false }: { running?: boolean } = {},
+): Promise<TimeEntry> {
+  const send = () => entryRequests.update(wid, id, input);
+  return qc
+    .getMutationCache()
+    .build(qc, {
+      meta: MOVES_TIMER,
+      scope: entryScope(id),
+      mutationFn: () => (running ? timerWrite(qc, send) : send()),
+      onSuccess: () => invalidate(qc, stale.entries),
+    })
+    .execute(undefined);
+}
+
+/** What the entry edit hooks return: `mutate` reports a failure to `onError` only. */
+export interface EntryUpdater {
+  mutate(update: EntryUpdate, options?: { onError?: (error: Error) => void }): void;
+  mutateAsync(update: EntryUpdate): Promise<TimeEntry>;
+}
+
+function useEntryUpdater(running: boolean): EntryUpdater {
   const qc = useQueryClient();
   const wid = useWid();
-  const onSuccess = useInvalidateEntries();
-  return useMutation({
-    meta: MOVES_TIMER,
-    mutationFn: ({ id, ...input }: TimeEntryInput & { id: number }) =>
-      timerWrite(qc, () => entryRequests.update(wid, id, input)),
-    onSuccess,
-  });
+  return useMemo(() => {
+    const mutateAsync = (update: EntryUpdate) => updateEntry(qc, wid, update, { running });
+    return {
+      mutateAsync,
+      mutate: (update, options) =>
+        void mutateAsync(update).catch((error: unknown) =>
+          options?.onError?.(error instanceof Error ? error : new Error(String(error))),
+        ),
+    };
+  }, [qc, wid, running]);
+}
+
+/** Saves an edit of an entry, in order with the other edits of that entry (`updateEntry`). */
+export function useUpdateEntry(): EntryUpdater {
+  return useEntryUpdater(false);
+}
+
+/** Saves an edit of the running entry, in order with the other edits of it, as a timer write. */
+export function useUpdateRunningEntry(): EntryUpdater {
+  return useEntryUpdater(true);
 }
 
 /**
