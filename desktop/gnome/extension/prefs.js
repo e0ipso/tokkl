@@ -14,6 +14,7 @@ import Gtk from 'gi://Gtk';
 
 import { ExtensionPreferences, gettext as _ } from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
+import { isInsecureUrl } from './instanceurl.js';
 import { lengthLimits } from './legacylimits.js';
 import { AUTH_MODES, describeStatus } from './timer1.js';
 import { cachedProperty, createTimer1Proxy, serviceRunning } from './timer1proxy.js';
@@ -300,6 +301,19 @@ class ConnectionGroup {
         });
         this.group.add(this._url);
 
+        // The warning the KDE and macOS settings give for a plain-http
+        // address, in the same words.
+        this._insecure = new Adw.ActionRow({
+            title: _('This address uses plain http. Your token or password would be sent unencrypted.'),
+            title_lines: 0,
+            use_markup: false,
+            css_classes: ['warning'],
+        });
+        this._insecure.add_prefix(new Gtk.Image({ icon_name: 'dialog-warning-symbolic' }));
+        this.group.add(this._insecure);
+        this._url.connect('changed', () => this._syncInsecure());
+        this._syncInsecure();
+
         this._modes = new Adw.ComboRow({
             title: _('Sign in with'),
             model: Gtk.StringList.new([_('API token'), _('Email and password')]),
@@ -348,6 +362,10 @@ class ConnectionGroup {
         const password = AUTH_MODES[this._modes.selected] === 'password';
         this._email.visible = password;
         this._secret.title = password ? _('Password') : _('API token');
+    }
+
+    _syncInsecure() {
+        this._insecure.visible = isInsecureUrl(this._url.text);
     }
 
     _identity() {

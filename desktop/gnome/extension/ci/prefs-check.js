@@ -129,6 +129,7 @@ async function openWindow() {
         email: row(Adw.EntryRow, 'Email'),
         secret: widgets.find(widget => widget instanceof Adw.PasswordEntryRow),
         status: row(Adw.ActionRow, 'Timer service'),
+        insecure: row(Adw.ActionRow, 'This address uses plain http. Your token or password would be sent unencrypted.'),
         monochrome: row(Adw.SwitchRow, 'Use a monochrome panel icon'),
         connect: widgets.find(widget => widget instanceof Gtk.Button && widget.label === 'Connect'),
     };
@@ -246,6 +247,16 @@ await step('a replaced configuration keeps the saved settings', async () => {
     await answered();
     if (settings.get_string('instance-url') !== 'https://tokkl.example.com')
         throw new Error(`instance-url changed to ${settings.get_string('instance-url')}`);
+});
+
+await step('a plain-http address shows the warning the other settings show', async () => {
+    const shown = url => {
+        form.url.text = url;
+        return form.insecure.visible;
+    };
+    if (!shown('http://tokkl.example.com')) throw new Error('no warning for plain http');
+    if (shown('http://localhost:8080')) throw new Error('a warning for localhost');
+    if (shown('https://tokkl.example.com')) throw new Error('a warning for https');
 });
 
 await step('the form opens with the last accepted values', async () => {

@@ -1418,13 +1418,34 @@ private Q_SLOTS:
         QVERIFY(finished.count() > 0);
     }
 
+    // The cases of insecureurls.json, which the GNOME extension's rule
+    // follows too.
+    void setupFlagsPlainHttp_data()
+    {
+        QTest::addColumn<QString>("url");
+        QTest::addColumn<bool>("insecure");
+        QFile file(QStringLiteral(TOKKL_INSECURE_URLS));
+        QVERIFY(file.open(QIODevice::ReadOnly));
+        const QJsonArray cases = QJsonDocument::fromJson(file.readAll()).object().value(QStringLiteral("cases")).toArray();
+        QVERIFY(cases.size() > 10);
+        for (const QJsonValue &value : cases) {
+            const QJsonObject item = value.toObject();
+            const QString url = item.value(QStringLiteral("url")).toString();
+            QTest::newRow(qPrintable(url.isEmpty() ? QStringLiteral("(empty)") : url)) << url << item.value(QStringLiteral("insecure")).toBool();
+        }
+    }
+
     void setupFlagsPlainHttp()
     {
+        QFETCH(QString, url);
+        QFETCH(bool, insecure);
         ConnectionSetup setup(nullptr, nullptr);
-        QVERIFY(setup.isInsecure(QStringLiteral("http://tokkl.example.test")));
-        QVERIFY(!setup.isInsecure(QStringLiteral("https://tokkl.example.test")));
-        QVERIFY(!setup.isInsecure(QStringLiteral("http://localhost:8080")));
-        QVERIFY(!setup.isInsecure(QStringLiteral("http://127.0.0.1:8080")));
+        QCOMPARE(setup.isInsecure(url), insecure);
+    }
+
+    void setupRefusesUserInfo()
+    {
+        ConnectionSetup setup(nullptr, nullptr);
         QVERIFY(setup.urlError(QStringLiteral("https://u:p@example.test")).contains(QLatin1String("user name")));
         QCOMPARE(setup.urlError(instance), QString());
     }
