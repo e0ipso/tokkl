@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { setImmediate } from 'node:timers/promises';
+import type { UsersRepository } from '../../src/storage/contracts.ts';
 import type { ReportRepositories } from '../../src/services/reports.ts';
 import { mkdtempSync, existsSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
@@ -76,7 +77,9 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
           formatReportJob(await collectReport(reader, user.id, wid, job.filter), job),
           formatReportJob(await collectReport(operations, user.id, wid, job.filter), job),
         );
-        await assert.rejects(reader.readSnapshot(r => r.users.updateAccount(user.id, { fullName: 'forbidden' })));
+        await assert.rejects(
+          reader.readSnapshot(r => (r.users as UsersRepository).updateAccount(user.id, { fullName: 'forbidden' })),
+        );
       } finally {
         await reader.close();
       }

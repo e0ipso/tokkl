@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test, type TestContext } from 'node:test';
 import type { Worker } from 'node:worker_threads';
-import type { Repositories, Storage } from '../../src/storage/contracts.ts';
+import type { ReadOnlyRepositories, Storage } from '../../src/storage/contracts.ts';
 import type { Backend } from '../../src/storage/config.ts';
 import { createStorage } from '../../src/storage/index.ts';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
@@ -23,7 +23,7 @@ function holdAuthentication(t: TestContext, storage: Storage, token: string) {
   const mock = t.mock.method(
     storage,
     'readSnapshot',
-    async <T>(work: (repositories: Repositories) => Promise<T>): Promise<T> => {
+    async <T>(work: (repositories: ReadOnlyRepositories) => Promise<T>): Promise<T> => {
       const result = await snapshot(work);
       if (!held && result && typeof result === 'object' && 'apiToken' in result && result.apiToken === token) {
         held = true;

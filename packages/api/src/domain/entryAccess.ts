@@ -1,5 +1,5 @@
 /** Reading one user's entries and taking the guards every entry write needs, in a fixed order. */
-import type { EntriesReader, OperationContext, Repositories } from '../storage/contracts.ts';
+import type { EntriesReader, OperationContext, ReadersOf, Repositories } from '../storage/contracts.ts';
 import type { EntryDetails, Id, User } from '../storage/domain.ts';
 import { StorageConflict } from '../storage/errors.ts';
 import { notFound } from '../lib/errors.ts';
@@ -11,6 +11,8 @@ export type EntryRepositories = Pick<
   'users' | 'workspaces' | 'settings' | 'clients' | 'projects' | 'tasks' | 'tags' | 'entries' | 'timers'
 >;
 export type EntryContext = OperationContext<EntryRepositories>;
+/** The reads a read-only snapshot gives an entry or timer operation. */
+export type EntryReaders = ReadersOf<EntryRepositories>;
 
 export async function getTimeEntry(
   ctx: { entries: Pick<EntriesReader, 'get'> },

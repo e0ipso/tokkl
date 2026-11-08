@@ -1,6 +1,6 @@
 import type { StorageConnection } from './connections.ts';
 import type { PhysicalDatabase } from './physical.ts';
-import type { RateLimitsRepository, Repositories, Storage, TransactionContext } from './contracts.ts';
+import type { RateLimitsRepository, ReadOnlyRepositories, Storage, TransactionContext } from './contracts.ts';
 import { createTransactionRunner } from './transactions.ts';
 import { createAccountRepositories } from './repositories/accounts.ts';
 import { createCatalogRepositories } from './repositories/catalogs.ts';
@@ -35,7 +35,7 @@ export function createStorage(connection: StorageConnection<PhysicalDatabase>): 
     transaction<T>(work: (ctx: TransactionContext) => Promise<T>, options?: { dryRun?: boolean }): Promise<T> {
       return track(() => operations.transaction(work, options));
     },
-    readSnapshot<T>(work: (repositories: Repositories) => Promise<T>): Promise<T> {
+    readSnapshot<T>(work: (repositories: ReadOnlyRepositories) => Promise<T>): Promise<T> {
       return track(() => operations.readSnapshot(work));
     },
   };

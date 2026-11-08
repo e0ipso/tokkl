@@ -36,7 +36,8 @@ function shortcuts<R extends keyof Repositories>(storage: Storage, name: R): Rep
         (repositories[name][method as keyof Repositories[R]] as (...args: unknown[]) => Promise<unknown>)(...args);
       return (...args: unknown[]) =>
         reads.includes(method)
-          ? storage.readSnapshot(repositories => call(repositories, args))
+          ? // READS names reader methods only, which every snapshot repository has.
+            storage.readSnapshot(repositories => call(repositories as Repositories, args))
           : storage.transaction(ctx => call(ctx, args));
     },
   });

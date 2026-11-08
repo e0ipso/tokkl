@@ -7,6 +7,7 @@ import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { sql } from 'kysely';
 import { Worker } from 'node:worker_threads';
+import type { UsersRepository } from '../../src/storage/contracts.ts';
 import type { ServerConfig } from '../../src/storage/config.ts';
 import { initializeDatabase, validateEngine } from '../../src/storage/migrations.ts';
 import { openConnection } from '../../src/storage/connections.ts';
@@ -114,7 +115,9 @@ for (const backend of ['postgres', 'mysql', 'mariadb'] as const) {
           formatReportJob(await collectReport(reader, user.id, user.defaultWorkspaceId, job.filter), job),
           expected,
         );
-        await assert.rejects(reader.readSnapshot(ctx => ctx.users.updateAccount(user.id, { fullName: 'forbidden' })));
+        await assert.rejects(
+          reader.readSnapshot(ctx => (ctx.users as UsersRepository).updateAccount(user.id, { fullName: 'forbidden' })),
+        );
       } finally {
         await reader.close();
       }

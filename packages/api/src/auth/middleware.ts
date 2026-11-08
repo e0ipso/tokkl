@@ -9,7 +9,7 @@ import {
   unchangedActive,
 } from '../domain/credentials.ts';
 import type { User } from '../storage/domain.ts';
-import type { Repositories } from '../storage/contracts.ts';
+import type { UsersReader } from '../storage/contracts.ts';
 import { clientAddress, getCookie } from '../http/request.ts';
 import { forbidden, tooManyAttempts } from '../lib/errors.ts';
 import { safeEqual, verifyAgainstDummy, verifyPassword } from '../lib/crypto.ts';
@@ -69,7 +69,7 @@ export async function authenticatePassword<R extends AccountRepositories>(
   if (!seen || !result.valid) return;
   return runner.readSnapshot(ctx => currentActiveUser(ctx, seen));
 }
-async function currentActiveUser(ctx: Pick<Repositories, 'users'>, seen: User): Promise<User | undefined> {
+async function currentActiveUser(ctx: { users: Pick<UsersReader, 'get'> }, seen: User): Promise<User | undefined> {
   const current = await ctx.users.get(seen.id);
   return unchangedActive(current, seen) ? current : undefined;
 }

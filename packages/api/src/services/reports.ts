@@ -2,7 +2,7 @@ import { noWorkspaceAccess } from '../domain/membership.ts';
 import { forbidden } from '../lib/errors.ts';
 import { addDays, dateKey, startOfDay } from '@tokkl/common/time';
 import type { User, Workspace, ReportEntryProjection } from '../storage/domain.ts';
-import type { Repositories } from '../storage/contracts.ts';
+import type { ReadOnlyRepositories } from '../storage/contracts.ts';
 import { authenticatedUser, type Authentication } from '../domain/credentials.ts';
 import type { ReportFilter } from '../domain/reportCommands.ts';
 
@@ -37,7 +37,7 @@ function roundSeconds(seconds: number, mode: number, minutes: number): number {
   return Math.round(seconds / step) * step;
 }
 
-export type ReportRepositories = Pick<Repositories, 'users' | 'workspaces' | 'sessions' | 'reports'>;
+export type ReportRepositories = Pick<ReadOnlyRepositories, 'users' | 'workspaces' | 'sessions' | 'reports'>;
 export interface ReportSource {
   readSnapshot<T>(work: (repositories: ReportRepositories) => Promise<T>): Promise<T>;
 }

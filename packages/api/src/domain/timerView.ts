@@ -9,7 +9,7 @@ import {
   type SessionPhase,
   type TransitionKind,
 } from '@tokkl/common/pomodoroSession';
-import type { Repositories } from '../storage/contracts.ts';
+import type { TagsReader, TimersReader } from '../storage/contracts.ts';
 import type {
   DiscardedPomodoro,
   EntryDetails,
@@ -78,7 +78,7 @@ function pomodoroView(snapshot: TimerSnapshot): PomodoroView | null {
 
 /** The view of `snapshot`, or of the stored state when it is omitted. */
 export async function buildTimerView(
-  ctx: Pick<Repositories, 'timers' | 'tags'>,
+  ctx: { timers: Pick<TimersReader, 'read'>; tags: Pick<TagsReader, 'findByIds'> },
   user: User,
   at = new Date(),
   snapshot?: TimerSnapshot,

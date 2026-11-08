@@ -1,10 +1,10 @@
 import type { AccountRepositories, AccountRunner } from '../domain/accountGuards.ts';
 import { credentialHolds, type Authentication } from '../domain/credentials.ts';
-import type { Repositories } from '../storage/contracts.ts';
+import type { SessionsReader, UsersReader } from '../storage/contracts.ts';
 import type { StreamCredentialResult } from './timerStreams.ts';
 
 async function currentCredentialRevision(
-  ctx: Pick<Repositories, 'users' | 'sessions'>,
+  ctx: { users: Pick<UsersReader, 'getWithTimerRevision'>; sessions: Pick<SessionsReader, 'find'> },
   auth: Authentication,
 ): Promise<StreamCredentialResult> {
   const current = await ctx.users.getWithTimerRevision(auth.user.id);

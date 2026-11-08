@@ -323,6 +323,8 @@ export interface ReadOnlyRepositories {
   reports: ReportsRepository;
   transfers: TransfersRepository;
 }
+/** The reads of the repositories named in `R`: what a read-only snapshot over them may call. */
+export type ReadersOf<R> = Pick<ReadOnlyRepositories, Extract<keyof R, keyof ReadOnlyRepositories>>;
 export interface Repositories {
   users: UsersRepository;
   workspaces: WorkspacesRepository;
@@ -368,7 +370,7 @@ export type TransactionContext = OperationContext<Repositories>;
  */
 export interface Storage {
   transaction<T>(work: (context: TransactionContext) => Promise<T>, options?: { dryRun?: boolean }): Promise<T>;
-  readSnapshot<T>(work: (repositories: Repositories) => Promise<T>): Promise<T>;
+  readSnapshot<T>(work: (repositories: ReadOnlyRepositories) => Promise<T>): Promise<T>;
   health(): Promise<void>;
   close(): Promise<void>;
 }
