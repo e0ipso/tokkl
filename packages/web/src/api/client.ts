@@ -127,6 +127,11 @@ export interface RequestOptions<T> {
    * server is this app's own same-origin API and both sides compile against @tokkl/types.
    */
   decode?: Decoder<T>;
+  /**
+   * Sent as the `Idempotency-Key` header of a create, so a repeat of the same request with the same
+   * key answers the record the first one made instead of making another (see idempotency.ts).
+   */
+  idempotencyKey?: string;
 }
 
 declare const checked: unique symbol;
@@ -189,10 +194,17 @@ function encode(body: unknown): { payload?: BodyInit; contentType?: string } {
 }
 
 /** Sends one request and returns the reply, or throws an `ApiError` for a status outside 2xx. */
-async function send(method: Method, path: string, body: unknown, signal: AbortSignal): Promise<Response> {
+async function send(
+  method: Method,
+  path: string,
+  body: unknown,
+  signal: AbortSignal,
+  idempotencyKey?: string,
+): Promise<Response> {
   const { payload, contentType } = encode(body);
   const headers: Record<string, string> = { 'X-Tokkl-CSRF': '1' };
   if (contentType) headers['Content-Type'] = contentType;
+  if (idempotencyKey !== undefined) headers['Idempotency-Key'] = idempotencyKey;
   const response = await fetch(path, { method, headers, body: payload, credentials: 'same-origin', signal });
   if (!response.ok) throw await apiError(response, method, path);
   return response;
@@ -204,7 +216,7 @@ export function request<T>(method: Method, path: string, options?: RequestOption
 export async function request<T>(method: Method, path: string, options: RequestOptions<T> = {}): Promise<T> {
   const ms = DEADLINE_MS[requestKind(method, options.body, options.kind)];
   const text = await withDeadline(ms, { method, path }, options.signal, async signal => {
-    const response = await send(method, path, options.body, signal);
+    const response = await send(method, path, options.body, signal, options.idempotencyKey);
     return response.text();
   });
   const value = parseReply(text, method, path);

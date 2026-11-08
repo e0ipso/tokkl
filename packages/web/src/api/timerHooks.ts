@@ -1,5 +1,6 @@
 import { queryOptions, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { api } from './client.ts';
+import { postCreate } from './idempotency.ts';
 import { invalidate } from './invalidate.ts';
 import { keys, stale } from './keys.ts';
 import { getClockOffset, serverNow, setClockOffset } from './serverClock.ts';
@@ -185,6 +186,17 @@ async function postAction(
   );
 }
 
+/**
+ * A `postAction` that starts an entry, sent as a create with an `Idempotency-Key` (`postCreate` in
+ * idempotency.ts). A start whose reply was lost goes out again at once with the same body and key,
+ * and a start that did land answers the current state instead of starting a second entry.
+ */
+async function postStart(qc: QueryClient, path: string, body: () => Promise<Record<string, unknown>>) {
+  return attemptTimerRequest(qc, async () =>
+    acceptTimerState(qc, await postCreate(path, await body(), { decode: timerStateOf })),
+  );
+}
+
 function useRevisionAction(path: string) {
   const qc = useQueryClient();
   return useMutation<TimerState, Error, void>({
@@ -254,11 +266,12 @@ export interface StartTimerInput extends Pick<TimeEntryInput, 'description' | 'p
 /**
  * Starts the timer at the cached revision, and takes the reply into the caches. A running entry
  * stops at the new start, as Continue and favorites want, and a pause chain or Pomodoro session
- * ends. A start after a write that got no reply cannot add a second entry: if that write landed,
- * the revision moved, and the server answers with a conflict carrying its state.
+ * ends. A start whose reply was lost is sent again with its key (`postStart`). A start after
+ * another write that got no reply cannot add a second entry: if that write landed, the revision
+ * moved, and the server answers with a conflict carrying its state.
  */
 export async function startTimer(qc: QueryClient, input: StartTimerInput): Promise<TimerState> {
-  return postAction(qc, `${timerPath}/start`, async () => ({
+  return postStart(qc, `${timerPath}/start`, async () => ({
     created_with: 'tokkl-web',
     ...input,
     revision: await currentRevision(qc),
@@ -307,10 +320,11 @@ export interface StartPomodoroInput extends Pick<
 /**
  * Starts a Pomodoro session at the cached revision, and takes the reply into the caches. Fails with
  * the conflict message while another device runs one, and when the timer moved on since this tab
- * saw it; the conflict's state then replaces the cached one, as for Start.
+ * saw it; the conflict's state then replaces the cached one, as for Start. Like Start it carries an
+ * `Idempotency-Key` (`postStart`).
  */
 export async function startPomodoro(qc: QueryClient, input: StartPomodoroInput): Promise<TimerState> {
-  return postAction(qc, pomodoroPath, async () => ({
+  return postStart(qc, pomodoroPath, async () => ({
     created_with: 'tokkl-web',
     ...input,
     revision: await currentRevision(qc),

@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useWid } from './account.ts';
 import { api } from './client.ts';
+import { postCreate } from './idempotency.ts';
 import { keys } from './keys.ts';
 import { wsPath } from './paths.ts';
 import { clientListReply } from './replies.ts';
@@ -20,9 +21,12 @@ export interface ClientBody {
   notes?: string | null;
 }
 
-/** Client writes. Pass them to a mutation together with `stale.clients` or `stale.clientCreated`. */
+/**
+ * Client writes. Pass them to a mutation together with `stale.clients` or `stale.clientCreated`. A
+ * create carries an `Idempotency-Key` (`postCreate` in idempotency.ts).
+ */
 export const clientRequests = {
-  create: (wid: number, body: ClientBody) => api.post<Client>(wsPath(wid, 'clients'), body),
+  create: (wid: number, body: ClientBody) => postCreate<Client>(wsPath(wid, 'clients'), body),
   update: (wid: number, id: number, body: ClientBody) => api.put<Client>(wsPath(wid, 'clients', id), body),
   /** Archives the client and its projects. */
   archive: (wid: number, id: number) => api.post(wsPath(wid, 'clients', id, 'archive')),
