@@ -21,8 +21,9 @@ import type { BulkPatchResult, PatchOperation, TimeEntry, TimeEntryInput } from 
 export function useEntries(startDate: string, endDate: string) {
   return useQuery({
     queryKey: [...keys.entries, startDate, endDate],
-    queryFn: () =>
+    queryFn: ({ signal }) =>
       api.get(`${V9}/me/time_entries?start_date=${startDate}&end_date=${endDate}&meta=true`, {
+        signal,
         decode: entryListReply,
       }),
     refetchInterval: 60_000,
@@ -34,14 +35,17 @@ export function useEntries(startDate: string, endDate: string) {
 export function useEntryBounds() {
   return useQuery({
     queryKey: [...keys.report, 'bounds'],
-    queryFn: () => api.get(`${APP}/bounds`, { decode: entryBoundsReply }),
+    queryFn: ({ signal }) => api.get(`${APP}/bounds`, { signal, decode: entryBoundsReply }),
     refetchInterval: 60_000,
   });
 }
 
 /** Deleted entries, newest deletion first. The server returns at most 1000. */
 export function useTrash() {
-  return useQuery({ queryKey: keys.trash, queryFn: () => api.get(`${APP}/trash`, { decode: entryListReply }) });
+  return useQuery({
+    queryKey: keys.trash,
+    queryFn: ({ signal }) => api.get(`${APP}/trash`, { signal, decode: entryListReply }),
+  });
 }
 
 /** Entry reads and writes outside the hooks below, such as opening one entry from a report row. */

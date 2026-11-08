@@ -10,7 +10,7 @@ export function useClients() {
   const wid = useWid();
   return useQuery({
     queryKey: keys.clients,
-    queryFn: () => api.get(`${wsPath(wid, 'clients')}?status=both`, { decode: clientListReply }),
+    queryFn: ({ signal }) => api.get(`${wsPath(wid, 'clients')}?status=both`, { signal, decode: clientListReply }),
     enabled: wid > 0,
   });
 }

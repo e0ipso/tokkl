@@ -8,7 +8,11 @@ import type { AppStatus, UserRole } from './types.ts';
 
 /** Whether the server still needs its first admin. It does not change while the page is open. */
 export function useAppStatus() {
-  return useQuery({ queryKey: keys.status, queryFn: () => api.get<AppStatus>(`${APP}/status`), staleTime: Infinity });
+  return useQuery({
+    queryKey: keys.status,
+    queryFn: ({ signal }) => api.get<AppStatus>(`${APP}/status`, { signal }),
+    staleTime: Infinity,
+  });
 }
 
 export interface NewAccount {

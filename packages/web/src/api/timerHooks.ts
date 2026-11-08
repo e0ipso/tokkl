@@ -37,8 +37,8 @@ export function acceptTimerState(qc: QueryClient, state: TimerState): TimerState
   return update.state;
 }
 
-async function readTimerState(qc: QueryClient): Promise<TimerState> {
-  return acceptTimerState(qc, await api.get(timerPath, { decode: timerStateOf }));
+async function readTimerState(qc: QueryClient, signal?: AbortSignal): Promise<TimerState> {
+  return acceptTimerState(qc, await api.get(timerPath, { signal, decode: timerStateOf }));
 }
 
 const outcomes = new WeakMap<QueryClient, TimerOutcome>();
@@ -64,7 +64,7 @@ export function useTimerOutcome(): TimerOutcome {
 function timerQuery(qc: QueryClient, streaming: boolean) {
   return queryOptions({
     queryKey: keys.timer,
-    queryFn: () => readTimerState(qc),
+    queryFn: ({ signal }) => readTimerState(qc, signal),
     refetchInterval: streaming ? false : POLL_MS,
     // Views mounting together share one read; focus still refetches once a second has passed.
     staleTime: 1000,
@@ -103,7 +103,10 @@ export function useServerNow(intervalMs = 1000): Date {
  * moves the revision, so the action waits for it and reads the state again (see `revisionToSend`).
  */
 async function currentRevision(qc: QueryClient): Promise<number> {
-  const seen = await qc.ensureQueryData({ queryKey: keys.timer, queryFn: () => readTimerState(qc) });
+  const seen = await qc.ensureQueryData({
+    queryKey: keys.timer,
+    queryFn: ({ signal }) => readTimerState(qc, signal),
+  });
   if (!(await settleOtherWrites(qc))) return seen.revision;
   return revisionToSend(seen, await readTimerState(qc));
 }

@@ -1,7 +1,7 @@
 /**
  * Fetch wrapper for the server. Cookie auth plus the CSRF header the server requires for writes.
- * Every request, downloads included, goes through `send`, so headers, credentials and error
- * decoding live in one place.
+ * Every request, downloads included, goes through `send`, so headers, credentials, deadlines and
+ * error decoding live in one place.
  */
 
 import type { Decoder } from './decode.ts';
@@ -31,6 +31,33 @@ export function isApiError(error: unknown, status?: number): error is ApiError {
   return error instanceof ApiError && (status === undefined || error.status === status);
 }
 
+/**
+ * A request that got no whole reply within its deadline. The server may still have acted on it, so
+ * for a write the outcome is unknown.
+ */
+export class RequestTimeoutError extends Error {
+  readonly request: { readonly method: Method; readonly path: string };
+
+  constructor(method: Method, path: string) {
+    super(t('api.timedOut'));
+    this.name = 'RequestTimeoutError';
+    this.request = { method, path };
+  }
+}
+
+/**
+ * How long a request may take, reply body included, before it is given up:
+ * - `read` (20 s): a GET, or a report query sent as a POST. TanStack Query retries a failed read,
+ *   so a stalled one gives way to a fresh attempt.
+ * - `write` (30 s): any other request. It waits longer, because giving up on a write leaves its
+ *   outcome unknown.
+ * - `transfer` (5 min): an import upload, an export download or a CSV download, which can carry a
+ *   whole account's entries.
+ */
+export const DEADLINE_MS = { read: 20_000, write: 30_000, transfer: 300_000 } as const;
+
+export type RequestKind = keyof typeof DEADLINE_MS;
+
 /** A body sent as it is, with its own content type, such as an uploaded CSV or JSON file. */
 export interface RawBody {
   readonly raw: string;
@@ -45,16 +72,53 @@ function isRawBody(body: unknown): body is RawBody {
   return typeof body === 'object' && body !== null && 'raw' in body && 'contentType' in body;
 }
 
+/** The deadline a request gets unless it names one: a raw body is an upload, a GET a read, the rest writes. */
+export function requestKind(method: Method, body: unknown, kind?: RequestKind): RequestKind {
+  if (kind) return kind;
+  if (isRawBody(body)) return 'transfer';
+  return method === 'GET' ? 'read' : 'write';
+}
+
 export interface RequestOptions<T> {
   /** JSON-encoded unless it is a `RawBody`. */
   body?: unknown;
+  /**
+   * Cancels the request, such as the signal TanStack Query passes a query function. Forward it only
+   * for GETs: a cancelled write may still have reached the server.
+   */
   signal?: AbortSignal;
+  /** Which deadline applies (see `DEADLINE_MS`). By default it follows from the method and body (`requestKind`). */
+  kind?: RequestKind;
   /**
    * Checks the reply (see decode.ts). Without one the reply is trusted to match `T`, as for write
    * replies the views only refresh from: the server is this app's own same-origin API and both
    * sides compile against @tokkl/types.
    */
   decode?: Decoder<T>;
+}
+
+function isDeadline(error: unknown, deadline: AbortSignal): boolean {
+  return deadline.aborted && error instanceof DOMException && error.name === 'TimeoutError';
+}
+
+/**
+ * Runs `work` with a signal that aborts after `ms`, or earlier when `signal` does. Running out of
+ * time fails with a `RequestTimeoutError`; a cancel by `signal` keeps its own error, so TanStack
+ * Query still sees a cancelled query as cancelled.
+ */
+export async function withDeadline<T>(
+  ms: number,
+  request: { method: Method; path: string },
+  signal: AbortSignal | undefined,
+  work: (signal: AbortSignal) => Promise<T>,
+): Promise<T> {
+  const deadline = AbortSignal.timeout(ms);
+  try {
+    return await work(signal ? AbortSignal.any([signal, deadline]) : deadline);
+  } catch (error) {
+    if (!signal?.aborted && isDeadline(error, deadline)) throw new RequestTimeoutError(request.method, request.path);
+    throw error;
+  }
 }
 
 async function apiError(response: Response, method: Method, path: string): Promise<ApiError> {
@@ -83,7 +147,7 @@ function encode(body: unknown): { payload?: BodyInit; contentType?: string } {
 }
 
 /** Sends one request and returns the reply, or throws an `ApiError` for a status outside 2xx. */
-async function send(method: Method, path: string, body: unknown, signal?: AbortSignal): Promise<Response> {
+async function send(method: Method, path: string, body: unknown, signal: AbortSignal): Promise<Response> {
   const { payload, contentType } = encode(body);
   const headers: Record<string, string> = { 'X-Tokkl-CSRF': '1' };
   if (contentType) headers['Content-Type'] = contentType;
@@ -93,20 +157,26 @@ async function send(method: Method, path: string, body: unknown, signal?: AbortS
 }
 
 export async function request<T>(method: Method, path: string, options: RequestOptions<T> = {}): Promise<T> {
-  const response = await send(method, path, options.body, options.signal);
-  const text = await response.text();
+  const ms = DEADLINE_MS[requestKind(method, options.body, options.kind)];
+  const text = await withDeadline(ms, { method, path }, options.signal, async signal => {
+    const response = await send(method, path, options.body, signal);
+    return response.text();
+  });
   const value: unknown = text ? JSON.parse(text) : null;
   return options.decode ? options.decode(value) : (value as T);
 }
 
-/** Sends a request and saves the reply as a file. */
+/** Sends a request and saves the reply as a file, within the transfer deadline. */
 export async function download(
   path: string,
   filename: string,
   { method = 'GET', body }: { method?: 'GET' | 'POST'; body?: unknown } = {},
 ): Promise<void> {
-  const response = await send(method, path, body);
-  const url = URL.createObjectURL(await response.blob());
+  const blob = await withDeadline(DEADLINE_MS.transfer, { method, path }, undefined, async signal => {
+    const response = await send(method, path, body, signal);
+    return response.blob();
+  });
+  const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
   link.download = filename;

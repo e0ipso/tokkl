@@ -8,7 +8,11 @@ import type { Me, Preferences, Workspace } from './types.ts';
 /** The signed-in account: /me, its preferences and its workspace. */
 
 export function useMe() {
-  return useQuery({ queryKey: keys.me, queryFn: () => api.get(`${V9}/me`, { decode: meReply }), staleTime: 60_000 });
+  return useQuery({
+    queryKey: keys.me,
+    queryFn: ({ signal }) => api.get(`${V9}/me`, { signal, decode: meReply }),
+    staleTime: 60_000,
+  });
 }
 
 /** The account's workspace id. Only call below the auth gate, where /me has loaded. */
@@ -20,7 +24,7 @@ export function useWid(): number {
 export function usePreferences() {
   return useQuery({
     queryKey: keys.preferences,
-    queryFn: () => api.get<Preferences>(`${V9}/me/preferences`),
+    queryFn: ({ signal }) => api.get<Preferences>(`${V9}/me/preferences`, { signal }),
     staleTime: 60_000,
   });
 }
@@ -48,7 +52,7 @@ export function useWorkspace() {
   const wid = useWid();
   return useQuery({
     queryKey: keys.workspace,
-    queryFn: () => api.get(wsPath(wid), { decode: workspaceReply }),
+    queryFn: ({ signal }) => api.get(wsPath(wid), { signal, decode: workspaceReply }),
     enabled: wid > 0,
     staleTime: 60_000,
   });

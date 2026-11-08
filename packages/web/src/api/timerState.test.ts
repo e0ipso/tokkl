@@ -15,7 +15,7 @@ import {
   timerStateOf,
 } from './timerState.ts';
 import { t } from '../i18n/messages.ts';
-import { ApiError } from './client.ts';
+import { ApiError, RequestTimeoutError } from './client.ts';
 import { clockOffset, serverNow } from './serverClock.ts';
 
 const entry: TimeEntry = {
@@ -158,6 +158,11 @@ test('a 409 carrying a state explains itself and hands the state over; other fai
   assert.ok(offline instanceof TimerActionError);
   assert.equal(offline.kind, 'offline');
   assert.equal(offline.message, TIMER_OFFLINE_MESSAGE);
+
+  // A write with no reply by its deadline may have reached the server, as one that got no reply at all.
+  const late = explainTimerActionError(new RequestTimeoutError('POST', '/api/app/timer/resume'));
+  assert.ok(late instanceof TimerActionError);
+  assert.equal(late.kind, 'offline');
 
   const other = new ApiError(409, 'Conflict', 'Conflict');
   assert.equal(explainTimerActionError(other), other);

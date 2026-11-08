@@ -1,5 +1,5 @@
 import type { Mutation, QueryClient } from '@tanstack/react-query';
-import { ApiError } from './client.ts';
+import { ApiError, RequestTimeoutError } from './client.ts';
 import { DecodeError } from './decode.ts';
 import { timerStateReply } from './replies.ts';
 import { clockOffset } from './serverClock.ts';
@@ -78,13 +78,15 @@ export function planTimerUpdate(
 /**
  * Turns a failed timer request into the error the views show. A 409 whose body is a timer state
  * is a conflict, and the state rides along so it can replace the stale one. A request that never
- * got a reply (fetch rejects with a TypeError) is offline. Anything else is returned unchanged.
+ * got a reply (fetch rejects with a TypeError) is offline, and so is one that got none within its
+ * deadline: either may have reached the server, so both leave the timer unknown until the next
+ * read of its state. Anything else is returned unchanged.
  */
 export function explainTimerActionError(error: unknown): unknown {
   if (error instanceof ApiError && error.status === 409 && isTimerState(error.body)) {
     return new TimerActionError('conflict', error.body);
   }
-  if (error instanceof TypeError) return new TimerActionError('offline');
+  if (error instanceof TypeError || error instanceof RequestTimeoutError) return new TimerActionError('offline');
   return error;
 }
 
