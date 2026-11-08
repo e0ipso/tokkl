@@ -41,6 +41,28 @@ QString statusMarkKey(StatusMark mark)
     return QString();
 }
 
+QString primaryActionKey(PrimaryAction action)
+{
+    switch (action) {
+    case PrimaryAction::Start:
+        return QStringLiteral("start");
+    case PrimaryAction::Pause:
+        return QStringLiteral("pause");
+    case PrimaryAction::Resume:
+        return QStringLiteral("resume");
+    case PrimaryAction::StartSession:
+        return QStringLiteral("startSession");
+    case PrimaryAction::Session:
+        return QStringLiteral("session");
+    }
+    return QString();
+}
+
+PrimaryAction primaryActionOf(const TimerModel &timer, const PomodoroSession *session)
+{
+    return session ? session->primaryAction() : timer.toggleAction();
+}
+
 StatusInput StatusInput::of(const TimerModel &timer, const PomodoroSession *session, bool hasMessage)
 {
     StatusInput input;
@@ -290,6 +312,11 @@ bool StatusParts::showsSession() const
     return m_showsSession;
 }
 
+QString StatusParts::action() const
+{
+    return m_action;
+}
+
 void StatusParts::watch()
 {
     for (const QMetaObject::Connection &connection : std::as_const(m_watches)) {
@@ -314,9 +341,11 @@ void StatusParts::update()
 {
     const StatusInput input = m_timer ? StatusInput::of(*m_timer, m_session, m_hasMessage) : StatusInput();
     const StatusPresentation presentation = m_timer ? StatusPresentation::of(input, StatusPolicy::plasma()) : StatusPresentation();
-    if (presentation != m_presentation || input.showsSession != m_showsSession) {
+    const QString action = primaryActionKey(m_timer ? primaryActionOf(*m_timer, m_session) : PrimaryAction::Start);
+    if (presentation != m_presentation || input.showsSession != m_showsSession || action != m_action) {
         m_presentation = presentation;
         m_showsSession = input.showsSession;
+        m_action = action;
         Q_EMIT changed();
     }
 }

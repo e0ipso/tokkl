@@ -84,36 +84,27 @@ QString projectLabel(const QVariantMap &project)
 
 QString projectText(const TimerModel &timer)
 {
-    const QVariant id = timer.chosenProjectId();
-    if (isNoProject(id)) {
+    if (isNoProject(timer.chosenProjectId())) {
         return tr("No project");
     }
-    const qint64 projectId = id.toLongLong();
-    const QVariantMap entryProject = timer.entryProjectVariant().toMap();
-    if ((timer.isRunning() || timer.isPaused()) && !entryProject.isEmpty() && entryProject.value(QStringLiteral("id")).toLongLong() == projectId) {
-        return projectLabel(entryProject);
-    }
-    const QVariantList projects = timer.projects();
-    for (const QVariant &candidate : projects) {
-        const QVariantMap project = candidate.toMap();
-        if (project.value(QStringLiteral("id")).toLongLong() == projectId) {
-            return projectLabel(project);
-        }
-    }
-    return tr("Unknown project");
+    const QVariant details = timer.chosenProjectDetails();
+    return details.isNull() ? tr("Unknown project") : projectLabel(details.toMap());
 }
 
-QString actionName(const TimerModel &timer)
+QString actionName(PrimaryAction action)
 {
-    if (timer.isRunning()) {
+    switch (action) {
+    case PrimaryAction::Pause:
         return tr("Pause the Tokkl timer");
+    case PrimaryAction::Resume:
+        return tr("Resume the Tokkl timer");
+    case PrimaryAction::StartSession:
+        return tr("Start a Pomodoro session");
+    case PrimaryAction::Start:
+    case PrimaryAction::Session:
+        break;
     }
-    return timer.isPaused() ? tr("Resume the Tokkl timer") : tr("Start the Tokkl timer");
-}
-
-QString itemName(const TimerModel &timer)
-{
-    return tr("%1, %2").arg(actionName(timer), projectText(timer));
+    return tr("Start the Tokkl timer");
 }
 
 QString phaseName(const QString &phase)
@@ -139,11 +130,6 @@ QString sessionText(const PomodoroSession &session)
     const QString time = session.remainingSeconds() > 0 ? tr("%1 left").arg(session.countdownText()) : tr("%1 overtime").arg(session.countdownText());
     return tr("%1 · %2 · Pomodoro %3 of %4")
         .arg(phaseName(session.phase()), time, QString::number(session.pomodoroNumber()), QString::number(session.longRestEvery()));
-}
-
-bool showsSession(const TimerModel &timer, const PomodoroSession &session)
-{
-    return session.isActive() && !timer.isRunning() && !timer.isPaused();
 }
 
 namespace
@@ -198,7 +184,7 @@ QString menuLine(const TimerModel &timer, const PomodoroSession &session)
 
 QString menuBarTitle(const TimerModel &timer, const PomodoroSession &session)
 {
-    const QString time = showsSession(timer, session) ? session.countdownText() : timer.elapsedText();
+    const QString time = StatusInput::of(timer, &session).showsSession ? session.countdownText() : timer.elapsedText();
     switch (presentation(timer, session).mark) {
     case StatusMark::None:
         return time;
@@ -214,14 +200,15 @@ QString menuBarTitle(const TimerModel &timer, const PomodoroSession &session)
 
 QString itemName(const TimerModel &timer, const PomodoroSession &session)
 {
-    if (showsSession(timer, session)) {
+    // The core decides what the click does; the name says it.
+    const PrimaryAction action = session.primaryAction();
+    if (action == PrimaryAction::Session) {
         return sessionText(session);
     }
     if (!session.pomodoroMode()) {
-        return itemName(timer);
+        return tr("%1, %2").arg(actionName(action), projectText(timer));
     }
-    const QString action = timer.isRunning() || timer.isPaused() ? actionName(timer) : tr("Start a Pomodoro session");
-    return tr("%1, %2 · Pomodoro mode").arg(action, projectText(timer));
+    return tr("%1, %2 · Pomodoro mode").arg(actionName(action), projectText(timer));
 }
 
 }

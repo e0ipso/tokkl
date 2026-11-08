@@ -47,9 +47,9 @@ QtObject {
     }
 
     // The session in one line, such as "Short rest · 4:10 left · Pomodoro 2
-    // of 4"; empty unless showsSession.
+    // of 4"; empty without an active session.
     readonly property string sessionText: {
-        if (!showsSession) {
+        if (session === null || !session.active) {
             return "";
         }
         // countdownText already starts with + in overtime.
@@ -98,6 +98,24 @@ QtObject {
             return "";
         default:
             return timer.errorString;
+        }
+    }
+
+    // The panel button's accessible name: what the primary click does, as
+    // the core decides it (parts.action), or the session's line while the
+    // click acts on the session.
+    readonly property string actionName: {
+        switch (parts.action) {
+        case "session":
+            return sessionText;
+        case "pause":
+            return withMode(i18nc("@action:button", "Pause the Tokkl timer"));
+        case "resume":
+            return withMode(i18nc("@action:button", "Resume the Tokkl timer"));
+        case "startSession":
+            return withMode(i18nc("@action:button", "Start a Pomodoro session"));
+        default:
+            return i18nc("@action:button", "Start the Tokkl timer");
         }
     }
 

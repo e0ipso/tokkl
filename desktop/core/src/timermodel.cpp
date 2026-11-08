@@ -130,6 +130,14 @@ bool TimerModel::canChooseBillable() const
     return canWrite() && !isPaused() && !isSessionActive();
 }
 
+PrimaryAction TimerModel::toggleAction() const
+{
+    if (isRunning()) {
+        return PrimaryAction::Pause;
+    }
+    return isPaused() ? PrimaryAction::Resume : PrimaryAction::Start;
+}
+
 QString TimerModel::errorString() const
 {
     const QString message = m_activity ? m_activity->message() : QString();

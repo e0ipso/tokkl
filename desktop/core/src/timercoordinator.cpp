@@ -85,6 +85,11 @@ TimerActions::Selection TimerCoordinator::selection() const
     return {m_model->chosenProject(), m_model->chosenBillable()};
 }
 
+PrimaryAction TimerCoordinator::toggleAction() const
+{
+    return m_model->toggleAction();
+}
+
 bool TimerCoordinator::writing() const
 {
     return m_gate.running();
@@ -263,10 +268,14 @@ bool TimerCoordinator::toggle()
     if (m_model->isSessionActive()) {
         return false;
     }
-    if (m_model->isRunning()) {
+    switch (m_model->toggleAction()) {
+    case PrimaryAction::Pause:
         return pause();
+    case PrimaryAction::Resume:
+        return resume();
+    default:
+        return start();
     }
-    return m_model->isPaused() ? resume() : start();
 }
 
 bool TimerCoordinator::chooseProject(const QVariant &projectId)

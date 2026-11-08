@@ -52,6 +52,11 @@ enum class StatusMark {
 QString statusPartKey(StatusPart part);
 // "none", "pending", "alert" or "unconfigured".
 QString statusMarkKey(StatusMark mark);
+// "start", "pause", "resume", "startSession" or "session".
+QString primaryActionKey(PrimaryAction action);
+// What a panel's primary click does: the session's primaryAction(), or
+// with no session the timer's toggle.
+PrimaryAction primaryActionOf(const TimerModel &timer, const PomodoroSession *session);
 
 // What the presentation reads of the timer and the session.
 struct StatusInput {
@@ -153,6 +158,8 @@ class StatusParts : public QObject
     // The panel shows the session rather than the timer: a session is
     // active and no timer runs or is paused (StatusInput::showsSession).
     Q_PROPERTY(bool showsSession READ showsSession NOTIFY changed)
+    // What the primary click does, as primaryActionKey() names it.
+    Q_PROPERTY(QString action READ action NOTIFY changed)
 
 public:
     explicit StatusParts(QObject *parent = nullptr);
@@ -170,6 +177,7 @@ public:
     QStringList accessible() const;
     QString mark() const;
     bool showsSession() const;
+    QString action() const;
 
 Q_SIGNALS:
     void timerChanged();
@@ -187,6 +195,7 @@ private:
     bool m_hasMessage = false;
     StatusPresentation m_presentation;
     bool m_showsSession = false;
+    QString m_action;
     QList<QMetaObject::Connection> m_watches;
 };
 

@@ -119,6 +119,7 @@ public:
     bool canStartNew() const override;
     // The project and billable flag the model shows as chosen.
     Selection selection() const override;
+    PrimaryAction toggleAction() const override;
 
     bool writing() const override;
     QString message() const override;

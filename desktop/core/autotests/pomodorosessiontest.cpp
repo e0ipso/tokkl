@@ -8,6 +8,7 @@
 #include "menuactions.h"
 #include "pomodorosession.h"
 #include "pomodorostore.h"
+#include "statuspresentation.h"
 #include "timercontroller.h"
 #include "timerstateclient.h"
 
@@ -155,6 +156,10 @@ public:
     Selection selection() const override
     {
         return chosen;
+    }
+    PrimaryAction toggleAction() const override
+    {
+        return held ? PrimaryAction::Pause : PrimaryAction::Start;
     }
     bool toggle() override
     {
@@ -443,6 +448,41 @@ private Q_SLOTS:
         QVERIFY(!f.timer.chooseBillable(false));
         QCOMPARE(f.transport.requests.size(), sent);
         QVERIFY(actions.states() == plasma());
+    }
+
+    // What the click does is the core's answer, and the panels name it from
+    // its key; activate() does what the answer says.
+    void primaryActionSaysWhatTheClickDoes()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f));
+        StatusParts parts;
+        parts.setTimer(&f.timer);
+        parts.setSession(f.session.get());
+        QCOMPARE(f.session->primaryAction(), PrimaryAction::Start);
+        QCOMPARE(parts.action(), QStringLiteral("start"));
+
+        f.push(f.runningState(runningEntry(30, f.serverNow())));
+        QVERIFY(f.timer.isRunning());
+        QCOMPARE(f.session->primaryAction(), PrimaryAction::Pause);
+        QCOMPARE(parts.action(), QStringLiteral("pause"));
+
+        f.push(f.state(std::nullopt));
+        QVERIFY(f.session->setPomodoroMode(true));
+        QCOMPARE(f.session->primaryAction(), PrimaryAction::StartSession);
+        QCOMPARE(parts.action(), QStringLiteral("startSession"));
+        // Without a session the click is the timer's toggle.
+        QCOMPARE(primaryActionOf(f.timer, nullptr), PrimaryAction::Start);
+
+        f.push(f.state(work(f.serverNow())));
+        QVERIFY(f.session->isActive());
+        QCOMPARE(f.session->primaryAction(), PrimaryAction::Session);
+        QCOMPARE(parts.action(), QStringLiteral("session"));
+        QCOMPARE(f.session->activate(), PomodoroSession::Activation::OpenMenu);
+
+        for (PrimaryAction action : {PrimaryAction::Start, PrimaryAction::Pause, PrimaryAction::Resume, PrimaryAction::StartSession, PrimaryAction::Session}) {
+            QVERIFY(!primaryActionKey(action).isEmpty());
+        }
     }
 
     // The session needs nothing of the timer but TimerActions: it reads and

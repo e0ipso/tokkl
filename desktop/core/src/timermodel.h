@@ -5,6 +5,7 @@
 #include "connection.h"
 #include "nextstartselection.h"
 #include "projectchoices.h"
+#include "timeractions.h"
 #include "timerstateclient.h"
 #include "timerview.h"
 
@@ -299,6 +300,9 @@ public:
     // copies the chain's flag) and no session is active (the open pomodoro
     // is the session's). While an entry runs the choice edits that entry.
     bool canChooseBillable() const;
+    // What the timer's toggle does: Pause while an entry runs, Resume while
+    // a chain is paused, otherwise Start.
+    PrimaryAction toggleAction() const;
     QString errorString() const;
     Status status() const;
 
