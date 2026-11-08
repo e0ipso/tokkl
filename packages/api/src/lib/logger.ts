@@ -1,7 +1,8 @@
 /**
  * Structured logs: one JSON object per line, `debug` and `info` on stdout, `warn` and `error` on
  * stderr. Callers pass a fixed message and context fields; they never pass credentials, request
- * bodies or headers. An Error in a field is written as its name, message and stack.
+ * bodies or headers, except the user agent in the timer routes' debug line about actions sent
+ * without a revision. An Error in a field is written as its name, message and stack.
  */
 export const LOG_LEVELS = ['debug', 'info', 'warn', 'error', 'silent'] as const;
 export type LogLevel = (typeof LOG_LEVELS)[number];

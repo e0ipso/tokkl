@@ -1,8 +1,11 @@
-import { test } from 'node:test';
+import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { AppStatus, ServerApi, ServerCapability, TimerState } from '@tokkl/types';
-import { SERVER_API, setup, type TestContext } from './helpers.ts';
+import { storageFor } from './fixtures/database.ts';
+import { SERVER_API, setup, testConfig, testServer, type TestContext } from './helpers.ts';
+import { createApp } from '../src/app.ts';
 import { OPTIONAL_REVISION_ACTIONS } from '../src/commands/timers.ts';
+import { createLogger } from '../src/lib/logger.ts';
 
 /**
  * A request whose status tells a server with the capability from one without it: a 404 for a
@@ -120,4 +123,54 @@ test('only the actions listed as optional-revision act without a revision, each 
   assert.deepEqual(listed, ['POST /api/app/pomodoro', 'POST /api/app/timer/pause']);
   assert.equal((await ctx.json('POST', '/api/app/timer/pause', {})).status, 200);
   assert.equal((await ctx.json('POST', '/api/app/pomodoro', {})).status, 200);
+});
+
+test('an optional-revision action sent without one is logged at debug, hourly per user agent and action', async t => {
+  const ctx = await setup();
+  const lines: Array<Record<string, unknown>> = [];
+  const app = createApp({
+    storage: storageFor(ctx.db),
+    config: testConfig(ctx.db),
+    setup: { code: null },
+    logger: createLogger({ level: 'debug', sink: line => lines.push(JSON.parse(line)) }),
+  });
+  after(() => app.locals.close());
+  const server = testServer(app);
+  const authorization = `Basic ${Buffer.from(`${ctx.user.apiToken}:api_token`).toString('base64')}`;
+  const post = async (path: string, body: unknown, agent: string) => {
+    const headers = { authorization, 'content-type': 'application/json', 'user-agent': agent };
+    await (await server.request(path, { method: 'POST', headers, body: JSON.stringify(body) })).text();
+  };
+  const logged = () =>
+    lines
+      .filter(line => line.msg === 'Timer action without revision')
+      .map(({ level, action, capability, userAgent }) => ({ level, action, capability, userAgent }));
+  const line = (action: keyof typeof OPTIONAL_REVISION_ACTIONS, userAgent: string) => ({
+    level: 'debug',
+    action,
+    capability: OPTIONAL_REVISION_ACTIONS[action],
+    userAgent,
+  });
+  t.mock.timers.enable({ apis: ['Date'], now: Date.now() });
+
+  await post('/api/app/timer/pause', {}, 'old/1');
+  await post('/api/app/timer/pause', {}, 'old/1');
+  await post('/api/app/timer/pause', { revision: 0 }, 'new/2');
+  await post('/api/app/timer/pause', {}, 'other/3');
+  await post('/api/app/pomodoro', {}, 'old/1');
+  await post('/api/app/timer/pause', {}, 'x'.repeat(300));
+  const first = [
+    line('POST /api/app/timer/pause', 'old/1'),
+    line('POST /api/app/timer/pause', 'other/3'),
+    line('POST /api/app/pomodoro', 'old/1'),
+    line('POST /api/app/timer/pause', 'x'.repeat(255)),
+  ];
+  assert.deepEqual(logged(), first);
+
+  t.mock.timers.tick(60 * 60 * 1000 - 1);
+  await post('/api/app/timer/pause', {}, 'old/1');
+  assert.deepEqual(logged(), first);
+  t.mock.timers.tick(1);
+  await post('/api/app/timer/pause', {}, 'old/1');
+  assert.deepEqual(logged(), [...first, line('POST /api/app/timer/pause', 'old/1')]);
 });

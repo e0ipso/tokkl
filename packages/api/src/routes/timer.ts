@@ -1,18 +1,52 @@
-import type { Response, Router } from 'express';
+import type { Request, Response, Router } from 'express';
 import type { Deps } from './context.ts';
 import { createRouter } from '../http/router.ts';
 import { readIdempotencyClaim, readJson, readOptionalJson } from '../http/request.ts';
+import { BoundedCache } from '../lib/boundedCache.ts';
 import {
+  OPTIONAL_REVISION_ACTIONS,
   parseEditTimer,
   parsePauseTimer,
   parseRevision,
   parseStartPomodoro,
   parseStartTimer,
   parseStopTimer,
+  type OptionalRevisionAction,
 } from '../commands/timers.ts';
+
+/** How often one user agent's revisionless requests to one action are logged. */
+const REVISIONLESS_LOG_INTERVAL_MS = 60 * 60 * 1000;
+/** User agents remembered per process; past that the least recent one may be logged again early. */
+const REVISIONLESS_AGENTS = 1000;
+/** Longest user agent a log line carries, as sessions store it. */
+const USER_AGENT_LENGTH = 255;
+
+/**
+ * Logs a request to an `OPTIONAL_REVISION_ACTIONS` action that came without a revision, at debug
+ * level and at most once per interval for each user agent and action, so operators can see which
+ * clients still omit it before a release requires it. The user agent is the only header logged.
+ */
+function revisionlessLogger() {
+  const lastLogged = new BoundedCache<string, number>(REVISIONLESS_AGENTS);
+  return (req: Request, res: Response, action: OptionalRevisionAction) => {
+    const userAgent = (req.get('user-agent') ?? '').slice(0, USER_AGENT_LENGTH);
+    const key = `${action}\n${userAgent}`;
+    const last = lastLogged.get(key);
+    const now = Date.now();
+    if (last !== undefined && now - last < REVISIONLESS_LOG_INTERVAL_MS) return;
+    lastLogged.set(key, now);
+    res.locals.log.debug('Timer action without revision', {
+      action,
+      capability: OPTIONAL_REVISION_ACTIONS[action],
+      userAgent,
+    });
+  };
+}
+
 export function timerRoutes(deps: Pick<Deps, 'auth' | 'timersFor' | 'openTimerStream'>): Router {
   const api = createRouter(),
     auth = deps.auth.requireAuth;
+  const revisionless = revisionlessLogger();
   const timers = (res: Response) => deps.timersFor(res.locals.auth);
   api.get('/timer', auth, async (_req, res) => res.json(await timers(res).getTimerState(res.locals.auth.user.id)));
   api.get('/timer/events', auth, async (_req, res) => {
@@ -31,6 +65,7 @@ export function timerRoutes(deps: Pick<Deps, 'auth' | 'timersFor' | 'openTimerSt
   );
   api.post('/timer/pause', auth, async (req, res) => {
     const { revision } = parsePauseTimer(readOptionalJson(req));
+    if (revision === undefined) revisionless(req, res, 'POST /api/app/timer/pause');
     res.json(await timers(res).pauseTimer(res.locals.auth.user.id, revision));
   });
   api.post('/timer/resume', auth, async (req, res) =>
@@ -41,6 +76,7 @@ export function timerRoutes(deps: Pick<Deps, 'auth' | 'timersFor' | 'openTimerSt
   );
   api.post('/pomodoro', auth, async (req, res) => {
     const start = { ...parseStartPomodoro(readJson(req)), idempotency: readIdempotencyClaim(req) };
+    if (start.revision === undefined) revisionless(req, res, 'POST /api/app/pomodoro');
     res.json(await timers(res).startPomodoro(res.locals.auth.user.id, start));
   });
   api.post('/pomodoro/next', auth, async (req, res) =>
