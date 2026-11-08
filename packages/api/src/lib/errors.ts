@@ -4,16 +4,38 @@
  */
 export type FailureKind = 'invalid' | 'forbidden' | 'not-found' | 'conflict' | 'rate-limited' | 'unavailable';
 
+/**
+ * Why input was refused, for clients that act on it. Codes and field names are stable; the human
+ * message may change wording at any time.
+ */
+export type ValidationCode =
+  /** Any refused input without a more specific code. */
+  | 'invalid_input'
+  /** A known preference with a value the apps cannot use; `field` is the preference key. */
+  | 'invalid_preference'
+  /** An instance setting outside its rule; `field` is the setting name. */
+  | 'invalid_setting'
+  /** A setting name the instance does not have. */
+  | 'unknown_setting';
+export interface ValidationDetail {
+  code: ValidationCode;
+  /** The request field the refusal names. Always a name the server defines, never client text. */
+  field?: string;
+}
+
 export class ApplicationError extends Error {
   readonly kind: FailureKind;
   /** Whole seconds the client should wait before trying again, for rate-limited or unavailable failures. */
   readonly retryAfterSeconds: number | undefined;
+  /** Set on every invalid-input failure. */
+  readonly validation: ValidationDetail | undefined;
 
-  constructor(kind: FailureKind, message: string, retryAfterSeconds?: number) {
+  constructor(kind: FailureKind, message: string, retryAfterSeconds?: number, validation?: ValidationDetail) {
     super(message);
     this.name = 'ApplicationError';
     this.kind = kind;
     this.retryAfterSeconds = retryAfterSeconds;
+    this.validation = validation;
   }
 }
 
@@ -42,7 +64,8 @@ export class RequestCancelled extends Error {
   }
 }
 
-export const invalidInput = (message: string) => new ApplicationError('invalid', message);
+export const invalidInput = (message: string, validation: ValidationDetail = { code: 'invalid_input' }) =>
+  new ApplicationError('invalid', message, undefined, validation);
 export const forbidden = (message = 'Forbidden') => new ApplicationError('forbidden', message);
 export const notFound = (message = 'Not found') => new ApplicationError('not-found', message);
 export const conflict = (message: string) => new ApplicationError('conflict', message);

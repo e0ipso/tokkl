@@ -111,7 +111,8 @@ export function parseProfileUpdate(body: JsonBody): ProfileUpdate {
 export function parsePreferenceChanges(body: JsonBody): PreferenceChanges {
   for (const [key, value] of Object.entries(body)) {
     const problem = preferenceProblem(key, value);
-    if (problem) throw invalidInput(problem);
+    // Only a key with a rule has a problem, so the field is always a preference Tokkl defines.
+    if (problem) throw invalidInput(problem, { code: 'invalid_preference', field: key });
   }
   return body as JsonObject;
 }
@@ -120,9 +121,15 @@ export function parsePreferenceChanges(body: JsonBody): PreferenceChanges {
 export function parseSettingChanges(body: JsonBody): SettingChanges {
   const changes: SettingChanges = {};
   for (const [name, value] of Object.entries(body)) {
-    if (!Object.hasOwn(SETTING_NAMES, name)) throw invalidInput(`Unknown setting: ${name}`);
+    // An unknown name is client text, so it never becomes the field.
+    if (!Object.hasOwn(SETTING_NAMES, name))
+      throw invalidInput(`Unknown setting: ${name}`, { code: 'unknown_setting' });
     const key = SETTING_NAMES[name as keyof typeof SETTING_NAMES];
-    if (!validSetting(key, value)) throw invalidInput(`Invalid ${name}: expected ${settingExpectation(key)}`);
+    if (!validSetting(key, value))
+      throw invalidInput(`Invalid ${name}: expected ${settingExpectation(key)}`, {
+        code: 'invalid_setting',
+        field: name,
+      });
     changes[key] = value;
   }
   if (!Object.keys(changes).length)

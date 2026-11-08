@@ -30,6 +30,8 @@ Neither `pomodoro_enabled` nor `pomodoro_stop_timer_at_end` is a supported Pomod
 
 `/me/preferences` and `/me/preferences/:client` (GET and POST, `packages/api/src/routes/toggl/me.ts`) read and merge into the same `users.preferences` record; `:client` is ignored. A value the phone saves is the value the web app reads, so a client-specific setting needs its own key.
 
+`GET/POST /api/app/me/preferences` (`packages/api/src/routes/app.ts`) apply the same rules and answer with the same bodies. Because they sit under `/api/app`, a refusal there also carries `Tokkl-Error-Code: invalid_preference` and `Tokkl-Error-Field: <key>` (see `validationHeaders` in `packages/api/src/http/errors.ts` and section 6.2 of `docs/PRD.md`). Clients that need to know which field was refused read those headers; the message text is for people and may change. The v9 routes never send the headers.
+
 <!-- kk:related:start -->
 # Related
 
