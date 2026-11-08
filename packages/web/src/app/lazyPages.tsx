@@ -1,4 +1,5 @@
 import { use, type ComponentType } from 'react';
+import { loadPageModule } from './pageLoad.ts';
 
 /**
  * Pages that load their code on first visit. The timer page, the one every sign-in opens, stays in
@@ -11,29 +12,35 @@ interface LazyPage {
   Page: ComponentType;
   /** Starts loading the module, or loads it again after a failure. */
   prefetch: () => void;
+  /** Forgets a failed load, so the next render loads the module again. */
+  forgetFailure: () => void;
 }
 
 type Attempt =
   | { status: 'pending'; promise: Promise<ComponentType> }
   | { status: 'loaded'; component: ComponentType }
-  | { status: 'failed'; error: unknown };
+  /** `final` when a visit's load failed; a failed prefetch, which may not reload, leaves the visit its own try. */
+  | { status: 'failed'; error: unknown; final: boolean };
 
 /**
- * Wraps a page module's loader. A failed load stays failed, so the route's error boundary shows it
- * instead of retrying on every render, until the next `prefetch`: hovering, focusing or clicking a
- * navigation link loads it again.
+ * Wraps a page module's loader. A load goes through `loadPageModule`, which retries it and, when
+ * the page is being visited, reloads the tab once (after a deploy the old chunk files are gone). A
+ * prefetch never reloads; the visit after a failed prefetch gets its own try. A visit's load that
+ * still fails stays failed, so the route's error boundary shows it instead of retrying on every
+ * render, until Try again (`retryFailedPages`) or the next `prefetch` loads it again.
  */
 function lazyPage(load: () => Promise<ComponentType>): LazyPage {
   let attempt: Attempt | null = null;
-  const start = (): Attempt => {
+  const start = (visit: boolean): Attempt => {
     if (attempt && attempt.status !== 'failed') return attempt;
-    const promise = load().then(
+    if (attempt?.final && visit) return attempt;
+    const promise = loadPageModule(load, { mayReload: visit }).then(
       component => {
         attempt = { status: 'loaded', component };
         return component;
       },
       (error: unknown) => {
-        attempt = { status: 'failed', error };
+        attempt = { status: 'failed', error, final: visit };
         throw error;
       },
     );
@@ -45,7 +52,7 @@ function lazyPage(load: () => Promise<ComponentType>): LazyPage {
   };
 
   function Page() {
-    const current = attempt ?? start();
+    const current = start(true);
     if (current.status === 'failed') throw current.error;
     const Loaded = current.status === 'loaded' ? current.component : use(current.promise);
     return <Loaded />;
@@ -54,7 +61,10 @@ function lazyPage(load: () => Promise<ComponentType>): LazyPage {
   return {
     Page,
     prefetch: () => {
-      start();
+      start(false);
+    },
+    forgetFailure: () => {
+      if (attempt?.status === 'failed') attempt = null;
     },
   };
 }
@@ -87,6 +97,11 @@ const BY_HREF: Readonly<Record<string, LazyPage>> = {
   '/settings': settings,
   '/admin': admin,
 };
+
+/** Lets every page whose load failed load again on its next render: the error screen's Try again. */
+export function retryFailedPages(): void {
+  for (const page of Object.values(BY_HREF)) page.forgetFailure();
+}
 
 /** Starts loading the page a navigation link opens, so the click right after renders it at once. */
 export function prefetchPage(href: string): void {

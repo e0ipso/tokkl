@@ -26,6 +26,7 @@ import {
   SettingsPage,
   TagsPage,
   TrashPage,
+  retryFailedPages,
 } from './lazyPages.tsx';
 import { MoreSheet } from './MoreSheet.tsx';
 import { NAV, PHONE_QUERY, isActive, sectionOf, type NavItem } from './nav.ts';
@@ -190,7 +191,7 @@ export function Shell() {
       <main className="content" data-section={sectionOf(location)}>
         <LongTimerReminder />
         <PomodoroSessionBanner />
-        <ErrorBoundary resetKey={location}>
+        <ErrorBoundary resetKey={location} onRetry={retryFailedPages}>
           <Routes />
         </ErrorBoundary>
       </main>
