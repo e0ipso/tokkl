@@ -2,7 +2,7 @@ import type { Response, Router } from 'express';
 import type { Deps } from './context.ts';
 import { createRouter } from '../http/router.ts';
 import { readJson } from '../http/request.ts';
-import { parseRevision, parseStartPomodoro } from '../commands/timers.ts';
+import { parseRevision, parseStartPomodoro, parseStartTimer, parseStopTimer } from '../commands/timers.ts';
 export function timerRoutes(deps: Pick<Deps, 'auth' | 'timersFor' | 'openTimerStream'>): Router {
   const api = createRouter(),
     auth = deps.auth.requireAuth;
@@ -10,6 +10,13 @@ export function timerRoutes(deps: Pick<Deps, 'auth' | 'timersFor' | 'openTimerSt
   api.get('/timer', auth, async (_req, res) => res.json(await timers(res).getTimerState(res.locals.auth.user.id)));
   api.get('/timer/events', auth, async (_req, res) => {
     await deps.openTimerStream(res.locals.auth, res);
+  });
+  api.post('/timer/start', auth, async (req, res) =>
+    res.json(await timers(res).startTimer(res.locals.auth.user.id, parseStartTimer(readJson(req)))),
+  );
+  api.post('/timer/stop', auth, async (req, res) => {
+    const { revision, stop } = parseStopTimer(readJson(req));
+    res.json(await timers(res).stopTimer(res.locals.auth.user.id, revision, stop));
   });
   api.post('/timer/pause', auth, async (_req, res) => res.json(await timers(res).pauseTimer(res.locals.auth.user.id)));
   api.post('/timer/resume', auth, async (req, res) =>

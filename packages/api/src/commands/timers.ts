@@ -1,8 +1,8 @@
 /** Timer action bodies, parsed into commands. */
 import { POMODORO_SESSION_CONFIG_RANGES, type PomodoroSessionConfig } from '@tokkl/common/pomodoroSession';
-import type { StartPomodoro } from '../domain/timers.ts';
+import type { StartPomodoro, StartTimer } from '../domain/timers.ts';
 import { invalidInput } from '../lib/errors.ts';
-import { optionalId, type JsonBody } from '../lib/values.ts';
+import { optionalId, parseInstant, type JsonBody } from '../lib/values.ts';
 import { parseEntryLabels } from './timeEntries.ts';
 
 const LENGTH_FIELDS = {
@@ -39,4 +39,23 @@ export function parseRevision(value: unknown): number {
   if (typeof value !== 'number' || !Number.isSafeInteger(value))
     throw invalidInput('Invalid revision: expected an integer');
   return value;
+}
+
+/** An optional instant field; absent and null both mean now. */
+const optionalInstant = (value: unknown, field: string): Date | undefined =>
+  value == null ? undefined : parseInstant(value, field);
+
+/** A timer start: the revision the client saw, the entry's labels, and an optional `start` instant. */
+export function parseStartTimer(body: JsonBody): StartTimer {
+  return {
+    revision: parseRevision(body.revision),
+    workspaceId: optionalId(body.workspace_id, 'workspace_id'),
+    start: optionalInstant(body.start, 'start'),
+    entry: parseEntryLabels(body),
+  };
+}
+
+/** A timer stop: the revision the client saw and an optional `stop` instant. */
+export function parseStopTimer(body: JsonBody): { revision: number; stop?: Date } {
+  return { revision: parseRevision(body.revision), stop: optionalInstant(body.stop, 'stop') };
 }

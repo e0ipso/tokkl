@@ -10,7 +10,8 @@
     "./pomodoroSession": "./pomodoroSession.ts",
     "./snap": "./snap.ts",
     "./time": "./time.ts",
-    "./timeOfDay": "./timeOfDay.ts"
+    "./timeOfDay": "./timeOfDay.ts",
+    "./validators": "./validators.ts"
   },
   "dependencies": {
     "@tokkl/types": "0.1.0"

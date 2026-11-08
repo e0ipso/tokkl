@@ -361,9 +361,23 @@ export interface ReportsRepository {
     limit: number,
   ): Promise<ReportEntryProjection[]>;
 }
+/** An account export's entry order: newest first (start, then id, descending) or oldest first. */
+export type ExportEntryOrder = 'newest' | 'oldest';
 export interface TransfersRepository {
   /** All related projections are collected in one consistent read snapshot. */
   exportAccount(userId: Id): Promise<AccountExportProjection>;
+  /** The export without its entries, as `exportAccount` reads it. */
+  exportHead(userId: Id): Promise<Omit<AccountExportProjection, 'entries'>>;
+  /**
+   * Up to `limit` of the entries `exportAccount` lists, the next ones after `after` in `order`. The
+   * pages of one snapshot concatenate into its list, or into the list reversed for `oldest`.
+   */
+  exportEntries(
+    userId: Id,
+    order: ExportEntryOrder,
+    after: ReportCursor | undefined,
+    limit: number,
+  ): Promise<EntryDetails[]>;
 }
 /** What a read-only snapshot needs: every repository's reads and none of its writes. */
 export interface ReadOnlyRepositories {

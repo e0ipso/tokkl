@@ -1,5 +1,5 @@
 /** Reading one user's entries and taking the guards every entry write needs, in a fixed order. */
-import type { EntriesReader, OperationContext, ReadersOf, Repositories } from '../storage/contracts.ts';
+import type { EntriesReader, OperationContext, ReadersOf, Repositories, SettingsReader } from '../storage/contracts.ts';
 import type { EntryDetails, Id, User } from '../storage/domain.ts';
 import { StorageConflict } from '../storage/errors.ts';
 import { notFound } from '../lib/errors.ts';
@@ -13,6 +13,13 @@ export type EntryRepositories = Pick<
 export type EntryContext = OperationContext<EntryRepositories>;
 /** The reads a read-only snapshot gives an entry or timer operation. */
 export type EntryReaders = ReadersOf<EntryRepositories>;
+/**
+ * Opens the write transactions entry and timer work runs in, with only the entry repositories in
+ * reach. A `Storage` is one.
+ */
+export interface EntryTransactions {
+  transaction<T>(work: (context: EntryContext) => Promise<T>): Promise<T>;
+}
 
 export async function getTimeEntry(
   ctx: { entries: Pick<EntriesReader, 'get'> },
@@ -26,7 +33,12 @@ export async function getTimeEntry(
 }
 
 /** The user's live entry `id` when it is in workspace `wid`, else the same 404 as a missing one. */
-export async function getEntryIn(ctx: EntryRepositories, userId: Id, wid: Id, id: Id): Promise<EntryDetails> {
+export async function getEntryIn(
+  ctx: { entries: Pick<EntriesReader, 'get'> },
+  userId: Id,
+  wid: Id,
+  id: Id,
+): Promise<EntryDetails> {
   const entry = await getTimeEntry(ctx, userId, id);
   if (entry.workspaceId !== wid) throw notFound('Time entry not found');
   return entry;
@@ -69,6 +81,6 @@ export async function protectEntryOperation(
 }
 
 /** The instance's time resolution in minutes. */
-export async function entryResolution(ctx: EntryRepositories): Promise<number> {
+export async function entryResolution(ctx: { settings: Pick<SettingsReader, 'read'> }): Promise<number> {
   return timeResolutionOf(await ctx.settings.read());
 }

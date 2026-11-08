@@ -2,8 +2,6 @@ import type { DurationFormat } from '@tokkl/types';
 import { addDays, daysBetween, startOfWeek } from '@tokkl/common/time';
 import type { DetailedOrderBy, Dimension, OrderBy, ReportFilter, SortDirection } from '../domain/reportCommands.ts';
 import type { Authentication } from '../domain/credentials.ts';
-import type { AccountExportProjection } from '../storage/domain.ts';
-import { assembleCsvExport, assembleJsonExport } from './exports.ts';
 import {
   grouping,
   resolutionFor,
@@ -281,20 +279,4 @@ export function v3WeeklyFilter(filter: ReportFilter): { filter: ReportFilter; we
   const weekStart = filter.startDate;
   const days = Math.min(daysBetween(weekStart, filter.endDate) + 1, 7);
   return { weekStart, filter: { ...filter, endDate: addDays(weekStart, days - 1) } };
-}
-
-/** The caller collects the credential-free export projection in its own readSnapshot. */
-export type ExportAssemblyJob =
-  | { kind: 'export-json'; exportedAt: string; filename: string }
-  | { kind: 'export-csv'; range: { from?: string; to?: string }; filename: string; durationFormat?: DurationFormat };
-export function formatExportJob(data: AccountExportProjection, job: ExportAssemblyJob): JobResult {
-  return {
-    type: job.kind === 'export-json' ? 'json' : 'csv',
-    filename: job.filename,
-    headers: {},
-    body:
-      job.kind === 'export-json'
-        ? JSON.stringify(assembleJsonExport(data, job.exportedAt))
-        : assembleCsvExport(data, job.range, job.durationFormat),
-  };
 }

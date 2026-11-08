@@ -13,7 +13,7 @@ import { withExactEntryImport, type ExactEntryImport } from '../domain/entryImpo
 import { noTimeSpan } from '../domain/entrySpans.ts';
 import type { User } from '../storage/domain.ts';
 import type { TimerPublication } from '../domain/timerSettlement.ts';
-import { MAX_IMPORT_ERRORS, protectImport, importError } from './importGuards.ts';
+import { MAX_IMPORT_ERRORS, cancelBeforeCommit, checkCancelled, importError, protectImport } from './importGuards.ts';
 const HEADER_ALIASES: Record<string, string[]> = {
   user: ['user'],
   email: ['email'],
@@ -326,9 +326,10 @@ export async function importTogglCsv(
   ctx: OperationContext<EntryRepositories>,
   userId: number,
   table: TogglCsvTable,
-  options: { dryRun: boolean; users?: string[] },
+  options: { dryRun: boolean; users?: string[]; signal?: AbortSignal },
   publish: TimerPublication,
 ): Promise<ImportResult> {
+  const { signal } = options;
   const { rows, cell, hasUsers } = table;
   const { rowUsers, users } = tableUsers(rows, cell, hasUsers);
   const selected = selection(users, options);
@@ -352,6 +353,8 @@ export async function importTogglCsv(
   await withExactEntryImport(ctx, userId, wid, publish, async writer => {
     for (const [index, row] of rows.entries()) {
       if (selected && !selected.has(rowUsers[index]!)) continue;
+      // Outside the row's savepoint, which would report the cancellation as the row's failure.
+      checkCancelled(signal);
       const projectsBefore = result.created_projects.length,
         clientsBefore = result.created_clients.length;
       try {
@@ -365,5 +368,6 @@ export async function importTogglCsv(
       }
     }
   });
+  cancelBeforeCommit(ctx, signal);
   return result;
 }
