@@ -20,19 +20,37 @@ export type { ReportWork };
 const QUEUE_FULL_RETRY_SECONDS = 2;
 const DEFAULT_MAX_QUEUE = 16;
 const MAX_QUEUE_LIMIT = 100;
+/** Downloads stream at the client's pace, so their lane is shorter than the report queue. */
+const DEFAULT_MAX_DOWNLOADS = 8;
+/** How long one download may run once it starts, before it is given up. */
+export const DEFAULT_DOWNLOAD_DEADLINE_MS = 15 * 60_000;
+/** A download that ran out of time asks for a longer wait than a full queue. */
+const DOWNLOAD_DEADLINE_RETRY_SECONDS = 60;
 
-export interface ReportRunnerOptions {
-  /** Includes the active job; overload fails immediately. Default 16, maximum 100. */
+/** The limits of one lane: its places and each account's share of them. */
+export interface LaneLimits {
+  /** Includes the active job; overload fails immediately. Maximum 100. */
   maxQueue?: number;
   /**
    * The places one account may hold at once, reserved, queued or running. Default a quarter of
    * `maxQueue`, at least 1; at most `maxQueue`.
    */
   maxPerUser?: number;
+}
+
+/** The download lane's limits, and how long one download may run. */
+export interface DownloadLaneLimits extends LaneLimits {
+  /** How long a download may run once it starts. Default 15 minutes. */
+  deadlineMs?: number;
+}
+
+export interface ReportRunnerOptions extends LaneLimits {
+  /** The download lane: account exports. Default 8 places, a quarter per account, 15 minutes each. */
+  downloads?: DownloadLaneLimits;
   onPhase?: (phase: ReportPhase) => void;
   /** Where unexpected report and worker failures are logged, as redacted diagnostics. */
   logger?: Logger;
-  /** How the runner starts its worker thread. Defaults to `startReportWorker`. */
+  /** How the runner starts its worker threads. Defaults to `startReportWorker`. */
   startWorker?: WorkerStarter;
 }
 interface Pending extends ExecutionJob {
@@ -42,6 +60,8 @@ interface Pending extends ExecutionJob {
   resolve(result: JobResult | undefined): void;
   reject(error: Error): void;
   dispose(): void;
+  /** Ends the job once its lane's deadline passes; set while it runs. */
+  deadline?: ReturnType<typeof setTimeout>;
 }
 /** A place in the report queue, held while its caller prepares one job. It queues one job only. */
 export interface ReportSlot {
@@ -51,6 +71,9 @@ export interface ReportSlot {
     job: ReportJob,
     options?: { authentication?: Authentication },
   ): Promise<JobResult>;
+}
+/** A place in the download lane, held while its caller prepares one download. It queues one job only. */
+export interface DownloadSlot {
   /**
    * Writes `userId`'s export to `output` a piece at a time, reading it in the job's own snapshot.
    * Settles once the last piece was taken.
@@ -70,32 +93,56 @@ export interface ReportReservation {
 }
 
 /**
- * What the application needs from a report runner: reserve a place, queue a report or an export
+ * What the application needs from a report runner: reserve a place, queue a report or a download
  * in it, and shut down. The composition root builds the runner and hands this to the
  * application services.
  */
 export interface ReportExecutor {
   /**
-   * Takes a place in the queue, then runs `work` with it, so a full queue or a cancelled request
-   * is refused before `work` reads anything. The place counts toward the queue limit until `work`
-   * queues its job or settles. An account that already holds its share is refused like a full
-   * queue.
+   * Takes a place in the report queue, then runs `work` with it, so a full queue or a cancelled
+   * request is refused before `work` reads anything. The place counts toward the queue limit until
+   * `work` queues its job or settles. An account that already holds its share is refused like a
+   * full queue.
    */
   reserve<T>(options: ReportReservation, work: (slot: ReportSlot) => Promise<T>): Promise<T>;
-  /** Fails every queued job and stops the worker. */
+  /** Takes a place in the download lane, the same way. Downloads never wait behind reports. */
+  reserveDownload<T>(options: ReportReservation, work: (slot: DownloadSlot) => Promise<T>): Promise<T>;
+  /** Fails every queued job and stops the workers. */
   close(): Promise<void>;
 }
 
+/** Turns a reservation into a queued job. */
+type Submit = (work: ReportWork, output?: ExportEmitter) => Promise<JobResult | undefined>;
+
+interface LaneSettings {
+  maxQueue: number;
+  maxPerUser: number;
+  deadlineMs?: number;
+}
+
+/** Checks a lane's limits; `name` goes into the message of a bad one. */
+function laneSettings(name: string, limits: DownloadLaneLimits, defaultQueue: number): LaneSettings {
+  const maxQueue = limits.maxQueue ?? defaultQueue;
+  if (!Number.isSafeInteger(maxQueue) || maxQueue < 1 || maxQueue > MAX_QUEUE_LIMIT)
+    throw new Error(`Invalid ${name} queue limit`);
+  const maxPerUser = limits.maxPerUser ?? Math.max(1, Math.floor(maxQueue / 4));
+  if (!Number.isSafeInteger(maxPerUser) || maxPerUser < 1 || maxPerUser > maxQueue)
+    throw new Error(`Invalid ${name} share per account`);
+  const { deadlineMs } = limits;
+  if (deadlineMs !== undefined && (!Number.isSafeInteger(deadlineMs) || deadlineMs < 1))
+    throw new Error(`Invalid ${name} deadline`);
+  return { maxQueue, maxPerUser, deadlineMs };
+}
+
 /**
- * One runner per app: a bounded queue in front of one execution, with one job in flight. The runner
- * admits and cancels jobs and picks the next one; the execution (`reportExecution.ts`) runs it in
- * the worker, or inline for in-memory SQLite. Each account holds at most `maxPerUser` places, and
+ * One lane: a bounded queue in front of one execution, with one job in flight. The lane admits
+ * and cancels jobs and picks the next one; the execution (`reportExecution.ts`) runs it in its own
+ * worker, or inline for in-memory SQLite. Each account holds at most `maxPerUser` places, and
  * queued jobs take turns between accounts: the next job is the oldest one of the account served
- * longest ago.
+ * longest ago. A lane with a deadline gives up a job that runs longer.
  */
-export class ReportRunner implements ReportExecutor {
-  private readonly maxQueue: number;
-  private readonly maxPerUser: number;
+class Lane {
+  private readonly settings: LaneSettings;
   private readonly execution: ReportExecution;
   private active: Pending | undefined;
   private queue: Pending[] = [];
@@ -108,14 +155,13 @@ export class ReportRunner implements ReportExecutor {
   private closed = false;
   private closing: Promise<void> | undefined;
 
-  /** `inline` runs the jobs when the database is in-memory SQLite, which a worker cannot open. */
-  constructor(config: StorageConfig, inline: JobSource, options: ReportRunnerOptions = {}) {
-    this.maxQueue = options.maxQueue ?? DEFAULT_MAX_QUEUE;
-    if (!Number.isSafeInteger(this.maxQueue) || this.maxQueue < 1 || this.maxQueue > MAX_QUEUE_LIMIT)
-      throw new Error('Invalid report queue limit');
-    this.maxPerUser = options.maxPerUser ?? Math.max(1, Math.floor(this.maxQueue / 4));
-    if (!Number.isSafeInteger(this.maxPerUser) || this.maxPerUser < 1 || this.maxPerUser > this.maxQueue)
-      throw new Error('Invalid report share per account');
+  constructor(
+    config: StorageConfig,
+    inline: JobSource,
+    settings: LaneSettings,
+    options: { logger: Logger; onPhase?: (phase: ReportPhase) => void; startWorker?: WorkerStarter },
+  ) {
+    this.settings = settings;
     this.execution = createReportExecution(
       structuredClone(config),
       inline,
@@ -126,29 +172,13 @@ export class ReportRunner implements ReportExecutor {
         available: () => this.pump(),
         failed: error => this.failAll(error),
       },
-      { logger: options.logger ?? silentLogger, onPhase: options.onPhase, startWorker: options.startWorker },
+      options,
     );
   }
-  run(
-    userId: number,
-    workspaceId: number,
-    job: ReportJob,
-    options: { signal?: AbortSignal; authentication?: Authentication } = {},
-  ): Promise<JobResult> {
-    return this.reserve({ userId, signal: options.signal }, slot => slot.run(userId, workspaceId, job, options));
-  }
-  export(
-    userId: number,
-    assembly: ExportAssemblyJob,
-    output: ExportEmitter,
-    options: { signal?: AbortSignal; authentication?: Authentication } = {},
-  ): Promise<void> {
-    return this.reserve({ userId, signal: options.signal }, slot => slot.export(userId, assembly, output, options));
-  }
-  async reserve<T>(options: ReportReservation, work: (slot: ReportSlot) => Promise<T>): Promise<T> {
+  async reserve<T>(options: ReportReservation, work: (submit: Submit) => Promise<T>): Promise<T> {
     const { userId } = options;
     this.refuse(options.signal);
-    if (this.held() >= this.maxQueue || this.held(userId) >= this.maxPerUser)
+    if (this.held() >= this.settings.maxQueue || this.held(userId) >= this.settings.maxPerUser)
       throw unavailable('Report queue is full', QUEUE_FULL_RETRY_SECONDS);
     this.reserved.set(userId, (this.reserved.get(userId) ?? 0) + 1);
     let held = true;
@@ -162,7 +192,7 @@ export class ReportRunner implements ReportExecutor {
       return true;
     };
     /** Turns the reservation into a queued job; `build` runs only once the request still stands. */
-    const submit = (work: ReportWork, output?: ExportEmitter): Promise<JobResult | undefined> => {
+    const submit: Submit = (work, output) => {
       if (!release()) return Promise.reject(new Error('A report slot queues one job'));
       try {
         this.refuse(options.signal);
@@ -171,15 +201,8 @@ export class ReportRunner implements ReportExecutor {
         return Promise.reject(error);
       }
     };
-    const slot: ReportSlot = {
-      // A report always settles with its result.
-      run: (userId, workspaceId, job, { authentication } = {}) =>
-        submit({ userId, workspaceId, job, authentication }) as Promise<JobResult>,
-      export: (userId, assembly, output, { authentication } = {}) =>
-        submit({ userId, assembly, authentication }, output).then(() => {}),
-    };
     try {
-      return await work(slot);
+      return await work(submit);
     } finally {
       release();
     }
@@ -222,7 +245,6 @@ export class ReportRunner implements ReportExecutor {
     output: ExportEmitter | undefined,
     signal: AbortSignal | undefined,
   ): Promise<JobResult | undefined> {
-    const options = { signal };
     return new Promise((resolve, reject) => {
       const pending: Pending = {
         id: this.nextId++,
@@ -231,31 +253,42 @@ export class ReportRunner implements ReportExecutor {
         output,
         resolve,
         reject,
-        dispose: () => options.signal?.removeEventListener('abort', abort),
+        dispose: () => {
+          clearTimeout(pending.deadline);
+          signal?.removeEventListener('abort', abort);
+        },
       };
-      const abort = () => {
-        if (this.active === pending) {
-          this.active = undefined;
-          pending.dispose();
-          pending.reject(new RequestCancelled('Report cancelled'));
-          this.execution.cancel();
-        } else {
-          this.queue = this.queue.filter(p => p !== pending);
-          pending.dispose();
-          pending.reject(new RequestCancelled('Report cancelled'));
-        }
-        this.forgetIdle(userId);
-        this.pump();
-      };
-      options.signal?.addEventListener('abort', abort, { once: true });
+      const abort = () => this.giveUp(pending, new RequestCancelled('Report cancelled'));
+      signal?.addEventListener('abort', abort, { once: true });
       this.queue.push(pending);
       this.pump();
     });
+  }
+  /** Fails `pending` with `error`, wherever it is; a running job's execution stops it. */
+  private giveUp(pending: Pending, error: Error): void {
+    if (this.active === pending) {
+      this.active = undefined;
+      pending.dispose();
+      pending.reject(error);
+      this.execution.cancel();
+    } else {
+      this.queue = this.queue.filter(p => p !== pending);
+      pending.dispose();
+      pending.reject(error);
+    }
+    this.forgetIdle(pending.userId);
+    this.pump();
   }
   private pump(): void {
     if (this.closed || this.active || !this.queue.length || !this.execution.ready()) return;
     const p = this.next();
     this.active = p;
+    const { deadlineMs } = this.settings;
+    if (deadlineMs !== undefined)
+      p.deadline = setTimeout(
+        () => this.giveUp(p, unavailable('Download took too long', DOWNLOAD_DEADLINE_RETRY_SECONDS)),
+        deadlineMs,
+      );
     this.execution.run(p);
   }
   private finish(p: Pending, result?: JobResult, error?: Error): void {
@@ -285,6 +318,79 @@ export class ReportRunner implements ReportExecutor {
     this.closed = true;
     this.failAll(new Error('Report runner is closed'));
     this.closing = this.execution.close();
+    return this.closing;
+  }
+}
+
+/**
+ * One runner per app, with two lanes that never wait for each other: reports, answered whole, and
+ * downloads, which stream at the pace the client reads and so may hold their place for long. Each
+ * lane has its own queue, its own share per account and its own worker (or runs inline for
+ * in-memory SQLite). A download that runs past the lane's deadline is given up: before its first
+ * piece it answers 503 `Download took too long` with `Retry-After: 60`; after it the connection drops.
+ */
+export class ReportRunner implements ReportExecutor {
+  private readonly reports: Lane;
+  private readonly downloads: Lane;
+  private closing: Promise<void> | undefined;
+
+  /** `inline` runs the jobs when the database is in-memory SQLite, which a worker cannot open. */
+  constructor(config: StorageConfig, inline: JobSource, options: ReportRunnerOptions = {}) {
+    const reports = laneSettings(
+      'report',
+      { maxQueue: options.maxQueue, maxPerUser: options.maxPerUser },
+      DEFAULT_MAX_QUEUE,
+    );
+    const downloads = laneSettings(
+      'download',
+      { deadlineMs: DEFAULT_DOWNLOAD_DEADLINE_MS, ...options.downloads },
+      DEFAULT_MAX_DOWNLOADS,
+    );
+    const execution = {
+      logger: options.logger ?? silentLogger,
+      onPhase: options.onPhase,
+      startWorker: options.startWorker,
+    };
+    this.reports = new Lane(config, inline, reports, execution);
+    this.downloads = new Lane(config, inline, downloads, execution);
+  }
+  run(
+    userId: number,
+    workspaceId: number,
+    job: ReportJob,
+    options: { signal?: AbortSignal; authentication?: Authentication } = {},
+  ): Promise<JobResult> {
+    return this.reserve({ userId, signal: options.signal }, slot => slot.run(userId, workspaceId, job, options));
+  }
+  export(
+    userId: number,
+    assembly: ExportAssemblyJob,
+    output: ExportEmitter,
+    options: { signal?: AbortSignal; authentication?: Authentication } = {},
+  ): Promise<void> {
+    return this.reserveDownload({ userId, signal: options.signal }, slot =>
+      slot.export(userId, assembly, output, options),
+    );
+  }
+  reserve<T>(options: ReportReservation, work: (slot: ReportSlot) => Promise<T>): Promise<T> {
+    return this.reports.reserve(options, submit =>
+      work({
+        // A report always settles with its result.
+        run: (userId, workspaceId, job, { authentication } = {}) =>
+          submit({ userId, workspaceId, job, authentication }) as Promise<JobResult>,
+      }),
+    );
+  }
+  reserveDownload<T>(options: ReportReservation, work: (slot: DownloadSlot) => Promise<T>): Promise<T> {
+    return this.downloads.reserve(options, submit =>
+      work({
+        export: (userId, assembly, output, { authentication } = {}) =>
+          submit({ userId, assembly, authentication }, output).then(() => {}),
+      }),
+    );
+  }
+  close(): Promise<void> {
+    this.closing ??= Promise.all([this.reports.close(), this.downloads.close()]).then(() => {});
     return this.closing;
   }
 }

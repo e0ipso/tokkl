@@ -171,9 +171,9 @@ export function createApplicationServices({
     /** Admits an import before it reads its file, or refuses it with a 503 and `Retry-After`. */
     importAdmission: createImportAdmission(imports),
     /**
-     * Takes a place in the report queue, then writes the signed-in account's export to `output` on
-     * the report runner, a batch of entries at a time, after checking the credential in the export's
-     * own snapshot. A full queue or a cancelled request reads nothing.
+     * Takes a place in the report runner's download lane, then writes the signed-in account's export
+     * to `output`, a batch of entries at a time, after checking the credential in the export's own
+     * snapshot. A full lane or a cancelled request reads nothing.
      */
     exportAccount(
       authentication: Authentication,
@@ -182,7 +182,7 @@ export function createApplicationServices({
       options: { signal?: AbortSignal } = {},
     ): Promise<void> {
       const userId = authentication.user.id;
-      return reports.reserve({ userId, signal: options.signal }, slot =>
+      return reports.reserveDownload({ userId, signal: options.signal }, slot =>
         slot.export(userId, assembly, output, { authentication }),
       );
     },

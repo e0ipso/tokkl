@@ -109,9 +109,9 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
         { kind: 'export-csv', range: {}, filename: 'tokkl.csv' },
       ] as ExportAssemblyJob[])
         assert.equal(await streamedExport(runner, user.id, assembly), oracleExportBody(exported, assembly));
-      // Every job so far ran in the one worker the runner started.
-      assert.equal(workers.started.length, 1);
-      const worker = workers.latest();
+      // Every job so far ran in the two workers the runner started: the reports' first, then the downloads'.
+      assert.equal(workers.started.length, 2);
+      const worker = workers.started[0]!;
       assert.ok(worker instanceof Worker);
       assert.equal(
         Number(
@@ -128,7 +128,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
         await worker.terminate();
         await failed;
         assert.deepEqual(await runner.run(user.id, wid, job), expected);
-        assert.equal(workers.started.length, 2);
+        assert.equal(workers.started.length, 3);
         assert.notEqual(workers.latest(), worker);
       });
       await t.test('queued cancellation, running cancellation, overload and restart', async () => {

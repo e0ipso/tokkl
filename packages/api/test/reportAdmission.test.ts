@@ -22,9 +22,11 @@ const WEEKLY = {
   weekStart: '2026-01-01',
 };
 
+const EXPORT = { kind: 'export-json' as const, exportedAt: '2026-01-01T00:00:00Z', filename: 'x' };
+
 /**
- * A one-place runner whose place is taken by a report that waits until the test ends, so the next
- * job finds the queue full.
+ * A runner with one place in each lane, both taken by a report and an export that wait until the
+ * test ends, so the next job of either kind finds its lane full.
  */
 function fullRunner(t: TestContext): ReportRunner {
   let release!: () => void;
@@ -35,15 +37,89 @@ function fullRunner(t: TestContext): ReportRunner {
       throw new Error('released');
     },
   };
-  const runner = new ReportRunner(INLINE, source, { maxQueue: 1 });
-  const running = runner.run(1, 1, WEEKLY as never).catch(() => {});
+  const runner = new ReportRunner(INLINE, source, { maxQueue: 1, downloads: { maxQueue: 1 } });
+  const running = [
+    runner.run(1, 1, WEEKLY as never).catch(() => {}),
+    runner.export(1, EXPORT, async () => {}).catch(() => {}),
+  ];
   t.after(async () => {
     release();
-    await running;
+    await Promise.all(running);
     await runner.close();
   });
   return runner;
 }
+
+/** Settles with `promise`, or with 'pending' when it has not settled within `ms`. */
+function within<T>(promise: Promise<T>, ms: number): Promise<T | 'pending'> {
+  return Promise.race([promise, new Promise<'pending'>(resolve => setTimeout(() => resolve('pending'), ms))]);
+}
+
+test('an export that holds its download place does not hold up reports', async t => {
+  let release!: () => void;
+  const held = new Promise<void>(resolve => (release = resolve));
+  let reads = 0;
+  const reported = new ApplicationError('not-found', 'report read');
+  // The first read is the export's, which waits like a client that stopped reading; reports fail at once.
+  const source: JobSource = {
+    readSnapshot: async () => {
+      if (++reads === 1) {
+        await held;
+        throw new Error('released');
+      }
+      throw reported;
+    },
+  };
+  const runner = new ReportRunner(INLINE, source);
+  const exporting = runner.export(1, EXPORT, async () => {}).catch(error => error);
+  t.after(async () => {
+    release();
+    await exporting;
+    await runner.close();
+  });
+  while (reads === 0) await new Promise(resolve => setImmediate(resolve));
+  const report = runner.run(2, 1, WEEKLY as never).then(
+    () => 'answered',
+    error => error,
+  );
+  assert.equal(await within(report, 2000), reported, 'the report ran while the export held its place');
+});
+
+test('a download that runs past its deadline is given up with a 503 and Retry-After', async t => {
+  let release!: () => void;
+  const held = new Promise<void>(resolve => (release = resolve));
+  const source: JobSource = {
+    readSnapshot: async () => {
+      await held;
+      throw new Error('released');
+    },
+  };
+  const runner = new ReportRunner(INLINE, source, { downloads: { deadlineMs: 30 } });
+  t.after(async () => {
+    release();
+    await runner.close();
+  });
+  const started = Date.now();
+  await assert.rejects(
+    runner.export(1, EXPORT, async () => {}),
+    error =>
+      error instanceof ApplicationError &&
+      error.kind === 'unavailable' &&
+      error.message === 'Download took too long' &&
+      error.retryAfterSeconds === 60,
+  );
+  assert.ok(Date.now() - started < 2000);
+});
+
+test('the download lane limits must be valid', () => {
+  const source: JobSource = { readSnapshot: () => Promise.reject(new Error('unused')) };
+  assert.throws(() => new ReportRunner(INLINE, source, { downloads: { maxQueue: 0 } }), /Invalid download queue/);
+  assert.throws(
+    () => new ReportRunner(INLINE, source, { downloads: { maxQueue: 4, maxPerUser: 5 } }),
+    /Invalid download share/,
+  );
+  assert.throws(() => new ReportRunner(INLINE, source, { downloads: { deadlineMs: 0 } }), /Invalid download deadline/);
+});
 
 /** Storage that counts its read snapshots. */
 function countingReads(storage: Storage): { storage: Storage; reads: () => number } {
@@ -60,7 +136,7 @@ function countingReads(storage: Storage): { storage: Storage; reads: () => numbe
   };
 }
 
-test('a full report queue refuses an account export before reading it', async t => {
+test('a full download lane refuses an account export before reading it', async t => {
   const db = await openSQLiteDatabase();
   const counted = countingReads(storageFor(db));
   const services = createApplicationServices({ storage: counted.storage, reports: fullRunner(t), sessionDays: 30 });
