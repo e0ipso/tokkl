@@ -256,23 +256,13 @@ void TimerModel::updateProjectChoices()
     }
 }
 
-QVariant TimerModel::selectedProjectId() const
-{
-    return m_next->projectIdVariant();
-}
-
-bool TimerModel::billable() const
-{
-    return m_next->billable();
-}
-
 QVariant TimerModel::chosenProjectId() const
 {
     if (isRunning() || isPaused()) {
         const std::optional<qint64> project = chosenProject();
         return project ? QVariant(*project) : QVariant::fromValue(nullptr);
     }
-    return selectedProjectId();
+    return m_next->projectIdVariant();
 }
 
 std::optional<qint64> TimerModel::chosenProject() const
@@ -291,7 +281,7 @@ bool TimerModel::chosenBillable() const
     if (m_shown.entry) {
         return m_shown.entry->billable;
     }
-    return isPaused() ? m_shown.chain->billable : billable();
+    return isPaused() ? m_shown.chain->billable : m_next->billable();
 }
 
 std::optional<Project> TimerModel::entryProject() const

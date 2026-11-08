@@ -779,13 +779,13 @@ private Q_SLOTS:
         QVERIFY(!menu.m_billableAction->isChecked());
 
         projectAction(menu, QStringLiteral("Alpha"))->trigger();
-        QCOMPARE(f.app.m_timer.get()->selectedProjectId().toLongLong(), 11);
+        QCOMPARE(f.app.m_timer.get()->chosenProjectId().toLongLong(), 11);
         QTRY_VERIFY(projectAction(menu, QStringLiteral("Alpha"))->isChecked());
         QVERIFY(!projectAction(menu, QStringLiteral("Beta (Acme)"))->isChecked());
         // Alpha is billable by default.
         QVERIFY(menu.m_billableAction->isChecked());
         menu.m_billableAction->trigger();
-        QVERIFY(!f.app.m_timer.get()->billable());
+        QVERIFY(!f.app.m_timer.get()->chosenBillable());
         QVERIFY(!menu.m_billableAction->isChecked());
 
         QCOMPARE(menu.m_startStopAction->text(), QStringLiteral("Start Timer"));

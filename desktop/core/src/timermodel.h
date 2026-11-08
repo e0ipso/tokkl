@@ -316,10 +316,6 @@ public:
     // The project submenu every panel shows; see ProjectChoices.
     ProjectChoices projectChoices() const;
     QVariantList projectChoicesVariant() const;
-    // The choices for the next start, for the connection's account: null or
-    // a project id, and the billable flag.
-    QVariant selectedProjectId() const;
-    bool billable() const;
     QVariant chosenProjectId() const;
     // chosenProjectId as the id it holds; none for no project.
     std::optional<qint64> chosenProject() const;
