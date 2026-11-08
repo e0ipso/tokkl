@@ -714,6 +714,7 @@ private Q_SLOTS:
                      {QStringLiteral("workspace_id"), 7},
                      {QStringLiteral("project_id"), 11},
                      {QStringLiteral("billable"), true},
+                     {QStringLiteral("revision"), f.revision},
                  }));
         QVERIFY(!f.session->canStartSession());
         QCOMPARE(f.session->activate(), PomodoroSession::Activation::Ignored);

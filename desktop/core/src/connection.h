@@ -130,11 +130,13 @@ public:
     // The timer actions. Each needs canWrite(), and done tells apart a change
     // made, a 409 with the server's state, nothing changed, and an unknown
     // outcome. Resume, discard, next phase and end apply only to the state
-    // at revision, the one the user saw.
+    // at revision, the one the user saw, and so does a Pomodoro start on a
+    // server that announces pomodoro-revision; an older one gets no
+    // revision.
     void pauseTimer(ActionCallback done = {});
     void resumeTimer(qint64 revision, ActionCallback done = {});
     void discardPause(qint64 revision, ActionCallback done = {});
-    void startPomodoro(const PomodoroStart &start, ActionCallback done = {});
+    void startPomodoro(qint64 revision, const PomodoroStart &start, ActionCallback done = {});
     void nextPomodoroPhase(qint64 revision, ActionCallback done = {});
     void endPomodoro(qint64 revision, ActionCallback done = {});
     // Start a running entry and stop the running one through POST

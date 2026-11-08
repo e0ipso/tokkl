@@ -323,9 +323,11 @@ void Connection::discardPause(qint64 revision, ActionCallback done)
     m_session.api().action(app(QStringLiteral("/timer/discard")), encodeRevision(revision), std::move(done));
 }
 
-void Connection::startPomodoro(const PomodoroStart &start, ActionCallback done)
+void Connection::startPomodoro(qint64 revision, const PomodoroStart &start, ActionCallback done)
 {
-    m_session.api().action(app(QStringLiteral("/pomodoro")), encodePomodoroStart(start, workspaceId(), m_clientName), std::move(done));
+    // A server without pomodoro-revision starts whatever the timer holds.
+    const std::optional<qint64> checked = server().pomodoroRevision ? std::optional(revision) : std::nullopt;
+    m_session.api().action(app(QStringLiteral("/pomodoro")), encodePomodoroStart(start, workspaceId(), m_clientName, checked), std::move(done));
 }
 
 void Connection::nextPomodoroPhase(qint64 revision, ActionCallback done)

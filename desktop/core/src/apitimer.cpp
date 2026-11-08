@@ -204,7 +204,7 @@ QByteArray encodeRevision(qint64 revision)
     return QJsonDocument(QJsonObject{{QStringLiteral("revision"), revision}}).toJson(QJsonDocument::Compact);
 }
 
-QByteArray encodePomodoroStart(const PomodoroStart &start, qint64 workspaceId, const QString &createdWith)
+QByteArray encodePomodoroStart(const PomodoroStart &start, qint64 workspaceId, const QString &createdWith, std::optional<qint64> revision)
 {
     QJsonObject object{
         {QStringLiteral("created_with"), createdWith},
@@ -214,6 +214,9 @@ QByteArray encodePomodoroStart(const PomodoroStart &start, qint64 workspaceId, c
     };
     if (start.billable) {
         object.insert(QStringLiteral("billable"), *start.billable);
+    }
+    if (revision) {
+        object.insert(QStringLiteral("revision"), *revision);
     }
     return QJsonDocument(object).toJson(QJsonDocument::Compact);
 }

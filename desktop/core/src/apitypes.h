@@ -410,6 +410,8 @@ QByteArray encodePomodoroConfigUpdate(const PomodoroConfigUpdate &update);
 // {"revision":n}, for an action that applies only to the state it was sent
 // against.
 QByteArray encodeRevision(qint64 revision);
-QByteArray encodePomodoroStart(const PomodoroStart &start, qint64 workspaceId, const QString &createdWith);
+// With a revision, the server starts the session only on the state the
+// user saw.
+QByteArray encodePomodoroStart(const PomodoroStart &start, qint64 workspaceId, const QString &createdWith, std::optional<qint64> revision = std::nullopt);
 
 }
