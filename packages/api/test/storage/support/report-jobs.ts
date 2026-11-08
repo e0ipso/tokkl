@@ -44,10 +44,10 @@ export async function answerOnRunner(
   workspaceId: number,
   job: AnyReportJob,
 ): Promise<JobResult> {
-  if (!isCsvDownload(job)) return runner.reserve({ userId }, slot => slot.run(userId, workspaceId, job));
+  if (!isCsvDownload(job)) return runner.reserve({ userId }, slot => slot.run(workspaceId, job));
   const chunks: string[] = [];
   await runner.reserveDownload({ userId }, slot =>
-    slot.report(userId, workspaceId, job, async chunk => {
+    slot.report(workspaceId, job, async chunk => {
       chunks.push(chunk);
     }),
   );

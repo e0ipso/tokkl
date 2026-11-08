@@ -14,6 +14,7 @@ import { openConnection } from '../../src/storage/connections.ts';
 import { createStorage } from '../../src/storage/index.ts';
 import { openReportReader } from '../../src/storage/repositories/report-reader.ts';
 import { ReportRunner } from '../../src/services/reportRunner.ts';
+import { runReport } from '../fixtures/reportRunner.ts';
 import { runReportJob, type ReportJob } from '../../src/services/reportJobs.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 import { trackedWorkers } from './support/reportWorkers.ts';
@@ -124,7 +125,7 @@ for (const backend of ['postgres', 'mysql', 'mariadb'] as const) {
       const workers = trackedWorkers();
       const runner = new ReportRunner(config, storage, { startWorker: workers.startWorker });
       try {
-        assert.deepEqual(await runner.run(user.id, user.defaultWorkspaceId, job), expected);
+        assert.deepEqual(await runReport(runner, user.id, user.defaultWorkspaceId, job), expected);
         assert.equal(workers.started.length, 1, 'report executed in a real worker');
         assert.ok(workers.latest() instanceof Worker);
       } finally {
@@ -158,7 +159,7 @@ for (const backend of ['postgres', 'mysql', 'mariadb'] as const) {
             );
           const broken = new ReportRunner({ ...invalid, connectTimeoutMs: 1000 }, storage);
           try {
-            await assert.rejects(broken.run(user.id, user.defaultWorkspaceId, job), /Report worker stopped/);
+            await assert.rejects(runReport(broken, user.id, user.defaultWorkspaceId, job), /Report worker stopped/);
           } finally {
             await broken.close();
           }

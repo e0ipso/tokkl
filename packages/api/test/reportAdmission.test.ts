@@ -12,6 +12,8 @@ import { appReportRoutes, reportsV3Routes } from '../src/routes/reports.ts';
 import type { Deps } from '../src/routes/context.ts';
 import { createApplicationServices } from '../src/services/application.ts';
 import { ReportRunner } from '../src/services/reportRunner.ts';
+import { runReport, runExport } from './fixtures/reportRunner.ts';
+import { fakeReportWorkers, postedJobs } from './fixtures/fakeReportWorker.ts';
 import type { JobSource } from '../src/services/reportExecution.ts';
 import type { Storage } from '../src/storage/contracts.ts';
 
@@ -39,8 +41,8 @@ function fullRunner(t: TestContext): ReportRunner {
   };
   const runner = new ReportRunner(INLINE, source, { maxQueue: 1, downloads: { maxQueue: 1 } });
   const running = [
-    runner.run(1, 1, WEEKLY as never).catch(() => {}),
-    runner.export(1, EXPORT, async () => {}).catch(() => {}),
+    runReport(runner, 1, 1, WEEKLY as never).catch(() => {}),
+    runExport(runner, 1, EXPORT, async () => {}).catch(() => {}),
   ];
   t.after(async () => {
     release();
@@ -71,14 +73,14 @@ test('an export that holds its download place does not hold up reports', async t
     },
   };
   const runner = new ReportRunner(INLINE, source);
-  const exporting = runner.export(1, EXPORT, async () => {}).catch(error => error);
+  const exporting = runExport(runner, 1, EXPORT, async () => {}).catch(error => error);
   t.after(async () => {
     release();
     await exporting;
     await runner.close();
   });
   while (reads === 0) await new Promise(resolve => setImmediate(resolve));
-  const report = runner.run(2, 1, WEEKLY as never).then(
+  const report = runReport(runner, 2, 1, WEEKLY as never).then(
     () => 'answered',
     error => error,
   );
@@ -101,7 +103,7 @@ test('a download that runs past its deadline is given up with a 503 and Retry-Af
   });
   const started = Date.now();
   await assert.rejects(
-    runner.export(1, EXPORT, async () => {}),
+    runExport(runner, 1, EXPORT, async () => {}),
     error =>
       error instanceof ApplicationError &&
       error.kind === 'unavailable' &&
@@ -255,8 +257,8 @@ test('a reserved place counts toward the queue limit until its holder queues a j
   assert.equal(await runner.reserve({ userId: 1 }, async () => 'free again'), 'free again');
   await assert.rejects(
     runner.reserve({ userId: 1 }, async slot => {
-      await slot.run(1, 1, WEEKLY as never).catch(() => {});
-      return slot.run(1, 1, WEEKLY as never);
+      await slot.run(1, WEEKLY as never).catch(() => {});
+      return slot.run(1, WEEKLY as never);
     }),
     /A report slot queues one job/,
   );
@@ -292,10 +294,10 @@ test('one account cannot take more than its share of the report queue', async t 
   const { source, reading, release } = gatedSource();
   const runner = new ReportRunner(INLINE, source, { maxQueue: 8, maxPerUser: 3 });
   t.after(() => runner.close());
-  const mine = [1, 2, 3].map(() => runner.run(1, 1, WEEKLY as never).catch(error => error));
+  const mine = [1, 2, 3].map(() => runReport(runner, 1, 1, WEEKLY as never).catch(error => error));
   await reading(1);
   await assert.rejects(
-    runner.run(1, 1, WEEKLY as never),
+    runReport(runner, 1, 1, WEEKLY as never),
     error =>
       error instanceof ApplicationError &&
       error.kind === 'unavailable' &&
@@ -307,14 +309,14 @@ test('one account cannot take more than its share of the report queue', async t 
     runner.reserve({ userId: 1 }, async () => {}),
     /Report queue is full/,
   );
-  const theirs = runner.run(2, 2, WEEKLY as never).catch(error => error);
+  const theirs = runReport(runner, 2, 2, WEEKLY as never).catch(error => error);
   for (let i = 0; i < 4; i++) {
     await reading(i + 1);
     release();
   }
   for (const result of await Promise.all([...mine, theirs])) assert.ok(result instanceof ApplicationError);
   // Once its jobs finish, the account has its whole share again.
-  const again = [1, 2, 3].map(() => runner.run(1, 1, WEEKLY as never).catch(error => error));
+  const again = [1, 2, 3].map(() => runReport(runner, 1, 1, WEEKLY as never).catch(error => error));
   for (let i = 4; i < 7; i++) {
     await reading(i + 1);
     release();
@@ -327,9 +329,9 @@ test('queued reports take turns between accounts', async t => {
   const runner = new ReportRunner(INLINE, source, { maxQueue: 16, maxPerUser: 4 });
   t.after(() => runner.close());
   const jobs = [
-    ...[1, 1, 1, 1].map(user => runner.run(user, user, WEEKLY as never).catch(() => {})),
-    ...[2, 2].map(user => runner.run(user, user, WEEKLY as never).catch(() => {})),
-    runner.run(3, 3, WEEKLY as never).catch(() => {}),
+    ...[1, 1, 1, 1].map(user => runReport(runner, user, user, WEEKLY as never).catch(() => {})),
+    ...[2, 2].map(user => runReport(runner, user, user, WEEKLY as never).catch(() => {})),
+    runReport(runner, 3, 3, WEEKLY as never).catch(() => {}),
   ];
   for (let i = 0; i < jobs.length; i++) {
     await reading(i + 1);
@@ -344,4 +346,31 @@ test('the per-account share must fit the queue', () => {
   const source: JobSource = { readSnapshot: () => Promise.reject(new Error('unused')) };
   for (const maxPerUser of [0, 1.5, 17])
     assert.throws(() => new ReportRunner(INLINE, source, { maxQueue: 16, maxPerUser }), /Invalid report share/);
+});
+
+/** A database the fake workers never open; any file-backed config runs jobs in workers. */
+const WORKER = { backend: 'sqlite' as const, filename: 'unused.db', busyTimeoutMs: 5000 };
+const UNUSED: JobSource = { readSnapshot: () => Promise.reject(new Error('unused')) };
+
+test('a slot queues work only for the account that reserved it', async t => {
+  const { startWorker, posted } = fakeReportWorkers();
+  const runner = new ReportRunner(WORKER, UNUSED, { startWorker });
+  t.after(() => runner.close());
+  const output = async () => {};
+  const jobs = [
+    runner.reserve({ userId: 7 }, slot => slot.run(3, WEEKLY as never)),
+    runner.reserveDownload({ userId: 7 }, slot => slot.export(EXPORT, output)),
+    runner.reserveDownload({ userId: 7 }, slot =>
+      slot.report(3, { kind: 'detailed-csv', filter: WEEKLY.filter } as never, output),
+    ),
+  ];
+  const seen = await postedJobs(posted, 2);
+  for (const job of seen) job.worker.finish(job.id);
+  const third = await postedJobs(posted, 3);
+  third[2]!.worker.finish(third[2]!.id);
+  await Promise.all(jobs);
+  assert.deepEqual(
+    posted.map(job => job.work.userId),
+    [7, 7, 7],
+  );
 });

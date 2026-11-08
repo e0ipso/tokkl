@@ -66,23 +66,23 @@ interface Pending extends ExecutionJob {
   /** Ends the job once its lane's deadline passes; set while it runs. */
   deadline?: ReturnType<typeof setTimeout>;
 }
-/** A place in the report queue, held while its caller prepares one job. It queues one job only. */
+/**
+ * A place in the report queue, held while its caller prepares one job. It queues one job only, for
+ * the account that reserved the place.
+ */
 export interface ReportSlot {
-  run(
-    userId: number,
-    workspaceId: number,
-    job: ReportJob,
-    options?: { authentication?: Authentication },
-  ): Promise<JobResult>;
+  run(workspaceId: number, job: ReportJob, options?: { authentication?: Authentication }): Promise<JobResult>;
 }
-/** A place in the download lane, held while its caller prepares one download. It queues one job only. */
+/**
+ * A place in the download lane, held while its caller prepares one download. It queues one job
+ * only, for the account that reserved the place.
+ */
 export interface DownloadSlot {
   /**
-   * Writes `userId`'s export to `output` a piece at a time, reading it in the job's own snapshot.
+   * Writes the account's export to `output` a piece at a time, reading it in the job's own snapshot.
    * Settles once the last piece was taken.
    */
   export(
-    userId: number,
     assembly: ExportAssemblyJob,
     output: ExportEmitter,
     options?: { authentication?: Authentication },
@@ -92,7 +92,6 @@ export interface DownloadSlot {
    * in the job's own snapshot. Settles once the last piece was taken.
    */
   report(
-    userId: number,
     workspaceId: number,
     job: CsvDownloadJob,
     output: ExportEmitter,
@@ -368,39 +367,25 @@ export class ReportRunner implements ReportExecutor {
     this.reports = new Lane(config, inline, reports, execution);
     this.downloads = new Lane(config, inline, downloads, execution);
   }
-  run(
-    userId: number,
-    workspaceId: number,
-    job: ReportJob,
-    options: { signal?: AbortSignal; authentication?: Authentication } = {},
-  ): Promise<JobResult> {
-    return this.reserve({ userId, signal: options.signal }, slot => slot.run(userId, workspaceId, job, options));
-  }
-  export(
-    userId: number,
-    assembly: ExportAssemblyJob,
-    output: ExportEmitter,
-    options: { signal?: AbortSignal; authentication?: Authentication } = {},
-  ): Promise<void> {
-    return this.reserveDownload({ userId, signal: options.signal }, slot =>
-      slot.export(userId, assembly, output, options),
-    );
-  }
+  /** The slot runs work for the reservation's account only. */
   reserve<T>(options: ReportReservation, work: (slot: ReportSlot) => Promise<T>): Promise<T> {
+    const { userId } = options;
     return this.reports.reserve(options, submit =>
       work({
         // A report always settles with its result.
-        run: (userId, workspaceId, job, { authentication } = {}) =>
+        run: (workspaceId, job, { authentication } = {}) =>
           submit({ userId, workspaceId, job, authentication }) as Promise<JobResult>,
       }),
     );
   }
+  /** The slot runs work for the reservation's account only. */
   reserveDownload<T>(options: ReportReservation, work: (slot: DownloadSlot) => Promise<T>): Promise<T> {
+    const { userId } = options;
     return this.downloads.reserve(options, submit =>
       work({
-        export: (userId, assembly, output, { authentication } = {}) =>
+        export: (assembly, output, { authentication } = {}) =>
           submit({ userId, assembly, authentication }, output).then(() => {}),
-        report: (userId, workspaceId, download, output, { authentication } = {}) =>
+        report: (workspaceId, download, output, { authentication } = {}) =>
           submit({ userId, workspaceId, download, authentication }, output).then(() => {}),
       }),
     );

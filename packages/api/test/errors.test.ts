@@ -4,6 +4,7 @@ import type { Request, Response } from 'express';
 import { errorHandler, errorReply } from '../src/http/errors.ts';
 import { redactedDiagnostic, type Logger } from '../src/lib/logger.ts';
 import { ReportRunner } from '../src/services/reportRunner.ts';
+import { runReport } from './fixtures/reportRunner.ts';
 import {
   conflict,
   RequestCancelled,
@@ -122,7 +123,8 @@ test('the report runner refuses an aborted request with a cancellation, not a fa
   );
   const signal = AbortSignal.abort();
   await assert.rejects(
-    runner.run(
+    runReport(
+      runner,
       1,
       1,
       { kind: 'v3-weekly', filter: { startDate: '2026-01-01', endDate: '2026-01-07' }, weekStart: '2026-01-01' },
@@ -167,7 +169,7 @@ test('an unexpected inline report failure is logged with its job, not its messag
     filter: { startDate: '2026-01-01', endDate: '2026-01-07' },
     weekStart: '2026-01-01',
   };
-  await assert.rejects(runner.run(1, 1, job as never), /^Error: Report failed$/);
+  await assert.rejects(runReport(runner, 1, 1, job as never), /^Error: Report failed$/);
   await runner.close();
   assert.equal(lines.length, 1);
   assert.equal(lines[0]!.message, 'Report failed');

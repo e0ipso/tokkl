@@ -10,6 +10,7 @@ import type { StorageConnection } from '../../src/storage/connections.ts';
 import type { PhysicalDatabase } from '../../src/storage/physical.ts';
 import { ApplicationError } from '../../src/lib/errors.ts';
 import { ReportRunner } from '../../src/services/reportRunner.ts';
+import { runExport } from '../fixtures/reportRunner.ts';
 import {
   EXPORT_BATCH_SIZE,
   EXPORT_BYTES_AHEAD,
@@ -151,7 +152,7 @@ async function seedAccount(
 /** The body `runner` streams for `userId`'s export, and the size of each piece. */
 async function streamed(runner: ReportRunner, userId: number, assembly: ExportAssemblyJob) {
   const chunks: string[] = [];
-  await runner.export(userId, assembly, async chunk => {
+  await runExport(runner, userId, assembly, async chunk => {
     chunks.push(chunk);
   });
   return chunks.join('');
@@ -228,15 +229,13 @@ test('a worker export waits for its output to take what it sent', { timeout: 120
   const held: Array<() => void> = [];
   let largest = 0;
   let settled = false;
-  const done = runner
-    .export(user.id, assembly, chunk => {
-      chunks.push(chunk);
-      largest = Math.max(largest, Buffer.byteLength(chunk));
-      return new Promise<void>(resolve => held.push(resolve));
-    })
-    .then(() => {
-      settled = true;
-    });
+  const done = runExport(runner, user.id, assembly, chunk => {
+    chunks.push(chunk);
+    largest = Math.max(largest, Buffer.byteLength(chunk));
+    return new Promise<void>(resolve => held.push(resolve));
+  }).then(() => {
+    settled = true;
+  });
   // Hold every piece until the worker stops sending.
   let seen = -1;
   while (!chunks.length || seen !== chunks.length) {

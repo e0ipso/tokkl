@@ -183,7 +183,7 @@ export function createApplicationServices({
     ): Promise<void> {
       const userId = authentication.user.id;
       return reports.reserveDownload({ userId, signal: options.signal }, slot =>
-        slot.export(userId, assembly, output, { authentication }),
+        slot.export(assembly, output, { authentication }),
       );
     },
     accountsFor: (authentication: Authentication): SignedInAccountOperations =>
