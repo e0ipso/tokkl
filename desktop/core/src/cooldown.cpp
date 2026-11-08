@@ -25,7 +25,8 @@ qint64 Cooldown::waitMs(const QByteArray &retryAfter)
         bool isNumber = false;
         const qint64 seconds = value.toLongLong(&isNumber);
         if (isNumber) {
-            ms = seconds * 1000;
+            // Clamped in seconds first, so a huge value cannot overflow.
+            ms = std::clamp<qint64>(seconds, minMs / 1000, maxMs / 1000) * 1000;
         } else {
             const QDateTime when = QDateTime::fromString(QString::fromLatin1(value), Qt::RFC2822Date);
             if (when.isValid()) {

@@ -28,6 +28,7 @@ endfunction()
 tokkl_core_test(api apitest.cpp)
 tokkl_core_test(apiclient apiclienttest.cpp tokklcorefakes)
 tokkl_core_test(connection connectiontest.cpp tokklcorefakes)
+tokkl_core_test(cooldown cooldowntest.cpp)
 tokkl_core_test(sessioncredentials sessioncredentialstest.cpp tokklcorefakes)
 tokkl_core_test(networktransport networktransporttest.cpp)
 # The User-Agent check needs the version the transport sends.
