@@ -753,7 +753,8 @@ test.describe('all-day creation', () => {
           contentType: 'application/json',
           body: '"Calendar save unavailable"',
         }),
-      { times: 1 },
+      // A create whose outcome is unknown is sent once more with the same key: fail both.
+      { times: 2 },
     );
     await dialog.getByLabel('Duration', { exact: true }).fill('45m');
     await dialog.getByRole('button', { name: 'Add entry', exact: true }).click();
@@ -767,7 +768,8 @@ test.describe('all-day creation', () => {
     await dialog.getByRole('button', { name: 'Add entry', exact: true }).click();
     await expect(dialog).toHaveCount(0);
     await expect(add).toBeFocused();
-    expect(writes).toEqual(['POST', 'POST', 'POST']);
+    // The first entry, the failed save and its automatic retry with the same key, then the user's retry.
+    expect(writes).toEqual(['POST', 'POST', 'POST', 'POST']);
     expect(await data.entries()).toHaveLength(2);
     await expect(cells.first().locator('.calendar-chip')).toHaveCount(2);
     await expect(page.locator('.calendar-day-head').first().locator('small')).toHaveText('2:15:00');

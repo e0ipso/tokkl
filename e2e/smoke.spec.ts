@@ -245,7 +245,8 @@ test('a manual entry across the autumn clock change moves the date to its stop d
       route.request().method() === 'POST'
         ? route.fulfill({ status: 500, contentType: 'application/json', body: '"Server unavailable"' })
         : route.continue(),
-    { times: 1 },
+    // A create whose outcome is unknown is sent once more with the same key: fail both.
+    { times: 2 },
   );
   await timer.getByRole('button', { name: 'Add entry' }).click();
   await expect(page.getByText('Server unavailable')).toBeVisible();
