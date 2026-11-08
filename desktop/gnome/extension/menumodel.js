@@ -53,8 +53,8 @@ import {
  *
  * Which items show and can be chosen is the service's to say: the Actions
  * property carries the shared core's rules, the ones the KDE and macOS
- * menus follow, with GNOME's policy (writes wait for Status "ready", and a
- * session leaves Project and Billable to the timer). This turns each
+ * menus follow, with GNOME's policy (writes also wait for Status "ready").
+ * This turns each
  * action's label into words. Start, or Stop while an entry runs or a chain
  * is paused, never pauses: Stop ends the chain. Without Actions, from no
  * service or one older than the property, legacyActions() gives the rules
@@ -135,7 +135,9 @@ export function projectChoices(projects, chosenProject, label, _, incomplete = f
 }
 
 // How the button's time ends for each mark of the Presentation property.
-const MARKS = { none: '', pending: '…', alert: '!', unconfigured: '!' };
+// How the button's time ends for each mark of a Presentation, keyed as the
+// core keys them (statusMarkKeys() in desktop/core/src/statuspresentation.h).
+export const MARKS = { none: '', pending: '…', alert: '!', unconfigured: '!' };
 
 /**
  * @typedef {object} Presentation the Presentation property: which parts
@@ -151,10 +153,11 @@ const MARKS = { none: '', pending: '…', alert: '!', unconfigured: '!' };
  * extension to decide, by the rules the extension had: the core's
  * StatusPolicy::gnome(). Also the words with no service. A service that
  * publishes InterfaceVersion 1 or later publishes Presentation (publishes()
- * in timer1.js); remove the older-service use once every supported
- * tokkl-timerd publishes InterfaceVersion. The accessible name always names the project and
- * the connection, its detail when there is one, and outside a session the
- * Pomodoro mode. The status line is the session's line during a session,
+ * in timer1.js). Delete the older-service use when
+ * OLDEST_SUPPORTED_INTERFACE_VERSION in timer1.js becomes 1; keep only what
+ * the button shows with no service (status null). The accessible name
+ * always names the project and the connection, its detail when there is
+ * one, and outside a session the Pomodoro mode. The status line is the session's line during a session,
  * and otherwise the connection, after the paused total while paused.
  *
  * @param {{status: string|null, paused: boolean, pomodoroMode: boolean, session: object|null}} time
@@ -171,6 +174,47 @@ export function legacyPresentation(time, words) {
         summary: ['activity', 'project', 'connection', ...detail, ...(time.pomodoroMode ? ['pomodoroMode'] : [])],
         menuLine: time.paused ? ['activity', 'connection'] : ['connection'],
         mark,
+    };
+}
+
+// The time the button shows: the phase's countdown during a session,
+// otherwise the chain total.
+function shownTime(time, nowSeconds) {
+    if (time.session) return countdown(time.session.plannedEnd, nowSeconds).text;
+    const running = time.running ? elapsedSeconds(time.startTime, nowSeconds) : 0;
+    return formatElapsed(time.chainSeconds + running);
+}
+
+/**
+ * The words of each part a Presentation names, keyed as the core keys them
+ * (statusPartKeys() in desktop/core/src/statuspresentation.h). The session's
+ * message has a menu item of its own, so its part has no words here.
+ *
+ * @param {object} time as describeTime() takes it
+ * @param {{text: string, detail: string}} words describeStatus()
+ * @param {string} indicatorLabel the project indicator's accessible name
+ * @param {number} nowSeconds the current Unix time in seconds
+ * @param {(text: string) => string} _ gettext
+ * @returns {Record<string, string>}
+ */
+export function partTexts(time, words, indicatorLabel, nowSeconds, _) {
+    let activity = '';
+    if (!time.session) {
+        const shown = shownTime(time, nowSeconds);
+        activity = _('Stopped');
+        // Translators: %s is the elapsed time as H:MM.
+        if (time.running) activity = fill(_('Running %s'), shown);
+        // Translators: %s is the paused total as H:MM.
+        else if (time.paused) activity = fill(_('Paused %s'), shown);
+    }
+    return {
+        activity,
+        session: time.session ? sessionLine(time.session, nowSeconds, _) : '',
+        project: indicatorLabel,
+        connection: words.text,
+        detail: words.detail,
+        pomodoroMode: _('Pomodoro mode'),
+        message: '',
     };
 }
 
@@ -202,27 +246,7 @@ export function legacyPresentation(time, words) {
  */
 export function describeTime(time, words, indicatorLabel, nowSeconds, _) {
     const presentation = time.presentation ?? legacyPresentation(time, words);
-    let shown, activity;
-    if (time.session) {
-        shown = countdown(time.session.plannedEnd, nowSeconds).text;
-        activity = '';
-    } else {
-        const running = time.running ? elapsedSeconds(time.startTime, nowSeconds) : 0;
-        shown = formatElapsed(time.chainSeconds + running);
-        activity = _('Stopped');
-        // Translators: %s is the elapsed time as H:MM.
-        if (time.running) activity = fill(_('Running %s'), shown);
-        // Translators: %s is the paused total as H:MM.
-        else if (time.paused) activity = fill(_('Paused %s'), shown);
-    }
-    const texts = {
-        activity,
-        session: time.session ? sessionLine(time.session, nowSeconds, _) : '',
-        project: indicatorLabel,
-        connection: words.text,
-        detail: words.detail,
-        pomodoroMode: _('Pomodoro mode'),
-    };
+    const texts = partTexts(time, words, indicatorLabel, nowSeconds, _);
     // The parts' words, those with any, joined by " · ".
     const render = parts =>
         parts
@@ -230,7 +254,7 @@ export function describeTime(time, words, indicatorLabel, nowSeconds, _) {
             .filter(text => text)
             .join(' · ');
     return {
-        button: `${shown}${MARKS[presentation.mark] ?? ''}`,
+        button: `${shownTime(time, nowSeconds)}${MARKS[presentation.mark] ?? ''}`,
         status: render(presentation.menuLine),
         accessibleName: render(presentation.summary),
     };

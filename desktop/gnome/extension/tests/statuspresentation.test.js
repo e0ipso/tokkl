@@ -7,11 +7,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
-import { describeTime, legacyPresentation } from '../menumodel.js';
-import { describeStatus } from '../timer1.js';
+import { MARKS, describeTime, legacyPresentation, partTexts } from '../menumodel.js';
+import { describeStatus, statusWords } from '../timer1.js';
 
 const identity = text => text;
-const { cases } = JSON.parse(
+const { cases, keys } = JSON.parse(
     readFileSync(new URL('../../../core/autotests/statuspresentation.json', import.meta.url), 'utf8'),
 );
 const session = { phase: 'work', plannedEnd: 2000, pomodoroNumber: 2, longRestEvery: 4 };
@@ -31,6 +31,14 @@ function timeOf(input) {
 function wordsOf(input) {
     return describeStatus(input.status, input.hasDetail ? 'The instance is unreachable' : '', identity);
 }
+
+// A part, mark or status the core adds without words here fails.
+test('every key of the core has words', () => {
+    const texts = partTexts(timeOf(cases[0].input), wordsOf(cases[0].input), 'Project Alpha', 1000, identity);
+    for (const part of keys.parts) assert.equal(typeof texts[part], 'string', `part ${part}`);
+    for (const mark of keys.marks) assert.equal(typeof MARKS[mark], 'string', `mark ${mark}`);
+    for (const status of keys.statuses) assert.ok(statusWords(status, '', identity), `status ${status}`);
+});
 
 test('a service without Presentation gets the parts of the GNOME policy', () => {
     assert.ok(cases.length > 100);

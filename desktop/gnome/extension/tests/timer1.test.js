@@ -2,11 +2,12 @@
 //   node --test 'desktop/gnome/extension/**/*.test.js'
 
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 import {
     AUTH_MODES,
+    OLDEST_SUPPORTED_INTERFACE_VERSION,
     TIMER1_XML_FILE,
     chosenProjectLabel,
     countdown,
@@ -14,6 +15,7 @@ import {
     elapsedSeconds,
     fill,
     formatElapsed,
+    hasRequestMethods,
     nextPhaseLabel,
     phaseName,
     pomodoroModeLabel,
@@ -55,6 +57,7 @@ test('every Status value has words and a mark', () => {
     assert.equal(describeStatus('busy', '', identity).mark, '…');
     for (const status of ['unconfigured', 'stale', 'authentication-blocked', 'error', 'unknown-value', null])
         assert.equal(describeStatus(status, 'why', identity).mark, '!', String(status));
+    assert.deepEqual(describeStatus('unknown-value', 'why', identity), describeStatus('error', 'why', identity));
     assert.equal(describeStatus('stale', 'Network down', identity).detail, 'Network down');
     assert.equal(describeStatus('error', 'Server said no', identity).detail, 'Server said no');
     assert.match(describeStatus(null, '', identity).text, /not running/);
@@ -154,4 +157,28 @@ test('a fallback is picked by InterfaceVersion, or without one by the property b
         assert.equal(publishes(0, property, false), false, property);
     }
     assert.equal(publishes(1, 'Unknown', false), false);
+});
+
+test('the Request methods are picked by InterfaceVersion alone', () => {
+    assert.equal(hasRequestMethods(0), false);
+    assert.equal(hasRequestMethods(1), true);
+    assert.equal(hasRequestMethods(2), true);
+});
+
+// The fallbacks for a service from before InterfaceVersion live only while
+// the floor admits such a service. Raising the floor without deleting them,
+// or deleting them while the floor is 0, fails here.
+test('the fallbacks for older services follow the support floor', () => {
+    const extension = name => existsSync(new URL(`../${name}`, import.meta.url));
+    const legacyPresentation = readFileSync(new URL('../menumodel.js', import.meta.url), 'utf8').includes(
+        'export function legacyPresentation',
+    );
+    const plainMethods = readFileSync(new URL('../timerrequests.js', import.meta.url), 'utf8').includes(
+        'hasRequestMethods(',
+    );
+    const older = OLDEST_SUPPORTED_INTERFACE_VERSION < 1;
+    assert.equal(extension('legacyactions.js'), older, 'legacyactions.js');
+    assert.equal(extension('legacylimits.js'), older, 'legacylimits.js');
+    assert.equal(legacyPresentation, older, 'legacyPresentation() in menumodel.js');
+    assert.equal(plainMethods, older, 'the plain methods in timerrequests.js');
 });

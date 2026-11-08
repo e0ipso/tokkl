@@ -20,14 +20,16 @@ const QString token = QStringLiteral("tok-state-1");
 const QString statePath = QStringLiteral("/api/app/timer");
 const QString eventsPath = QStringLiteral("/api/app/timer/events");
 
-QByteArray meBody(qint64 id, qint64 workspace)
+// The account on a current server, or with current false on a server from
+// before the capabilities.
+QByteArray meBody(qint64 id, qint64 workspace, bool current = true)
 {
-    return QJsonDocument(QJsonObject{
-                             {QStringLiteral("id"), id},
-                             {QStringLiteral("email"), QStringLiteral("bea@example.test")},
-                             {QStringLiteral("default_workspace_id"), workspace},
-                         })
-        .toJson(QJsonDocument::Compact);
+    const QJsonObject me{
+        {QStringLiteral("id"), id},
+        {QStringLiteral("email"), QStringLiteral("bea@example.test")},
+        {QStringLiteral("default_workspace_id"), workspace},
+    };
+    return QJsonDocument(current ? withCurrentServerApi(me) : me).toJson(QJsonDocument::Compact);
 }
 
 // A state with nothing running, built offsetMs after the given time.
@@ -129,7 +131,7 @@ class TimerStateClientTest : public QObject
 
     // Configure token auth for the instance and answer /me. The client then
     // reads the state and opens the stream.
-    static bool connectAccount(Fixture &f, const QString &url = instanceA, qint64 userId = 3)
+    static bool connectAccount(Fixture &f, const QString &url = instanceA, qint64 userId = 3, bool current = true)
     {
         f.store.secrets.insert(credentialKey(parseInstanceUrl(url), AuthMode::Token, QString()), token);
         const qsizetype before = f.transport.requests.size();
@@ -139,7 +141,7 @@ class TimerStateClientTest : public QObject
             })) {
             return false;
         }
-        f.respond(before, FakeTransport::answer(200, meBody(userId, 7)));
+        f.respond(before, FakeTransport::answer(200, meBody(userId, 7, current)));
         return f.connection.state() == Connection::Connected;
     }
 
@@ -512,6 +514,41 @@ private Q_SLOTS:
         QCOMPARE(f.transport.streams.size(), streams);
     }
 
+    // A Pomodoro start applies to the state the user saw: refused without
+    // one, sent with its revision, and a 409 brings the server's state,
+    // which the client adopts. A server without pomodoro-revision gets no
+    // revision.
+    void pomodoroStartCarriesTheRevision()
+    {
+        Fixture f;
+        QList<TimerActionResult> results;
+        const auto record = [&results](const TimerActionResult &result) {
+            results.append(result);
+        };
+        QVERIFY(connectAccount(f));
+        const qsizetype sent = f.transport.requests.size();
+        f.client.startPomodoro(PomodoroStart(), record);
+        QTRY_COMPARE(results.size(), 1);
+        QVERIFY(results.last().outcome == TimerActionResult::Outcome::Refused);
+        QCOMPARE(f.transport.requests.size(), sent);
+
+        f.answerRead(stateBody(5, f.clock.now()));
+        f.client.startPomodoro(PomodoroStart(), record);
+        qsizetype post = f.last("POST", QStringLiteral("/api/app/pomodoro"));
+        QCOMPARE(QJsonDocument::fromJson(f.transport.requests.at(post).body).object().value(QLatin1String("revision")).toInteger(), 5);
+        f.respond(post, FakeTransport::answer(409, stateBody(7, f.clock.now())));
+        QVERIFY(results.last().outcome == TimerActionResult::Outcome::Conflict);
+        QCOMPARE(f.client.state()->revision, 7);
+        QCOMPARE(f.find("POST", QStringLiteral("/api/app/pomodoro")).size(), 1);
+
+        QVERIFY(connectAccount(f, instanceB, 3, false));
+        f.answerRead(stateBody(2, f.clock.now()));
+        f.client.startPomodoro(PomodoroStart(), record);
+        post = f.transport.requests.size() - 1;
+        QVERIFY(f.transport.requests.at(post).url.path().endsWith(QLatin1String("/api/app/pomodoro")));
+        QVERIFY(!QJsonDocument::fromJson(f.transport.requests.at(post).body).object().contains(QLatin1String("revision")));
+    }
+
     // Each action posts to its route and takes the state it gets back, on
     // success and on a 409. An unknown outcome is settled by a read, never
     // by sending again.
@@ -572,6 +609,7 @@ private Q_SLOTS:
         QCOMPARE(body.value(QLatin1String("workspace_id")).toInteger(), 7);
         QCOMPARE(body.value(QLatin1String("project_id")).toInteger(), 11);
         QCOMPARE(body.value(QLatin1String("created_with")).toString(), testClientName());
+        QCOMPARE(body.value(QLatin1String("revision")).toInteger(), 10);
         f.respond(post, FakeTransport::answer(201, stateBody(9, f.clock.now())));
         QVERIFY(results.last().outcome == TimerActionResult::Outcome::Applied);
         QCOMPARE(f.client.state()->revision, 10);

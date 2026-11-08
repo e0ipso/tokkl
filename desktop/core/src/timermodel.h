@@ -5,6 +5,7 @@
 #include "connection.h"
 #include "nextstartselection.h"
 #include "projectchoices.h"
+#include "timeractions.h"
 #include "timerstateclient.h"
 #include "timerview.h"
 
@@ -12,6 +13,7 @@
 #include <QPointer>
 #include <QVariant>
 
+#include <functional>
 #include <optional>
 
 namespace Tokkl
@@ -113,9 +115,10 @@ public:
     virtual void wantLastEntry() = 0;
 };
 
-// Where the reads of ProjectLoader land: the workspace's projects and the
-// one read on its own, and the next start's choice with its last-entry
-// default. Each tells the model of a change itself.
+// The reads ProjectLoader may start, each landing in the model, which
+// tells the panels of what changed: the workspace's projects, a project
+// read on its own, and the last entry's project for the next start. The
+// loader decides when; it never holds the catalog or the selection.
 class TimerCatalogUpdates
 {
 public:
@@ -123,8 +126,21 @@ public:
 
     // The connection may read the workspace now.
     virtual bool readable() const = 0;
-    virtual ProjectCatalog &catalog() = 0;
-    virtual NextStartSelection &selection() = 0;
+    // Reads the workspace's projects through the connection, unless a read
+    // is on its way.
+    virtual void readProjects() = 0;
+    // Reads project id of the workspace on its own when the list, once
+    // known, lacks it and its own read is missing, out of date and not on
+    // its way. The answer counts while stillWanted(id) is true.
+    virtual void lookUpProject(qint64 id, std::function<bool(qint64)> stillWanted) = 0;
+    // True once after the last entry's project was asked for.
+    virtual bool takeLastEntryWanted() = 0;
+    // Reads the account's recent entries for the next start's default; see
+    // NextStartSelection::readLastEntry().
+    virtual void readLastEntry(std::function<bool()> stillWanted) = 0;
+    // Calls answered, with context, after each project list and each
+    // single-project answer the model has taken in.
+    virtual void onProjectsAnswered(QObject *context, std::function<void()> answered) = 0;
     // Shows the chosen project and the indicator as the catalog knows them.
     virtual void showChosenProject() = 0;
 };
@@ -275,6 +291,18 @@ public:
     // session's start both ask this, so the cooldown, a lost workspace and
     // a write in flight hold both.
     bool canStartNew() const;
+    // The project of the next start can be chosen now: canWrite(), and no
+    // entry runs, no chain is paused and no session is active. A held
+    // entry's project is fixed, and a session's open pomodoro is a running
+    // entry whose project is the session's.
+    bool canChooseProject() const;
+    // Billable can be chosen now: canWrite(), no chain is paused (a resume
+    // copies the chain's flag) and no session is active (the open pomodoro
+    // is the session's). While an entry runs the choice edits that entry.
+    bool canChooseBillable() const;
+    // What the timer's toggle does: Pause while an entry runs, Resume while
+    // a chain is paused, otherwise Start.
+    PrimaryAction toggleAction() const;
     QString errorString() const;
     Status status() const;
 
@@ -292,10 +320,6 @@ public:
     // The project submenu every panel shows; see ProjectChoices.
     ProjectChoices projectChoices() const;
     QVariantList projectChoicesVariant() const;
-    // The choices for the next start, for the connection's account: null or
-    // a project id, and the billable flag.
-    QVariant selectedProjectId() const;
-    bool billable() const;
     QVariant chosenProjectId() const;
     // chosenProjectId as the id it holds; none for no project.
     std::optional<qint64> chosenProject() const;
@@ -359,8 +383,11 @@ protected:
 
     // TimerCatalogUpdates.
     bool readable() const override;
-    ProjectCatalog &catalog() override;
-    NextStartSelection &selection() override;
+    void readProjects() override;
+    void lookUpProject(qint64 id, std::function<bool(qint64)> stillWanted) override;
+    bool takeLastEntryWanted() override;
+    void readLastEntry(std::function<bool()> stillWanted) override;
+    void onProjectsAnswered(QObject *context, std::function<void()> answered) override;
     void showChosenProject() override;
 
 private:

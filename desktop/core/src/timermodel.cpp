@@ -120,6 +120,24 @@ bool TimerModel::canStartNew() const
     return canWrite() && !isRunning() && !isPaused() && !isSessionActive();
 }
 
+bool TimerModel::canChooseProject() const
+{
+    return canWrite() && !isRunning() && !isPaused() && !isSessionActive();
+}
+
+bool TimerModel::canChooseBillable() const
+{
+    return canWrite() && !isPaused() && !isSessionActive();
+}
+
+PrimaryAction TimerModel::toggleAction() const
+{
+    if (isRunning()) {
+        return PrimaryAction::Pause;
+    }
+    return isPaused() ? PrimaryAction::Resume : PrimaryAction::Start;
+}
+
 QString TimerModel::errorString() const
 {
     const QString message = m_activity ? m_activity->message() : QString();
@@ -229,7 +247,7 @@ bool TimerModel::projectsIncomplete() const
 ProjectChoices TimerModel::projectChoices() const
 {
     const bool held = isRunning() || isPaused();
-    return ProjectChoices::build(m_catalog->projects(), m_catalog->incomplete(), chosenProject(), held ? m_chosen->entryProject() : std::nullopt, canWrite() && !held);
+    return ProjectChoices::build(m_catalog->projects(), m_catalog->incomplete(), chosenProject(), held ? m_chosen->entryProject() : std::nullopt, canChooseProject());
 }
 
 QVariantList TimerModel::projectChoicesVariant() const
@@ -246,23 +264,13 @@ void TimerModel::updateProjectChoices()
     }
 }
 
-QVariant TimerModel::selectedProjectId() const
-{
-    return m_next->projectIdVariant();
-}
-
-bool TimerModel::billable() const
-{
-    return m_next->billable();
-}
-
 QVariant TimerModel::chosenProjectId() const
 {
     if (isRunning() || isPaused()) {
         const std::optional<qint64> project = chosenProject();
         return project ? QVariant(*project) : QVariant::fromValue(nullptr);
     }
-    return selectedProjectId();
+    return m_next->projectIdVariant();
 }
 
 std::optional<qint64> TimerModel::chosenProject() const
@@ -281,7 +289,7 @@ bool TimerModel::chosenBillable() const
     if (m_shown.entry) {
         return m_shown.entry->billable;
     }
-    return isPaused() ? m_shown.chain->billable : billable();
+    return isPaused() ? m_shown.chain->billable : m_next->billable();
 }
 
 std::optional<Project> TimerModel::entryProject() const
@@ -429,14 +437,34 @@ void TimerModel::wantLastEntry()
     m_next->wantLastEntry();
 }
 
-ProjectCatalog &TimerModel::catalog()
+void TimerModel::readProjects()
 {
-    return *m_catalog;
+    m_catalog->fetch(m_connection);
 }
 
-NextStartSelection &TimerModel::selection()
+void TimerModel::lookUpProject(qint64 id, std::function<bool(qint64)> stillWanted)
 {
-    return *m_next;
+    if (m_connection && m_catalog->needsLookUp(id)) {
+        m_catalog->lookUp(m_connection, id, workspaceId(), std::move(stillWanted));
+    }
+}
+
+bool TimerModel::takeLastEntryWanted()
+{
+    return m_next->takeLastEntryWanted();
+}
+
+void TimerModel::readLastEntry(std::function<bool()> stillWanted)
+{
+    m_next->readLastEntry(std::move(stillWanted));
+}
+
+void TimerModel::onProjectsAnswered(QObject *context, std::function<void()> answered)
+{
+    // After the model's own handlers of the same signals, connected when it
+    // was built, which apply a next-start default that waited for the list.
+    connect(m_catalog, &ProjectCatalog::listLoaded, context, answered);
+    connect(m_catalog, &ProjectCatalog::projectResolved, context, answered);
 }
 
 void TimerModel::showChosenProject()

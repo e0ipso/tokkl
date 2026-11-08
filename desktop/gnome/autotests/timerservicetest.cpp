@@ -112,8 +112,9 @@ QJsonObject projectObject(qint64 id, const QString &name, const QString &color, 
     };
 }
 
-// The answers of the instance to the reads the core sends.
-const QByteArray meBody = json(QJsonObject{
+// The answers of the instance to the reads the core sends, as a current
+// server gives them.
+const QByteArray meBody = json(withCurrentServerApi(QJsonObject{
     {QStringLiteral("id"), 3},
     {QStringLiteral("email"), QStringLiteral("bea@example.test")},
     {QStringLiteral("fullname"), QStringLiteral("Bea")},
@@ -121,7 +122,7 @@ const QByteArray meBody = json(QJsonObject{
     {QStringLiteral("default_workspace_id"), 7},
     {QStringLiteral("beginning_of_week"), 1},
     {QStringLiteral("time_resolution_minutes"), 1},
-});
+}));
 const QByteArray projectsBody = json(QJsonArray{
     projectObject(11, QStringLiteral("Alpha"), QStringLiteral("#06aaf5"), true),
     projectObject(12, QStringLiteral("Beta"), QStringLiteral("#d94182"), false),
@@ -939,13 +940,16 @@ private Q_SLOTS:
         QCOMPARE(f.transport.requests.size(), sent);
         QCOMPARE(f.get(QStringLiteral("ChosenProject")).toLongLong(), 12);
 
-        // Billable stays editable: one PUT that carries only billable.
+        // Billable stays editable: one timer edit that carries only billable,
+        // against the revision shown.
         QCOMPARE(f.result(QStringLiteral("SetBillable"), {QVariant(true)}).toBool(), true);
-        const QList<qsizetype> updates = f.find("PUT", "/workspaces/7/time_entries/5");
+        const QList<qsizetype> updates = f.find("POST", "/app/timer/edit");
         QCOMPARE(updates.size(), 1);
-        QCOMPARE(QJsonDocument::fromJson(f.transport.requests.at(updates.first()).body).object(), QJsonObject({{QStringLiteral("billable"), true}}));
-        f.change(entryObject(5, 12, true, true));
-        f.respond(updates.first(), FakeTransport::answer(200, json(entryObject(5, 12, true, true))));
+        QJsonObject expected = revisionBody(f.revision);
+        expected.insert(QStringLiteral("billable"), true);
+        QCOMPARE(QJsonDocument::fromJson(f.transport.requests.at(updates.first()).body).object(), expected);
+        QVERIFY(f.find("PUT", "/workspaces/7/time_entries/5").isEmpty());
+        f.respond(updates.first(), FakeTransport::answer(200, f.change(entryObject(5, 12, true, true))));
         QVERIFY(f.serve());
         QCOMPARE(f.get(QStringLiteral("Billable")).toBool(), true);
         QVERIFY(f.recorder.valuesOf(QStringLiteral("Billable")).contains(true));
@@ -1583,6 +1587,14 @@ private Q_SLOTS:
         QVERIFY(f.recorder.valuesOf(QStringLiteral("ModeLocked")).contains(true));
         QCOMPARE(f.result(QStringLiteral("SetPomodoroMode"), {QVariant(false)}).toBool(), false);
         QCOMPARE(f.get(QStringLiteral("PomodoroMode")).toBool(), true);
+        // The open pomodoro is the session's: Project and Billable are locked,
+        // in Actions and in the methods.
+        const qsizetype requests = f.transport.requests.size();
+        QCOMPARE(f.result(QStringLiteral("SetProject"), {qint64(0)}).toBool(), false);
+        QCOMPARE(f.result(QStringLiteral("SetBillable"), {QVariant(false)}).toBool(), false);
+        QCOMPARE(f.transport.requests.size(), requests);
+        QCOMPARE(f.service->actions().value(QStringLiteral("project")).value(QStringLiteral("enabled")).toBool(), false);
+        QCOMPARE(f.service->actions().value(QStringLiteral("billable")).value(QStringLiteral("enabled")).toBool(), false);
 
         // The countdown is not published; the planned end is, as Ringing,
         // and the player hears the sound chosen for the transition.

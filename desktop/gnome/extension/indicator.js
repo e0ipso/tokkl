@@ -173,7 +173,7 @@ export const TokklIndicator = GObject.registerClass(
             if (proxy) {
                 this._requests = new TimerRequests(
                     (method, done) => proxy[`${method}Remote`]((result, error) => done(error ? null : result, error)),
-                    error => error instanceof GLib.Error && error.matches(Gio.DBusError, Gio.DBusError.UNKNOWN_METHOD),
+                    () => cachedProperty(proxy, 'InterfaceVersion', 0),
                 );
                 this._proxySignals = [
                     proxy.connect('g-properties-changed', (_source, changed) =>

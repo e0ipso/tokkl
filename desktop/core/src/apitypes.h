@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QDateTime>
+#include <QJsonObject>
 #include <QJsonValue>
 #include <QObject>
 #include <QList>
@@ -72,6 +73,27 @@ std::optional<TransitionKind> parseTransitionKind(QStringView name);
 // 2, 3, 4, 5, 6, 10, 12, 15, 20, 30 and 60.
 bool isTimeResolution(qint64 minutes);
 
+// What the server's /api/app offers, as GET /api/v9/me announces it in
+// api_version and capabilities. A server from before the announcement
+// sends neither and has none of the capabilities; names the client does not
+// know are ignored. The client picks its routes from these and never from
+// a 404, which a current server also answers for a missing project or
+// workspace.
+struct ServerApi {
+    // 0 when the server announces no version.
+    qint64 version = 0;
+    // "app-preferences": GET and POST /api/app/me/preferences.
+    bool appPreferences = false;
+    // "timer-actions": the revisioned start and stop under /api/app/timer.
+    bool timerActions = false;
+    // "timer-edit": POST /api/app/timer/edit.
+    bool timerEdit = false;
+    // "pomodoro-revision": POST /api/app/pomodoro checks a revision.
+    bool pomodoroRevision = false;
+
+    bool operator==(const ServerApi &other) const = default;
+};
+
 // GET /api/v9/me. The response also carries api_token, which is a credential
 // and is deliberately not decoded.
 struct Me {
@@ -84,6 +106,8 @@ struct Me {
     // The step, in minutes, of the clock grid entries snap to. It divides an
     // hour; a missing or invalid value reads as 1.
     int timeResolutionMinutes = 1;
+    // Not in toVariantMap(): it decides routes, not what a panel shows.
+    ServerApi server;
 
     QVariantMap toVariantMap() const;
     bool operator==(const Me &other) const = default;
@@ -345,6 +369,9 @@ public:
 // Decoders for the API's bare JSON bodies. Each returns nullopt when the
 // value does not have the expected shape.
 std::optional<Me> decodeMe(const QJsonValue &value);
+// The api_version and capabilities of a /me object. Never fails: a field
+// missing or unreadable reads as not announced.
+ServerApi decodeServerApi(const QJsonObject &me);
 std::optional<Project> decodeProject(const QJsonValue &value);
 std::optional<QList<Project>> decodeProjects(const QJsonValue &value);
 std::optional<TimeEntry> decodeTimeEntry(const QJsonValue &value);
@@ -379,10 +406,15 @@ ApiResult<Me> meFromResponse(const HttpResponse &response);
 QByteArray encodeStartEntry(const StartEntry &entry, qint64 workspaceId, const QString &createdWith);
 QByteArray encodeTimerStart(qint64 revision, const StartEntry &entry, qint64 workspaceId, const QString &createdWith);
 QByteArray encodeTimeEntryUpdate(const TimeEntryUpdate &update);
+// POST /api/app/timer/edit: the fields update sets, apart from start, and
+// the revision the edit applies to.
+QByteArray encodeTimerEdit(qint64 revision, const TimeEntryUpdate &update);
 QByteArray encodePomodoroConfigUpdate(const PomodoroConfigUpdate &update);
 // {"revision":n}, for an action that applies only to the state it was sent
 // against.
 QByteArray encodeRevision(qint64 revision);
-QByteArray encodePomodoroStart(const PomodoroStart &start, qint64 workspaceId, const QString &createdWith);
+// With a revision, the server starts the session only on the state the
+// user saw.
+QByteArray encodePomodoroStart(const PomodoroStart &start, qint64 workspaceId, const QString &createdWith, std::optional<qint64> revision = std::nullopt);
 
 }

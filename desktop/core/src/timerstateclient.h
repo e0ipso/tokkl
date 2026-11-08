@@ -94,13 +94,15 @@ public:
     // the one held, and are refused without sending while no state is held.
     //
     // A start, or a stop of the running entry, entryId. On a server without
-    // the app routes they go to v9 and answer with the entry instead of the
+    // timer-actions they go to v9 and answer with the entry instead of the
     // state; see Connection::startTimer(). The caller settles that.
     void start(const StartEntry &entry, ActionCallback done = {});
     void stop(qint64 entryId, ActionCallback done = {});
     void pause(ActionCallback done = {});
     void resume(ActionCallback done = {});
     void discard(ActionCallback done = {});
+    // Edits the running entry; see Connection::editTimer().
+    void edit(const TimeEntryUpdate &update, ActionCallback done = {});
     void startPomodoro(const PomodoroStart &start, ActionCallback done = {}) override;
     void nextPhase(ActionCallback done = {}) override;
     void endPomodoro(ActionCallback done = {}) override;

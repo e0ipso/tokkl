@@ -24,20 +24,23 @@ const QByteArray statePath = "/app/timer";
 const QByteArray listPath = "/me/time_entries";
 const QByteArray startPath = "/app/timer/start";
 const QByteArray stopPath = "/app/timer/stop";
+const QByteArray editPath = "/app/timer/edit";
 // The v9 route of a server from before the app's start and stop.
 const QByteArray v9StartPath = "/v9/workspaces/7/time_entries";
 
-QByteArray meBody(qint64 id, qint64 workspace)
+// The account on a current server, or with current false on a server from
+// before the capabilities, which has no app start, stop or edit.
+QByteArray meBody(qint64 id, qint64 workspace, bool current = true)
 {
-    return QJsonDocument(QJsonObject{
-                             {QStringLiteral("id"), id},
-                             {QStringLiteral("email"), QStringLiteral("bea@example.test")},
-                             {QStringLiteral("fullname"), QStringLiteral("Bea")},
-                             {QStringLiteral("timezone"), QStringLiteral("UTC")},
-                             {QStringLiteral("default_workspace_id"), workspace},
-                             {QStringLiteral("beginning_of_week"), 1},
-                         })
-        .toJson(QJsonDocument::Compact);
+    const QJsonObject me{
+        {QStringLiteral("id"), id},
+        {QStringLiteral("email"), QStringLiteral("bea@example.test")},
+        {QStringLiteral("fullname"), QStringLiteral("Bea")},
+        {QStringLiteral("timezone"), QStringLiteral("UTC")},
+        {QStringLiteral("default_workspace_id"), workspace},
+        {QStringLiteral("beginning_of_week"), 1},
+    };
+    return QJsonDocument(current ? withCurrentServerApi(me) : me).toJson(QJsonDocument::Compact);
 }
 
 QJsonObject entryObject(qint64 id, qint64 workspace, const QString &start, bool running = true, std::optional<qint64> project = std::nullopt)
@@ -210,6 +213,9 @@ class TimerControllerTest : public QObject
         TimerController timer{&clock};
         QSet<qsizetype> answered;
         qint64 revision = 0; // of the last state built
+        // connectAccount() answers /me as a server from before the
+        // capabilities.
+        bool olderServer = false;
 
         Fixture()
         {
@@ -311,7 +317,7 @@ class TimerControllerTest : public QObject
             })) {
             return false;
         }
-        f.respond(before, FakeTransport::answer(200, meBody(userId, workspace)));
+        f.respond(before, FakeTransport::answer(200, meBody(userId, workspace, !f.olderServer)));
         const qsizetype read = f.last("GET", statePath);
         const qsizetype projects = f.last("GET", "/projects");
         if (!f.unanswered(read) || !f.unanswered(projects)) {
@@ -363,21 +369,16 @@ class TimerControllerTest : public QObject
     }
 
     // The start sent last names a project the server no longer has: the app
-    // route answers 404, and so does the v9 route asked after it.
+    // route answers 404, a refusal that sends nothing else.
     static bool refuseStart(Fixture &f)
     {
-        const QByteArray missing = "\"Project not found\"";
         const qsizetype post = f.last("POST", startPath);
         if (!f.unanswered(post)) {
             return false;
         }
-        f.respond(post, FakeTransport::answer(404, missing));
-        const qsizetype v9 = f.last("POST", v9StartPath);
-        if (!f.unanswered(v9)) {
-            return false;
-        }
-        f.respond(v9, FakeTransport::answer(404, missing));
-        return true;
+        const qsizetype others = f.otherRequests();
+        f.respond(post, FakeTransport::answer(404, "\"Project not found\""));
+        return f.otherRequests() == others;
     }
 
 private Q_SLOTS:
@@ -432,8 +433,8 @@ private Q_SLOTS:
         QVERIFY(f.timer.isRunning());
         QCOMPARE(f.timer.currentEntryVariant().toMap().value(QStringLiteral("id")).toLongLong(), 5);
         QCOMPARE(f.timer.projects().size(), 1);
-        QVERIFY(f.timer.selectedProjectId().isNull());
-        QVERIFY(!f.timer.billable());
+        QVERIFY(f.timer.chosenProjectId().isNull());
+        QVERIFY(!f.timer.chosenBillable());
         QVERIFY(f.timer.canWrite());
         QVERIFY(!f.timer.isBusy());
         QVERIFY(!f.timer.isStale());
@@ -443,23 +444,28 @@ private Q_SLOTS:
         QCOMPARE(f.timer.elapsedText(), QStringLiteral("0:01"));
     }
 
-    // The next start's choices only read: QML and the panels change them
-    // through chooseProject() and chooseBillable(), which check canWrite.
+    // The choices only read: QML and the panels change them through
+    // chooseProject() and chooseBillable(), which check the rules. The menu
+    // reads them as chosenProjectId and chosenBillable, the only properties
+    // that name them.
     void choicesAreReadOnly()
     {
-        for (const char *name : {"selectedProjectId", "billable"}) {
+        for (const char *name : {"chosenProjectId", "chosenBillable"}) {
             const int index = TimerController::staticMetaObject.indexOfProperty(name);
             QVERIFY2(index >= 0, name);
             QVERIFY2(!TimerController::staticMetaObject.property(index).isWritable(), name);
+        }
+        for (const char *name : {"selectedProjectId", "billable"}) {
+            QVERIFY2(TimerController::staticMetaObject.indexOfProperty(name) < 0, name);
         }
 
         Fixture f;
         QVERIFY(connectAccount(f, instanceA, 3, 7, "null"));
         QSignalSpy selection(&f.timer, &TimerController::selectionChanged);
-        QVERIFY(!f.timer.setProperty("selectedProjectId", 11));
-        QVERIFY(!f.timer.setProperty("billable", true));
-        QVERIFY(f.timer.selectedProjectId().isNull());
-        QVERIFY(!f.timer.billable());
+        QVERIFY(!f.timer.setProperty("chosenProjectId", 11));
+        QVERIFY(!f.timer.setProperty("chosenBillable", true));
+        QVERIFY(f.timer.chosenProjectId().isNull());
+        QVERIFY(!f.timer.chosenBillable());
         QCOMPARE(selection.count(), 0);
     }
 
@@ -683,8 +689,8 @@ private Q_SLOTS:
         QVERIFY(f.timer.stop());
         f.respond(f.last("POST", stopPath), f.stateAnswer("null"));
         // The stopped entry had no project, so the next start has none either.
-        QVERIFY(f.timer.selectedProjectId().isNull());
-        QVERIFY(!f.timer.billable());
+        QVERIFY(f.timer.chosenProjectId().isNull());
+        QVERIFY(!f.timer.chosenBillable());
         QVERIFY(f.timer.start());
         const QJsonObject plain = QJsonDocument::fromJson(f.transport.requests.at(f.last("POST", startPath)).body).object();
         QVERIFY(plain.value(QStringLiteral("project_id")).isNull());
@@ -750,18 +756,18 @@ private Q_SLOTS:
         QCOMPARE(f.find("POST", startPath).size(), 1);
     }
 
-    // A server from before /api/app/timer/start and /stop answers 404: the
-    // start goes to the v9 route, whose reply is an entry, so the state
-    // that shows it comes from a read. Later starts and stops of the
-    // generation go to v9 at once; a new generation asks the app route
-    // again.
+    // A server that does not announce timer-actions gets the v9 start,
+    // whose reply is an entry, so the state that shows it comes from a
+    // read, and the v9 stop. The app routes are never tried on it. Another
+    // account on a current server gets the app routes.
     void olderServerGetsTheV9Writes()
     {
         Fixture f;
+        f.olderServer = true;
         QVERIFY(connectAccount(f, instanceA, 3, 7, "null"));
         QVERIFY(f.timer.chooseProject(11));
         QVERIFY(f.timer.start());
-        f.respond(f.last("POST", startPath), FakeTransport::answer(404, "\"Not found\""));
+        QVERIFY(f.find("POST", startPath).isEmpty());
         QVERIFY(f.timer.isBusy());
         const qsizetype post = f.last("POST", v9StartPath);
         QVERIFY(f.unanswered(post));
@@ -780,8 +786,8 @@ private Q_SLOTS:
         QVERIFY(f.timer.isRunning());
         QVERIFY(!f.timer.isBusy());
 
-        // The stop goes to v9 at once, and its reply names the project the
-        // server stopped: none, as the web cleared it since the last read.
+        // The stop goes to v9, and its reply names the project the server
+        // stopped: none, as the web cleared it since the last read.
         QVERIFY(f.timer.stop());
         QCOMPARE(f.find("POST", stopPath).size(), 0);
         const qsizetype stop = f.last("PATCH", "/v9/workspaces/7/time_entries/21/stop");
@@ -790,14 +796,33 @@ private Q_SLOTS:
         QVERIFY(f.timer.isBusy());
         QVERIFY(f.answerState("null"));
         QVERIFY(!f.timer.isRunning());
-        QVERIFY(f.timer.selectedProjectId().isNull());
-        QCOMPARE(f.find("POST", startPath).size(), 1);
+        QVERIFY(f.timer.chosenProjectId().isNull());
+        QVERIFY(f.find("POST", startPath).isEmpty());
 
-        // Another account: the app route is asked first again.
+        // Another account on a current server: the app route.
+        f.olderServer = false;
         QVERIFY(connectAccount(f, instanceB, 4, 7, "null"));
         QVERIFY(f.timer.start());
-        QCOMPARE(f.find("POST", startPath).size(), 2);
+        QCOMPARE(f.find("POST", startPath).size(), 1);
         QCOMPARE(f.find("POST", v9StartPath).size(), 1);
+    }
+
+    // On a current server a 404 from the app stop, an entry or workspace
+    // gone, is a refusal: nothing goes to v9, a read shows what the server
+    // has, and the next stop asks the app route again.
+    void notFoundOnTheAppStopIsARefusal()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f));
+        QVERIFY(f.timer.stop());
+        f.respond(f.last("POST", stopPath), FakeTransport::answer(404, "\"Time entry not found\""));
+        QVERIFY(f.find("PATCH", "/stop").isEmpty());
+        QVERIFY(!f.timer.isBusy());
+        QCOMPARE(f.timer.errorString(), QStringLiteral("Time entry not found"));
+        QVERIFY(f.answerState(entryBody(5, 7, startedAt)));
+        QVERIFY(f.timer.stop());
+        QCOMPARE(f.find("POST", stopPath).size(), 2);
+        QVERIFY(f.find("PATCH", "/stop").isEmpty());
     }
 
     void pauseAndResumeKeepTheChainTotal()
@@ -835,9 +860,7 @@ private Q_SLOTS:
         QCOMPARE(f.timer.elapsedSeconds(), 65);
 
         // A click resumes against the revision shown, and the clone counts
-        // on from the chain's seconds. The paused entry's project gave the
-        // next start its billable default.
-        QVERIFY(f.timer.billable());
+        // on from the chain's seconds.
         QVERIFY(resumeEntry(f, 6, 65));
         QCOMPARE(f.find("POST", "/timer/resume").size(), 1);
         QVERIFY(f.find("POST", startPath).isEmpty());
@@ -1048,14 +1071,13 @@ private Q_SLOTS:
         QVERIFY(refuseStart(f));
         QVERIFY(f.answerState("null"));
         QCOMPARE(f.timer.errorString(), QStringLiteral("Project not found"));
-        // Both routes answered 404, so the app route stays the first one
-        // asked.
+        // The 404 was a refusal: the app route stays the one asked.
         QVERIFY(f.timer.start());
         QCOMPARE(f.timer.errorString(), QString());
         QCOMPARE(f.find("POST", startPath).size(), 3);
         f.respond(f.last("POST", startPath), f.stateAnswer(entryBody(21, 7, clockText(f.clock.now()))));
         QVERIFY(f.timer.isRunning());
-        QCOMPARE(f.find("POST", v9StartPath).size(), 2);
+        QVERIFY(f.find("POST", v9StartPath).isEmpty());
         QCOMPARE(f.timer.errorString(), QString());
         QCOMPARE(f.timer.status(), TimerController::Ready);
     }
@@ -1181,8 +1203,7 @@ private Q_SLOTS:
             path = "/timer/discard";
         } else if (write == QLatin1String("billable")) {
             QVERIFY(f.timer.chooseBillable(true));
-            method = "PUT";
-            path = "/time_entries/5";
+            path = editPath;
         } else {
             QVERIFY(f.timer.stop());
         }
@@ -1318,32 +1339,121 @@ private Q_SLOTS:
         QVERIFY(!f.timer.chooseProject(QVariant::fromValue(nullptr)));
         QCOMPARE(f.transport.requests.size(), requests);
         QCOMPARE(f.timer.currentEntryVariant().toMap(), before);
-        QVERIFY(f.timer.selectedProjectId().isNull());
-        QVERIFY(!f.timer.billable());
+        QVERIFY(f.timer.chosenProjectId().isNull());
+        QVERIFY(!f.timer.chosenBillable());
         QCOMPARE(selection.count(), 0);
         QVERIFY(!f.timer.isBusy());
 
-        // Billable still edits the running entry, with billable alone.
+        // Billable still edits the running entry, with billable alone,
+        // against the revision shown.
         QVERIFY(f.timer.chooseBillable(true));
-        const qsizetype put = f.last("PUT", "/time_entries/5");
-        QVERIFY(f.unanswered(put));
-        QCOMPARE(QJsonDocument::fromJson(f.transport.requests.at(put).body).object(), QJsonObject({{QStringLiteral("billable"), true}}));
+        const qsizetype edit = f.last("POST", editPath);
+        QVERIFY(f.unanswered(edit));
+        QCOMPARE(QJsonDocument::fromJson(f.transport.requests.at(edit).body).object(),
+                 QJsonObject({{QStringLiteral("billable"), true}, {QStringLiteral("revision"), f.revision}}));
 
         // Stopped, the project is a choice again.
-        f.respond(put, FakeTransport::answer(200, entryBody(5, 7, startedAt)));
-        QVERIFY(f.answerState(entryBody(5, 7, startedAt)));
+        f.respond(edit, f.stateAnswer(entryBody(5, 7, startedAt)));
+        QVERIFY(!f.timer.isBusy());
         QVERIFY(f.timer.stop());
         f.respond(f.last("POST", stopPath), f.stateAnswer("null"));
         QVERIFY(f.timer.chooseProject(11));
-        QCOMPARE(f.timer.selectedProjectId().toLongLong(), 11);
-        QCOMPARE(f.find("PUT", "/time_entries/5").size(), 1);
+        QCOMPARE(f.timer.chosenProjectId().toLongLong(), 11);
+        QCOMPARE(f.find("POST", editPath).size(), 1);
+        QVERIFY(f.find("PUT", "/time_entries/5").isEmpty());
     }
 
-    // The billable edit's reply is an entry. What the menu shows comes from
-    // the state a read sent after the reply brings, never from the reply.
+    // On a current server the billable edit goes through the timer and
+    // answers with the state, which shows it at once: no v9 PUT, no read.
+    void billableEditGoesThroughTheTimer()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f));
+        const qsizetype reads = f.stateReads();
+        QVERIFY(f.timer.chooseBillable(true));
+        QVERIFY(f.timer.isBusy());
+        QVERIFY(!f.timer.chooseBillable(false));
+        const qsizetype edit = f.last("POST", editPath);
+        QCOMPARE(QJsonDocument::fromJson(f.transport.requests.at(edit).body).object(),
+                 QJsonObject({{QStringLiteral("billable"), true}, {QStringLiteral("revision"), f.revision}}));
+
+        QJsonObject edited = entryObject(5, 7, startedAt);
+        edited.insert(QStringLiteral("billable"), true);
+        f.respond(edit, f.stateAnswer(json(edited)));
+        QVERIFY(!f.timer.isBusy());
+        QVERIFY(f.timer.chosenBillable());
+        QVERIFY(f.timer.errorString().isEmpty());
+        QCOMPARE(f.stateReads(), reads);
+        QVERIFY(f.find("PUT", "/time_entries/5").isEmpty());
+    }
+
+    // A 409 whose state still runs the same entry: only the revision moved,
+    // so the edit is applied once more at the new revision. A second 409
+    // shows as a conflict and nothing more is sent.
+    void billableEditReappliesOnceForTheSameEntry_data()
+    {
+        QTest::addColumn<bool>("secondApplies");
+        QTest::newRow("applied at the new revision") << true;
+        QTest::newRow("refused again") << false;
+    }
+
+    void billableEditReappliesOnceForTheSameEntry()
+    {
+        QFETCH(bool, secondApplies);
+        Fixture f;
+        QVERIFY(connectAccount(f));
+        QVERIFY(f.timer.chooseBillable(true));
+        f.respond(f.last("POST", editPath), FakeTransport::answer(409, f.nextState(entryBody(5, 7, startedAt))));
+        QVERIFY(f.timer.isBusy());
+        QCOMPARE(f.find("POST", editPath).size(), 2);
+        const qsizetype again = f.last("POST", editPath);
+        QCOMPARE(QJsonDocument::fromJson(f.transport.requests.at(again).body).object(),
+                 QJsonObject({{QStringLiteral("billable"), true}, {QStringLiteral("revision"), f.revision}}));
+
+        QJsonObject edited = entryObject(5, 7, startedAt);
+        edited.insert(QStringLiteral("billable"), true);
+        if (secondApplies) {
+            f.respond(again, f.stateAnswer(json(edited)));
+            QVERIFY(f.timer.chosenBillable());
+            QVERIFY(f.timer.errorString().isEmpty());
+        } else {
+            f.respond(again, FakeTransport::answer(409, f.nextState(entryBody(5, 7, startedAt))));
+            QVERIFY(!f.timer.chosenBillable());
+            QCOMPARE(f.timer.errorString(), QStringLiteral("The timer changed on another device first."));
+        }
+        QVERIFY(!f.timer.isBusy());
+        QCOMPARE(f.find("POST", editPath).size(), 2);
+    }
+
+    // A 409 whose state runs another entry, or none, is a conflict: the
+    // edit was for an entry that no longer runs, and it is not sent again.
+    void billableEditConflictForAnotherEntry_data()
+    {
+        QTest::addColumn<QByteArray>("running");
+        QTest::newRow("another entry") << entryBody(6, 7, startedAt);
+        QTest::newRow("stopped") << QByteArray("null");
+    }
+
+    void billableEditConflictForAnotherEntry()
+    {
+        QFETCH(QByteArray, running);
+        Fixture f;
+        QVERIFY(connectAccount(f));
+        QVERIFY(f.timer.chooseBillable(true));
+        f.respond(f.last("POST", editPath), FakeTransport::answer(409, f.nextState(running)));
+        QVERIFY(!f.timer.isBusy());
+        QCOMPARE(f.timer.errorString(), QStringLiteral("The timer changed on another device first."));
+        QCOMPARE(f.find("POST", editPath).size(), 1);
+        QVERIFY(f.find("PUT", "/time_entries/5").isEmpty());
+    }
+
+    // On a server without timer-edit the billable edit is a v9 PUT whose
+    // reply is an entry. What the menu shows comes from the state a read
+    // sent after the reply brings, never from the reply.
     void billableEditShowsTheStateAfterIt()
     {
         Fixture f;
+        f.olderServer = true;
         QVERIFY(connectAccount(f));
         QVERIFY(!f.timer.chosenBillable());
         QVERIFY(f.timer.chooseBillable(true));
@@ -1375,15 +1485,15 @@ private Q_SLOTS:
         Fixture f;
         QVERIFY(connectAccount(f, instanceA, 3, 7, entryBody(5, 7, startedAt, true, 11)));
         QVERIFY(f.find("GET", listPath).isEmpty());
-        QVERIFY(f.timer.selectedProjectId().isNull());
+        QCOMPARE(f.timer.chosenProjectId().toLongLong(), 11);
 
         QVERIFY(f.timer.stop());
         // The state the stop answers with shows it, and the next start sends
         // the stopped entry's project.
         f.respond(f.last("POST", stopPath), f.stateAnswer("null"));
         QVERIFY(!f.timer.isRunning());
-        QCOMPARE(f.timer.selectedProjectId().toLongLong(), 11);
-        QVERIFY(f.timer.billable());
+        QCOMPARE(f.timer.chosenProjectId().toLongLong(), 11);
+        QVERIFY(f.timer.chosenBillable());
         QCOMPARE(f.timer.chosenProjectId().toLongLong(), 11);
         QVERIFY(f.find("GET", listPath).isEmpty());
         QVERIFY(f.timer.start());
@@ -1399,8 +1509,8 @@ private Q_SLOTS:
         poll(f);
         QVERIFY(f.answerState("null"));
         QVERIFY(!f.timer.isRunning());
-        QCOMPARE(f.timer.selectedProjectId().toLongLong(), 11);
-        QVERIFY(f.timer.billable());
+        QCOMPARE(f.timer.chosenProjectId().toLongLong(), 11);
+        QVERIFY(f.timer.chosenBillable());
     }
 
     void stopWithoutAnActiveProjectGivesNoProject_data()
@@ -1428,7 +1538,7 @@ private Q_SLOTS:
         // A choice made before the entry started elsewhere.
         QVERIFY(connectAccount(f, instanceA, 3, 7, "null"));
         QVERIFY(f.timer.chooseProject(11));
-        QVERIFY(f.timer.billable());
+        QVERIFY(f.timer.chosenBillable());
         QVERIFY(f.push(running));
         if (lookupStatus != 0) {
             f.respond(f.last("GET", "/projects/" + QByteArray::number(lookupStatus == 200 ? 33 : 44)), FakeTransport::answer(lookupStatus, lookup));
@@ -1437,8 +1547,8 @@ private Q_SLOTS:
         QVERIFY(f.timer.stop());
         f.respond(f.last("POST", stopPath), f.stateAnswer("null"));
         QVERIFY(!f.timer.isRunning());
-        QVERIFY(f.timer.selectedProjectId().isNull());
-        QVERIFY(!f.timer.billable());
+        QVERIFY(f.timer.chosenProjectId().isNull());
+        QVERIFY(!f.timer.chosenBillable());
     }
 
     void connectDefaultsToTheLastEntryProject_data()
@@ -1473,19 +1583,19 @@ private Q_SLOTS:
         QSignalSpy choice(&f.timer, &TimerController::choiceChanged);
         f.respond(read, FakeTransport::answer(200, list));
         if (project.isNull()) {
-            QVERIFY(f.timer.selectedProjectId().isNull());
+            QVERIFY(f.timer.chosenProjectId().isNull());
         } else {
-            QCOMPARE(f.timer.selectedProjectId().toLongLong(), project.toLongLong());
+            QCOMPARE(f.timer.chosenProjectId().toLongLong(), project.toLongLong());
             QVERIFY(choice.count() > 0);
         }
-        QCOMPARE(f.timer.billable(), billable);
+        QCOMPARE(f.timer.chosenBillable(), billable);
 
         // Polls that keep seeing nothing running neither ask again nor change it.
         QVERIFY(f.timer.chooseProject(QVariant::fromValue(nullptr)));
         poll(f);
         QVERIFY(f.answerState("null"));
         QCOMPARE(f.find("GET", listPath).size(), 1);
-        QVERIFY(f.timer.selectedProjectId().isNull());
+        QVERIFY(f.timer.chosenProjectId().isNull());
     }
 
     void connectWithARunningEntryAsksNothing()
@@ -1519,8 +1629,8 @@ private Q_SLOTS:
             QVERIFY(f.timer.chooseBillable(true));
         }
         f.respond(read, FakeTransport::answer(200, listBody({listedEntry(8, 7, 11, true, true)})));
-        QVERIFY(f.timer.selectedProjectId().isNull());
-        QCOMPARE(f.timer.billable(), pick == QLatin1String("billable"));
+        QVERIFY(f.timer.chosenProjectId().isNull());
+        QCOMPARE(f.timer.chosenBillable(), pick == QLatin1String("billable"));
 
         QVERIFY(f.timer.chooseProject(11));
         QVERIFY(f.timer.chooseBillable(false));
@@ -1541,8 +1651,8 @@ private Q_SLOTS:
         QVERIFY(f.timer.start());
         f.respond(f.last("POST", startPath), f.stateAnswer(entryBody(21, 7, startedAt)));
         f.respond(read, FakeTransport::answer(200, listBody({listedEntry(8, 7, 11, true, true)})));
-        QVERIFY(f.timer.selectedProjectId().isNull());
-        QVERIFY(!f.timer.billable());
+        QVERIFY(f.timer.chosenProjectId().isNull());
+        QVERIFY(!f.timer.chosenBillable());
     }
 
     void connectDefaultOfAnOlderGenerationIsIgnored()
@@ -1554,11 +1664,11 @@ private Q_SLOTS:
         const qsizetype newRead = f.last("GET", listPath);
         QVERIFY(newRead > oldRead);
         f.respond(oldRead, FakeTransport::answer(200, listBody({listedEntry(8, 7, 11, true, true)})));
-        QVERIFY(f.timer.selectedProjectId().isNull());
-        QVERIFY(!f.timer.billable());
+        QVERIFY(f.timer.chosenProjectId().isNull());
+        QVERIFY(!f.timer.chosenBillable());
         f.respond(newRead, FakeTransport::answer(200, listBody({listedEntry(9, 7, 11, true, false)})));
-        QCOMPARE(f.timer.selectedProjectId().toLongLong(), 11);
-        QVERIFY(!f.timer.billable());
+        QCOMPARE(f.timer.chosenProjectId().toLongLong(), 11);
+        QVERIFY(!f.timer.chosenBillable());
     }
 
     void stopBeforeTheProjectListKeepsItsDefault_data()
@@ -1593,11 +1703,11 @@ private Q_SLOTS:
 
         f.respond(projects, FakeTransport::answer(200, projectsBody(7)));
         if (pick) {
-            QVERIFY(f.timer.selectedProjectId().isNull());
-            QVERIFY(f.timer.billable());
+            QVERIFY(f.timer.chosenProjectId().isNull());
+            QVERIFY(f.timer.chosenBillable());
         } else {
-            QCOMPARE(f.timer.selectedProjectId().toLongLong(), 11);
-            QVERIFY(f.timer.billable());
+            QCOMPARE(f.timer.chosenProjectId().toLongLong(), 11);
+            QVERIFY(f.timer.chosenBillable());
         }
     }
 
@@ -1625,8 +1735,8 @@ private Q_SLOTS:
         QVERIFY(f.timer.stop());
         QCOMPARE(f.transport.requests.at(f.last("POST", stopPath)).body, revisionBody(f.revision));
         f.respond(f.last("POST", stopPath), f.stateAnswer("null"));
-        QCOMPARE(f.timer.selectedProjectId().toLongLong(), 12);
-        QVERIFY(!f.timer.billable());
+        QCOMPARE(f.timer.chosenProjectId().toLongLong(), 12);
+        QVERIFY(!f.timer.chosenBillable());
         QCOMPARE(f.find("POST", stopPath).size(), 2);
     }
 
@@ -1643,7 +1753,7 @@ private Q_SLOTS:
         Fixture f;
         QVERIFY(connectAccount(f, instanceA, 3, 7, "null"));
         f.respond(f.last("GET", listPath), FakeTransport::answer(200, listBody({listedEntry(8, 7, 11, true, true)})));
-        QCOMPARE(f.timer.selectedProjectId().toLongLong(), 11);
+        QCOMPARE(f.timer.chosenProjectId().toLongLong(), 11);
         if (pick) {
             QVERIFY(f.timer.chooseProject(QVariant::fromValue(nullptr)));
         }
@@ -1657,14 +1767,14 @@ private Q_SLOTS:
         f.respond(read, f.stateAnswer());
         if (pick) {
             QCOMPARE(f.find("GET", listPath).size(), 1);
-            QVERIFY(f.timer.selectedProjectId().isNull());
-            QVERIFY(!f.timer.billable());
+            QVERIFY(f.timer.chosenProjectId().isNull());
+            QVERIFY(!f.timer.chosenBillable());
             return;
         }
         QCOMPARE(f.find("GET", listPath).size(), 2);
         f.respond(f.last("GET", listPath), FakeTransport::answer(200, listBody({listedEntry(9, 7, 12, true, false), listedEntry(8, 7, 11, true, true)})));
-        QCOMPARE(f.timer.selectedProjectId().toLongLong(), 12);
-        QVERIFY(!f.timer.billable());
+        QCOMPARE(f.timer.chosenProjectId().toLongLong(), 12);
+        QVERIFY(!f.timer.chosenBillable());
     }
 
     // The entry stopped elsewhere first: the server's 409 carries a state
@@ -1700,9 +1810,9 @@ private Q_SLOTS:
         QFETCH(int, status);
         QFETCH(QByteArray, body);
         Fixture f;
+        f.olderServer = true;
         QVERIFY(connectAccount(f));
         QVERIFY(f.timer.stop());
-        f.respond(f.last("POST", stopPath), FakeTransport::answer(404, "\"Not found\""));
         f.respond(f.last("PATCH", "/v9/workspaces/7/time_entries/5/stop"), FakeTransport::answer(status, body));
         QVERIFY(!f.timer.isBusy());
         QVERIFY(!f.timer.errorString().isEmpty());
@@ -1712,7 +1822,7 @@ private Q_SLOTS:
         f.respond(read, f.stateAnswer());
         QVERIFY(!f.timer.isRunning());
         QVERIFY(f.timer.errorString().isEmpty());
-        QCOMPARE(f.find("POST", stopPath).size(), 1);
+        QVERIFY(f.find("POST", stopPath).isEmpty());
         QCOMPARE(f.find("PATCH", "/stop").size(), 1);
         QVERIFY(f.timer.canWrite());
     }
@@ -1869,7 +1979,7 @@ private Q_SLOTS:
         QVERIFY(!f.timer.isConnected());
         QVERIFY(!f.timer.isRunning());
         QVERIFY(f.timer.projects().isEmpty());
-        QVERIFY(f.timer.selectedProjectId().isNull());
+        QVERIFY(f.timer.chosenProjectId().isNull());
         QVERIFY(!f.timer.isStale());
         QVERIFY(!f.timer.canWrite());
         QCOMPARE(f.timer.connectionState(), Connection::AuthenticationFailed);
@@ -1958,7 +2068,7 @@ private Q_SLOTS:
         // Alpha, billable, is chosen before an entry starts elsewhere.
         QVERIFY(connectAccount(f, instanceA, 3, 7, "null"));
         QVERIFY(f.timer.chooseProject(11));
-        QVERIFY(f.timer.billable());
+        QVERIFY(f.timer.chosenBillable());
         if (trigger != "start") {
             QVERIFY(f.push(entryBody(5, 7, startedAt)));
         }
@@ -1981,8 +2091,8 @@ private Q_SLOTS:
         QVERIFY(f.timer.isConnected());
         QVERIFY(!f.timer.isRunning());
         QVERIFY(f.timer.projects().isEmpty());
-        QVERIFY(f.timer.selectedProjectId().isNull());
-        QVERIFY(!f.timer.billable());
+        QVERIFY(f.timer.chosenProjectId().isNull());
+        QVERIFY(!f.timer.chosenBillable());
         QVERIFY(!f.timer.canWrite());
         QVERIFY(!f.timer.isBusy());
         QVERIFY(f.timer.errorString().contains(QStringLiteral("User does not have access to this resource.")));
@@ -2127,7 +2237,7 @@ private Q_SLOTS:
         // Alpha, billable, is chosen before an entry starts elsewhere.
         QVERIFY(connectAccount(f, instanceA, 3, 7, "null"));
         QVERIFY(f.timer.chooseProject(11));
-        QVERIFY(f.timer.billable());
+        QVERIFY(f.timer.chosenBillable());
         QVERIFY(f.push(entryBody(5, 7, startedAt)));
         // A stop is in flight when the account changes.
         QVERIFY(f.timer.stop());
@@ -2149,8 +2259,8 @@ private Q_SLOTS:
         QVERIFY(!f.timer.isBusy());
         QVERIFY(!f.timer.isConnected());
         QVERIFY(f.timer.projects().isEmpty());
-        QVERIFY(f.timer.selectedProjectId().isNull());
-        QVERIFY(!f.timer.billable());
+        QVERIFY(f.timer.chosenProjectId().isNull());
+        QVERIFY(!f.timer.chosenBillable());
         QCOMPARE(f.timer.elapsedText(), QStringLiteral("0:00"));
 
         // The new account reuses user 3, workspace 7 and entry 5.
@@ -2168,8 +2278,8 @@ private Q_SLOTS:
         f.respond(f.last("GET", "/projects"), FakeTransport::answer(200, projectsBody(7)));
         QVERIFY(f.timer.isRunning());
         QCOMPARE(f.timer.elapsedText(), QStringLiteral("1:00"));
-        QVERIFY(f.timer.selectedProjectId().isNull());
-        QVERIFY(!f.timer.billable());
+        QVERIFY(f.timer.chosenProjectId().isNull());
+        QVERIFY(!f.timer.chosenBillable());
         QVERIFY(!f.timer.isBusy());
         QVERIFY(f.timer.canWrite());
 

@@ -9,7 +9,10 @@ import com.canpicasoft.tokkl.backend
 // nothing depends on color. The session is the server's, so it shows in
 // either mode, whichever device started it. Which parts the summary and
 // the menu's state line show, and in what order, is the core's
-// (TokklStatusParts); this gives each part its words.
+// (TokklStatusParts); this gives each part its words. The words are keyed
+// on the core's keys (partKeys, statusKeys and actionKeys of
+// TokklStatusParts), and each catalog gives undefined for a key it does not
+// know, so the panel's tests find a core key without words.
 QtObject {
     id: words
 
@@ -47,9 +50,9 @@ QtObject {
     }
 
     // The session in one line, such as "Short rest · 4:10 left · Pomodoro 2
-    // of 4"; empty unless showsSession.
+    // of 4"; empty without an active session.
     readonly property string sessionText: {
-        if (!showsSession) {
+        if (session === null || !session.active) {
             return "";
         }
         // countdownText already starts with + in overtime.
@@ -68,23 +71,10 @@ QtObject {
         return timer.paused ? i18nc("@info:status timer", "Paused") : i18nc("@info:status timer", "Stopped");
     }
 
+    // The connection's state, for the timer's status as the core keys it.
     readonly property string statusText: {
-        switch (timer.status) {
-        case TokklTimer.Unconfigured:
-            return i18nc("@info:status", "Not configured");
-        case TokklTimer.Loading:
-            return i18nc("@info:status", "Loading");
-        case TokklTimer.Ready:
-            return i18nc("@info:status", "Connected");
-        case TokklTimer.Busy:
-            return i18nc("@info:status", "Saving");
-        case TokklTimer.Stale:
-            return i18nc("@info:status", "Offline, showing the last known state");
-        case TokklTimer.AuthenticationBlocked:
-            return i18nc("@info:status", "Sign-in refused");
-        default:
-            return i18nc("@info:status", "Error");
-        }
+        const word = statusWord(parts.status);
+        return word !== undefined ? word : statusWord("error");
     }
 
     // A longer explanation, or empty.
@@ -99,6 +89,14 @@ QtObject {
         default:
             return timer.errorString;
         }
+    }
+
+    // The panel button's accessible name: what the primary click does, as
+    // the core decides it (parts.action), or the session's line while the
+    // click acts on the session.
+    readonly property string actionName: {
+        const word = actionWord(parts.action);
+        return word !== undefined ? word : actionWord("start");
     }
 
     // The project name for the menu title, including the archived project of
@@ -134,31 +132,76 @@ QtObject {
     function render(keys: var): string {
         let shown = [];
         for (const key of keys) {
-            switch (key) {
-            case "activity":
-                shown.push(i18nc("@info:status running state and elapsed time", "%1 %2", runText, timer.elapsedText));
-                break;
-            case "session":
-                shown.push(sessionText);
-                break;
-            case "project":
-                shown.push(projectText);
-                break;
-            case "connection":
-                shown.push(statusText);
-                break;
-            case "detail":
-                shown.push(detailText);
-                break;
-            case "pomodoroMode":
-                shown = [i18nc("@info:status", "%1 · Pomodoro mode", shown.join(" · "))];
-                break;
-            case "message":
-                shown = [i18nc("@info:status", "%1 · %2", shown.join(" · "), messageText)];
-                break;
+            const next = partWords(key, shown);
+            if (next !== undefined) {
+                shown = next;
             }
         }
         return shown.filter(text => text.length > 0).join(" · ");
+    }
+
+    // The words so far with the part of a part key added; undefined for any
+    // other key.
+    function partWords(key: string, shown: var) {
+        switch (key) {
+        case "activity":
+            return shown.concat([i18nc("@info:status running state and elapsed time", "%1 %2", runText, timer.elapsedText)]);
+        case "session":
+            return shown.concat([sessionText]);
+        case "project":
+            return shown.concat([projectText]);
+        case "connection":
+            return shown.concat([statusText]);
+        case "detail":
+            return shown.concat([detailText]);
+        case "pomodoroMode":
+            return [i18nc("@info:status", "%1 · Pomodoro mode", shown.join(" · "))];
+        case "message":
+            return [i18nc("@info:status", "%1 · %2", shown.join(" · "), messageText)];
+        default:
+            return undefined;
+        }
+    }
+
+    // The connection's state for a status key; undefined for any other key.
+    function statusWord(key: string) {
+        switch (key) {
+        case "unconfigured":
+            return i18nc("@info:status", "Not configured");
+        case "loading":
+            return i18nc("@info:status", "Loading");
+        case "ready":
+            return i18nc("@info:status", "Connected");
+        case "busy":
+            return i18nc("@info:status", "Saving");
+        case "stale":
+            return i18nc("@info:status", "Offline, showing the last known state");
+        case "authentication-blocked":
+            return i18nc("@info:status", "Sign-in refused");
+        case "error":
+            return i18nc("@info:status", "Error");
+        default:
+            return undefined;
+        }
+    }
+
+    // What the primary click does, for an action key, or the session's line
+    // while it acts on the session; undefined for any other key.
+    function actionWord(key: string) {
+        switch (key) {
+        case "session":
+            return sessionText;
+        case "pause":
+            return withMode(i18nc("@action:button", "Pause the Tokkl timer"));
+        case "resume":
+            return withMode(i18nc("@action:button", "Resume the Tokkl timer"));
+        case "startSession":
+            return withMode(i18nc("@action:button", "Start a Pomodoro session"));
+        case "start":
+            return i18nc("@action:button", "Start the Tokkl timer");
+        default:
+            return undefined;
+        }
     }
 
     // The text, marked in Pomodoro mode.

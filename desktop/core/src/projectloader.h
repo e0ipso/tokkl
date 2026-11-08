@@ -2,22 +2,17 @@
 
 #include <QObject>
 
-#include <functional>
-#include <optional>
-
 namespace Tokkl
 {
 
-class Connection;
-class ProjectCatalog;
 class TimerCatalogUpdates;
 class TimerModel;
 
 // The timer's reads for what it shows of projects: the workspace's project
 // list, a chosen project the list lacks, and the last entry's project for
 // the next start. TimerModel starts none of them; TimerCoordinator owns the
-// loader, which decides when to read and lets the answers land in the
-// model's ProjectCatalog and NextStartSelection, which tell the model.
+// loader, which decides when to read and starts each read through the
+// model's TimerCatalogUpdates role; the answers land in the model.
 //
 // A chosen project is resolved whenever the next start's choice changes, a
 // list or a single project's answer arrives, and after every state the
@@ -42,11 +37,6 @@ public:
     // workspace cannot be read. The answer applies only while the workspace
     // is kept and nothing runs.
     void readLastEntryIfWanted();
-
-    // Reads project id of workspace into the catalog on its own when the
-    // catalog says it needs to; see ProjectCatalog::needsLookUp(). The
-    // answer counts while stillWanted(id) is true.
-    static void lookUp(ProjectCatalog &catalog, Connection *connection, qint64 id, qint64 workspace, std::function<bool(qint64)> stillWanted);
 
 private:
     const TimerModel *m_view;

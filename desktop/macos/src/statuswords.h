@@ -8,13 +8,23 @@
 #include "timermodel.h"
 
 #include <QString>
+#include <QStringList>
 #include <QVariantMap>
+
+#include <optional>
 
 namespace Tokkl::StatusWords
 {
 
+// The words are keyed on the core's keys (statuspresentation.h): the
+// timer's status by timerStatusKey(), the primary click by
+// primaryActionKey() and the parts by statusPartKey(). Each gives nothing
+// for a key it does not know, so the tests find a core key without words.
+
 // Running, Paused or Stopped.
 QString runText(const TimerModel &timer);
+// The connection's state for a status key; empty for any other key.
+QString statusWord(const QString &status);
 QString statusText(TimerModel::Status status);
 // A longer explanation of the status, or an empty string.
 QString detailText(const TimerModel &timer);
@@ -23,15 +33,13 @@ QString detailText(const TimerModel &timer);
 bool isNoProject(const QVariant &id);
 // A project map from TimerModel: its name, client and archived state.
 QString projectLabel(const QVariantMap &project);
-// The project the menu shows: the running or paused entry's, or the next
-// start's.
+// The project the menu shows, TimerModel::chosenProjectDetails(): the
+// running or paused entry's, or the next start's.
 QString projectText(const TimerModel &timer);
-// What the item does on a primary click, for screen readers: pause, resume
-// or start.
-QString actionName(const TimerModel &timer);
-// What a screen reader announces for the menu bar item: the action and the
-// project, so the project never depends on the indicator's colour.
-QString itemName(const TimerModel &timer);
+// What the item does on a primary click, for screen readers, for an action
+// key: pause, resume, start the timer or start a session, and the session's
+// line while the click acts on the session. Empty for any other key.
+QString actionName(const QString &action, const PomodoroSession &session);
 
 // Work, Short rest or Long rest for a phase as PomodoroSession names it;
 // empty for anything else.
@@ -40,11 +48,16 @@ QString phaseName(const QString &phase);
 // the pomodoro of the round, such as "Short rest · 4:10 left · Pomodoro 2 of
 // 4".
 QString sessionText(const PomodoroSession &session);
-// The item shows the session rather than the timer: a session is active and
-// no timer runs or is paused.
-bool showsSession(const TimerModel &timer, const PomodoroSession &session);
+// The words so far with the part named by a part key added; nullopt for
+// any other key. "pomodoroMode" marks the words so far, and "message" adds
+// nothing, as the menu shows the session's message on a line of its own.
+std::optional<QStringList> withPart(const QString &part, QStringList words, const TimerModel &timer, const PomodoroSession &session);
+
 // The words follow the core's StatusPresentation with the macOS policy;
 // these turn its parts into words.
+//
+// showsSession below is StatusInput::showsSession: a session is active and
+// no timer runs or is paused.
 //
 // The tooltip: the session's line, with the connection's state unless it is
 // ready, while showsSession; otherwise the run state and elapsed time, the
@@ -61,9 +74,11 @@ QString menuLine(const TimerModel &timer, const PomodoroSession &session);
 // instance is offline, refusing the sign-in or failing; the app name before
 // an account is set up. The countdown is marked only by " !".
 QString menuBarTitle(const TimerModel &timer, const PomodoroSession &session);
-// The screen reader's name with the session: sessionText while
-// showsSession, otherwise the timer's, with " · Pomodoro mode" in Pomodoro
-// mode, where a click with no timer starts a session.
+// What a screen reader announces for the menu bar item: sessionText while
+// the click acts on the session, otherwise the click's action and the
+// project, so the project never depends on the indicator's colour, with
+// " · Pomodoro mode" in Pomodoro mode, where a click with no timer starts a
+// session.
 QString itemName(const TimerModel &timer, const PomodoroSession &session);
 
 }

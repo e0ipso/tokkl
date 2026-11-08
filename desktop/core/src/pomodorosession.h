@@ -135,6 +135,10 @@ public:
     // overtime. Negative seconds read as zero.
     static QString formatCountdown(qint64 seconds, bool overtime);
 
+    // What activate() does now: Session while a session is active, the
+    // timer's toggle while it holds an entry or in Timer mode, and
+    // StartSession otherwise.
+    PrimaryAction primaryAction() const;
     // The panel's left-click.
     Q_INVOKABLE Activation activate();
     // The actions return true when they sent a request.

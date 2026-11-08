@@ -21,6 +21,7 @@
 #include "statusimage.h"
 #include "statusitem.h"
 #include "statusmenu.h"
+#include "statuspresentation.h"
 #include "statuswords.h"
 #include "timercontroller.h"
 
@@ -228,7 +229,7 @@ QString soundFile(const QString &id)
 QByteArray meBody()
 {
     return QByteArrayLiteral(
-        R"({"id":3,"email":"bea@example.test","fullname":"Bea","timezone":"UTC","default_workspace_id":7,"beginning_of_week":1})");
+        R"({"id":3,"email":"bea@example.test","fullname":"Bea","timezone":"UTC","default_workspace_id":7,"beginning_of_week":1,"api_version":1,"capabilities":["app-preferences","timer-actions","timer-edit","pomodoro-revision"]})");
 }
 
 // The running entry that started at startedAt.
@@ -645,6 +646,28 @@ private Q_SLOTS:
         QVERIFY(!f.app.m_menu.get()->m_startStopAction->isEnabled());
     }
 
+    // The words are keyed on the core's keys: a part, status or click
+    // action the core adds without words here fails.
+    void everyCoreKeyHasWords()
+    {
+        Fixture f;
+        QVERIFY(f.connect(entryBody()));
+        const TimerModel &timer = *f.app.m_timer.get();
+        const PomodoroSession &session = *f.app.m_session.get();
+        for (const QString &part : statusPartKeys()) {
+            QVERIFY2(StatusWords::withPart(part, QStringList(), timer, session).has_value(), qPrintable(part));
+        }
+        for (const QString &status : timerStatusKeys()) {
+            QVERIFY2(!StatusWords::statusWord(status).isEmpty(), qPrintable(status));
+        }
+        for (const QString &action : primaryActionKeys()) {
+            QVERIFY2(!StatusWords::actionName(action, session).isEmpty(), qPrintable(action));
+        }
+        QVERIFY(!StatusWords::withPart(QStringLiteral("unknown"), QStringList(), timer, session).has_value());
+        QVERIFY(StatusWords::statusWord(QStringLiteral("unknown")).isEmpty());
+        QVERIFY(StatusWords::actionName(QStringLiteral("unknown"), session).isEmpty());
+    }
+
     void titleShowsElapsedTime()
     {
         Fixture f;
@@ -779,13 +802,13 @@ private Q_SLOTS:
         QVERIFY(!menu.m_billableAction->isChecked());
 
         projectAction(menu, QStringLiteral("Alpha"))->trigger();
-        QCOMPARE(f.app.m_timer.get()->selectedProjectId().toLongLong(), 11);
+        QCOMPARE(f.app.m_timer.get()->chosenProjectId().toLongLong(), 11);
         QTRY_VERIFY(projectAction(menu, QStringLiteral("Alpha"))->isChecked());
         QVERIFY(!projectAction(menu, QStringLiteral("Beta (Acme)"))->isChecked());
         // Alpha is billable by default.
         QVERIFY(menu.m_billableAction->isChecked());
         menu.m_billableAction->trigger();
-        QVERIFY(!f.app.m_timer.get()->billable());
+        QVERIFY(!f.app.m_timer.get()->chosenBillable());
         QVERIFY(!menu.m_billableAction->isChecked());
 
         QCOMPARE(menu.m_startStopAction->text(), QStringLiteral("Start Timer"));
@@ -819,9 +842,11 @@ private Q_SLOTS:
         menu.m_billableAction->trigger();
         QCOMPARE(f.transport.requests.size(), before + 1);
         const HttpRequest update = f.transport.requests.last();
-        QCOMPARE(update.method, QByteArray("PUT"));
-        QCOMPARE(update.url.path(), QStringLiteral("/api/v9/workspaces/7/time_entries/5"));
-        QCOMPARE(jsonBody(update), QJsonObject({{QStringLiteral("billable"), true}}));
+        QCOMPARE(update.method, QByteArray("POST"));
+        QCOMPARE(update.url.path(), QStringLiteral("/api/app/timer/edit"));
+        QCOMPARE(jsonBody(update).value(QStringLiteral("billable")), QJsonValue(true));
+        QVERIFY(jsonBody(update).value(QStringLiteral("revision")).isDouble());
+        QCOMPARE(jsonBody(update).size(), 2);
     }
 
     // Stop Timer in the menu stops a running timer and ends the chain.
@@ -1222,9 +1247,10 @@ private Q_SLOTS:
         QVERIFY(menu.m_endSessionAction->isVisible());
         QCOMPARE(menu.m_endSessionAction->text(), QStringLiteral("End session"));
         QCOMPARE(menu.m_stateAction->text(), QStringLiteral("Work · 1:00 left · Pomodoro 1 of 2"));
-        QVERIFY(menu.m_projectMenu->menuAction()->isEnabled());
-        QVERIFY(projectAction(menu, QStringLiteral("Alpha"))->isEnabled());
-        QVERIFY(menu.m_billableAction->isEnabled());
+        // The open pomodoro is the session's: Project and Billable are locked.
+        QVERIFY(!menu.m_projectMenu->menuAction()->isEnabled());
+        QVERIFY(!projectAction(menu, QStringLiteral("Alpha"))->isEnabled());
+        QVERIFY(!menu.m_billableAction->isEnabled());
 
         // Next phase sends the revision shown.
         f.advance(60);

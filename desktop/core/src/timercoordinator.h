@@ -42,12 +42,16 @@ class ProjectLoader;
 // sent against the revision shown (pause excepted), and the client adopts
 // the state they return. A 409 adopts the server's state, ends the action
 // and leaves a message until the next user action, so a start never
-// replaces one another device made first. The billable edit, and a start or
-// stop on a server without the app routes, are v9 calls whose reply is an
-// entry, not the state: once one is applied the timer stays busy while the
-// client settles, until a read sent after the reply brings the state that
-// shows it. The billable edit stays a v9 PUT: the server has no edit
-// against a revision. A failure that
+// replaces one another device made first. The billable edit goes through
+// the timer too, against the revision shown, on a server that announces
+// timer-edit. A 409 whose state still runs the same entry is the one case
+// a write is sent twice: only the revision moved, and the edit, which only
+// sets fields, is applied once more at the new revision. Any other 409
+// shows as a conflict. On a server without timer-edit the billable edit is
+// a v9 PUT, and on one without timer-actions so are the start and stop:
+// their reply is an entry, not the state, so once one is applied the timer
+// stays busy while the client settles, until a read sent after the reply
+// brings the state that shows it. A failure that
 // leaves the outcome unknown (no answer, timeout, 5xx, unreadable answer)
 // keeps the timer busy while the client settles it the same way. No write
 // is ever sent again.
@@ -69,10 +73,13 @@ class ProjectLoader;
 // runs with nothing running. Only an active project of the workspace counts.
 //
 // chooseProject() sets only the project of the next start and is refused
-// while an entry runs: the project of a running entry is fixed, and changing
-// it means stopping and starting a new entry. chooseBillable() sets the next
-// start too and, while an entry runs, edits that entry in place with one PUT
-// carrying only billable, so the entry is never split. Choosing a project
+// while an entry runs, a chain is paused or a session is active: the
+// project of a running entry is fixed, and changing it means stopping and
+// starting a new entry. chooseBillable() is refused while paused or during
+// a session. TimerModel::canChooseProject() and canChooseBillable() are
+// the rule, and every menu shows what they allow. chooseBillable() sets the next
+// start too and, while an entry runs, edits that entry in place with one
+// write carrying only billable, so the entry is never split. Choosing a project
 // applies its billable default (false for no project); a later billable
 // choice overrides it.
 //
@@ -112,6 +119,7 @@ public:
     bool canStartNew() const override;
     // The project and billable flag the model shows as chosen.
     Selection selection() const override;
+    PrimaryAction toggleAction() const override;
 
     bool writing() const override;
     QString message() const override;
@@ -131,11 +139,10 @@ public:
     bool resume();
     // Pauses a running entry, resumes a paused chain, otherwise starts.
     bool toggle() override;
-    // Null, 0 or an active project's id. Returns false when refused: no
-    // write possible now, an entry runs or a chain is paused, or not an
-    // active project.
+    // Null, 0 or an active project's id. Returns false when refused: not
+    // TimerModel::canChooseProject(), or not an active project.
     bool chooseProject(const QVariant &projectId);
-    // Refused while a chain is paused.
+    // Refused unless TimerModel::canChooseBillable().
     bool chooseBillable(bool billable);
 
     // Reads the state and the projects again.
@@ -163,6 +170,9 @@ private:
     void beginMutation();
     void fetchProjects();
     bool updateEntry(const TimeEntryUpdate &update);
+    // The edit through the timer, against the revision held. A 409 for the
+    // same running entry is applied again once, while mayReapply.
+    void editRunningEntry(qint64 entryId, const TimeEntryUpdate &update, bool mayReapply);
     // start is true for a start or resume, and entryReply for a write that
     // went to v9, whose reply is an entry rather than the whole state, so
     // the state that shows it comes from a read.

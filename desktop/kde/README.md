@@ -366,9 +366,13 @@ never the only sign.
   Reconnect replaces only an automatic default, never a choice you made. A
   choice made before a stop does not carry over it.
 - While an entry runs, Billable also changes that entry in place with
-  `PUT /api/v9/workspaces/{wid}/time_entries/{id}`, sending only `billable`.
+  `POST /api/app/timer/edit`, sending only `billable` and the revision shown.
   The description, tags, start and the rest stay as they are, and the entry
-  is not split.
+  is not split. If the server answers 409 and its state still runs the same
+  entry, only the revision moved, so the widget sends the edit once more at
+  the new revision; any other 409 shows as a change on another device. A
+  server that does not announce `timer-edit` gets
+  `PUT /api/v9/workspaces/{wid}/time_entries/{id}` instead.
 - Project and Billable are disabled whenever the timer cannot write: not
   configured, loading, busy, offline before the entry is known, refused
   credentials, a lost workspace or a cooldown.
@@ -409,10 +413,12 @@ pause chain and the session all come from it.
   description and the selected project and billable choice. Stop sends `POST
   /api/app/timer/stop` with the revision shown. Both answer with the timer
   state, and with a 409 and the server's state when another device changed
-  the timer first. A server without those routes answers 404, and the widget
-  then sends the v9 calls for the rest of the connection: `POST
+  the timer first. `GET /api/v9/me` names what the server offers in
+  `capabilities`; on a server that does not announce `timer-actions` the
+  widget sends the v9 calls instead: `POST
   /api/v9/workspaces/{wid}/time_entries` with `duration: -1`, and `PATCH
-  /api/v9/workspaces/{wid}/time_entries/{id}/stop`.
+  /api/v9/workspaces/{wid}/time_entries/{id}/stop`. A 404 from either route
+  is a refusal, never a reason to send the write again elsewhere.
 - Pause (`POST /api/app/timer/pause`) asks the server to stop the running
   entry and keep a chain: the entry's description, project, task, tags and
   billable flag, and the seconds it stored. Resume (`POST
@@ -451,7 +457,7 @@ pause chain and the session all come from it.
 
 The menu has a checkable Pomodoro mode item that switches the widget between Timer mode and Pomodoro mode. The widget remembers the choice on this device. While a timer runs or is paused, or a session is active, the item reads "Pomodoro mode (locked while running)" and is disabled. Stop the timer or end the session to change it.
 
-The session belongs to the server (`POST /api/app/pomodoro`, `/next` and `/end`), so a session started, advanced or ended on any device shows here, in either mode. The widget keeps only the mode and the alarm. Start session sends the chosen project and billable flag; the server takes the account's lengths and times the phases on its own clock. Next phase and End session send the revision of the state shown, so a confirm that another device beat to it is refused and the panel shows the state that refused it. Start session, Next phase and End session need a connection. While the instance is unreachable, a running session keeps counting down and ringing from the last state held.
+The session belongs to the server (`POST /api/app/pomodoro`, `/next` and `/end`), so a session started, advanced or ended on any device shows here, in either mode. The widget keeps only the mode and the alarm. Start session sends the chosen project and billable flag; the server takes the account's lengths and times the phases on its own clock. Start session, Next phase and End session send the revision of the state shown, so an action that another device beat to it is refused and the panel shows the state that refused it. A server that does not announce `pomodoro-revision` gets Start session without one. Start session, Next phase and End session need a connection. While the instance is unreachable, a running session keeps counting down and ringing from the last state held.
 
 A left click on the panel depends on the session and the mode:
 

@@ -8,6 +8,7 @@
 #include "menuactions.h"
 #include "pomodorosession.h"
 #include "pomodorostore.h"
+#include "statuspresentation.h"
 #include "timercontroller.h"
 #include "timerstateclient.h"
 
@@ -36,17 +37,19 @@ const QByteArray endPath = "/app/pomodoro/end";
 const QByteArray timerStartPath = "/app/timer/start";
 const QString tooShort = QStringLiteral("This pomodoro was too short to save.");
 
-QByteArray meBody()
+// The account on a current server, or with current false on a server from
+// before the capabilities.
+QByteArray meBody(bool current = true)
 {
-    return QJsonDocument(QJsonObject{
-                             {QStringLiteral("id"), 3},
-                             {QStringLiteral("email"), QStringLiteral("bea@example.test")},
-                             {QStringLiteral("fullname"), QStringLiteral("Bea")},
-                             {QStringLiteral("timezone"), QStringLiteral("UTC")},
-                             {QStringLiteral("default_workspace_id"), 7},
-                             {QStringLiteral("beginning_of_week"), 1},
-                         })
-        .toJson(QJsonDocument::Compact);
+    const QJsonObject me{
+        {QStringLiteral("id"), 3},
+        {QStringLiteral("email"), QStringLiteral("bea@example.test")},
+        {QStringLiteral("fullname"), QStringLiteral("Bea")},
+        {QStringLiteral("timezone"), QStringLiteral("UTC")},
+        {QStringLiteral("default_workspace_id"), 7},
+        {QStringLiteral("beginning_of_week"), 1},
+    };
+    return QJsonDocument(current ? withCurrentServerApi(me) : me).toJson(QJsonDocument::Compact);
 }
 
 QString iso(const QDateTime &time)
@@ -153,6 +156,10 @@ public:
     Selection selection() const override
     {
         return chosen;
+    }
+    PrimaryAction toggleAction() const override
+    {
+        return held ? PrimaryAction::Pause : PrimaryAction::Start;
     }
     bool toggle() override
     {
@@ -416,7 +423,9 @@ private Q_SLOTS:
         QVERIFY(plasma().startSession.visible && plasma().startSession.enabled);
         QCOMPARE(actions.statesVariant().value(QStringLiteral("startSession")).toMap().value(QStringLiteral("visible")).toBool(), true);
 
-        // A session: Next phase and End session; only KDE holds the choices.
+        // A session: Next phase and End session. Its open pomodoro is a
+        // running entry, so every menu locks Project and Billable, and the
+        // timer refuses them too.
         QVERIFY(f.session->startSession());
         QVERIFY(!plasma().startSession.enabled);
         f.respond(f.last("POST", startPath), f.state(work(f.serverNow())));
@@ -428,10 +437,52 @@ private Q_SLOTS:
             QVERIFY(!states.mode.enabled);
             QCOMPARE(states.mode.label, QStringLiteral("pomodoroModeLocked"));
         }
-        QVERIFY(!plasma().project.enabled && !plasma().billable.enabled);
-        QVERIFY(macos().project.enabled && macos().billable.enabled);
-        QVERIFY(gnome().project.enabled && gnome().billable.enabled);
+        for (const MenuActionStates &states : {plasma(), macos(), gnome()}) {
+            QVERIFY(!states.project.enabled && !states.billable.enabled);
+        }
+        QVERIFY(!f.timer.canChooseProject() && !f.timer.canChooseBillable());
+        QVERIFY(!f.timer.projectChoices().choosable);
+        const qsizetype sent = f.transport.requests.size();
+        QVERIFY(!f.timer.chooseProject(11));
+        QVERIFY(!f.timer.chooseProject(QVariant::fromValue(nullptr)));
+        QVERIFY(!f.timer.chooseBillable(false));
+        QCOMPARE(f.transport.requests.size(), sent);
         QVERIFY(actions.states() == plasma());
+    }
+
+    // What the click does is the core's answer, and the panels name it from
+    // its key; activate() does what the answer says.
+    void primaryActionSaysWhatTheClickDoes()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f));
+        StatusParts parts;
+        parts.setTimer(&f.timer);
+        parts.setSession(f.session.get());
+        QCOMPARE(f.session->primaryAction(), PrimaryAction::Start);
+        QCOMPARE(parts.action(), QStringLiteral("start"));
+
+        f.push(f.runningState(runningEntry(30, f.serverNow())));
+        QVERIFY(f.timer.isRunning());
+        QCOMPARE(f.session->primaryAction(), PrimaryAction::Pause);
+        QCOMPARE(parts.action(), QStringLiteral("pause"));
+
+        f.push(f.state(std::nullopt));
+        QVERIFY(f.session->setPomodoroMode(true));
+        QCOMPARE(f.session->primaryAction(), PrimaryAction::StartSession);
+        QCOMPARE(parts.action(), QStringLiteral("startSession"));
+        // Without a session the click is the timer's toggle.
+        QCOMPARE(primaryActionOf(f.timer, nullptr), PrimaryAction::Start);
+
+        f.push(f.state(work(f.serverNow())));
+        QVERIFY(f.session->isActive());
+        QCOMPARE(f.session->primaryAction(), PrimaryAction::Session);
+        QCOMPARE(parts.action(), QStringLiteral("session"));
+        QCOMPARE(f.session->activate(), PomodoroSession::Activation::OpenMenu);
+
+        for (PrimaryAction action : {PrimaryAction::Start, PrimaryAction::Pause, PrimaryAction::Resume, PrimaryAction::StartSession, PrimaryAction::Session}) {
+            QVERIFY(!primaryActionKey(action).isEmpty());
+        }
     }
 
     // The session needs nothing of the timer but TimerActions: it reads and
@@ -712,6 +763,7 @@ private Q_SLOTS:
                      {QStringLiteral("workspace_id"), 7},
                      {QStringLiteral("project_id"), 11},
                      {QStringLiteral("billable"), true},
+                     {QStringLiteral("revision"), f.revision},
                  }));
         QVERIFY(!f.session->canStartSession());
         QCOMPARE(f.session->activate(), PomodoroSession::Activation::Ignored);

@@ -135,18 +135,30 @@ QString PomodoroSession::formatCountdown(qint64 seconds, bool overtime)
 
 // ----- actions -------------------------------------------------------------
 
-PomodoroSession::Activation PomodoroSession::activate()
+PrimaryAction PomodoroSession::primaryAction() const
 {
     if (pomodoro()) {
+        return PrimaryAction::Session;
+    }
+    if (timerHeld() || !m_pomodoroMode) {
+        return m_timer ? m_timer->toggleAction() : PrimaryAction::Start;
+    }
+    return PrimaryAction::StartSession;
+}
+
+PomodoroSession::Activation PomodoroSession::activate()
+{
+    switch (primaryAction()) {
+    case PrimaryAction::Session:
         if (!m_ringing) {
             return Activation::OpenMenu;
         }
         return confirmNextPhase() ? Activation::Handled : Activation::Ignored;
-    }
-    if (timerHeld() || !m_pomodoroMode) {
+    case PrimaryAction::StartSession:
+        return startSession() ? Activation::Handled : Activation::Ignored;
+    default:
         return m_timer && m_timer->toggle() ? Activation::Handled : Activation::Ignored;
     }
-    return startSession() ? Activation::Handled : Activation::Ignored;
 }
 
 bool PomodoroSession::startSession()

@@ -89,18 +89,8 @@ MouseArea {
     }
 
     Accessible.role: Accessible.Button
-    Accessible.name: {
-        if (button.words.showsSession) {
-            return button.words.sessionText;
-        }
-        if (button.timer.running) {
-            return button.words.withMode(i18nc("@action:button", "Pause the Tokkl timer"));
-        }
-        if (button.timer.paused) {
-            return button.words.withMode(i18nc("@action:button", "Resume the Tokkl timer"));
-        }
-        return button.words.pomodoroMode ? button.words.withMode(i18nc("@action:button", "Start a Pomodoro session")) : i18nc("@action:button", "Start the Tokkl timer");
-    }
+    // What the click does, as the core decides it (TokklStatusParts.action).
+    Accessible.name: button.words.actionName
     // The session's line has no project or connection state, so the
     // description names them: a failing connection otherwise shows only as
     // the state symbol. The core decides which parts (TokklStatusParts).

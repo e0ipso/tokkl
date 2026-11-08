@@ -88,7 +88,10 @@ TestCase {
             fullname: "Bea",
             timezone: "UTC",
             default_workspace_id: workspace,
-            beginning_of_week: 1
+            beginning_of_week: 1,
+            // A current server's announcement.
+            api_version: 1,
+            capabilities: ["app-preferences", "timer-actions", "timer-edit", "pomodoro-revision"]
         });
     }
 
@@ -657,7 +660,7 @@ TestCase {
         const body = fixture.request(waitFor("POST", "/timer/start")).body;
         compare(body.project_id, 11);
         compare(body.billable, false);
-        compare(fixture.pending("PUT", "/time_entries/5"), -1, "no edit while stopped");
+        compare(fixture.pending("POST", "/timer/edit"), -1, "no edit while stopped");
     }
 
     // A stopped entry of the last 9 days, as GET /me/time_entries?meta=true
@@ -811,11 +814,11 @@ TestCase {
         verify(archived.checked, "marked as the entry's project");
         verify(!archived.enabled, "not a choice");
         verify(!button.timer.chooseProject(33), "an archived project is refused");
-        compare(fixture.pending("PUT", "/time_entries/5"), -1);
+        compare(fixture.pending("POST", "/timer/edit"), -1);
         verify(button.timer.projects.every(p => p.id !== 33), "not among the active projects");
         verify(!projectItem("Alpha").enabled, "the running entry's project is locked");
         verify(!button.timer.chooseProject(11), "no move to an active project while running");
-        compare(fixture.pending("PUT", "/time_entries/5"), -1);
+        compare(fixture.pending("POST", "/timer/edit"), -1);
     }
 
     function test_projectIsLockedWhileRunning() {
@@ -832,21 +835,22 @@ TestCase {
 
         verify(!button.timer.chooseProject(11), "a direct call is refused too");
         verify(!button.timer.chooseProject(null));
-        compare(fixture.pending("PUT", "/time_entries/5"), -1, "no edit sent");
+        compare(fixture.pending("POST", "/timer/edit"), -1, "no edit sent");
         compare(button.timer.chosenProjectId, 12);
 
-        // Billable edits the running entry with billable alone.
+        // Billable edits the running entry through the timer, with billable
+        // alone, against the revision shown.
         toggleBillableWithKeyboard();
-        const put = waitFor("PUT", "/workspaces/7/time_entries/5");
-        compare(fixture.request(put).body, {
-            billable: true
+        const edit = waitFor("POST", "/timer/edit");
+        compare(fixture.request(edit).body, {
+            billable: true,
+            revision: revision
         }, "a billable change sends only billable");
         compare(button.timer.status, TokklTimer.Busy);
 
         // The server keeps everything else; the same entry keeps running.
-        fixture.respond(put, 200, JSON.stringify(entry(5, 7, 12, true)));
-        answerState(entry(5, 7, 12, true));
-        tryCompare(button.timer, "canWrite", true);
+        fixture.respond(edit, 200, stateBody(entry(5, 7, 12, true)));
+        settleState(entry(5, 7, 12, true));
         const current = button.timer.currentEntry;
         compare(current.id, 5);
         compare(current.description, "Write the report");
@@ -857,7 +861,7 @@ TestCase {
         verify(!menu.projectMenu.enabled, "still locked after the edit");
         for (let i = before; i < fixture.requestCount; ++i) {
             const request = fixture.request(i);
-            verify(request.method === "GET" || request.method === "PUT", request.method + " " + request.path);
+            verify(request.method === "GET" || request.path.endsWith("/timer/edit"), request.method + " " + request.path);
         }
 
         // Stopped, Project is a choice again. A click would pause, which
@@ -872,10 +876,34 @@ TestCase {
         verify(projectItem("Beta").enabled);
         verify(button.timer.chooseProject(11));
         compare(button.timer.chosenProjectId, 11);
-        compare(fixture.pending("PUT", "/time_entries/5"), -1, "a stopped choice sends nothing");
+        compare(fixture.pending("POST", "/timer/edit"), -1, "a stopped choice sends nothing");
     }
 
     // ----- states and disabled controls -----------------------------------
+
+    // The words are keyed on the core's keys: a part, status or click
+    // action the core adds without words here fails.
+    function test_everyCoreKeyHasWords() {
+        const words = button.words;
+        const parts = words.parts;
+        compare(parts.partKeys.length, 7);
+        for (const key of parts.partKeys) {
+            verify(words.partWords(key, []) !== undefined, "part " + key);
+        }
+        compare(parts.statusKeys.length, 7);
+        for (const key of parts.statusKeys) {
+            verify(words.statusWord(key) !== undefined, "status " + key);
+        }
+        compare(parts.actionKeys.length, 5);
+        for (const key of parts.actionKeys) {
+            verify(words.actionWord(key) !== undefined, "action " + key);
+        }
+        verify(words.partWords("unknown", []) === undefined);
+        verify(words.statusWord("unknown") === undefined);
+        verify(words.actionWord("unknown") === undefined);
+        compare(parts.status, "unconfigured");
+        compare(parts.action, "start");
+    }
 
     function test_unconfiguredDisablesEverything() {
         compare(button.timer.status, TokklTimer.Unconfigured);

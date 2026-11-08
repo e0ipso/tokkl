@@ -741,14 +741,14 @@ await step('a primary click starts a session, and the label counts the phase dow
     await hourglassIs('the hourglass', { visible: true });
 });
 
-await step('the mode is locked during a session, and project and billable are not', async () => {
+await step('the mode, the project and billable are locked during a session', async () => {
     await modeItemIs('the locked switch', {
         label: 'Pomodoro mode (locked while running)',
         state: true,
         sensitive: false,
     });
-    if (!sensitive('_projectMenu') || !sensitive('_billableItem'))
-        throw new Error('the project or billable is insensitive during a session');
+    if (sensitive('_projectMenu') || sensitive('_billableItem'))
+        throw new Error('the project or billable is sensitive during a session');
     // A refused change puts the switch back.
     const before = mockCalls().length;
     shell(`${button}._modeItem.toggle()`);
@@ -962,17 +962,18 @@ await step('a session started on another device shows in Timer mode', async () =
     await waitFor('0:00', () => label() === '0:00' || label());
 });
 
-await step('a service without the Request methods gets the plain Start and Stop', async () => {
+await step('a service without InterfaceVersion gets the plain Start and Stop', async () => {
     actAsOlderService(true);
+    const version = () => shell(`${button}._proxy.get_cached_property('InterfaceVersion')?.unpack()`);
+    await waitFor('InterfaceVersion 0', () => version() === 0 || version());
     let before = mockCalls().length;
     shell(`${button}._toggleItem.activate(null)`);
     await waitFor('Start', () => (mockCalls().length > before && lastCall()[0] === 'Start') || mockCalls());
     await waitFor('Running', () => timerProperty('Running') === true);
     const first = mockCalls().slice(before);
-    if (JSON.stringify(first) !== JSON.stringify([['RequestStart'], ['Start']]))
-        throw new Error(`Start sent ${JSON.stringify(first)}`);
+    // The version decides: no Request method is tried first.
+    if (JSON.stringify(first) !== JSON.stringify([['Start']])) throw new Error(`Start sent ${JSON.stringify(first)}`);
     if (shell(`${button}._messageItem.visible`)) throw new Error('the fallback showed a message');
-    // The menu remembers that this service has no requests.
     await waitFor('Stop', () => toggleItem() === 'Stop' || toggleItem());
     before = mockCalls().length;
     shell(`${button}._toggleItem.activate(null)`);
@@ -981,6 +982,7 @@ await step('a service without the Request methods gets the plain Start and Stop'
     const second = mockCalls().slice(before);
     if (JSON.stringify(second) !== JSON.stringify([['Stop']])) throw new Error(`Stop sent ${JSON.stringify(second)}`);
     actAsOlderService(false);
+    await waitFor('InterfaceVersion 1', () => version() === 1 || version());
     await waitFor('0:00', () => label() === '0:00' || label());
 });
 

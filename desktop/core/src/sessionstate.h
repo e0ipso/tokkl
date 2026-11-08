@@ -35,9 +35,10 @@ public:
     // This device's clock corrected by serverOffsetMs().
     virtual QDateTime serverNow() const = 0;
 
-    // done runs once, later, with the outcome. Next phase and End session
-    // apply to the revision of the state held, and are refused without
-    // sending while none is held.
+    // done runs once, later, with the outcome. Each applies to the revision
+    // of the state held, and is refused without sending while none is held.
+    // A server without pomodoro-revision starts a session whatever its
+    // state.
     virtual void startPomodoro(const PomodoroStart &start, ActionCallback done) = 0;
     virtual void nextPhase(ActionCallback done) = 0;
     virtual void endPomodoro(ActionCallback done) = 0;

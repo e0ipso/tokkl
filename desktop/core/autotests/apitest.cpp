@@ -235,6 +235,34 @@ private Q_SLOTS:
         QCOMPARE(me->toVariantMap().value(QStringLiteral("timeResolutionMinutes")), QVariant(minutes));
     }
 
+    void decodeMeServerApi_data()
+    {
+        QTest::addColumn<QByteArray>("field"); // added to a valid body
+        QTest::addColumn<qint64>("version");
+        QTest::addColumn<QList<bool>>("capabilities"); // app-preferences, timer-actions, timer-edit, pomodoro-revision
+
+        QTest::newRow("older server") << QByteArray() << qint64(0) << QList<bool>{false, false, false, false};
+        QTest::newRow("current server") << QByteArray(R"(,"api_version":1,"capabilities":["app-preferences","timer-actions","timer-edit","pomodoro-revision"])")
+                                        << qint64(1) << QList<bool>{true, true, true, true};
+        QTest::newRow("unknown names ignored") << QByteArray(R"(,"api_version":2,"capabilities":["timer-actions","time-travel",7,null])") << qint64(2)
+                                               << QList<bool>{false, true, false, false};
+        QTest::newRow("unreadable") << QByteArray(R"(,"api_version":"1","capabilities":"timer-actions")") << qint64(0)
+                                    << QList<bool>{false, false, false, false};
+    }
+
+    // What the server announces picks the routes; an announcement that
+    // cannot be read does not refuse the account.
+    void decodeMeServerApi()
+    {
+        QFETCH(QByteArray, field);
+        QFETCH(qint64, version);
+        QFETCH(QList<bool>, capabilities);
+        const std::optional<Me> me = Tokkl::decodeMe(*parseJsonBody(R"({"id":3,"email":"b@example.com","default_workspace_id":9)" + field + "}"));
+        QVERIFY(me);
+        QCOMPARE(me->server.version, version);
+        QCOMPARE((QList<bool>{me->server.appPreferences, me->server.timerActions, me->server.timerEdit, me->server.pomodoroRevision}), capabilities);
+    }
+
     void decodeEntries()
     {
         const QByteArray running = R"({"id":5,"workspace_id":9,"project_id":null,"task_id":null,"billable":false,

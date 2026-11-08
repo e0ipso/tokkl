@@ -47,11 +47,32 @@ enum class StatusMark {
     Unconfigured,
 };
 
+// The keys of the panels' word catalogs. Each panel keys its words for the
+// parts, the timer's status and the primary click on these, never on a
+// list of its own, and its tests fail when a key here has no word there:
+// statuspresentationtest checks that statuspresentation.json carries these
+// lists, the GNOME extension's tests read them from that file, and the KDE
+// and macOS tests read them from here (TokklStatusParts in QML).
+//
 // "activity", "session", "project", "connection", "detail", "pomodoroMode"
 // or "message".
 QString statusPartKey(StatusPart part);
+// Every part's key, in the order of StatusPart.
+QStringList statusPartKeys();
 // "none", "pending", "alert" or "unconfigured".
 QString statusMarkKey(StatusMark mark);
+QStringList statusMarkKeys();
+// The timer's status as tokkl-timerd publishes it in Status and the panels
+// word the connection part: "unconfigured", "loading", "ready", "busy",
+// "stale", "authentication-blocked" or "error".
+QString timerStatusKey(TimerModel::Status status);
+QStringList timerStatusKeys();
+// "start", "pause", "resume", "startSession" or "session".
+QString primaryActionKey(PrimaryAction action);
+QStringList primaryActionKeys();
+// What a panel's primary click does: the session's primaryAction(), or
+// with no session the timer's toggle.
+PrimaryAction primaryActionOf(const TimerModel &timer, const PomodoroSession *session);
 
 // What the presentation reads of the timer and the session.
 struct StatusInput {
@@ -153,6 +174,15 @@ class StatusParts : public QObject
     // The panel shows the session rather than the timer: a session is
     // active and no timer runs or is paused (StatusInput::showsSession).
     Q_PROPERTY(bool showsSession READ showsSession NOTIFY changed)
+    // What the primary click does, as primaryActionKey() names it.
+    Q_PROPERTY(QString action READ action NOTIFY changed)
+    // The timer's status, as timerStatusKey() names it.
+    Q_PROPERTY(QString status READ status NOTIFY changed)
+    // The keys every panel has words for: statusPartKeys(),
+    // timerStatusKeys() and primaryActionKeys().
+    Q_PROPERTY(QStringList partKeys READ partKeys CONSTANT)
+    Q_PROPERTY(QStringList statusKeys READ statusKeys CONSTANT)
+    Q_PROPERTY(QStringList actionKeys READ actionKeys CONSTANT)
 
 public:
     explicit StatusParts(QObject *parent = nullptr);
@@ -170,6 +200,11 @@ public:
     QStringList accessible() const;
     QString mark() const;
     bool showsSession() const;
+    QString action() const;
+    QString status() const;
+    static QStringList partKeys();
+    static QStringList statusKeys();
+    static QStringList actionKeys();
 
 Q_SIGNALS:
     void timerChanged();
@@ -187,6 +222,8 @@ private:
     bool m_hasMessage = false;
     StatusPresentation m_presentation;
     bool m_showsSession = false;
+    QString m_action;
+    QString m_status;
     QList<QMetaObject::Connection> m_watches;
 };
 

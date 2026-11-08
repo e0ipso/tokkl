@@ -85,6 +85,11 @@ TimerActions::Selection TimerCoordinator::selection() const
     return {m_model->chosenProject(), m_model->chosenBillable()};
 }
 
+PrimaryAction TimerCoordinator::toggleAction() const
+{
+    return m_model->toggleAction();
+}
+
 bool TimerCoordinator::writing() const
 {
     return m_gate.running();
@@ -263,16 +268,19 @@ bool TimerCoordinator::toggle()
     if (m_model->isSessionActive()) {
         return false;
     }
-    if (m_model->isRunning()) {
+    switch (m_model->toggleAction()) {
+    case PrimaryAction::Pause:
         return pause();
+    case PrimaryAction::Resume:
+        return resume();
+    default:
+        return start();
     }
-    return m_model->isPaused() ? resume() : start();
 }
 
 bool TimerCoordinator::chooseProject(const QVariant &projectId)
 {
-    // The project of a running or paused entry is fixed until it stops.
-    if (!m_model->canWrite() || m_model->isRunning() || m_model->isPaused()) {
+    if (!m_model->canChooseProject()) {
         return false;
     }
     const std::optional<NextStartSelection::Choice> choice = m_selection->choiceFor(projectId);
@@ -286,8 +294,7 @@ bool TimerCoordinator::chooseProject(const QVariant &projectId)
 
 bool TimerCoordinator::chooseBillable(bool billable)
 {
-    // A resume copies the chain's flag.
-    if (!m_model->canWrite() || m_model->isPaused()) {
+    if (!m_model->canChooseBillable()) {
         return false;
     }
     clearKeptError();
@@ -307,6 +314,10 @@ bool TimerCoordinator::updateEntry(const TimeEntryUpdate &update)
     // start, description, tags and the rest, and it keeps running.
     const qint64 entryId = m_model->currentEntry()->id;
     beginMutation();
+    if (m_model->connection()->server().timerEdit) {
+        editRunningEntry(entryId, update, true);
+        return true;
+    }
 
     m_model->connection()->updateEntry(entryId, update, m_epoch.guard(this, [this](const ApiResult<TimeEntry> &result) {
         // Stopped elsewhere before the edit: the reply names its project.
@@ -316,6 +327,25 @@ bool TimerCoordinator::updateEntry(const TimeEntryUpdate &update)
         finishMutation(outcomeOf(result.error, result.ok()), result.error, false, true);
     }));
     return true;
+}
+
+void TimerCoordinator::editRunningEntry(qint64 entryId, const TimeEntryUpdate &update, bool mayReapply)
+{
+    m_model->stateClient()->edit(update, m_epoch.guard(this, [this, entryId, update, mayReapply](const TimerActionResult &result) {
+        // A 409 whose state still runs the same entry means only the
+        // revision moved: the timer changed elsewhere, but this entry still
+        // runs. The edit only sets fields, so it is applied once more, at
+        // the revision the client just adopted. That is a deliberate second
+        // write of an edit the server refused, not a replay of an unknown
+        // outcome, which is never sent again.
+        const bool sameEntry = result.state && result.state->runningEntry && result.state->runningEntry->id == entryId;
+        if (result.outcome == Outcome::Conflict && mayReapply && sameEntry) {
+            qCInfo(lcTimer) << "Edit refused at an older revision of the same entry; applying it once more";
+            editRunningEntry(entryId, update, false);
+            return;
+        }
+        finishMutation(result.outcome, result.error);
+    }));
 }
 
 // ----- settling ------------------------------------------------------------
