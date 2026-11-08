@@ -7,8 +7,8 @@
 import type { DurationFormat } from '@tokkl/types';
 import { authenticatedUser, type Authentication } from '../domain/credentials.ts';
 import { forbidden } from '../lib/errors.ts';
-import type { ReadOnlyRepositories, ReportCursor } from '../storage/contracts.ts';
-import type { EntryDetails } from '../storage/domain.ts';
+import type { ReadOnlyRepositories, ReportCursor } from '../domain/ports.ts';
+import type { EntryDetails } from '../domain/model.ts';
 import { csvExportWriter, jsonExportWriter } from './exports.ts';
 
 /** What an export writes, and the name the download gets. */

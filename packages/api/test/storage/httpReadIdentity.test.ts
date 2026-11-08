@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test, type TestContext } from 'node:test';
-import type { ReadOnlyRepositories, Storage } from '../../src/storage/contracts.ts';
+import type { ReadOnlyRepositories, Storage } from '../../src/domain/ports.ts';
 import type { Backend } from '../../src/storage/config.ts';
 import { createStorage } from '../../src/storage/index.ts';
 import { initializeDatabase } from '../../src/storage/migrations.ts';

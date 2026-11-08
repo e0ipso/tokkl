@@ -31,3 +31,14 @@ export function pageRange({ page, perPage }: PageWindow): RowRange | undefined {
   if (!Number.isSafeInteger(start) || end <= start) return undefined;
   return { offset: start, limit: end - start };
 }
+
+/**
+ * The rows `sliceOffset` keeps, as a range a query can apply, or undefined when there are none.
+ * Without a `limit` the range runs to the last row. Bounds truncate as in `pageRange`.
+ */
+export function offsetRange(offset: number, limit = Infinity): RowRange | undefined {
+  const start = Math.trunc(offset);
+  const end = Math.min(Math.trunc(offset + limit), Number.MAX_SAFE_INTEGER);
+  if (!Number.isSafeInteger(start) || end <= start) return undefined;
+  return { offset: start, limit: end - start };
+}

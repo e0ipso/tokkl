@@ -1,4 +1,4 @@
-import { corruptRecord } from './fixtures/physical.ts';
+import { corruptRecord, insertTrashedEntries } from './fixtures/physical.ts';
 import { entryRecord, entryCount } from './fixtures/observations.ts';
 import { storageFor } from './fixtures/database.ts';
 import { test } from 'node:test';
@@ -513,6 +513,30 @@ test('trash lists deleted entries, restores and purges them', async () => {
 
   const empty = await ctx.json('DELETE', '/api/app/trash');
   assert.equal(empty.body.deleted, 1);
+  assert.deepEqual((await ctx.json('GET', '/api/app/trash')).body, []);
+});
+
+test('emptying the trash deletes every trashed entry, past the newest thousand and in every workspace', async () => {
+  const ctx = await setup();
+  const other = await createWorkspace(ctx.db, 'Other');
+  await addWorkspaceMember(ctx.db, other.id, ctx.user.id, 'owner');
+  // The newest thousand trashed entries all sit in the first workspace.
+  await insertTrashedEntries(ctx.db, {
+    userId: ctx.user.id,
+    workspaceId: ctx.wid,
+    count: 1001,
+    newestDeletedAt: '2026-10-02T12:00:00.000Z',
+  });
+  await insertTrashedEntries(ctx.db, {
+    userId: ctx.user.id,
+    workspaceId: other.id,
+    count: 3,
+    newestDeletedAt: '2026-10-01T12:00:00.000Z',
+  });
+
+  const empty = await ctx.json('DELETE', '/api/app/trash');
+  assert.equal(empty.status, 200);
+  assert.equal(empty.body.deleted, 1004);
   assert.deepEqual((await ctx.json('GET', '/api/app/trash')).body, []);
 });
 

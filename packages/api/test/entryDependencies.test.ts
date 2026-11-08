@@ -4,7 +4,7 @@ import { entryResolution, getEntryIn } from '../src/domain/entryAccess.ts';
 import { createTimerPublication } from '../src/services/timerPublication.ts';
 import { createCatalogOperations } from '../src/services/catalogOperations.ts';
 import { createEntryOperations } from '../src/services/entryOperations.ts';
-import type { EntryDetails } from '../src/storage/domain.ts';
+import type { EntryDetails } from '../src/domain/model.ts';
 import { initializeDatabase } from '../src/storage/migrations.ts';
 import { createTransactionRunner } from '../src/storage/transactions.ts';
 import { entryAccount, entryTimerFactory } from './storage/support/entry-timer.ts';

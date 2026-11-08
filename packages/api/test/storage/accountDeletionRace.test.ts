@@ -9,7 +9,7 @@ import { generateApiToken, hashPassword, sha256 } from '../../src/lib/crypto.ts'
 import { createApplicationServices } from '../../src/services/application.ts';
 import { ReportRunner } from '../../src/services/reportRunner.ts';
 import { openConnection } from '../../src/storage/connections.ts';
-import type { Repositories, Storage } from '../../src/storage/contracts.ts';
+import type { Repositories, Storage } from '../../src/domain/ports.ts';
 import { createStorage } from '../../src/storage/index.ts';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { disposableBackend } from './support/disposableBackend.ts';

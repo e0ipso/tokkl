@@ -2,8 +2,8 @@
 import { type Kysely, type Selectable, type Insertable } from 'kysely';
 import type { Backend } from '../config.ts';
 import type { PhysicalDatabase, ClientsRow, ProjectsRow, TasksRow, TagsRow } from '../physical.ts';
-import type { ProjectInput } from '../contracts.ts';
-import type { Client, Project, Task, Tag, ProjectSummary, TaskSummary } from '../domain.ts';
+import type { ProjectInput } from '../../domain/ports.ts';
+import type { Client, Project, Task, Tag, ProjectSummary, TaskSummary } from '../../domain/model.ts';
 import { booleanValue, entityId, finiteNumber, safeInteger, utcInstant } from '../conversion.ts';
 import { catalogTotal, taskEstimate } from './catalog-sql.ts';
 

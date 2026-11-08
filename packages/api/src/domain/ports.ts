@@ -30,8 +30,22 @@ import type {
   UtcInstant,
   Workspace,
   WorkspaceMember,
-} from './domain.ts';
+} from './model.ts';
 import type { RowRange } from '../lib/pagination.ts';
+
+export type StorageConflictKind = 'unique' | 'foreign-key' | 'serialization' | 'deadlock' | 'busy';
+/**
+ * What a repository throws when the database refuses a write for a conflict, which the domain maps
+ * to its own errors. No SQL, constraint names or driver cause.
+ */
+export class StorageConflict extends Error {
+  readonly kind: StorageConflictKind;
+  constructor(kind: StorageConflictKind) {
+    super(`Storage conflict (${kind})`);
+    this.name = 'StorageConflict';
+    this.kind = kind;
+  }
+}
 
 // Inputs have passed domain validation. Repositories still enforce scoping and database constraints.
 export interface NewAccount {
@@ -205,9 +219,25 @@ export interface ProjectsRepository extends ProjectsReader {
   delete(workspaceId: Id, id: Id, entryMode: 'detach' | 'delete'): Promise<void>;
 }
 export type TaskInput = Omit<Task, 'id' | 'createdAt' | 'updatedAt'>;
+/** What the workspace task search filters and sorts on, read without the tracked totals. */
+export type TaskSortKey = Pick<Task, 'id' | 'name' | 'createdAt' | 'updatedAt'>;
 export interface TasksReader {
   getMetadata(workspaceId: Id, id: Id): Promise<Task | undefined>;
-  list(workspaceId: Id, filter?: { projectId?: Id; active?: boolean; name?: string }): Promise<TaskSummary[]>;
+  /** Ordered by folded name, then id. `ids` keeps only those tasks. */
+  list(
+    workspaceId: Id,
+    filter?: { projectId?: Id; active?: boolean; name?: string; ids?: readonly Id[] },
+  ): Promise<TaskSummary[]>;
+  listSortKeys(workspaceId: Id, filter: { projectId?: Id; active?: boolean }): Promise<TaskSortKey[]>;
+  /**
+   * The tasks of every workspace the user belongs to, ordered by workspace id, folded name, then
+   * id. A `range` keeps only those rows of that order.
+   */
+  listForMember(
+    userId: Id,
+    filter: { active?: boolean; changedSince?: UtcInstant },
+    range?: RowRange,
+  ): Promise<TaskSummary[]>;
   get(workspaceId: Id, id: Id, projectId?: Id): Promise<TaskSummary | undefined>;
   getRef(workspaceId: Id, id: Id): Promise<TaskRef | undefined>;
   findByName(workspaceId: Id, projectId: Id, name: string): Promise<Task | undefined>;
@@ -223,7 +253,8 @@ export interface TasksRepository extends TasksReader {
   delete(workspaceId: Id, projectId: Id, id: Id): Promise<void>;
 }
 export interface TagsReader {
-  list(workspaceId: Id, search?: string): Promise<Tag[]>;
+  /** Ordered by folded name, then id. A `range` keeps only those rows of that order. */
+  list(workspaceId: Id, search?: string, range?: RowRange): Promise<Tag[]>;
   findByIds(workspaceId: Id, ids: readonly Id[]): Promise<Tag[]>;
   get(workspaceId: Id, id: Id): Promise<Tag | undefined>;
   findByName(workspaceId: Id, name: string): Promise<Tag | undefined>;
@@ -265,6 +296,8 @@ export interface EntriesRepository extends EntriesReader {
   ): Promise<EntryDetails>;
   softDelete(userId: Id, workspaceId: Id, id: Id, at: UtcInstant): Promise<void>;
   restore(userId: Id, id: Id): Promise<EntryDetails>;
+  /** Every workspace holding at least one of the user's trashed entries, however many there are. */
+  trashedWorkspaceIds(userId: Id): Promise<Id[]>;
   /** Deletes the user's trashed entries in `workspaceIds`, or only `id` among them. */
   purgeDeleted(userId: Id, scope: { workspaceIds: Id[]; id?: Id }): Promise<number>;
 }
@@ -287,8 +320,11 @@ export interface IdempotencyKeysRepository {
    */
   insert(record: IdempotencyRecord): Promise<void>;
   delete(keyHash: string): Promise<void>;
-  /** Deletes up to a batch of records created before `before`, skipping rows other writes hold. */
-  deleteExpired(before: UtcInstant): Promise<void>;
+  /**
+   * Deletes up to a batch of records created before `before`, skipping rows other writes hold, and
+   * returns how many it deleted.
+   */
+  deleteExpired(before: UtcInstant): Promise<number>;
 }
 export interface TimersReader {
   read(userId: Id): Promise<TimerSnapshot>;
@@ -471,9 +507,4 @@ export interface Storage {
   readSnapshot<T>(work: (repositories: ReadOnlyRepositories) => Promise<T>): Promise<T>;
   health(): Promise<void>;
   close(): Promise<void>;
-}
-/** Startup owns migration invocation; report readers must never invoke it. */
-export interface MigrationLifecycle {
-  migrate(): Promise<void>;
-  verifyCurrent(): Promise<void>;
 }

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { TimerSnapshot } from '../src/storage/domain.ts';
+import type { TimerSnapshot } from '../src/domain/model.ts';
 import { encodeTimerFingerprint, IDLE_TIMER_FINGERPRINT } from '../src/domain/timerFingerprint.ts';
 
 /** A running pomodoro with a project, a client, a task and tags out of id order. */

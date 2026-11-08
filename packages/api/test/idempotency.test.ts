@@ -2,9 +2,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { TimerState } from '@tokkl/types';
 import { listDeletedEntries, listTimeEntries } from './fixtures/domain.ts';
-import { corruptRecord } from './fixtures/physical.ts';
+import { storageFor } from './fixtures/database.ts';
+import { corruptRecord, idempotencyKeyCount } from './fixtures/physical.ts';
 import { addUser, setup, type TestContext } from './helpers.ts';
-import { IDEMPOTENCY_RETENTION_MS } from '../src/domain/idempotency.ts';
+import { forgetExpiredIdempotencyKeys, IDEMPOTENCY_RETENTION_MS } from '../src/domain/idempotency.ts';
+import { startMaintenance } from '../src/services/maintenance.ts';
 
 interface Reply {
   status: number;
@@ -200,6 +202,50 @@ test('a refused create records nothing, and a key past its retention creates aga
   assert.notEqual(later.body.id, first.body.id, 'an expired key creates again');
   assert.equal((await send(ctx, path, body, 'retry')).body.id, later.body.id);
   assert.equal(await entryCount(ctx), 2);
+});
+
+test('a create leaves expired keys to the maintenance job, which deletes them all', async () => {
+  const ctx = await setup();
+  const bob = await addUser(ctx, { email: 'bob@example.com', role: 'user' });
+  const body = (wid: number) => ({
+    description: 'Mine',
+    start: '2026-10-14T09:00:00Z',
+    duration: 600,
+    workspace_id: wid,
+  });
+  for (const key of ['a', 'b', 'c'])
+    assert.equal((await send(bob, `${ws(bob)}/time_entries`, body(bob.wid), key)).status, 200);
+  await corruptRecord(ctx.db, 'idempotency_keys', {
+    created_at: new Date(Date.now() - IDEMPOTENCY_RETENTION_MS - 1000).toISOString(),
+  });
+  assert.equal((await send(ctx, `${ws(ctx)}/time_entries`, body(ctx.wid), 'mine')).status, 200);
+  assert.equal(await idempotencyKeyCount(ctx.db), 4, 'the create deleted no other record');
+
+  assert.equal(await forgetExpiredIdempotencyKeys(storageFor(ctx.db)), 3);
+  assert.equal(await idempotencyKeyCount(ctx.db), 1);
+  assert.equal(await forgetExpiredIdempotencyKeys(storageFor(ctx.db)), 0);
+});
+
+test('the maintenance job runs on its interval until it is closed', async () => {
+  const ctx = await setup();
+  const expire = () =>
+    corruptRecord(ctx.db, 'idempotency_keys', {
+      created_at: new Date(Date.now() - IDEMPOTENCY_RETENTION_MS - 1000).toISOString(),
+    });
+  const body = { description: 'Mine', start: '2026-10-14T09:00:00Z', duration: 600, workspace_id: ctx.wid };
+  await send(ctx, `${ws(ctx)}/time_entries`, body, 'first');
+  await expire();
+  const maintenance = startMaintenance(storageFor(ctx.db), { intervalMs: 5 });
+  for (let wait = 0; wait < 200 && (await idempotencyKeyCount(ctx.db)) > 0; wait++)
+    await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(await idempotencyKeyCount(ctx.db), 0);
+
+  await maintenance.close();
+  await send(ctx, `${ws(ctx)}/time_entries`, body, 'second');
+  await expire();
+  await new Promise(resolve => setTimeout(resolve, 50));
+  await maintenance.run();
+  assert.equal(await idempotencyKeyCount(ctx.db), 1, 'a closed job deletes nothing');
 });
 
 test('another user with the same key gets a create of their own', async () => {

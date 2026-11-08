@@ -2,8 +2,8 @@
  * When a sign-in still counts. Request authentication, the guarded rechecks around writes, the timer
  * stream checks and the account operations all apply these rules, so they agree on every credential.
  */
-import type { SessionsReader, UsersReader } from '../storage/contracts.ts';
-import type { Session, User } from '../storage/domain.ts';
+import type { SessionsReader, UsersReader } from './ports.ts';
+import type { Session, User } from './model.ts';
 import { safeEqual, sha256 } from '../lib/crypto.ts';
 
 /** How a request signed in: a session cookie, an API token, or an email and password. */

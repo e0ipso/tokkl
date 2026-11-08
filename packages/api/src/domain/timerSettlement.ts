@@ -3,8 +3,8 @@
  * pause chain whose entry stopped is dropped) and, when the visible state changed, gets a new
  * revision that is published after commit.
  */
-import type { OperationContext, Repositories } from '../storage/contracts.ts';
-import type { Id, TagLabel, TimerSnapshot } from '../storage/domain.ts';
+import type { OperationContext, Repositories } from './ports.ts';
+import type { Id, TagLabel, TimerSnapshot } from './model.ts';
 import { encodeTimerFingerprint, IDLE_TIMER_FINGERPRINT } from './timerFingerprint.ts';
 import { buildTimerView, type TimerView } from './timerView.ts';
 

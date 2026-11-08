@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { TestContext } from '../../../packages/api/test/helpers.ts';
 import { storageFor } from '../../../packages/api/test/fixtures/database.ts';
-import type { TimeEntry, Workspace } from '../../../packages/api/src/storage/domain.ts';
+import type { TimeEntry, Workspace } from '../../../packages/api/src/domain/model.ts';
 
 export type Row = Record<string, unknown>;
 const byId = <T extends { id: number }>(a: T, b: T) => a.id - b.id;

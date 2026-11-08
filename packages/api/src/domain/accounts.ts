@@ -3,8 +3,8 @@
  * user's own profile, preferences and workspace settings. Links and sessions live in their own
  * modules; `createAccountOperations` puts them together.
  */
-import type { OperationContext } from '../storage/contracts.ts';
-import type { Id, InstanceSettings, JsonObject, User, Workspace } from '../storage/domain.ts';
+import type { OperationContext } from './ports.ts';
+import type { Id, InstanceSettings, JsonObject, User, Workspace } from './model.ts';
 import { forbidden, invalidInput, notFound, tooManyAttempts } from '../lib/errors.ts';
 import { generateApiToken, hashPassword, sha256, verifyPassword } from '../lib/crypto.ts';
 import type {

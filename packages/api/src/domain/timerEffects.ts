@@ -2,7 +2,7 @@
  * Timer work that catalog and account operations need: they change what a running entry shows, or
  * delete its owner, and must settle and publish the affected timers.
  */
-import type { Id } from '../storage/domain.ts';
+import type { Id } from './model.ts';
 import type { AccountRepositories } from './accountGuards.ts';
 import type { AccountEntryEffects } from './accounts.ts';
 import type { CatalogTimerEffects } from './catalogs.ts';

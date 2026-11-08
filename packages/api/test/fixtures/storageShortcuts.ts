@@ -1,4 +1,4 @@
-import type { Repositories, Storage } from '../../src/storage/contracts.ts';
+import type { Repositories, Storage } from '../../src/domain/ports.ts';
 import { createStorage as createPlainStorage } from '../../src/storage/index.ts';
 
 /**

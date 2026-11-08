@@ -1,7 +1,7 @@
 import type { DurationFormat } from '@tokkl/types';
 import { formatDuration } from '@tokkl/common/duration';
 import { addDays, dateKey, parseDateKey, startOfDay, zonedParts, pad2 } from '@tokkl/common/time';
-import type { AccountExportProjection, EntryDetails, User } from '../storage/domain.ts';
+import type { AccountExportProjection, EntryDetails, User } from '../domain/model.ts';
 import { getPreferences } from '../domain/accountValues.ts';
 import {
   serializeClient,

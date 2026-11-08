@@ -1,6 +1,6 @@
 /** Invite and password reset links: single-use tokens an admin hands out, stored as hashes. */
-import type { TokensReader, UsersReader } from '../storage/contracts.ts';
-import type { Id, User } from '../storage/domain.ts';
+import type { TokensReader, UsersReader } from './ports.ts';
+import type { Id, User } from './model.ts';
 import { invalidInput, notFound } from '../lib/errors.ts';
 import { generateApiToken, generateSessionToken, hashPassword, sha256 } from '../lib/crypto.ts';
 import type { InviteRequest, NewAccount } from './accountCommands.ts';

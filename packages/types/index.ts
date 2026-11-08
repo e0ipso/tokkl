@@ -44,7 +44,7 @@ export type ServerCapability =
   | 'idempotency-keys';
 
 /**
- * Tokkl only, in `GET /api/v9/me`: what this server's API offers. A client tests a capability
+ * Tokkl only, in `GET /api/app/status`: what this server's API offers. A client tests a capability
  * instead of guessing from a 404, which a current server also answers for a missing project or
  * workspace. A reply without these fields comes from a server older than all of them.
  */

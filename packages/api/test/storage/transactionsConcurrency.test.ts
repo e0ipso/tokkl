@@ -6,7 +6,8 @@ import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { openConnection } from '../../src/storage/connections.ts';
 import type { PhysicalDatabase } from '../../src/storage/physical.ts';
 import { createTransactionRunner } from '../../src/storage/transactions.ts';
-import { StorageConflict, StorageTransactionError } from '../../src/storage/errors.ts';
+import { StorageConflict } from '../../src/domain/ports.ts';
+import { StorageTransactionError } from '../../src/storage/errors.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 
 function gate() {

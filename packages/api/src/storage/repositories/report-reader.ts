@@ -1,6 +1,6 @@
 import type { StorageConfig } from '../config.ts';
 import { openReadConnection } from '../connections.ts';
-import type { ReadOnlyRepositories } from '../contracts.ts';
+import type { ReadOnlyRepositories } from '../../domain/ports.ts';
 import type { PhysicalDatabase } from '../physical.ts';
 import { createTransactionRunner } from '../transactions.ts';
 import { createAccountRepositories } from './accounts.ts';

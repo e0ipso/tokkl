@@ -5,7 +5,7 @@ import { readJson } from '../http/request.ts';
 import { calendarInput, invalidInput } from '../lib/errors.ts';
 import { parseId } from '../lib/values.ts';
 import { addDays } from '@tokkl/common/time';
-import type { Workspace } from '../storage/domain.ts';
+import type { Workspace } from '../domain/model.ts';
 import { resolutionFor } from '../services/reportAggregates.ts';
 import {
   parseDetailedOrder,

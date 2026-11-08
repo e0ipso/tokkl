@@ -5,7 +5,7 @@ import { IDEMPOTENCY_RETENTION_MS } from '../../src/domain/idempotency.ts';
 import { idempotencyClaim } from '../../src/lib/idempotency.ts';
 import { createEntryOperations } from '../../src/services/entryOperations.ts';
 import { openConnection } from '../../src/storage/connections.ts';
-import { StorageConflict } from '../../src/storage/errors.ts';
+import { StorageConflict } from '../../src/domain/ports.ts';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import type { PhysicalDatabase } from '../../src/storage/physical.ts';
 import { createTransactionRunner } from '../../src/storage/transactions.ts';
@@ -68,7 +68,10 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           await ctx.idempotencyKeys.insert(record('old', at(IDEMPOTENCY_RETENTION_MS + 1000)));
           await ctx.idempotencyKeys.insert(record('new', at(1000)));
         });
-        await runner.transaction(ctx => ctx.idempotencyKeys.deleteExpired(at(IDEMPOTENCY_RETENTION_MS)));
+        assert.equal(
+          await runner.transaction(ctx => ctx.idempotencyKeys.deleteExpired(at(IDEMPOTENCY_RETENTION_MS))),
+          1,
+        );
         await runner.transaction(async ctx => {
           assert.equal(await ctx.idempotencyKeys.find('old'), undefined);
           assert.equal((await ctx.idempotencyKeys.find('new'))?.createdAt, at(1000));

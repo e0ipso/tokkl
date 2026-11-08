@@ -2,8 +2,8 @@
  * What a client asks of accounts, workspaces and instance settings, already parsed by
  * `commands/accounts.ts`. Passwords here passed the length rules; nothing is hashed yet.
  */
-import type { AccountChanges } from '../storage/contracts.ts';
-import type { InstanceSettings, JsonObject, UserRole } from '../storage/domain.ts';
+import type { AccountChanges } from './ports.ts';
+import type { InstanceSettings, JsonObject, UserRole } from './model.ts';
 import type { RoundingMode } from './workspaceValues.ts';
 
 /** A new account from first-admin setup or an invite. The role comes from the setup or the invite. */

@@ -264,7 +264,7 @@ function dialectFor(config: StorageConfig, readOnly: boolean): Dialect {
   return new MysqlDialect({ pool: mysqlPool(config, readOnly) });
 }
 
-/** Storage-internal only. Application code depends on Storage in contracts.ts, never this handle. */
+/** Storage-internal only. Application code depends on Storage in domain/ports.ts, never this handle. */
 export interface StorageConnection<Database> {
   readonly db: Kysely<Database>;
   readonly backend: StorageConfig['backend'];

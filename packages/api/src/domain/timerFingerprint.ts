@@ -5,7 +5,7 @@
  * it, and nothing reads data back out of it: what settlement needs from the last revision, such
  * as the session entry it showed, is stored in columns of its own.
  */
-import type { TagLabel, TimerSnapshot } from '../storage/domain.ts';
+import type { TagLabel, TimerSnapshot } from './model.ts';
 
 const orderedTags = (tags: TagLabel[]) => [...tags].sort((a, b) => a.id - b.id).map(t => ({ id: t.id, name: t.name }));
 

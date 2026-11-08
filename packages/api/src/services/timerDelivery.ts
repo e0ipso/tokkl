@@ -3,8 +3,8 @@
  * view, the ordered publication delivers it to this process's streams and signals the bus, and bus
  * signals from other processes refresh the streams from the database.
  */
-import type { Storage } from '../storage/contracts.ts';
-import type { Id } from '../storage/domain.ts';
+import type { Storage } from '../domain/ports.ts';
+import type { Id } from '../domain/model.ts';
 import type { TimerBus } from '../storage/timerBus.ts';
 import { createTimerOperations } from '../domain/timers.ts';
 import { buildTimerView, type TimerView } from '../domain/timerView.ts';

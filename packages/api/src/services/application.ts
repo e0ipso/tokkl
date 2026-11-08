@@ -1,11 +1,11 @@
 /**
  * The application services the HTTP layer calls: domain operations bound to storage, the signed-in
- * credential checks around them, timer delivery and the report executor `app.ts` builds. Each
- * operation opens its own transaction and binds what it publishes, so a route parses, calls one
+ * credential checks around them, timer delivery, periodic maintenance and the report executor
+ * `app.ts` builds. Each operation opens its own transaction and binds what it publishes, so a route parses, calls one
  * operation and presents the answer. Framework-free; `app.ts` composes them with the HTTP adapters.
  */
-import type { Repositories, Storage } from '../storage/contracts.ts';
-import type { Id, User } from '../storage/domain.ts';
+import type { Repositories, Storage } from '../domain/ports.ts';
+import type { Id, User } from '../domain/model.ts';
 import { createLocalTimerBus, type TimerBus } from '../storage/timerBus.ts';
 import type { InviteRequest, ProfileUpdate, SettingChanges } from '../domain/accountCommands.ts';
 import {
@@ -33,8 +33,9 @@ import type { ReportExecutor } from './reportRunner.ts';
 import { createCatalogOperations } from './catalogOperations.ts';
 import { createEntryOperations } from './entryOperations.ts';
 import { credentialCheck, credentialKey } from './streamCredentials.ts';
+import { startMaintenance } from './maintenance.ts';
 import { createTimerDelivery } from './timerDelivery.ts';
-import { presentTimerOperations } from './timerReplies.ts';
+import { bindTimerUser, presentTimerOperations, type SignedInTimerOperations } from './timerReplies.ts';
 import type { EventStreamResponse, TimerStreamOptions } from './timerStreams.ts';
 
 export interface ApplicationServiceOptions {
@@ -137,6 +138,7 @@ export function createApplicationServices({
   const security = { recheckUser: (id: number) => timerStreams.recheck(id) };
   const streamCredentials = { check: (authentication: Authentication) => credentialCheck(storage, authentication) };
   const entryEffects = createAccountEntryEffects<Repositories>(publish);
+  const maintenance = startMaintenance(storage, { logger });
   /** Runs read queries in one snapshot, after checking the credential in that same snapshot. */
   function readFor<T>(
     authentication: Authentication,
@@ -195,8 +197,11 @@ export function createApplicationServices({
     /** Preferences take only the user's guard, so their credential check runs before and after. */
     preferencesFor: (authentication: Authentication) =>
       createPreferenceOperations(guardedTransactions(storage, authentication)),
-    timersFor: (authentication: Authentication) =>
-      presentTimerOperations(createTimerOperations(guardedRunner(storage, authentication), publish)),
+    timersFor: (authentication: Authentication): SignedInTimerOperations =>
+      bindTimerUser(
+        presentTimerOperations(createTimerOperations(guardedRunner(storage, authentication), publish)),
+        authentication.user.id,
+      ),
     importsFor: (authentication: Authentication) =>
       createImportOperations(guardedTransactions(storage, authentication), publish),
     entriesFor: (authentication: Authentication) =>
@@ -204,7 +209,7 @@ export function createApplicationServices({
     catalogsFor: (authentication: Authentication) =>
       createCatalogOperations(guardedTransactions(storage, authentication), authentication.user.id, publish),
     async close() {
-      const results = await Promise.allSettled([timerStreams.closeAll(), reports.close()]);
+      const results = await Promise.allSettled([timerStreams.closeAll(), reports.close(), maintenance.close()]);
       // Streams are closed, so no new rebuild starts. Let started ones finish before storage closes.
       await settled();
       if (results.some(result => result.status === 'rejected')) throw new Error('Application shutdown failed');

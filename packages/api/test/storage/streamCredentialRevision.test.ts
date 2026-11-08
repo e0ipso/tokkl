@@ -5,7 +5,7 @@ import { credentialCheck } from '../../src/services/streamCredentials.ts';
 import { sha256 } from '../../src/lib/crypto.ts';
 import { createStorage } from '../fixtures/storageShortcuts.ts';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
-import type { User } from '../../src/storage/domain.ts';
+import type { User } from '../../src/domain/model.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 
 const day = 24 * 60 * 60 * 1000;

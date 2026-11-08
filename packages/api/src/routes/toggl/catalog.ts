@@ -23,11 +23,10 @@ import {
 } from '../../http/params.ts';
 import { createRouter } from '../../http/router.ts';
 import { invalidInput } from '../../lib/errors.ts';
-import { slicePage } from '../../lib/pagination.ts';
 import { parseId } from '../../lib/values.ts';
 import type { SortOrder, TaskSearch, TaskSortField } from '../../domain/queries.ts';
 import { serializeClient, serializeProject, serializeTag, serializeTask } from '../../presenters/toggl.ts';
-import type { ProjectFilter } from '../../storage/contracts.ts';
+import type { ProjectFilter } from '../../domain/ports.ts';
 import { authorizedWorkspace } from './shared.ts';
 
 type CatalogRouteDeps = Pick<Deps, 'readFor' | 'catalogsFor'>;
@@ -116,15 +115,15 @@ function taskRoutes(deps: CatalogRouteDeps, api: Router): void {
     jsonRead(deps, async (req, res, queries) => {
       const ws = await queries.workspace(res.locals.auth.user.id, parseId(req.params.wid));
       const search = taskSearch(req);
-      const tasks = await queries.searchTasks(ws, search);
       const window = pageWindow(query(req, 'page'), query(req, 'per_page'), TASK_PAGES);
+      const { tasks, totalCount } = await queries.searchTasks(ws, search, window);
       return {
-        data: slicePage(tasks, window).map(serializeTask),
+        data: tasks.map(serializeTask),
         page: window.page,
         per_page: window.perPage,
         sort_field: search.sortField,
         sort_order: search.sortOrder,
-        total_count: tasks.length,
+        total_count: totalCount,
       };
     }),
   );
@@ -221,9 +220,12 @@ function tagRoutes(deps: CatalogRouteDeps, api: Router): void {
     '/workspaces/:wid/tags',
     jsonRead(deps, async (req, res, queries) => {
       const ws = await queries.workspace(res.locals.auth.user.id, parseId(req.params.wid));
-      const tags = await queries.workspaceTags(ws, queryText(req, 'search'));
+      const search = queryText(req, 'search');
       const window = optionalPageWindow(req, TAG_PAGES);
-      return (window ? slicePage(tags, window) : tags).map(serializeTag);
+      const tags = window
+        ? await queries.workspaceTagsPage(ws, search, window)
+        : await queries.workspaceTags(ws, search);
+      return tags.map(serializeTag);
     }),
   );
   api.post('/workspaces/:wid/tags', async (req, res) => {

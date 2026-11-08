@@ -5,8 +5,8 @@
  * who is no longer a member of the entry's workspace.
  */
 import { nextPhase, startSession, type PomodoroSessionConfig } from '@tokkl/common/pomodoroSession';
-import type { OperationContext } from '../storage/contracts.ts';
-import type { EntryDetails, Id, PauseChain, PomodoroSession, User } from '../storage/domain.ts';
+import type { OperationContext } from './ports.ts';
+import type { EntryDetails, Id, PauseChain, PomodoroSession, User } from './model.ts';
 import { calendarInput, StateConflict } from '../lib/errors.ts';
 import { getPomodoroSessionConfig } from './accountValues.ts';
 import {

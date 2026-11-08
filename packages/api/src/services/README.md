@@ -13,4 +13,5 @@ formats in one read snapshot (`readReport` in `reports.ts`): detailed pages coun
 and everything else takes the entries a batch at a time. `entryOperations.ts` and
 `catalogOperations.ts` are the time entry and catalog writes of one signed-in user. Each method
 opens one transaction with its guards and timer publication bound in, and calls domain functions
-that run inside it. No Express imports.
+that run inside it. `maintenance.ts` runs housekeeping on a timer, off the request path: it
+forgets expired idempotency keys, and the services close it on shutdown. No Express imports.

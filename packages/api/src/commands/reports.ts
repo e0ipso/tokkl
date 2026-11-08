@@ -15,7 +15,7 @@ import type {
   ReportFilter,
   SortDirection,
 } from '../domain/reportCommands.ts';
-import type { Workspace } from '../storage/domain.ts';
+import type { Workspace } from '../domain/model.ts';
 
 const MAX_RANGE_DAYS = 3660;
 

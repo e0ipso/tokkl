@@ -9,7 +9,7 @@ import {
   catalogTaskRefQuery,
 } from '../packages/api/src/storage/repositories/catalog-queries.ts';
 import { createReportRepositories } from '../packages/api/src/storage/repositories/reports.ts';
-import type { ReportCursor } from '../packages/api/src/storage/contracts.ts';
+import type { ReportCursor } from '../packages/api/src/domain/ports.ts';
 import { REPORT_BATCH_SIZE } from '../packages/api/src/services/reports.ts';
 import { createEntryRepositories } from '../packages/api/src/storage/repositories/entries.ts';
 import { createTransactionRunner } from '../packages/api/src/storage/transactions.ts';

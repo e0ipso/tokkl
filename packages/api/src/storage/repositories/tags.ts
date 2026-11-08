@@ -2,8 +2,8 @@
 import { type Kysely } from 'kysely';
 import type { Backend } from '../config.ts';
 import type { PhysicalDatabase } from '../physical.ts';
-import type { Repositories } from '../contracts.ts';
-import type { Tag } from '../domain.ts';
+import type { Repositories } from '../../domain/ports.ts';
+import type { Tag } from '../../domain/model.ts';
 import { catalogWrite, containsName, nameKey } from './catalog-sql.ts';
 import { insertId, now, required, tag } from './catalog-queries.ts';
 
@@ -22,10 +22,12 @@ export function createTagRepository(db: Kysely<PhysicalDatabase>, backend: Backe
           .execute()
       ).map(tag);
     },
-    async list(wid, search) {
+    async list(wid, search, range) {
       let q = db.selectFrom('tags').selectAll().where('workspace_id', '=', wid);
       if (search) q = q.where(containsName(backend, 'name_key', search));
-      return (await q.orderBy('name_key').orderBy('id').execute()).map(tag);
+      q = q.orderBy('name_key').orderBy('id');
+      if (range) q = q.limit(range.limit).offset(range.offset);
+      return (await q.execute()).map(tag);
     },
     async get(wid, id) {
       const r = await db

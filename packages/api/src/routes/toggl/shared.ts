@@ -6,8 +6,8 @@ import { calendarInput, invalidInput } from '../../lib/errors.ts';
 import { parseDateOrInstant, parseId } from '../../lib/values.ts';
 import { recentEntriesStart } from '../../domain/queries.ts';
 import type { TimeEntryPresentation } from '../../presenters/toggl.ts';
-import type { EntryFilter } from '../../storage/contracts.ts';
-import type { User, Workspace } from '../../storage/domain.ts';
+import type { EntryFilter } from '../../domain/ports.ts';
+import type { User, Workspace } from '../../domain/model.ts';
 
 /**
  * The URL's workspace when the caller is a member of it, 403 otherwise. Write routes check this

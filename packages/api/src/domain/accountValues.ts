@@ -3,7 +3,7 @@ import {
   POMODORO_SESSION_CONFIG_RANGES,
   type PomodoroSessionConfig,
 } from '@tokkl/common/pomodoroSession';
-import type { JsonObject, User } from '../storage/domain.ts';
+import type { JsonObject, User } from './model.ts';
 import { MAX_NAME_LENGTH } from './catalogCommands.ts';
 import { MAX_DESCRIPTION_LENGTH } from './entryCommands.ts';
 /** Longest email or full name an account keeps. */

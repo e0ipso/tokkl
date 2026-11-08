@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { parseStorageConfig } from '../../src/storage/config.ts';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
-import type { Repositories } from '../../src/storage/contracts.ts';
+import type { Repositories } from '../../src/domain/ports.ts';
 import { createStorage } from '../fixtures/storageShortcuts.ts';
 import { entryAccount } from './support/entry-timer.ts';
 

@@ -3,7 +3,7 @@ import type { AccountRepositories, AccountRunner } from '../domain/accountGuards
 import type { createAccountOperations } from '../domain/accounts.ts';
 import { findResetUser, findUsableInvite, INVITE_NOT_FOUND, RESET_NOT_FOUND } from '../domain/accountLinks.ts';
 import { parseNewAccount, parseNewPassword } from '../commands/accounts.ts';
-import type { User } from '../storage/domain.ts';
+import type { User } from '../domain/model.ts';
 import { clientAddress, readJson } from '../http/request.ts';
 import { forbidden, notFound, tooManyAttempts } from '../lib/errors.ts';
 import { safeEqual } from '../lib/crypto.ts';

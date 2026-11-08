@@ -15,8 +15,8 @@ import {
   type ReportReader,
 } from '../../src/services/reports.ts';
 import type { ReportFilter } from '../../src/domain/reportCommands.ts';
-import type { ReportEntryProjection } from '../../src/storage/domain.ts';
-import type { ReportCursor } from '../../src/storage/contracts.ts';
+import type { ReportEntryProjection } from '../../src/domain/model.ts';
+import type { ReportCursor } from '../../src/domain/ports.ts';
 import expectedReports from './support/report-expected.json' with { type: 'json' };
 import type { PhysicalDatabase } from '../../src/storage/physical.ts';
 import type { Backend } from '../../src/storage/config.ts';

@@ -8,7 +8,6 @@ import { passwordAttempt } from '../../auth/middleware.ts';
 import { getPreferences } from '../../domain/accountValues.ts';
 import { parsePreferenceChanges, parseProfileUpdate } from '../../commands/accounts.ts';
 import type { RelatedData, WorkspaceProject } from '../../domain/queries.ts';
-import { sliceOffset } from '../../lib/pagination.ts';
 import { parseId } from '../../lib/values.ts';
 import {
   serializeClient,
@@ -125,12 +124,16 @@ export function meRoutes(deps: Pick<Deps, 'readFor' | 'accountsFor' | 'preferenc
     '/me/tasks',
     jsonRead(deps, async (req, res, queries) => {
       const filter = { includeInactive: queryFlag(req, 'include_not_active'), changedSince: changedSince(req) };
-      const tasks = await queries.memberTasks(res.locals.auth.user.id, filter);
       // Offset paging, unlike the workspace task list; without per_page every task is returned.
       const offset = Math.max(lenientNumber(query(req, 'offset'), 0), 0);
       const size = query(req, 'per_page');
-      const perPage = size === undefined ? tasks.length : Math.max(lenientNumber(size, 1), 1);
-      return sliceOffset(tasks, offset, perPage).map(serializeTask);
+      const limit = size === undefined ? undefined : Math.max(lenientNumber(size, 1), 1);
+      const userId = res.locals.auth.user.id;
+      const tasks =
+        offset === 0 && limit === undefined
+          ? await queries.memberTasks(userId, filter)
+          : await queries.memberTasksFrom(userId, filter, offset, limit);
+      return tasks.map(serializeTask);
     }),
   );
   api.get(

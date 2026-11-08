@@ -7,7 +7,7 @@ import { errorHandler } from '../../src/http/errors.ts';
 import { silentLogger } from '../../src/lib/logger.ts';
 import { EventEmitter } from 'node:events';
 import type { Authentication } from '../../src/domain/credentials.ts';
-import type { User } from '../../src/storage/domain.ts';
+import type { User } from '../../src/domain/model.ts';
 import { credentialKey } from '../../src/services/streamCredentials.ts';
 import {
   RECONNECT_DELAY_MS,

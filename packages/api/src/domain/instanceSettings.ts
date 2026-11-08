@@ -1,6 +1,6 @@
 import { isTimeResolution } from '@tokkl/common/snap';
-import type { SettingsReader } from '../storage/contracts.ts';
-import type { InstanceSettings } from '../storage/domain.ts';
+import type { SettingsReader } from './ports.ts';
+import type { InstanceSettings } from './model.ts';
 
 /** Every time resolution an admin can choose: the divisors of 60. */
 const TIME_RESOLUTIONS = Array.from({ length: 60 }, (_, i) => i + 1).filter(isTimeResolution);

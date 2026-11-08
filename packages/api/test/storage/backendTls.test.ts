@@ -7,7 +7,7 @@ import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { sql } from 'kysely';
 import { Worker } from 'node:worker_threads';
-import type { UsersRepository } from '../../src/storage/contracts.ts';
+import type { UsersRepository } from '../../src/domain/ports.ts';
 import type { ServerConfig } from '../../src/storage/config.ts';
 import { initializeDatabase, migrations, validateEngine } from '../../src/storage/migrations.ts';
 import { openConnection } from '../../src/storage/connections.ts';

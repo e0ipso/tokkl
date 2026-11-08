@@ -3,7 +3,7 @@
  * Names are trimmed and non-blank. An optional field is absent when the client did not send it,
  * and `null` clears a value that can be empty.
  */
-import type { Id } from '../storage/domain.ts';
+import type { Id } from './model.ts';
 
 export const MAX_NAME_LENGTH = 255;
 export const MAX_CLIENT_NOTES_LENGTH = 10000;

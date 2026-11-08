@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { setImmediate } from 'node:timers/promises';
-import type { UsersRepository } from '../../src/storage/contracts.ts';
+import type { UsersRepository } from '../../src/domain/ports.ts';
 import type { JobSource } from '../../src/services/reportExecution.ts';
 import { mkdtempSync, existsSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';

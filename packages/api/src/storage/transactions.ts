@@ -2,8 +2,9 @@ import { setTimeout as sleepFor } from 'node:timers/promises';
 import { sql, type Kysely } from 'kysely';
 import type { Backend } from './config.ts';
 import type { StorageConnection } from './connections.ts';
-import type { OperationContext, TransactionScope } from './contracts.ts';
-import { classifyConflict, StorageConflict, StorageTransactionError } from './errors.ts';
+import type { OperationContext, TransactionScope } from '../domain/ports.ts';
+import { StorageConflict } from '../domain/ports.ts';
+import { classifyConflict, StorageTransactionError } from './errors.ts';
 import { beginSqliteTransaction } from './sqliteBridge.ts';
 
 /** Internal only: construct ALL repositories using this exact connection-bound db. */

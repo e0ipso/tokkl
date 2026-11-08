@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { test } from 'node:test';
-import type { RateLimitCounter, RateLimitsRepository } from '../../src/storage/contracts.ts';
+import type { RateLimitCounter, RateLimitsRepository } from '../../src/domain/ports.ts';
 import { createStorage } from '../fixtures/storageShortcuts.ts';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createAccountRepositories } from '../../src/storage/repositories/accounts.ts';

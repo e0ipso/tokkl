@@ -1,13 +1,5 @@
-export type StorageConflictKind = 'unique' | 'foreign-key' | 'serialization' | 'deadlock' | 'busy';
-/** Safe to expose to domain error mapping. No SQL, constraint names or driver cause. */
-export class StorageConflict extends Error {
-  readonly kind: StorageConflictKind;
-  constructor(kind: StorageConflictKind) {
-    super(`Storage conflict (${kind})`);
-    this.name = 'StorageConflict';
-    this.kind = kind;
-  }
-}
+import { StorageConflict } from '../domain/ports.ts';
+
 export class StorageTransactionError extends Error {
   readonly outcome: 'rolled-back' | 'unknown';
   constructor(outcome: 'rolled-back' | 'unknown') {

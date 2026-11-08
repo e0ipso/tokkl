@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { CompiledQuery, QueryResult, AbortableOperationOptions } from 'kysely';
-import type { EntryInput } from '../../src/storage/contracts.ts';
+import type { EntryInput } from '../../src/domain/ports.ts';
 import type { PhysicalDatabase } from '../../src/storage/physical.ts';
 import { openConnection } from '../../src/storage/connections.ts';
 import { bodyWriter, withExactEntryImport } from '../fixtures/entryBodies.ts';

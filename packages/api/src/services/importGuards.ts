@@ -1,7 +1,7 @@
-import type { OperationContext } from '../storage/contracts.ts';
+import type { OperationContext } from '../domain/ports.ts';
 import { protectEntryOperation, type EntryRepositories } from '../domain/entryAccess.ts';
 import { memberWorkspace, noWorkspaceAccess } from '../domain/membership.ts';
-import { StorageConflict } from '../storage/errors.ts';
+import { StorageConflict } from '../domain/ports.ts';
 import { RequestCancelled } from '../lib/errors.ts';
 
 /** Errors an import reports; the rest are counted in the totals only. */

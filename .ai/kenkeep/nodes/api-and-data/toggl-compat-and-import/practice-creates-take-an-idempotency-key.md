@@ -24,7 +24,7 @@ A client that lost a create's reply sends the same request again with the same `
 - The key is stored as `sha256(userId + key)` in `idempotency_keys` (migration 7), with the fingerprint, the created record's id (`result_id`) and `created_at`. A failed create records nothing.
 - Same key and fingerprint within `IDEMPOTENCY_RETENTION_MS` (24 h): no create; the operation's `replay` reads the record back by id as it is now (both split halves; the current timer state for starts, answered before the revision check). A record deleted since gets the read's 404.
 - Same key, other fingerprint: 422 (`unprocessable` in `lib/errors.ts`, the only 422 kind).
-- Each keyed create first deletes up to 100 expired keys of any user, with `FOR UPDATE SKIP LOCKED` on server engines, so cleanup never waits. There is no periodic job.
+- Creates never delete other keys. `startMaintenance` in `services/maintenance.ts`, started and closed with the application services, runs `forgetExpiredIdempotencyKeys` hourly on an unref'd timer: batches of up to 100 expired keys, one short transaction each, with `FOR UPDATE SKIP LOCKED` on server engines, until a batch deletes nothing. Correctness does not depend on it: a create ignores, and replaces, an expired record it finds.
 
 Concurrency: two requests with one key may both miss the record, but the second's insert collides on the primary key once the first commits. The repository turns that unique violation into `StorageConflict('serialization')`, so the transaction runner rolls back the second create and runs it again; the rerun finds the record and replays. Keep the record insert in the same transaction as the create, after it, and keep the primary key the hash: a unique secondary key would bring back InnoDB gap locks.
 

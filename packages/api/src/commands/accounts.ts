@@ -20,8 +20,8 @@ import { SETTING_NAMES, settingExpectation, validSetting } from '../domain/insta
 import { isCurrencyCode, isRoundingMinutes, isRoundingMode, ROUNDING_MINUTES } from '../domain/workspaceValues.ts';
 import { invalidInput } from '../lib/errors.ts';
 import { optionalBool, optionalId, optionalRate, optionalString, type JsonBody } from '../lib/values.ts';
-import type { AccountChanges } from '../storage/contracts.ts';
-import type { JsonObject, UserRole } from '../storage/domain.ts';
+import type { AccountChanges } from '../domain/ports.ts';
+import type { JsonObject, UserRole } from '../domain/model.ts';
 
 const MAX_INVITE_NOTE_LENGTH = 255;
 

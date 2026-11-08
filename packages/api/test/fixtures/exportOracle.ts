@@ -5,7 +5,7 @@
  */
 import type { DurationFormat } from '@tokkl/types';
 import { addDays, parseDateKey, startOfDay } from '@tokkl/common/time';
-import type { AccountExportProjection } from '../../src/storage/domain.ts';
+import type { AccountExportProjection } from '../../src/domain/model.ts';
 import { getPreferences } from '../../src/domain/accountValues.ts';
 import {
   serializeClient,

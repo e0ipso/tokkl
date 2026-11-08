@@ -1,4 +1,4 @@
-import type { RateLimitCounter, RateLimitsRepository } from '../storage/contracts.ts';
+import type { RateLimitCounter, RateLimitsRepository } from '../domain/ports.ts';
 import { sha256 } from '../lib/crypto.ts';
 import { normalizeEmail } from '../domain/accountValues.ts';
 import type { PasswordAttemptResult as AttemptResult } from '../domain/accounts.ts';

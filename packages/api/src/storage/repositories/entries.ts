@@ -1,8 +1,8 @@
 import { sql, type Kysely, type Selectable, type Updateable } from 'kysely';
 import type { Backend } from '../config.ts';
 import type { PhysicalDatabase, TimeEntriesRow } from '../physical.ts';
-import type { EntryFilter, EntryInput, Repositories } from '../contracts.ts';
-import type { EntryDetails, TimeEntry, TagLabel } from '../domain.ts';
+import type { EntryFilter, EntryInput, Repositories } from '../../domain/ports.ts';
+import type { EntryDetails, TimeEntry, TagLabel } from '../../domain/model.ts';
 import { booleanValue, entityId, safeInteger, utcInstant } from '../conversion.ts';
 import { classifyConflict } from '../errors.ts';
 import { createIdempotencyKeysRepository } from './idempotency-keys.ts';
@@ -294,6 +294,17 @@ export function createEntryRepositories(
           .limit(1000)
           .execute(),
       );
+    },
+    async trashedWorkspaceIds(userId) {
+      const rows = await db
+        .selectFrom('time_entries')
+        .select('workspace_id')
+        .distinct()
+        .where('user_id', '=', userId)
+        .where('deleted_at', 'is not', null)
+        .orderBy('workspace_id')
+        .execute();
+      return rows.map(row => entityId(row.workspace_id));
     },
     async purgeDeleted(userId, { workspaceIds, id }) {
       if (!workspaceIds.length) return 0;

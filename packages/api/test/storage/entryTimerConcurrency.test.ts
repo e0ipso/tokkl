@@ -6,7 +6,7 @@ import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { openConnection } from '../../src/storage/connections.ts';
 import type { PhysicalDatabase } from '../../src/storage/physical.ts';
 import { createTransactionRunner } from '../../src/storage/transactions.ts';
-import { StorageConflict } from '../../src/storage/errors.ts';
+import { StorageConflict } from '../../src/domain/ports.ts';
 import * as entries from '../fixtures/entryBodies.ts';
 import { createTimerOperations } from '../../src/domain/timers.ts';
 import { createTimerPublication } from '../../src/services/timerPublication.ts';

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { TimerState } from '@tokkl/types';
-import type { User } from '../../src/storage/domain.ts';
+import type { User } from '../../src/domain/model.ts';
 import { createStorage } from '../fixtures/storageShortcuts.ts';
 import { openConnection } from '../../src/storage/connections.ts';
 import type { PhysicalDatabase } from '../../src/storage/physical.ts';

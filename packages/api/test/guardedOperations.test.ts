@@ -3,6 +3,7 @@ import { test, type TestContext } from 'node:test';
 import { openSQLiteDatabase, storageFor } from './fixtures/database.ts';
 import { insertAccount } from './fixtures/domain.ts';
 import type { Authentication } from '../src/domain/credentials.ts';
+import { parseStartTimer } from '../src/commands/timers.ts';
 import { ApplicationError } from '../src/lib/errors.ts';
 import { createApplicationServices } from '../src/services/application.ts';
 import { ReportRunner } from '../src/services/reportRunner.ts';
@@ -39,6 +40,14 @@ test('signed-in account operations refuse a stale credential in their read snaps
 
 test('the signed-in timer read refuses a stale credential', async t => {
   const { services, valid, stale } = await signedIn(t);
-  assert.equal((await services.timersFor(valid).getTimerState(valid.user.id)).revision, 0);
-  await assert.rejects(services.timersFor(stale).getTimerState(stale.user.id), refused);
+  assert.equal((await services.timersFor(valid).getTimerState()).revision, 0);
+  await assert.rejects(services.timersFor(stale).getTimerState(), refused);
+});
+
+test('the signed-in timer operations act for the signed-in user', async t => {
+  const { services, valid } = await signedIn(t);
+  const timers = services.timersFor(valid);
+  await timers.startTimer(parseStartTimer({ revision: 0, description: 'Mine' }));
+  assert.equal((await timers.getTimerState()).running_entry?.description, 'Mine');
+  assert.equal((await timers.pauseTimer(undefined)).pause?.paused, true);
 });
