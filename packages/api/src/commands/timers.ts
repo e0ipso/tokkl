@@ -26,8 +26,13 @@ function readLengths(body: JsonBody): Partial<PomodoroSessionConfig> {
   return lengths;
 }
 
+/**
+ * A session start. `revision` is optional so older clients keep working; a client that sends it is
+ * refused when the timer moved on.
+ */
 export function parseStartPomodoro(body: JsonBody): StartPomodoro {
   return {
+    revision: body.revision == null ? undefined : parseRevision(body.revision),
     workspaceId: optionalId(body.workspace_id, 'workspace_id'),
     lengths: readLengths(body),
     entry: parseEntryLabels(body),

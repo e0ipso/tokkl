@@ -23,6 +23,11 @@ import { settleTimer, settlementDue, touchTimer, type TimerPublication } from '.
 import { buildTimerView, type TimerView } from './timerView.ts';
 
 export interface StartPomodoro {
+  /**
+   * The timer revision the client saw. Optional for older clients; when present the start is
+   * refused unless it is current, because a start replaces whatever runs.
+   */
+  revision?: number;
   /** The workspace of the session's entry; the default workspace when absent or null. */
   workspaceId?: Id | null;
   /** The lengths the client sent; the others come from the user's preferences. */
@@ -118,6 +123,7 @@ export function createTimerOperations<R extends EntryRepositories>(runner: Timer
     return reply;
   }
   async function startPomodoroWork(ctx: EntryContext, user: User, start: StartPomodoro, wid: Id, now: Date) {
+    if (start.revision !== undefined) await checkRevision(ctx, user, start.revision, now);
     const config = { ...getPomodoroSessionConfig(user), ...start.lengths };
     if (await ctx.timers.getSession(user.id)) return refusal(ctx, user, now, 'A Pomodoro session is already running');
     await memberWorkspace(ctx, user.id, wid);

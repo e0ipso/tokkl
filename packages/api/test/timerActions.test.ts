@@ -609,3 +609,45 @@ test('a session takes each length from the start body, or else from the preferen
   }
   assert.deepEqual(await getTimerState(db, user, at('11:00:00')), before);
 });
+
+test('a session start with a stale revision gets 409 and leaves the running timer alone', async () => {
+  const ctx = await sessionSetup();
+  const { db, user } = ctx;
+  const running = await ctx.json<TimerState>('POST', '/api/app/timer/start', {
+    revision: 0,
+    description: 'Email',
+    start: '2026-10-14T09:00:00Z',
+  });
+  assert.equal(running.status, 200);
+  const seen = running.body.revision;
+
+  // A client that saw the timer before this start must not replace the timer it never saw.
+  await assertRefused(
+    ctx,
+    'a session start on a stale revision',
+    at('09:10:00'),
+    async now => await startPomodoro(db, user, { revision: seen - 1, description: 'Focus' }, now),
+  );
+  const stale = await ctx.json<TimerState>('POST', '/api/app/pomodoro', { revision: seen - 1, description: 'Focus' });
+  assert.equal(stale.status, 409);
+  assert.equal(stale.body.revision, seen, 'the 409 body is the current state');
+  assert.equal(stale.body.running_entry?.description, 'Email');
+  assert.equal(stale.body.pomodoro, null);
+
+  for (const revision of ['1', 0.5, true]) {
+    const bad = await ctx.json('POST', '/api/app/pomodoro', { revision });
+    assert.equal(bad.status, 400, String(revision));
+    assert.equal(bad.body, 'Invalid revision: expected an integer');
+  }
+
+  // The current revision starts the session, as does a body without one, from an older client.
+  const started = await ctx.json<TimerState>('POST', '/api/app/pomodoro', { revision: seen, description: 'Focus' });
+  assert.equal(started.status, 200);
+  assert.equal(started.body.pomodoro?.phase.kind, 'work');
+  assert.equal(started.body.running_entry?.description, 'Focus');
+  const ended = await ctx.json<TimerState>('POST', '/api/app/pomodoro/end', { revision: started.body.revision });
+  assert.equal(ended.status, 200);
+  const unversioned = await ctx.json<TimerState>('POST', '/api/app/pomodoro', { description: 'Legacy' });
+  assert.equal(unversioned.status, 200);
+  assert.equal(unversioned.body.running_entry?.description, 'Legacy');
+});
