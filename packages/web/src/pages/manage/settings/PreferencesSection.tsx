@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useSavePreferences } from '../../../api/account.ts';
 import { keys } from '../../../api/keys.ts';
 import { useSettings } from '../../../api/settings.ts';
-import type { Preferences } from '../../../api/types.ts';
+import type { PomodoroLimits, Preferences } from '../../../api/types.ts';
 import { useFieldErrors } from '../../../components/FieldError.tsx';
 import { useToast } from '../../../components/Toast.tsx';
 import { useServerDraft } from '../../../components/useServerDraft.ts';
@@ -29,13 +29,13 @@ import { t } from '../../../i18n/messages.ts';
  * an edit, except while a save is pending: the stored value may be about to change, so everything
  * typed then stays an edit until the save settles. Saving sends only the edited fields.
  */
-export function PreferencesSection({ prefs }: { prefs: Preferences }) {
+export function PreferencesSection({ prefs, limits }: { prefs: Preferences; limits: PomodoroLimits }) {
   const toast = useToast();
   const settings = useSettings();
   const queryClient = useQueryClient();
   const fields = useFieldErrors<NumberKey>();
   const save = useSavePreferences();
-  const form = useServerDraft(toDraft(editableOf(prefs)), save.isPending);
+  const form = useServerDraft(toDraft(editableOf(prefs, limits)), save.isPending);
   const { draft, edits, set } = form;
   const dropEditsEqualTo = (stored: Editable) => form.dropEditsMatching((key, value) => isStored(key, value, stored));
 
@@ -49,13 +49,13 @@ export function PreferencesSection({ prefs }: { prefs: Preferences }) {
     }
     save.mutate(changesFrom(edits), {
       onSuccess: saved => {
-        dropEditsEqualTo(editableOf(saved));
+        dropEditsEqualTo(editableOf(saved, limits));
         toast.show(t('settings.preferencesSaved'));
       },
       onError: error => {
         // The failed save has rolled the cache back to the stored values.
         const stored = queryClient.getQueryData<Preferences>(keys.preferences);
-        if (stored) dropEditsEqualTo(editableOf(stored));
+        if (stored) dropEditsEqualTo(editableOf(stored, limits));
         const refused = refusedField(error.message);
         if (refused) fields.validate([[refused, error.message]]);
         else toast.error(error);
@@ -67,7 +67,7 @@ export function PreferencesSection({ prefs }: { prefs: Preferences }) {
     <SettingsCard id="preferences" title={t('settings.sectionPreferences')} onSubmit={submit} saving={save.isPending}>
       <DisplayFields draft={draft} set={set} timeZone={settings.timeZone} todayKey={today(settings.timeZone)} />
       <TimerReminderFields draft={draft} set={set} fields={fields} />
-      <PomodoroDefaults draft={draft} set={set} fields={fields} />
+      <PomodoroDefaults draft={draft} set={set} fields={fields} limits={limits} />
       <h3 className="settings-subheading" id="notifications-title">
         {t('settings.notifications')}
       </h3>

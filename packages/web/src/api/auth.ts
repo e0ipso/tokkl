@@ -1,18 +1,34 @@
-import { useQuery } from '@tanstack/react-query';
+import { queryOptions, useQuery } from '@tanstack/react-query';
 import { api } from './client.ts';
 import { keys } from './keys.ts';
 import { APP } from './paths.ts';
 import { appStatusReply, inviteCheckReply, resetCheckReply } from './replies.ts';
+import type { AppStatus } from './types.ts';
 
 /** Signing in and out, first-run setup, and the one-time invite and password reset links. */
 
-/** Whether the server still needs its first admin. It does not change while the page is open. */
+const statusQuery = queryOptions({
+  queryKey: keys.status,
+  queryFn: ({ signal }) => api.get(`${APP}/status`, { signal, decode: appStatusReply }),
+  staleTime: Infinity,
+});
+
+/**
+ * Whether the server still needs its first admin, and what it offers. It does not change while the
+ * page is open.
+ */
 export function useAppStatus() {
-  return useQuery({
-    queryKey: keys.status,
-    queryFn: ({ signal }) => api.get(`${APP}/status`, { signal, decode: appStatusReply }),
-    staleTime: Infinity,
-  });
+  return useQuery(statusQuery);
+}
+
+const pomodoroLimitsOf = (status: AppStatus) => status.pomodoro_limits;
+
+/**
+ * The Pomodoro lengths the server accepts, and the ones a new account starts with, from the
+ * status reply. The forms take their ranges and defaults from here, never from a copy.
+ */
+export function usePomodoroLimits() {
+  return useQuery({ ...statusQuery, select: pomodoroLimitsOf });
 }
 
 export interface NewAccount {

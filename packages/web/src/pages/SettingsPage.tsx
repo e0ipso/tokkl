@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useMe, usePreferences, useWorkspace } from '../api/account.ts';
+import { usePomodoroLimits } from '../api/auth.ts';
 import { Icon } from '../components/Icon.tsx';
 import { LoadError, Loading } from '../components/PageState.tsx';
 import { logOut } from '../lib/session.ts';
@@ -46,6 +47,12 @@ function SessionSection() {
 export function SettingsPage() {
   const { data: me } = useMe();
   const { data: prefs, error: prefsError, refetch: refetchPrefs } = usePreferences();
+  const { data: limits, error: limitsError, refetch: refetchLimits } = usePomodoroLimits();
+  const preferencesError = prefsError ?? limitsError;
+  const retryPreferences = () => {
+    if (prefsError) void refetchPrefs();
+    if (limitsError) void refetchLimits();
+  };
   const { data: workspace, error: workspaceError, refetch: refetchWorkspace } = useWorkspace();
 
   return (
@@ -63,14 +70,14 @@ export function SettingsPage() {
 
       {me ? <ProfileSection me={me} /> : null}
       <PasswordSection />
-      {prefs ? (
-        <PreferencesSection prefs={prefs} />
+      {prefs && limits ? (
+        <PreferencesSection prefs={prefs} limits={limits} />
       ) : (
         <SettingsCard id="preferences" title={t('settings.sectionPreferences')}>
-          {prefsError ? (
+          {preferencesError ? (
             <LoadError
-              message={t('settings.preferencesLoadFailed', { message: prefsError.message })}
-              onRetry={() => void refetchPrefs()}
+              message={t('settings.preferencesLoadFailed', { message: preferencesError.message })}
+              onRetry={retryPreferences}
               className="is-compact"
             />
           ) : (

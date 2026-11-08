@@ -1,6 +1,5 @@
 import { useRef, useState } from 'react';
-import { POMODORO_SESSION_CONFIG_RANGES } from '@tokkl/common/pomodoroSession';
-import type { Preferences, TimeEntry } from '../../api/types.ts';
+import type { PomodoroLimits, Preferences, TimeEntry } from '../../api/types.ts';
 import { EntryFields } from '../../components/EntryFields.tsx';
 import { LengthStepper, LengthStepperGrid } from '../../components/LengthStepper.tsx';
 import { usePomodoroSession } from '../../components/PomodoroSessionProvider.tsx';
@@ -8,8 +7,19 @@ import { EMPTY_DRAFT, type EntryDraft } from '../../components/useEntryFields.ts
 import { LENGTH_FIELDS, lengthText, sessionConfig, type LengthEdits, type LengthKey } from './sessionLengths.ts';
 import { t } from '../../i18n/messages.ts';
 
-/** The lengths and entry fields of a new session. The lengths apply to this session only. */
-export function StartForm({ preferences, recentEntries }: { preferences: Preferences; recentEntries: TimeEntry[] }) {
+/**
+ * The lengths and entry fields of a new session. The lengths apply to this session only, within the
+ * server's `limits`.
+ */
+export function StartForm({
+  preferences,
+  limits,
+  recentEntries,
+}: {
+  preferences: Preferences;
+  limits: PomodoroLimits;
+  recentEntries: TimeEntry[];
+}) {
   const { start, busy, unlockAudio } = usePomodoroSession();
   const [lengthEdits, setLengthEdits] = useState<LengthEdits>({});
   const [draft, setDraft] = useState<EntryDraft>(EMPTY_DRAFT);
@@ -18,7 +28,7 @@ export function StartForm({ preferences, recentEntries }: { preferences: Prefere
 
   const startSession = () => {
     if (busy) return;
-    const lengths = sessionConfig(lengthEdits, preferences);
+    const lengths = sessionConfig(lengthEdits, preferences, limits);
     // The cards already show which lengths are out of range; Start moves focus to the first one.
     if ('invalid' in lengths) {
       inputs.current.get(lengths.invalid)?.focus();
@@ -48,8 +58,8 @@ export function StartForm({ preferences, recentEntries }: { preferences: Prefere
             label={t(field.label)}
             unit={t(field.unit)}
             spokenUnit={t(field.spokenUnit)}
-            range={POMODORO_SESSION_CONFIG_RANGES[field.key]}
-            value={lengthText(lengthEdits, preferences, field)}
+            range={limits[field.limit]}
+            value={lengthText(lengthEdits, preferences, limits, field)}
             onChange={text => setLengthEdits(current => ({ ...current, [field.key]: text }))}
             inputProps={{
               ref: element => {

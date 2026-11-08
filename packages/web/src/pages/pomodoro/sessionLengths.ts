@@ -1,19 +1,16 @@
-import {
-  DEFAULT_POMODORO_SESSION_CONFIG,
-  POMODORO_SESSION_CONFIG_RANGES,
-  type PomodoroSessionConfig,
-} from '@tokkl/common/pomodoroSession';
-import type { Preferences } from '../../api/types.ts';
+import type { PomodoroSessionConfig } from '@tokkl/common/pomodoroSession';
+import type { PomodoroLimits, Preferences } from '../../api/types.ts';
 import type { MessageKey } from '../../i18n/messages.ts';
 import { stepperStatus } from '../../components/lengthStepper.ts';
 
 /**
- * The lengths the start form edits for one session, and the preference each one starts from. The
- * label and units are catalog keys.
+ * The lengths the start form edits for one session, the preference each one starts from and its
+ * limit in the server's `pomodoro_limits`. The label and units are catalog keys.
  */
 export const LENGTH_FIELDS = [
   {
     key: 'workMinutes',
+    limit: 'work_minutes',
     preference: 'pomodoro_focus_interval_in_minutes',
     label: 'pomodoro.lengthWork',
     unit: 'pomodoro.unitMinutes',
@@ -21,6 +18,7 @@ export const LENGTH_FIELDS = [
   },
   {
     key: 'shortRestMinutes',
+    limit: 'short_rest_minutes',
     preference: 'pomodoro_break_interval_in_minutes',
     label: 'pomodoro.lengthShortRest',
     unit: 'pomodoro.unitMinutes',
@@ -28,6 +26,7 @@ export const LENGTH_FIELDS = [
   },
   {
     key: 'longRestMinutes',
+    limit: 'long_rest_minutes',
     preference: 'pomodoro_long_break_interval_in_minutes',
     label: 'pomodoro.lengthLongRest',
     unit: 'pomodoro.unitMinutes',
@@ -35,6 +34,7 @@ export const LENGTH_FIELDS = [
   },
   {
     key: 'longRestEvery',
+    limit: 'long_rest_every',
     preference: 'pomodoro_long_break_every',
     label: 'pomodoro.lengthLongRestEvery',
     unit: 'pomodoro.unitPomodoros',
@@ -42,6 +42,7 @@ export const LENGTH_FIELDS = [
   },
 ] as const satisfies ReadonlyArray<{
   key: keyof PomodoroSessionConfig;
+  limit: keyof PomodoroLimits;
   preference: keyof Preferences;
   label: MessageKey;
   unit: MessageKey;
@@ -53,24 +54,31 @@ export type LengthKey = (typeof LENGTH_FIELDS)[number]['key'];
 /** The text typed into each length card, for the cards the user changed. */
 export type LengthEdits = Partial<Record<LengthKey, string>>;
 
-/** A card's text: what was typed, else the saved preference, else the default. */
+/** A card's text: what was typed, else the saved preference, else the server's default. */
 export function lengthText(
   edits: LengthEdits,
   preferences: Preferences,
+  limits: PomodoroLimits,
   field: (typeof LENGTH_FIELDS)[number],
 ): string {
-  return edits[field.key] ?? String(preferences[field.preference] ?? DEFAULT_POMODORO_SESSION_CONFIG[field.key]);
+  return edits[field.key] ?? String(preferences[field.preference] ?? limits[field.limit].default);
 }
 
 /** The session's lengths, or the first card whose text is not a length the server accepts. */
 export function sessionConfig(
   edits: LengthEdits,
   preferences: Preferences,
+  limits: PomodoroLimits,
 ): { config: PomodoroSessionConfig } | { invalid: LengthKey } {
-  const config = { ...DEFAULT_POMODORO_SESSION_CONFIG };
+  const config: PomodoroSessionConfig = {
+    workMinutes: limits.work_minutes.default,
+    shortRestMinutes: limits.short_rest_minutes.default,
+    longRestMinutes: limits.long_rest_minutes.default,
+    longRestEvery: limits.long_rest_every.default,
+  };
   for (const field of LENGTH_FIELDS) {
-    const text = lengthText(edits, preferences, field);
-    if (stepperStatus(text, POMODORO_SESSION_CONFIG_RANGES[field.key]) !== 'valid') return { invalid: field.key };
+    const text = lengthText(edits, preferences, limits, field);
+    if (stepperStatus(text, limits[field.limit]) !== 'valid') return { invalid: field.key };
     config[field.key] = Number(text.trim());
   }
   return { config };

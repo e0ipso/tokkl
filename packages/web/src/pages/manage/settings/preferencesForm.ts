@@ -1,6 +1,4 @@
-import { DEFAULT_POMODORO_SESSION_CONFIG, POMODORO_SESSION_CONFIG_RANGES } from '@tokkl/common/pomodoroSession';
-import type { DurationFormat, Preferences } from '../../../api/types.ts';
-import type { StepperRange } from '../../../components/lengthStepper.ts';
+import type { DurationFormat, PomodoroLimits, Preferences } from '../../../api/types.ts';
 import { t, type MessageKey } from '../../../i18n/messages.ts';
 
 /** The preferences form's options, its draft shape and the rules that turn a draft into a save. */
@@ -33,7 +31,8 @@ export const THEMES: ReadonlyArray<{ value: Preferences['theme']; label: Message
 
 /**
  * The lengths a new Pomodoro session starts with: the card's label, the short unit it shows, the unit
- * a screen reader and the error message name, and the range the server accepts. The texts are catalog keys.
+ * a screen reader and the error message name, and its limit in the server's `pomodoro_limits`, which
+ * gives the range it accepts and the default. The texts are catalog keys.
  */
 export const POMODORO_NUMBERS = [
   {
@@ -41,35 +40,35 @@ export const POMODORO_NUMBERS = [
     label: 'pomodoro.lengthWork',
     shortUnit: 'pomodoro.unitMinutes',
     unit: 'pomodoro.spokenMinutes',
-    range: POMODORO_SESSION_CONFIG_RANGES.workMinutes,
+    limit: 'work_minutes',
   },
   {
     key: 'pomodoro_break_interval_in_minutes',
     label: 'pomodoro.lengthShortRest',
     shortUnit: 'pomodoro.unitMinutes',
     unit: 'pomodoro.spokenMinutes',
-    range: POMODORO_SESSION_CONFIG_RANGES.shortRestMinutes,
+    limit: 'short_rest_minutes',
   },
   {
     key: 'pomodoro_long_break_interval_in_minutes',
     label: 'pomodoro.lengthLongRest',
     shortUnit: 'pomodoro.unitMinutes',
     unit: 'pomodoro.spokenMinutes',
-    range: POMODORO_SESSION_CONFIG_RANGES.longRestMinutes,
+    limit: 'long_rest_minutes',
   },
   {
     key: 'pomodoro_long_break_every',
     label: 'pomodoro.lengthLongRestEvery',
     shortUnit: 'pomodoro.unitPomodoros',
     unit: 'pomodoro.spokenPomodoros',
-    range: POMODORO_SESSION_CONFIG_RANGES.longRestEvery,
+    limit: 'long_rest_every',
   },
 ] as const satisfies ReadonlyArray<{
   key: keyof Preferences;
   label: MessageKey;
   shortUnit: MessageKey;
   unit: MessageKey;
-  range: StepperRange;
+  limit: keyof PomodoroLimits;
 }>;
 
 /** Every number the form edits, with the unit its error message names. */
@@ -94,8 +93,11 @@ export type Editable = Pick<
 /** What the form shows: the numbers are the text in their inputs, so a half-typed value survives. */
 export type Draft = { [K in keyof Editable]: K extends NumberKey ? string : Editable[K] };
 
-/** The values the form edits, with defaults for the ones an older account has never saved. */
-export function editableOf(prefs: Preferences): Editable {
+/**
+ * The values the form edits, with defaults for the ones an older account has never saved; a
+ * Pomodoro length's default is the server's (`limits`).
+ */
+export function editableOf(prefs: Preferences, limits: PomodoroLimits): Editable {
   return {
     theme: prefs.theme ?? 'system',
     long_timer_reminder_enabled: prefs.long_timer_reminder_enabled ?? true,
@@ -105,13 +107,11 @@ export function editableOf(prefs: Preferences): Editable {
     duration_format: prefs.duration_format,
     collapseTimeEntries: prefs.collapseTimeEntries,
     keyboard_shortcuts_enabled: prefs.keyboard_shortcuts_enabled,
-    pomodoro_focus_interval_in_minutes:
-      prefs.pomodoro_focus_interval_in_minutes ?? DEFAULT_POMODORO_SESSION_CONFIG.workMinutes,
-    pomodoro_break_interval_in_minutes:
-      prefs.pomodoro_break_interval_in_minutes ?? DEFAULT_POMODORO_SESSION_CONFIG.shortRestMinutes,
+    pomodoro_focus_interval_in_minutes: prefs.pomodoro_focus_interval_in_minutes ?? limits.work_minutes.default,
+    pomodoro_break_interval_in_minutes: prefs.pomodoro_break_interval_in_minutes ?? limits.short_rest_minutes.default,
     pomodoro_long_break_interval_in_minutes:
-      prefs.pomodoro_long_break_interval_in_minutes ?? DEFAULT_POMODORO_SESSION_CONFIG.longRestMinutes,
-    pomodoro_long_break_every: prefs.pomodoro_long_break_every ?? DEFAULT_POMODORO_SESSION_CONFIG.longRestEvery,
+      prefs.pomodoro_long_break_interval_in_minutes ?? limits.long_rest_minutes.default,
+    pomodoro_long_break_every: prefs.pomodoro_long_break_every ?? limits.long_rest_every.default,
   };
 }
 
