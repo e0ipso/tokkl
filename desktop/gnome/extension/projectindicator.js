@@ -36,7 +36,7 @@ const HEX_COLOR = /^#[0-9a-f]{6}$/i;
  * is the project's label, "No project", or '' when the service is gone.
  *
  * @param {{indicatorState: string, indicatorColor: string, running: boolean,
- *          chosenProject: number, chosenProjectLabel: object}} state
+ *          chosenProjectLabel: object}} state
  * @param {boolean} enableAnimations
  * @param {(text: string) => string} _ gettext
  * @returns {{kind: 'filled'|'outline'|'empty', round: boolean, color: string,
@@ -53,7 +53,7 @@ export function describeIndicator(state, enableAnimations, _) {
         round,
         color: kind === 'filled' && HEX_COLOR.test(state.indicatorColor) ? state.indicatorColor.toLowerCase() : '',
         pulsing: kind === 'filled' && round && enableAnimations,
-        label: known ? chosenProjectLabel(state.chosenProject, state.chosenProjectLabel, _) : '',
+        label: known ? chosenProjectLabel(state.chosenProjectLabel, _) : '',
     };
 }
 

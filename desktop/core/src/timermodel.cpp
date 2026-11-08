@@ -311,8 +311,11 @@ QVariant TimerModel::chosenProjectDetails() const
 
 ProjectLabelParts TimerModel::chosenProjectLabel() const
 {
+    if (!chosenProject()) {
+        return ProjectLabelParts();
+    }
     const std::optional<Project> project = m_chosen->details(chosenProject(), isRunning() || isPaused());
-    return project ? ProjectLabelParts::of(*project) : ProjectLabelParts();
+    return project ? ProjectLabelParts::of(*project) : ProjectLabelParts::unknown();
 }
 
 QVariantMap TimerModel::chosenProjectLabelVariant() const
@@ -442,9 +445,9 @@ void TimerModel::wantLastEntry()
     m_next->wantLastEntry();
 }
 
-void TimerModel::readProjects()
+void TimerModel::readProjects(ProjectCatalog::ListRead read)
 {
-    m_catalog->fetch(m_connection);
+    m_catalog->fetch(m_connection, m_clock ? m_clock->now() : QDateTime(), read);
 }
 
 void TimerModel::lookUpProject(qint64 id, std::function<bool(qint64)> stillWanted)
@@ -461,7 +464,7 @@ bool TimerModel::takeLastEntryWanted()
 
 void TimerModel::readLastEntry(std::function<bool()> stillWanted)
 {
-    m_next->readLastEntry(std::move(stillWanted));
+    m_next->readLastEntry(std::move(stillWanted), m_state ? m_state->serverNow() : QDateTime());
 }
 
 void TimerModel::onProjectsAnswered(QObject *context, std::function<void()> answered)

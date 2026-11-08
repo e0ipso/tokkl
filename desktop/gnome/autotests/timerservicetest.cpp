@@ -1128,6 +1128,8 @@ private Q_SLOTS:
         QCOMPARE(label.value(QStringLiteral("name")).toString(), QStringLiteral("Legacy"));
         QCOMPARE(label.value(QStringLiteral("archived")).toBool(), true);
         QCOMPARE(label.value(QStringLiteral("missing")).toBool(), false);
+        // The core decides which words the label takes.
+        QCOMPARE(label.value(QStringLiteral("kind")).toString(), QStringLiteral("named"));
         const QList<QVariantMap> projects = qdbus_cast<QList<QVariantMap>>(f.get(QStringLiteral("Projects")));
         for (const QVariantMap &project : projects) {
             QVERIFY(project.value(QStringLiteral("id")).toLongLong() != 99);

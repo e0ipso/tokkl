@@ -105,11 +105,19 @@ public:
     // maxProjectPages. A workspace beyond that still succeeds with the
     // projects read, and the list says it is cut short.
     void fetchProjects(Callback<ProjectList> done = {});
+    // The workspace's projects the server changed at or after since,
+    // archived ones included, newest change or not, in one page of up to
+    // projectPageSize. A full page may have more. The server deletes a
+    // project without a trace, so a deletion never shows here.
+    void fetchProjectChanges(const QDateTime &since, Callback<QList<Project>> done = {});
     // One project of the workspace, archived or not.
     void fetchProject(qint64 projectId, Callback<Project> done = {});
     // The account's entries of the last 9 days in every workspace, newest
     // first, with project metadata (GET /me/time_entries?meta=true).
     void fetchRecentEntries(Callback<QList<ListedEntry>> done = {});
+    // As fetchRecentEntries(), for the entries that started from from up to
+    // before to.
+    void fetchEntriesStarted(const QDateTime &from, const QDateTime &to, Callback<QList<ListedEntry>> done = {});
     // The Pomodoro lengths of the account preferences, through
     // /api/app/me/preferences, whose refusals name the refused key in
     // Tokkl-Error-Field. A length outside the server's pomodoro_limits reads

@@ -141,17 +141,26 @@ bool NextStartSelection::takeLastEntryWanted()
     return m_defaults.takeLastEntryWanted();
 }
 
-void NextStartSelection::readLastEntry(std::function<bool()> stillWanted)
+void NextStartSelection::readLastEntry(std::function<bool()> stillWanted, const QDateTime &now)
 {
     if (m_defaults.picked() || !m_connection) {
         return;
     }
-    const quint64 number = m_defaults.beginLastEntryRead();
+    readEntries(m_defaults.beginLastEntryRead(), now, std::move(stillWanted));
+}
 
-    // Known limit: the API lists only the entries of the last 9 days, so
-    // after a longer break there is no last entry and the next start has no
-    // project.
-    m_connection->fetchRecentEntries(m_epoch.guard(this, [this, number, stillWanted = std::move(stillWanted)](const ApiResult<QList<ListedEntry>> &result) {
+void NextStartSelection::readEntries(quint64 number, const QDateTime &now, std::function<bool()> stillWanted)
+{
+    if (!m_connection) {
+        return;
+    }
+    auto answered = [this, number, now, stillWanted](const ApiResult<QList<ListedEntry>> &result) {
+        // Nothing in the first days: the wider read, while it may still
+        // apply.
+        if (now.isValid() && result.ok() && result.value->isEmpty() && m_defaults.lastEntryReadIs(number) && !m_defaults.picked() && stillWanted()) {
+            readEntries(number, QDateTime(), stillWanted);
+            return;
+        }
         if (!m_defaults.takeLastEntryRead(number)) {
             return; // a choice or start since it was sent
         }
@@ -165,7 +174,16 @@ void NextStartSelection::readLastEntry(std::function<bool()> stillWanted)
         }
         m_defaults.takeStopDefault();
         apply(fromRecentEntries(*result.value, m_connection ? m_connection->workspaceId() : 0));
-    }));
+    };
+    if (now.isValid()) {
+        // Up to a day ahead, for a server clock a little ahead of the state's.
+        m_connection->fetchEntriesStarted(now.addDays(-lastEntryFirstDays), now.addDays(1), m_epoch.guard(this, std::move(answered)));
+    } else {
+        // Known limit: the API lists only the entries of the last 9 days, so
+        // after a longer break there is no last entry and the next start has
+        // no project.
+        m_connection->fetchRecentEntries(m_epoch.guard(this, std::move(answered)));
+    }
 }
 
 void NextStartSelection::apply(const Choice &choice)

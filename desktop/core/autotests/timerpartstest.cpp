@@ -277,27 +277,34 @@ private Q_SLOTS:
         QCOMPARE(rows.at(2).toMap().value(QStringLiteral("label")).toMap().value(QStringLiteral("archived")).toBool(), false);
     }
 
-    // The parts every panel words a project's label from.
+    // The parts every panel words a project's label from, and which words.
     void projectLabelParts()
     {
+        using Kind = ProjectLabelParts::Kind;
         Project project;
         project.id = 4;
         project.name = QStringLiteral("Website");
         project.clientName = QStringLiteral("Acme");
         ProjectLabelParts parts = ProjectLabelParts::of(project);
-        QCOMPARE(parts, (ProjectLabelParts{QStringLiteral("Website"), QStringLiteral("Acme"), false, false}));
+        QCOMPARE(parts, (ProjectLabelParts{QStringLiteral("Website"), QStringLiteral("Acme"), false, false, Kind::Named}));
         project.active = false;
         QVERIFY(ProjectLabelParts::of(project).archived);
+        QCOMPARE(ProjectLabelParts::of(project).kind, Kind::Named);
         // A project the instance no longer has: an empty name.
         project.name.clear();
         parts = ProjectLabelParts::of(project);
-        QCOMPARE(parts, (ProjectLabelParts{QString(), QString(), false, true}));
+        QCOMPARE(parts, (ProjectLabelParts{QString(), QString(), false, true, Kind::Unavailable}));
         QCOMPARE(parts.toVariantMap(),
                  (QVariantMap{{QStringLiteral("name"), QString()},
                               {QStringLiteral("client"), QString()},
                               {QStringLiteral("archived"), false},
-                              {QStringLiteral("missing"), true}}));
-        QCOMPARE(ProjectLabelParts(), (ProjectLabelParts{QString(), QString(), false, false}));
+                              {QStringLiteral("missing"), true},
+                              {QStringLiteral("kind"), QStringLiteral("unavailable")}}));
+        QCOMPARE(ProjectLabelParts(), (ProjectLabelParts{QString(), QString(), false, false, Kind::None}));
+        QCOMPARE(ProjectLabelParts().toVariantMap().value(QStringLiteral("kind")), QVariant(QStringLiteral("none")));
+        QCOMPARE(ProjectLabelParts::unknown(), (ProjectLabelParts{QString(), QString(), false, false, Kind::Unknown}));
+        QCOMPARE(ProjectLabelParts::unknown().toVariantMap().value(QStringLiteral("kind")), QVariant(QStringLiteral("unknown")));
+        QCOMPARE(ProjectLabelParts::kindKey(Kind::Named), QStringLiteral("named"));
     }
 };
 

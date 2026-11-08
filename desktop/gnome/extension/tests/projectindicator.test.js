@@ -14,12 +14,12 @@ import {
 } from '../projectindicator.js';
 
 const identity = text => text;
-const website = { name: 'Website', client: 'Acme', archived: false, missing: false };
+const website = { name: 'Website', client: 'Acme', archived: false, missing: false, kind: 'named' };
+const noProject = { name: '', client: '', archived: false, missing: false, kind: 'none' };
 const timer = overrides => ({
     indicatorState: 'project',
     indicatorColor: '#3366cc',
     running: false,
-    chosenProject: 7,
     chosenProjectLabel: website,
     ...overrides,
 });
@@ -51,7 +51,7 @@ test('nothing pulses while enable-animations is off', () => {
 
 test('no project is an outline named No project that never pulses', () => {
     const shown = describeIndicator(
-        timer({ indicatorState: 'none', indicatorColor: '', chosenProject: 0, running: true }),
+        timer({ indicatorState: 'none', indicatorColor: '', chosenProjectLabel: noProject, running: true }),
         true,
         identity,
     );
@@ -63,8 +63,7 @@ test("a project the instance no longer has is an outline with the menu's label",
         timer({
             indicatorState: 'none',
             indicatorColor: '',
-            chosenProject: 42,
-            chosenProjectLabel: { name: '', client: '', archived: false, missing: true },
+            chosenProjectLabel: { name: '', client: '', archived: false, missing: true, kind: 'unavailable' },
         }),
         true,
         identity,
@@ -76,8 +75,7 @@ test("a project the instance no longer has is an outline with the menu's label",
 test("a running entry's archived project is filled and named from ChosenProjectLabel", () => {
     const shown = describeIndicator(
         timer({
-            chosenProject: 42,
-            chosenProjectLabel: { name: 'Legacy', client: '', archived: true, missing: false },
+            chosenProjectLabel: { name: 'Legacy', client: '', archived: true, missing: false, kind: 'named' },
             running: true,
             indicatorColor: '#2da608',
         }),
@@ -104,7 +102,7 @@ test('a project still being read leaves the slot empty but keeps the label', () 
 
 test('without the service the slot is empty and unnamed', () => {
     const shown = describeIndicator(
-        timer({ indicatorState: '', indicatorColor: '', chosenProject: 0 }),
+        timer({ indicatorState: '', indicatorColor: '', chosenProjectLabel: noProject }),
         true,
         identity,
     );
@@ -113,7 +111,11 @@ test('without the service the slot is empty and unnamed', () => {
 });
 
 test('the label goes through gettext', () => {
-    const shown = describeIndicator(timer({ indicatorState: 'none', chosenProject: 0 }), true, text => `[${text}]`);
+    const shown = describeIndicator(
+        timer({ indicatorState: 'none', chosenProjectLabel: noProject }),
+        true,
+        text => `[${text}]`,
+    );
     assert.equal(shown.label, '[No project]');
 });
 

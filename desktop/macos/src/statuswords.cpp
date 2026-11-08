@@ -16,11 +16,6 @@ QString tr(const char *text)
 }
 }
 
-bool isNoProject(const QVariant &id)
-{
-    return !id.isValid() || id.isNull();
-}
-
 QString runText(const TimerModel &timer)
 {
     if (timer.isRunning()) {
@@ -76,9 +71,16 @@ QString detailText(const TimerModel &timer)
 
 QString projectLabel(const ProjectLabelParts &parts)
 {
-    if (parts.missing) {
+    switch (parts.kind) {
+    case ProjectLabelParts::Kind::None:
+        return tr("No project");
+    case ProjectLabelParts::Kind::Unknown:
+        return tr("Unknown project");
+    case ProjectLabelParts::Kind::Unavailable:
         // The entry names a project the instance no longer has.
         return tr("Unavailable project");
+    case ProjectLabelParts::Kind::Named:
+        break;
     }
     QString label = parts.name;
     if (!parts.client.isEmpty()) {
@@ -92,11 +94,7 @@ QString projectLabel(const ProjectLabelParts &parts)
 
 QString projectText(const TimerModel &timer)
 {
-    if (isNoProject(timer.chosenProjectId())) {
-        return tr("No project");
-    }
-    const ProjectLabelParts parts = timer.chosenProjectLabel();
-    return parts.name.isEmpty() && !parts.missing ? tr("Unknown project") : projectLabel(parts);
+    return projectLabel(timer.chosenProjectLabel());
 }
 
 

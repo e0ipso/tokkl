@@ -9,17 +9,23 @@ import {
     AUTH_MODES,
     OLDEST_SUPPORTED_INTERFACE_VERSION,
     TIMER1_XML_FILE,
+    cachedProperty,
     chosenProjectLabel,
     countdown,
     describeStatus,
     elapsedSeconds,
     fill,
     formatElapsed,
+    interfaceVersion,
     nextPhaseLabel,
+    outdatedServiceText,
     phaseName,
     pomodoroModeLabel,
     projectLabel,
+    serviceOutdated,
+    serviceRunning,
     sessionLine,
+    supportedProperty,
     supportsService,
 } from '../timer1.js';
 
@@ -63,20 +69,24 @@ test('every Status value has words and a mark', () => {
     assert.match(describeStatus('unconfigured', '', identity).detail, /settings/);
 });
 
-// The words for ChosenProjectLabel, as the KDE and macOS menus word the
-// same parts.
+// The words for the kind in ChosenProjectLabel, as the KDE and macOS menus
+// word the same parts. The service decides the kind.
 test('project labels name the client, an archived project and the missing project', () => {
-    const parts = (name, client = '', archived = false, missing = false) => ({ name, client, archived, missing });
+    const named = (name, client = '', archived = false) => ({ name, client, archived, missing: false, kind: 'named' });
+    const empty = (kind, missing = false) => ({ name: '', client: '', archived: false, missing, kind });
     assert.equal(projectLabel({ name: 'Website', clientName: 'Acme' }), 'Website (Acme)');
     assert.equal(projectLabel({ name: 'Internal', clientName: '' }), 'Internal');
-    assert.equal(chosenProjectLabel(0, parts(''), identity), 'No project');
-    assert.equal(chosenProjectLabel(9, parts('Internal'), identity), 'Internal');
-    assert.equal(chosenProjectLabel(7, parts('Website', 'Acme'), identity), 'Website (Acme)');
-    assert.equal(chosenProjectLabel(42, parts('Legacy', '', true), identity), 'Legacy (archived)');
-    assert.equal(chosenProjectLabel(42, parts('Legacy', 'Acme', true), identity), 'Legacy (Acme) (archived)');
-    assert.equal(chosenProjectLabel(42, parts('', '', false, true), identity), 'Unavailable project');
-    assert.equal(chosenProjectLabel(42, parts(''), identity), 'Unknown project');
-    assert.equal(chosenProjectLabel(42, {}, identity), 'Unknown project');
+    assert.equal(chosenProjectLabel(empty('none'), identity), 'No project');
+    assert.equal(chosenProjectLabel(named('Internal'), identity), 'Internal');
+    assert.equal(chosenProjectLabel(named('Website', 'Acme'), identity), 'Website (Acme)');
+    assert.equal(chosenProjectLabel(named('Legacy', '', true), identity), 'Legacy (archived)');
+    assert.equal(chosenProjectLabel(named('Legacy', 'Acme', true), identity), 'Legacy (Acme) (archived)');
+    assert.equal(chosenProjectLabel(empty('unavailable', true), identity), 'Unavailable project');
+    assert.equal(chosenProjectLabel(empty('unknown'), identity), 'Unknown project');
+    // A kind from a later service reads as a project still being read.
+    assert.equal(chosenProjectLabel({ ...named('Later'), kind: 'grouped' }, identity), 'Unknown project');
+    // While the service is gone the property is empty.
+    assert.equal(chosenProjectLabel({}, identity), 'No project');
 });
 
 test('the countdown rounds the time left up and the overtime down', () => {
@@ -162,6 +172,61 @@ test('a service below the floor is not used, and the menu asks for an update', (
     assert.equal(describeStatus('ready', '', identity, 1).text, 'This timer service is too old; update tokkl-timerd.');
     assert.equal(describeStatus('ready', '', identity, 2).text, 'Connected');
     assert.equal(describeStatus(null, '', identity, 0).text, 'Timer service not running');
+});
+
+// A stand-in for the Gio.DBusProxy: an owner and cached properties.
+function fakeProxy(owner, properties) {
+    return {
+        g_name_owner: owner,
+        get_cached_property: name => (name in properties ? { recursiveUnpack: () => properties[name] } : null),
+    };
+}
+
+test('the panel button and the preferences read nothing of a service below the floor', () => {
+    const current = fakeProxy(':1.7', { InterfaceVersion: 2, Status: 'ready' });
+    assert.equal(serviceOutdated(current), false);
+    assert.equal(supportedProperty(current, 'Status', 'error'), 'ready');
+    assert.equal(supportedProperty(current, 'Missing', 'fallback'), 'fallback');
+
+    for (const older of [fakeProxy(':1.7', { InterfaceVersion: 1, Status: 'ready' }), fakeProxy(':1.7', {})]) {
+        assert.equal(serviceOutdated(older), true);
+        assert.equal(supportedProperty(older, 'Status', 'error'), 'error');
+        assert.equal(
+            describeStatus('ready', '', identity, interfaceVersion(older)).text,
+            outdatedServiceText(identity),
+        );
+    }
+
+    // A service that is gone is not outdated: it is not running.
+    const gone = fakeProxy(null, { InterfaceVersion: 1, Status: 'ready' });
+    assert.equal(serviceRunning(gone), false);
+    assert.equal(serviceOutdated(gone), false);
+    assert.equal(serviceOutdated(null), false);
+    assert.equal(cachedProperty(gone, 'Status', 'none'), 'none');
+    assert.equal(interfaceVersion(gone), 0);
+});
+
+// The panel button and the preferences window stop at the same floor.
+test('the extension reads the service only through the shared gate', () => {
+    for (const name of ['indicator.js', 'prefs.js']) {
+        const source = readFileSync(new URL(`../${name}`, import.meta.url), 'utf8');
+        assert.equal(source.includes('cachedProperty('), false, `${name} reads a property past the gate`);
+        assert.match(source, /serviceOutdated\(/, `${name} does not check the floor`);
+    }
+    const prefs = readFileSync(new URL('../prefs.js', import.meta.url), 'utf8');
+    assert.match(
+        prefs,
+        /describeStatus\([^;]*interfaceVersion\(this\._proxy\)/s,
+        'prefs.js words the status without InterfaceVersion',
+    );
+});
+
+// The core's placeholder limits are the only ones: the preferences wait for
+// the service's PomodoroLengthLimits.
+test('the preferences keep no length range of their own', () => {
+    const prefs = readFileSync(new URL('../prefs.js', import.meta.url), 'utf8');
+    assert.doesNotMatch(prefs, /\b999\b/);
+    assert.doesNotMatch(prefs, /lower:|upper:/);
 });
 
 // No fallback for a service below the floor is left behind.

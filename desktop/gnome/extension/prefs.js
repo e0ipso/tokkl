@@ -7,6 +7,10 @@
 // The Pomodoro group edits the account's Pomodoro lengths and the sound of
 // each transition, also through tokkl-timerd: it sends the lengths on to the
 // Tokkl server and keeps the sounds in its own settings.
+//
+// A tokkl-timerd older than the extension supports gets no call from here,
+// as from the panel button: the rows turn insensitive and the window says to
+// update it.
 
 import Adw from 'gi://Adw';
 import Gio from 'gi://Gio';
@@ -15,13 +19,17 @@ import Gtk from 'gi://Gtk';
 import { ExtensionPreferences, gettext as _ } from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
 import { isInsecureUrl } from './instanceurl.js';
-import { AUTH_MODES, describeStatus } from './timer1.js';
-import { cachedProperty, createTimer1Proxy, serviceRunning } from './timer1proxy.js';
+import {
+    AUTH_MODES,
+    describeStatus,
+    interfaceVersion,
+    outdatedServiceText,
+    serviceOutdated,
+    serviceRunning,
+    supportedProperty,
+} from './timer1.js';
+import { createTimer1Proxy } from './timer1proxy.js';
 import { TypedSecret, connectionIdentity } from './typedsecret.js';
-
-// A row's range until the service publishes PomodoroLengthLimits, as the
-// core's placeholder is; the rows cannot be saved then.
-const PLACEHOLDER_LIMIT = { min: 1, max: 999 };
 
 function toastError(window, error) {
     Gio.DBusError.strip_remote_error(error);
@@ -47,7 +55,10 @@ class PomodoroGroup {
         this.group.header_suffix = this._save;
 
         // Keyed as PomodoroLengths. The ranges and defaults are the ones the
-        // service publishes in PomodoroLengthLimits once it is reached.
+        // service publishes in PomodoroLengthLimits once it is reached, the
+        // core's placeholder until the server announces its own. Before that
+        // a row has no range, and it is insensitive: nothing can be saved
+        // without the service.
         const minutes = _('Minutes');
         this._lengths = [
             ['work', _('Work'), minutes],
@@ -55,18 +66,12 @@ class PomodoroGroup {
             ['longRest', _('Long rest'), minutes],
             ['longRestEvery', _('Long rest every'), _('Pomodoros')],
         ].map(([key, title, unit]) => {
-            const { min, max } = PLACEHOLDER_LIMIT;
             const row = new Adw.SpinRow({
                 title,
                 subtitle: unit,
                 numeric: true,
-                adjustment: new Gtk.Adjustment({
-                    lower: min,
-                    upper: max,
-                    value: min,
-                    step_increment: 1,
-                    page_increment: 5,
-                }),
+                sensitive: false,
+                adjustment: new Gtk.Adjustment({ step_increment: 1, page_increment: 5 }),
             });
             this.group.add(row);
             return { key, unit, row };
@@ -106,17 +111,22 @@ class PomodoroGroup {
             proxy.connect('notify::g-name-owner', () => this._sync(null)),
         ];
         this._sync(null);
-        // A failed read shows in PomodoroLengthErrors.
-        proxy.RefreshPreferencesRemote(() => {});
+        // A failed read shows in PomodoroLengthErrors. An older service gets
+        // no call, as from the panel button.
+        if (!serviceOutdated(proxy)) proxy.RefreshPreferencesRemote(() => {});
         return signals;
     }
 
+    // Nothing of a service older than the extension supports: its rows stay
+    // insensitive.
     _property(name, fallback) {
-        return cachedProperty(this._proxy, name, fallback);
+        return supportedProperty(this._proxy, name, fallback);
     }
 
     // changed holds the properties that changed, or is null to show them all.
+    // A new InterfaceVersion can make every property usable or unusable.
     _sync(changed) {
+        if (changed !== null && 'InterfaceVersion' in changed) changed = null;
         if (changed === null || 'PomodoroLengthLimits' in changed) this._syncLimits();
         this._syncLengths(changed === null || 'PomodoroLengths' in changed);
         this._syncSounds();
@@ -154,6 +164,7 @@ class PomodoroGroup {
 
         let description = _('Lengths are saved to your Tokkl account, sounds on this computer.');
         if (!owned) description = _('The Pomodoro settings need the timer service.');
+        else if (serviceOutdated(this._proxy)) description = outdatedServiceText(_);
         else if (!editable)
             description = _(
                 'Changing the lengths needs a connection to the Tokkl server. These are the last known values.',
@@ -183,7 +194,7 @@ class PomodoroGroup {
     }
 
     _saveLengths() {
-        if (!this._proxy) return;
+        if (!this._proxy || serviceOutdated(this._proxy)) return;
         const values = this._lengths.map(({ row }) => {
             // Takes in a number that is still being typed.
             row.update();
@@ -209,7 +220,7 @@ class PomodoroGroup {
 
     _chooseSound({ transition, row }) {
         const soundId = this._soundIds[row.selected];
-        if (this._syncing || !this._proxy || soundId === undefined) return;
+        if (this._syncing || !this._proxy || serviceOutdated(this._proxy) || soundId === undefined) return;
         this._proxy.SetSoundRemote(transition, soundId, (result, error) => {
             if (!error && result[0]) return;
             if (error) this._toastError(error);
@@ -221,7 +232,7 @@ class PomodoroGroup {
 
     _previewSound({ row }) {
         const soundId = this._soundIds[row.selected];
-        if (!this._proxy || soundId === undefined) return;
+        if (!this._proxy || serviceOutdated(this._proxy) || soundId === undefined) return;
         this._proxy.PreviewSoundRemote(soundId, (result, error) => {
             if (error) this._toastError(error);
             else if (!result[0]) this._toast(_('The timer service could not play the sound'));
@@ -279,7 +290,12 @@ class StatusGroup {
 
     _sync() {
         const owned = serviceRunning(this._proxy);
-        const words = describeStatus(owned ? this._proxy.Status : null, owned ? this._proxy.ErrorString : '', _);
+        const words = describeStatus(
+            owned ? this._proxy.Status : null,
+            owned ? this._proxy.ErrorString : '',
+            _,
+            interfaceVersion(this._proxy),
+        );
         this._row.subtitle = words.detail ? `${words.text}: ${words.detail}` : words.text;
     }
 }
@@ -296,6 +312,8 @@ class ConnectionGroup {
         this._window = window;
         this._settings = settings;
         this._proxy = null;
+        // Set from Connect until Configure's answer is handled.
+        this._configuring = false;
 
         this.group = new Adw.PreferencesGroup({
             title: _('Tokkl instance'),
@@ -363,8 +381,26 @@ class ConnectionGroup {
         this.buttonGroup.add(this._connect);
     }
 
+    /**
+     * @param {Gio.DBusProxy} proxy
+     * @returns {number[]} the handler ids to disconnect when the window closes
+     */
     setProxy(proxy) {
         this._proxy = proxy;
+        const signals = [
+            proxy.connect('g-properties-changed', () => this._syncSensitive()),
+            proxy.connect('notify::g-name-owner', () => this._syncSensitive()),
+        ];
+        this._syncSensitive();
+        return signals;
+    }
+
+    // An older service cannot be configured from here; the Timer service
+    // row says to update it.
+    _syncSensitive() {
+        const usable = !serviceOutdated(this._proxy);
+        for (const row of [this._url, this._modes, this._email, this._secret]) row.sensitive = usable;
+        this._connect.sensitive = usable && !this._configuring;
     }
 
     _syncMode() {
@@ -386,14 +422,16 @@ class ConnectionGroup {
     }
 
     _configure() {
-        if (!this._proxy) return;
+        if (!this._proxy || serviceOutdated(this._proxy)) return;
         const mode = AUTH_MODES[this._modes.selected];
         const values = { url: this._url.text.trim(), mode, email: this._email.text.trim() };
-        this._connect.sensitive = false;
+        this._configuring = true;
+        this._syncSensitive();
         // The email belongs to password sign-in only.
         const address = mode === 'password' ? values.email : '';
         this._proxy.ConfigureRemote(values.url, mode, address, this._secret.text, (result, error) => {
-            this._connect.sensitive = true;
+            this._configuring = false;
+            this._syncSensitive();
             // Only settings the service applied are kept. That leaves out a
             // call a later one replaced before its settings were applied
             // (org.tokkl.Timer1.Error.Superseded): the later call's settings
@@ -433,8 +471,7 @@ export default class TokklPreferences extends ExtensionPreferences {
         createTimer1Proxy(
             cancellable,
             proxy => {
-                connection.setProxy(proxy);
-                const signals = [...status.setProxy(proxy), ...pomodoro.setProxy(proxy)];
+                const signals = [...status.setProxy(proxy), ...connection.setProxy(proxy), ...pomodoro.setProxy(proxy)];
                 window.connect('close-request', () => {
                     signals.forEach(id => proxy.disconnect(id));
                     return false;

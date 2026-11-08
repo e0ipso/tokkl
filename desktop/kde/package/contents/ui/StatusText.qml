@@ -101,14 +101,7 @@ QtObject {
 
     // The project name for the menu title, including the archived project of
     // the running or paused entry.
-    readonly property string projectText: {
-        const id = timer.chosenProjectId;
-        if (id === null || id === undefined) {
-            return i18nc("@item:inmenu", "No project");
-        }
-        const parts = timer.chosenProjectLabel;
-        return parts.name.length > 0 || parts.missing ? projectLabel(parts) : i18nc("@item:inmenu", "Unknown project");
-    }
+    readonly property string projectText: projectLabel(timer.chosenProjectLabel)
 
     readonly property TokklStatusParts parts: TokklStatusParts {
         timer: words.timer
@@ -223,10 +216,15 @@ QtObject {
         }
     }
 
-    // The words for the parts of a project's label, as the core gives them
+    // The words for the kind of a project's label, as the core gives it
     // (TokklTimer.chosenProjectLabel, or a project row's label).
     function projectLabel(parts: var): string {
-        if (parts.missing) {
+        switch (parts.kind) {
+        case "none":
+            return i18nc("@item:inmenu", "No project");
+        case "unknown":
+            return i18nc("@item:inmenu", "Unknown project");
+        case "unavailable":
             // The entry names a project the instance no longer has.
             return i18nc("@item:inmenu", "Unavailable project");
         }

@@ -16,8 +16,15 @@ import { captureActivateKeys, replaceClickGesture } from './compat.js';
 import { describeMenu, describeTime, projectChoices } from './menumodel.js';
 import { describeIndicator } from './projectindicator.js';
 import { TokklProjectIndicator } from './projectindicatorview.js';
-import { describeStatus, formatElapsed, projectLabel, supportsService } from './timer1.js';
-import { cachedProperty, serviceRunning } from './timer1proxy.js';
+import {
+    describeStatus,
+    formatElapsed,
+    interfaceVersion,
+    projectLabel,
+    serviceOutdated,
+    serviceRunning,
+    supportedProperty,
+} from './timer1.js';
 import { TimerRequests } from './timerrequests.js';
 
 // The properties the project submenu's items show. A change to any other
@@ -198,26 +205,20 @@ export const TokklIndicator = GObject.registerClass(
             this._requests = null;
         }
 
-        _interfaceVersion() {
-            return cachedProperty(this._proxy, 'InterfaceVersion', 0);
-        }
-
         // A service owns the name but is older than the extension supports.
         _outdated() {
-            return serviceRunning(this._proxy) && !supportsService(this._interfaceVersion());
+            return serviceOutdated(this._proxy);
         }
 
-        // A property of a service the extension can use; the fallback
-        // without one, so an older service shows nothing of its own.
         _property(name, fallback) {
-            return this._outdated() ? fallback : cachedProperty(this._proxy, name, fallback);
+            return supportedProperty(this._proxy, name, fallback);
         }
 
         _state() {
             const owned = serviceRunning(this._proxy);
             return {
                 status: owned ? this._property('Status', 'error') : null,
-                interfaceVersion: this._interfaceVersion(),
+                interfaceVersion: interfaceVersion(this._proxy),
                 errorString: this._property('ErrorString', ''),
                 running: this._property('Running', false),
                 // The start on this machine's clock, so elapsed time matches the

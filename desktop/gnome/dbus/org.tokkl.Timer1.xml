@@ -58,11 +58,14 @@
          longer has. -->
     <property name="ChosenProjectName" type="s" access="read"/>
     <!-- What a client words the label of ChosenProject from, as the core
-         decides it for every panel: name (s), client (s), archived (b),
-         the project is archived, and missing (b), the instance no longer
-         has it. The name and client are empty, and both flags false, for
-         no project and while the project is still being read. Since
-         InterfaceVersion 2. -->
+         decides it for every panel: kind (s), which words the label takes,
+         and for a named project name (s), client (s) and archived (b), the
+         project is archived. kind is "none" for no project, "unknown"
+         while the project is still being read, "unavailable" for one the
+         instance no longer has, and "named" otherwise; a client reads any
+         other value as "unknown". missing (b) is true exactly when kind is
+         "unavailable". The name and client are empty, and archived false,
+         unless kind is "named". -->
     <property name="ChosenProjectLabel" type="a{sv}" access="read">
       <annotation name="org.qtproject.QtDBus.QtTypeName" value="QVariantMap"/>
     </property>
@@ -195,10 +198,10 @@
          ring ends, until the next ring or preview starts. A service from
          before this property has none. -->
     <property name="AlarmError" type="s" access="read"/>
-    <!-- The version of this interface the service implements. Version 1 is
-         the first to publish it, and it publishes every member described
-         here but ChosenProjectLabel, Actions, Presentation and
-         PomodoroLengthLimits among them; version 2 adds ChosenProjectLabel.
+    <!-- The version of this interface the service implements. Version 2 is
+         the first released one, and it publishes every member described
+         here. Version 1 was never released: only development builds
+         published it, without ChosenProjectLabel.
          The version goes up by one with each release that adds members;
          members are never removed or changed. A service from before this
          property has none: a client then tells what it publishes by which

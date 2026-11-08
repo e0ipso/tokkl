@@ -10,20 +10,35 @@
 namespace Tokkl
 {
 
-// What every panel words a project's label from, each with its own words:
-// the name, then the client in parentheses, then that the project is
-// archived; or that the instance no longer has it. A project still being
-// read has no parts: an empty name that is not missing.
+// What every panel words a project's label from, each with its own words.
+// kind says which words: No project, Unknown project, Unavailable project,
+// or for Named the name, then the client in parentheses, then that the
+// project is archived. Only a Named label has a name, a client or the
+// archived flag.
 struct ProjectLabelParts {
+    enum class Kind {
+        None, // no project
+        Unknown, // a project whose details are still being read
+        Unavailable, // the instance no longer has it
+        Named,
+    };
+
     QString name;
     QString client;
     bool archived = false;
-    // The instance no longer has the project.
+    // The instance no longer has the project: kind is Unavailable.
     bool missing = false;
+    Kind kind = Kind::None;
 
-    // A project the instance no longer has is one with an empty name.
+    // Named, or Unavailable for a project with an empty name, which is how
+    // the catalog keeps one the instance no longer has.
     static ProjectLabelParts of(const Project &project);
-    // name, client, archived and missing, for QML and the D-Bus service.
+    static ProjectLabelParts unknown();
+    // kind as the key the variant map carries: "none", "unknown",
+    // "unavailable" or "named".
+    static QString kindKey(Kind kind);
+    // name, client, archived, missing and kind, for QML and the D-Bus
+    // service.
     QVariantMap toVariantMap() const;
 
     bool operator==(const ProjectLabelParts &other) const = default;

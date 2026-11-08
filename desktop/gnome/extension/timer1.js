@@ -19,11 +19,12 @@ export const TIMER1_XML_FILE = 'org.tokkl.Timer1.xml';
 export const AUTH_MODES = ['token', 'password'];
 
 // The oldest tokkl-timerd the extension supports, by the InterfaceVersion it
-// publishes. Version 1 publishes Actions, Presentation, PomodoroLengthLimits
-// and the Request methods, and version 2 ChosenProjectLabel; the extension
-// relies on all of them. A
-// service below it, or one without InterfaceVersion (tokkl-timerd 2.1.0 and
-// older), gets no menu of its own: the menu says to update tokkl-timerd
+// publishes. Version 2 is the first released one, and publishes Actions,
+// Presentation, PomodoroLengthLimits, ChosenProjectLabel and the Request
+// methods; the extension relies on all of them. Version 1 was never
+// released: only development builds published it. A service below the
+// floor, or one without InterfaceVersion (tokkl-timerd 2.1.0 and older),
+// gets no menu of its own: the menu says to update tokkl-timerd
 // (describeStatus()) and sends it nothing. desktop/gnome/README.md states the
 // same floor.
 export const OLDEST_SUPPORTED_INTERFACE_VERSION = 2;
@@ -37,6 +38,66 @@ export const OLDEST_SUPPORTED_INTERFACE_VERSION = 2;
  */
 export function supportsService(interfaceVersion) {
     return interfaceVersion >= OLDEST_SUPPORTED_INTERFACE_VERSION;
+}
+
+/**
+ * Whether the service owns its name, so the proxy holds its properties.
+ *
+ * @param {import('gi://Gio').DBusProxy | null} proxy
+ * @returns {boolean}
+ */
+export function serviceRunning(proxy) {
+    return Boolean(proxy?.g_name_owner);
+}
+
+/**
+ * The property's cached value, or the fallback while the service is gone: a
+ * proxy without an owner keeps no properties.
+ *
+ * @param {import('gi://Gio').DBusProxy | null} proxy
+ * @param {string} name
+ * @param {any} fallback
+ * @returns {any}
+ */
+export function cachedProperty(proxy, name, fallback) {
+    if (!serviceRunning(proxy)) return fallback;
+    const value = proxy.get_cached_property(name);
+    return value ? value.recursiveUnpack() : fallback;
+}
+
+/**
+ * The service's InterfaceVersion, 0 when it publishes none or is gone.
+ *
+ * @param {import('gi://Gio').DBusProxy | null} proxy
+ * @returns {number}
+ */
+export function interfaceVersion(proxy) {
+    return cachedProperty(proxy, 'InterfaceVersion', 0);
+}
+
+/**
+ * Whether a service owns the name but is older than the extension supports.
+ * The panel button and the preferences window both check it before they
+ * read a property or call a method.
+ *
+ * @param {import('gi://Gio').DBusProxy | null} proxy
+ * @returns {boolean}
+ */
+export function serviceOutdated(proxy) {
+    return serviceRunning(proxy) && !supportsService(interfaceVersion(proxy));
+}
+
+/**
+ * A property of a service the extension can use, or the fallback without
+ * one, so an older service shows nothing of its own.
+ *
+ * @param {import('gi://Gio').DBusProxy | null} proxy
+ * @param {string} name
+ * @param {any} fallback
+ * @returns {any}
+ */
+export function supportedProperty(proxy, name, fallback) {
+    return serviceOutdated(proxy) ? fallback : cachedProperty(proxy, name, fallback);
 }
 
 /**
@@ -215,6 +276,18 @@ export function statusWords(status, errorString, _) {
 }
 
 /**
+ * The line the menu and the preferences show for a service older than
+ * OLDEST_SUPPORTED_INTERFACE_VERSION.
+ *
+ * @param {(text: string) => string} _ gettext
+ * @returns {string}
+ */
+export function outdatedServiceText(_) {
+    // Translators: tokkl-timerd is the name of the timer service program.
+    return _('This timer service is too old; update tokkl-timerd.');
+}
+
+/**
  * The words for the service's state. status is the Status property, or null
  * when nothing owns the bus name; a value the extension does not know reads
  * as an error. A service older than OLDEST_SUPPORTED_INTERFACE_VERSION gets
@@ -235,10 +308,7 @@ export function describeStatus(status, errorString, _, interfaceVersion = OLDEST
             mark: '!',
         };
     }
-    if (!supportsService(interfaceVersion)) {
-        // Translators: tokkl-timerd is the name of the timer service program.
-        return { text: _('This timer service is too old; update tokkl-timerd.'), detail: '', mark: '!' };
-    }
+    if (!supportsService(interfaceVersion)) return { text: outdatedServiceText(_), detail: '', mark: '!' };
     return statusWords(status, errorString, _) ?? statusWords('error', errorString, _);
 }
 
@@ -253,22 +323,29 @@ export function projectLabel(project) {
 }
 
 /**
- * The label of ChosenProject from the parts the service publishes in
- * ChosenProjectLabel, as the KDE and macOS menus word them: "No project" for
- * 0, "Unavailable project" for one the instance no longer has, "Unknown
- * project" while it has no name, and otherwise "Name (Client)" with
- * "(archived)" after it for an archived project.
+ * The label of ChosenProject in the words for the kind the service
+ * publishes in ChosenProjectLabel, as the KDE and macOS menus word it:
+ * "No project", "Unknown project" while it is read, "Unavailable project"
+ * for one the instance no longer has, and for a named project "Name
+ * (Client)" with "(archived)" after it for an archived one. Without the
+ * property, as while the service is gone, it is No project.
  *
- * @param {number} chosenProject the ChosenProject property
- * @param {{name?: string, client?: string, archived?: boolean, missing?: boolean}} label
+ * @param {{name?: string, client?: string, archived?: boolean, kind?: string}} label
  *     the ChosenProjectLabel property
  * @param {(text: string) => string} _ gettext
  * @returns {string}
  */
-export function chosenProjectLabel(chosenProject, label, _) {
-    if (!chosenProject) return _('No project');
-    if (label.missing) return _('Unavailable project');
-    if (!label.name) return _('Unknown project');
+export function chosenProjectLabel(label, _) {
+    switch (label.kind ?? 'none') {
+        case 'none':
+            return _('No project');
+        case 'named':
+            break;
+        case 'unavailable':
+            return _('Unavailable project');
+        default:
+            return _('Unknown project');
+    }
     const named = projectLabel({ name: label.name, clientName: label.client });
     // Translators: %s is the project's name, with its client in parentheses.
     return label.archived ? fill(_('%s (archived)'), named) : named;

@@ -31,7 +31,7 @@ function serviceState(overrides = {}) {
         paused: false,
         projects: [{ id: 7, name: 'Alpha', clientName: 'Acme' }],
         chosenProject: 0,
-        chosenProjectLabel: { name: '', client: '', archived: false, missing: false },
+        chosenProjectLabel: { name: '', client: '', archived: false, missing: false, kind: 'none' },
         billable: false,
         pomodoroMode: false,
         modeLocked: false,
@@ -73,7 +73,7 @@ test('the menu shows what Actions says', () => {
 test('a project locked by a running or paused entry says why', () => {
     const running = menuFor({
         chosenProject: 7,
-        chosenProjectLabel: { name: 'Alpha', client: 'Acme', archived: false, missing: false },
+        chosenProjectLabel: { name: 'Alpha', client: 'Acme', archived: false, missing: false, kind: 'named' },
         billable: true,
         actions: actions({ project: { visible: true, enabled: false, label: 'projectRunning' } }),
     });

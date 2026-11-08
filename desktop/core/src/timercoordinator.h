@@ -139,12 +139,13 @@ public:
     // Refused unless TimerModel::canChooseBillable().
     bool chooseBillable(bool billable);
 
-    // Reads the state and the projects again.
+    // Reads the state, and the projects changed since the last read.
     void refresh();
     // The session woke from sleep: the state client reads the state and
-    // replaces its stream, and the projects are read again. Not resume().
+    // replaces its stream, and the changed projects are read. Not resume().
     void resumed();
-    // Explicit reconnect: lifts a workspace block and revalidates the account.
+    // Explicit reconnect: lifts a workspace block, revalidates the account
+    // and reads the state and the whole project list again.
     void reconnect();
 
 Q_SIGNALS:
@@ -162,7 +163,8 @@ private:
     void detach();
     void reset();
     void beginMutation();
-    void fetchProjects();
+    void refreshState();
+    void fetchProjects(ProjectCatalog::ListRead read);
     bool updateEntry(const TimeEntryUpdate &update);
     // start is true for a start or resume.
     void finishMutation(TimerActionResult::Outcome outcome, const ApiError &error, bool start = false);

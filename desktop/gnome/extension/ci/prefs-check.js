@@ -85,6 +85,18 @@ const mockSet = (name, value) =>
         10_000,
         null,
     );
+const actAsOlderService = older =>
+    bus.call_sync(
+        'org.tokkl.Timer1',
+        '/org/tokkl/Timer1',
+        'org.tokkl.Timer1Mock',
+        'ActAsOlderService',
+        new GLib.Variant('(b)', [older]),
+        null,
+        Gio.DBusCallFlags.NONE,
+        10_000,
+        null,
+    );
 
 function delay(ms) {
     return new Promise(resolve =>
@@ -448,6 +460,40 @@ await step('Preview plays the chosen sound', async () => {
     pomodoro.previews.workToShortRest.emit('clicked');
     await waitFor('PreviewSound', () => sameCall(lastCall(), ['PreviewSound', 'work-to-long-rest']));
     pomodoro.window.close();
+});
+
+await step('a service below the floor gets the update line and no call from the preferences', async () => {
+    actAsOlderService(true);
+    const before = mockCalls().length;
+    const older = await openWindow();
+    const group = pomodoroGroup(older.window);
+    const outdated = 'This timer service is too old; update tokkl-timerd.';
+    await waitFor('the update line', () => older.status.subtitle === outdated || older.status.subtitle);
+    if (group.group.description !== outdated) throw new Error(`the Pomodoro group says: ${group.group.description}`);
+    const controls = {
+        url: older.url,
+        mode: older.mode,
+        email: older.email,
+        secret: older.secret,
+        connect: older.connect,
+        save: group.save,
+        ...group.lengths,
+        ...Object.fromEntries(Object.entries(group.sounds).map(([key, row]) => [`sound ${key}`, row])),
+    };
+    const usable = Object.entries(controls)
+        .filter(([, widget]) => widget.sensitive)
+        .map(([name]) => name);
+    if (usable.length) throw new Error(`sensitive against an older service: ${JSON.stringify(usable)}`);
+    // Clicks that reach the handlers all the same send nothing.
+    older.secret.text = 'token-value';
+    older.connect.emit('clicked');
+    group.save.emit('clicked');
+    group.previews.workToShortRest.emit('clicked');
+    await delay(500);
+    const sent = mockCalls().slice(before);
+    if (sent.length) throw new Error(`the older service got ${JSON.stringify(sent)}`);
+    older.window.close();
+    actAsOlderService(false);
 });
 
 print(failures ? `${failures} failed` : 'all passed');

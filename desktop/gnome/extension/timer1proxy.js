@@ -1,6 +1,6 @@
-// The org.tokkl.Timer1 proxy that the panel button and the preferences
-// window share: how it is made and how its cached properties are read.
-// Nothing here imports from GNOME Shell or GTK, so both processes load it.
+// How the org.tokkl.Timer1 proxy that the panel button and the preferences
+// window share is made; timer1.js reads its cached properties. Nothing here
+// imports from GNOME Shell or GTK, so both processes load it.
 
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
@@ -48,29 +48,4 @@ export function createTimer1Proxy(cancellable, onReady, onError) {
         },
         cancellable,
     );
-}
-
-/**
- * Whether the service owns its name, so the proxy holds its properties.
- *
- * @param {Gio.DBusProxy | null} proxy
- * @returns {boolean}
- */
-export function serviceRunning(proxy) {
-    return Boolean(proxy?.g_name_owner);
-}
-
-/**
- * The property's cached value, or the fallback while the service is gone: a
- * proxy without an owner keeps no properties.
- *
- * @param {Gio.DBusProxy | null} proxy
- * @param {string} name
- * @param {any} fallback
- * @returns {any}
- */
-export function cachedProperty(proxy, name, fallback) {
-    if (!serviceRunning(proxy)) return fallback;
-    const value = proxy.get_cached_property(name);
-    return value ? value.recursiveUnpack() : fallback;
 }

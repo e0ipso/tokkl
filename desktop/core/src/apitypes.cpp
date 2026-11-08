@@ -213,6 +213,9 @@ std::optional<Project> decodeProject(const QJsonValue &value)
         || !optionalBool(object.value(QLatin1String("billable")), project.billable, false)) {
         return std::nullopt;
     }
+    // Only a delta read needs it; without it the catalog reads the whole
+    // list each time.
+    project.at = timestamp(object.value(QLatin1String("at"))).value_or(QDateTime());
     return project;
 }
 

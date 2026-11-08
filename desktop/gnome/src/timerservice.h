@@ -85,7 +85,8 @@ public:
     static const QString objectPath;
     static const QString interfaceName;
     // The InterfaceVersion this service publishes. Raise it by one in a
-    // release that adds members to org.tokkl.Timer1.
+    // release that adds members to org.tokkl.Timer1. 2 is the first
+    // released version; 1 only existed in development builds.
     static constexpr uint version = 2;
     // The settings key of a transition's sound: "Sounds/workToShortRest" and
     // so on.
