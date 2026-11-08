@@ -30,6 +30,14 @@ const refused = () => forbidden('Incorrect username and/or password');
 /** A full process sheds the stream; the client polls meanwhile and tries again. */
 const STREAMS_FULL_RETRY_SECONDS = 5;
 const KEEP_ALIVE_EVENT = 'event: keep-alive\ndata:\n\n';
+/**
+ * The bounds of the reconnect wait, in milliseconds, that a stream's first event names in its
+ * `retry:` field. Each stream gets its own random wait between them, so clients that lost their
+ * streams together, after a restart or a proxy reload, do not all reconnect at once.
+ */
+export const RECONNECT_DELAY_MS = Object.freeze({ min: 5000, max: 15000 });
+const reconnectDelay = () =>
+  RECONNECT_DELAY_MS.min + Math.floor(Math.random() * (RECONNECT_DELAY_MS.max - RECONNECT_DELAY_MS.min + 1));
 export interface TimerStreamOptions {
   keepAliveMs?: number;
   /** How long a stream whose socket stopped taking data may wait for it to drain before it ends. Default 30 s. */
@@ -280,7 +288,7 @@ export class TimerStreams {
     stream.ready = true;
     const current = group.latest && group.latest.revision > state.revision ? group.latest : state;
     stream.revision = current.revision;
-    this.#write(id, group, stream, timerEvent(current));
+    this.#write(id, group, stream, timerEvent(current, reconnectDelay()));
     if (!group.streams.has(stream)) return;
     group.timer ??= setInterval(() => this.#tick(id, group), this.#options.keepAliveMs);
   }
@@ -374,6 +382,8 @@ export class TimerStreams {
     while (this.#pending.size) await Promise.allSettled([...this.#pending]);
   }
 }
-function timerEvent(state: TimerState): string {
-  return `event: timer\ndata: ${JSON.stringify(state)}\n\n`;
+/** A timer event; `retryMs` adds the `retry:` field, after `event:` so line-splitting readers still see the type first. */
+function timerEvent(state: TimerState, retryMs?: number): string {
+  const retry = retryMs === undefined ? '' : `retry: ${retryMs}\n`;
+  return `event: timer\n${retry}data: ${JSON.stringify(state)}\n\n`;
 }
