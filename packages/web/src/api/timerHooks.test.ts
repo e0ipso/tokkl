@@ -3,7 +3,14 @@ import assert from 'node:assert/strict';
 import { QueryClient, type QueryKey } from '@tanstack/react-query';
 import { keys, stale } from './keys.ts';
 import { ApiError, UnparsableReplyError, api } from './client.ts';
-import { acceptTimerState, attemptTimerRequest, startTimer, stopTimer, timerWrite } from './timerHooks.ts';
+import {
+  acceptTimerState,
+  attemptTimerRequest,
+  startPomodoro,
+  startTimer,
+  stopTimer,
+  timerWrite,
+} from './timerHooks.ts';
 import { TIMER_OFFLINE_MESSAGE, TimerActionError, UnreadableTimerStateError } from './timerState.ts';
 import type { TimeEntry, TimerState } from './types.ts';
 
@@ -150,6 +157,29 @@ test('Stop posts the stop time at the cached revision; a 409 hands over the curr
   await stopTimer(qc);
   assert.deepEqual(sent[1]?.body, { revision: 4 });
   assert.equal(qc.getQueryData<TimerState>(keys.timer)?.running_entry, null);
+});
+
+test('a Pomodoro start posts at the cached revision; a 409 hands over the current state', async t => {
+  const qc = seeded();
+  qc.setQueryData(keys.timer, state(3));
+  const { fetch, sent } = answering(
+    { status: 409, body: state(4, running(6)) },
+    { status: 200, body: state(5, running(7)) },
+  );
+  t.mock.method(globalThis, 'fetch', fetch);
+  await assert.rejects(
+    startPomodoro(qc, { description: 'Focus', work_minutes: 25 }),
+    (error: unknown) => error instanceof TimerActionError && error.kind === 'conflict',
+  );
+  assert.deepEqual(sent[0], {
+    path: '/api/app/pomodoro',
+    method: 'POST',
+    body: { created_with: 'tokkl-web', description: 'Focus', work_minutes: 25, revision: 3 },
+  });
+  assert.equal(qc.getQueryData<TimerState>(keys.timer)?.running_entry?.id, 6, 'the conflict state is adopted');
+  await startPomodoro(qc, { description: 'Focus' });
+  assert.deepEqual(sent[1]?.body, { created_with: 'tokkl-web', description: 'Focus', revision: 4 });
+  assert.equal(qc.getQueryData<TimerState>(keys.timer)?.running_entry?.id, 7);
 });
 
 test('a Start that got no reply fails with the offline message', async t => {

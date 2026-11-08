@@ -240,12 +240,24 @@ export interface StartPomodoroInput extends Pick<
   long_rest_every?: number;
 }
 
-/** Starts a Pomodoro session. Fails with the conflict message while another device runs one. */
+/**
+ * Starts a Pomodoro session at the cached revision, and takes the reply into the caches. Fails with
+ * the conflict message while another device runs one, and when the timer moved on since this tab
+ * saw it; the conflict's state then replaces the cached one, as for Start.
+ */
+export async function startPomodoro(qc: QueryClient, input: StartPomodoroInput): Promise<TimerState> {
+  return postAction(qc, pomodoroPath, async () => ({
+    created_with: 'tokkl-web',
+    ...input,
+    revision: await currentRevision(qc),
+  }));
+}
+
 export function useStartPomodoro() {
   const qc = useQueryClient();
   return useMutation<TimerState, Error, StartPomodoroInput>({
     ...actionOptions,
-    mutationFn: input => postAction(qc, pomodoroPath, async () => ({ created_with: 'tokkl-web', ...input })),
+    mutationFn: input => startPomodoro(qc, input),
   });
 }
 
