@@ -28,6 +28,9 @@ endfunction()
 tokkl_core_test(api apitest.cpp)
 tokkl_core_test(apiclient apiclienttest.cpp tokklcorefakes)
 tokkl_core_test(connection connectiontest.cpp tokklcorefakes)
+# The plain-http cases the GNOME extension's tests read too.
+target_compile_definitions(connectiontest PRIVATE
+    TOKKL_INSECURE_URLS="${CMAKE_CURRENT_SOURCE_DIR}/insecureurls.json")
 tokkl_core_test(cooldown cooldowntest.cpp)
 tokkl_core_test(sessioncredentials sessioncredentialstest.cpp tokklcorefakes)
 tokkl_core_test(networktransport networktransporttest.cpp)

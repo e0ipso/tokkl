@@ -9,6 +9,7 @@
 #include <QObject>
 #include <QPointer>
 
+#include <functional>
 #include <optional>
 
 namespace Tokkl
@@ -91,6 +92,12 @@ public:
 
     // The connection's timer actions. The ones that apply to a revision send
     // the one held, and are refused without sending while no state is held.
+    //
+    // A start, or a stop of the running entry, entryId. On a server without
+    // the app routes they go to v9 and answer with the entry instead of the
+    // state; see Connection::startTimer(). The caller settles that.
+    void start(const StartEntry &entry, ActionCallback done = {});
+    void stop(qint64 entryId, ActionCallback done = {});
     void pause(ActionCallback done = {});
     void resume(ActionCallback done = {});
     void discard(ActionCallback done = {});
@@ -98,7 +105,7 @@ public:
     void nextPhase(ActionCallback done = {}) override;
     void endPomodoro(ActionCallback done = {}) override;
 
-    // A write made elsewhere, such as a v9 start, had an unknown outcome or
+    // A write made elsewhere, such as a v9 edit, had an unknown outcome or
     // answered with less than the state: read the state and stay settling
     // until a read sent from now on answers. The actions above do this
     // themselves for an unknown outcome.
@@ -113,6 +120,10 @@ public Q_SLOTS:
 Q_SIGNALS:
     // stateChanged(), settlingChanged() and accountReset() are SessionState's.
     void streamingChanged();
+    // serverOffsetMs() changed. A state that changes nothing else, such as
+    // the same revision read again after this machine's clock was set, can
+    // still move it.
+    void offsetChanged();
 
 private:
     // The fields of the event being read from the stream.
@@ -146,8 +157,10 @@ private:
     bool adopt(const TimerState &state);
     void setStreaming(bool streaming);
     void setSettling(bool settling);
+    void setOffset(qint64 offsetMs);
     ActionCallback adopting(ActionCallback done);
-    void withRevision(void (Connection::*action)(qint64, ActionCallback), ActionCallback done);
+    // Sends action with the revision held, adopting what it answers.
+    void withRevision(const std::function<void(Connection &, qint64, ActionCallback)> &action, ActionCallback done);
     void refuseLater(const ActionCallback &done, const QString &message);
 
     QPointer<Connection> m_connection;

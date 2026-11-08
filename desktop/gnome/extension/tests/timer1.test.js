@@ -18,6 +18,7 @@ import {
     phaseName,
     pomodoroModeLabel,
     projectLabel,
+    publishes,
     sessionLine,
 } from '../timer1.js';
 
@@ -140,4 +141,17 @@ test('a translation that reorders the session line shows the same values', () =>
     const reordered = text =>
         text === '%1$s · %2$s · Pomodoro %3$d of %4$d' ? 'Pomodoro %3$d/%4$d: %1$s (%2$s)' : text;
     assert.equal(sessionLine(session, 1_700_000_000, reordered), 'Pomodoro 2/4: Short rest (4:10 left)');
+});
+
+test('a fallback is picked by InterfaceVersion, or without one by the property being there', () => {
+    for (const property of ['Actions', 'Presentation', 'PomodoroLengthLimits']) {
+        assert.equal(publishes(1, property, true), true, property);
+        assert.equal(publishes(2, property, true), true, property);
+        // A version says what the service publishes, whatever the proxy
+        // holds at the moment.
+        assert.equal(publishes(1, property, false), true, property);
+        assert.equal(publishes(0, property, true), true, property);
+        assert.equal(publishes(0, property, false), false, property);
+    }
+    assert.equal(publishes(1, 'Unknown', false), false);
 });

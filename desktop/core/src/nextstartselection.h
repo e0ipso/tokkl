@@ -62,7 +62,6 @@ public:
     // A pick by the user, which no default replaces until the next start or
     // stop.
     void pick(const Choice &choice);
-    void pickProjectId(const QVariant &projectId);
     void pickBillable(bool billable);
 
     // A start or resume was sent: a default that answers later must not

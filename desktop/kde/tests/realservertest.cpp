@@ -637,7 +637,7 @@ private Q_SLOTS:
 
         // A late start by u, answered after the switch back to the admin.
         const qsizetype beforeStart = s.transport.log.size();
-        QVERIFY(hold(QStringLiteral("a"), "POST", QStringLiteral("/workspaces/%1/time_entries").arg(u.workspaceId)));
+        QVERIFY(holdApp(QStringLiteral("a"), "POST", QStringLiteral("/timer/start")));
         QVERIFY(s.timer.start());
         QTRY_COMPARE_WITH_TIMEOUT(heldReplies(QStringLiteral("a")), 1, timeoutMs);
         const qsizetype switchedAt = s.transport.log.size();
@@ -699,12 +699,15 @@ private Q_SLOTS:
         for (const auto &exchange : s.transport.since(switchedAt)) {
             QCOMPARE(exchange->request.url.authority(), bOrigin);
         }
-        QCOMPARE(s.transport.since(switchedAt, "PATCH", QStringLiteral("/workspaces/%1/time_entries/%2/stop").arg(b.workspaceId).arg(b.running->id)).size(), 1);
+        QCOMPARE(s.transport.sinceApp(switchedAt, "POST", QStringLiteral("/timer/stop")).size(), 1);
     }
 
-    // The account loses the workspace it works in. The stop is refused with
-    // 403, the companion asks /me once, blocks writes and polling, and does
-    // not send the stop again. The credentials are not treated as refused.
+    // The account loses the workspace it works in. The read of its projects
+    // is refused with 403: the companion asks /me once, blocks writes and its
+    // workspace reads, and sends nothing more. The credentials are not
+    // treated as refused. A stop would not show the loss: POST
+    // /api/app/timer/stop checks only that the workspace exists, so it would
+    // stop the entry.
     void membershipLoss()
     {
         const User &m = user(QStringLiteral("a.m"));
@@ -719,7 +722,7 @@ private Q_SLOTS:
 
         QVERIFY(control(QStringLiteral("/remove-membership"), {{QStringLiteral("user"), m.key}, {QStringLiteral("wid"), m.workspaceId}}));
         const qsizetype before = s.transport.log.size();
-        QVERIFY(s.timer.stop());
+        s.timer.refresh();
         QTRY_VERIFY_WITH_TIMEOUT(s.timer.workspaceAccessLost(), timeoutMs);
         QTRY_VERIFY_WITH_TIMEOUT(!s.transport.since(before, "GET", QStringLiteral("/me")).isEmpty()
                                      && s.transport.since(before, "GET", QStringLiteral("/me")).first()->response,
@@ -728,18 +731,20 @@ private Q_SLOTS:
 
         s.idle();
 
-        const auto stops = s.transport.since(before, "PATCH");
-        QCOMPARE(stops.size(), 1);
-        QCOMPARE(stops.first()->response->status, 403);
+        const auto reads = s.transport.since(before, "GET", QStringLiteral("/workspaces/%1/projects").arg(m.workspaceId));
+        QCOMPARE(reads.size(), 1);
+        QCOMPARE(reads.first()->response->status, 403);
         QCOMPARE(s.transport.since(before, "GET", QStringLiteral("/me")).size(), 1);
-        QVERIFY2(s.transport.since(before).size() == 2, qPrintable(describe(s.transport.since(before))));
+        // The refresh read the state too, which the account keeps.
+        QCOMPARE(s.transport.sinceApp(before, "GET", QStringLiteral("/timer")).size(), 1);
+        QVERIFY2(s.transport.since(before).size() == 3, qPrintable(describe(s.transport.since(before))));
         QCOMPARE(s.connection.state(), Connection::Connected);
         QVERIFY(s.timer.workspaceAccessLost());
         QVERIFY(!s.timer.canWrite());
         QVERIFY(!s.timer.currentEntry());
         QVERIFY(s.timer.projects().isEmpty());
         QVERIFY(!s.timer.start());
-        QCOMPARE(s.transport.since(before).size(), 2);
+        QCOMPARE(s.transport.since(before).size(), 3);
     }
 
     // The admin disables an account while the companion has a write to send.
@@ -768,7 +773,7 @@ private Q_SLOTS:
         QTRY_COMPARE_WITH_TIMEOUT(s.connection.state(), Connection::AuthenticationFailed, timeoutMs);
         const auto all = s.transport.since(before);
         QVERIFY2(all.size() == 2, qPrintable(describe(all)));
-        QCOMPARE(all.at(0)->request.method, QByteArray("PATCH"));
+        QVERIFY(all.at(0)->request.url.path().endsWith(QStringLiteral("/api/app/timer/stop")));
         QCOMPARE(all.at(0)->response->status, 403);
         QCOMPARE(s.transport.since(before, "GET", QStringLiteral("/me")).size(), 1);
 
@@ -977,7 +982,8 @@ private Q_SLOTS:
         QCOMPARE(s.timer.errorString(), QString());
         QVERIFY(!s.timer.isPaused());
         QCOMPARE(s.timer.chainSeconds(), 0);
-        QCOMPARE(s.transport.since(before, "POST").size(), 1);
+        QCOMPARE(s.transport.sinceApp(before, "POST", QStringLiteral("/timer/resume")).size(), 1);
+        QCOMPARE(s.transport.sinceApp(before, "POST", QStringLiteral("/timer/stop")).size(), 1);
     }
 
     // A Pomodoro session run from the companion: Start session, Next phase

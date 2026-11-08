@@ -141,7 +141,8 @@ struct ListedEntry {
     bool projectBillable = false;
 };
 
-// Body of POST /workspaces/{wid}/time_entries for a running entry. A task and
+// A running entry to start: the body of POST /api/app/timer/start, or of POST
+// /workspaces/{wid}/time_entries on a server without that route. A task and
 // tags are sent only when set. Tags go by name, and the server creates a name
 // the workspace lacks.
 struct StartEntry {
@@ -335,6 +336,10 @@ public:
     Outcome outcome = Outcome::Unknown;
     std::optional<TimerState> state; // for Applied and Conflict
     ApiError error; // Kind::None for Applied
+    // For an Applied start or stop that went to a v9 entry route instead,
+    // on a server without the app route: the entry it answered with, and
+    // no state.
+    std::optional<TimeEntry> entry;
 };
 
 // Decoders for the API's bare JSON bodies. Each returns nullopt when the
@@ -369,8 +374,10 @@ ApiError errorFromResponse(const HttpResponse &response);
 // points at the instance URL.
 ApiResult<Me> meFromResponse(const HttpResponse &response);
 
-// createdWith names the client that starts the entry.
+// createdWith names the client that starts the entry. The v9 body carries
+// duration -1; the timer start carries the revision it applies to instead.
 QByteArray encodeStartEntry(const StartEntry &entry, qint64 workspaceId, const QString &createdWith);
+QByteArray encodeTimerStart(qint64 revision, const StartEntry &entry, qint64 workspaceId, const QString &createdWith);
 QByteArray encodeTimeEntryUpdate(const TimeEntryUpdate &update);
 QByteArray encodePomodoroConfigUpdate(const PomodoroConfigUpdate &update);
 // {"revision":n}, for an action that applies only to the state it was sent

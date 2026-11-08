@@ -1,10 +1,14 @@
 // The menu's action rules for a tokkl-timerd older than the release that
-// added the Actions property. The extension updates from
-// extensions.gnome.org while the service comes from a package, so a new
-// extension often talks to an older service; this keeps its menu as that
-// service's extension showed it. A current service publishes Actions, from
-// the shared core's rules, and these are not used. Remove this module once
-// services without Actions are no longer supported.
+// added the Actions property, and for no service at all. The extension
+// updates from extensions.gnome.org while the service comes from a package,
+// so a new extension often talks to an older service; this keeps its menu
+// as that service's extension showed it. A service that publishes
+// InterfaceVersion 1 or later publishes Actions, from the shared core's
+// rules (publishes() in timer1.js), and these are not used for it.
+//
+// Remove the older-service rules once every supported tokkl-timerd
+// publishes InterfaceVersion; keep only what the menu shows with no
+// service (status null).
 
 /**
  * The Actions an older service would have meant, from the properties it

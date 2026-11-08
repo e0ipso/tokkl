@@ -24,7 +24,8 @@ class ProjectLoader;
 // and the project and billable choices, the connection they act on, the
 // settling of each write and the recovery from a lost workspace. It reads
 // a TimerModel through its public interface and changes it only through
-// TimerModelUpdates, whose operations send the model's notifications; the
+// the model's roles (TimerModelRoles), whose operations send the model's
+// notifications; the
 // model shows the result, owns the project catalog and the next start's
 // selection, and applies the next-start defaults. The coordinator's
 // ProjectLoader does the reads of projects and of the last entry. The
@@ -36,13 +37,17 @@ class ProjectLoader;
 // stream, polls while the stream is down, and reads again on a wake and
 // whenever the connection becomes Connected again.
 //
-// One mutation runs at a time; clicks while it runs are ignored. Start, stop
-// and the billable edit are v9 calls whose reply is an entry, not the state:
-// once one is applied the timer stays busy while the client settles, until
-// a read sent after the reply brings the state that shows it. Pause, resume
-// and stop while paused are the server's timer actions, and the client
-// adopts the state they return. A 409 adopts the server's state, ends the
-// action and leaves a message until the next user action. A failure that
+// One mutation runs at a time; clicks while it runs are ignored. Start,
+// stop, pause, resume and stop while paused are the server's timer actions,
+// sent against the revision shown (pause excepted), and the client adopts
+// the state they return. A 409 adopts the server's state, ends the action
+// and leaves a message until the next user action, so a start never
+// replaces one another device made first. The billable edit, and a start or
+// stop on a server without the app routes, are v9 calls whose reply is an
+// entry, not the state: once one is applied the timer stays busy while the
+// client settles, until a read sent after the reply brings the state that
+// shows it. The billable edit stays a v9 PUT: the server has no edit
+// against a revision. A failure that
 // leaves the outcome unknown (no answer, timeout, 5xx, unreadable answer)
 // keeps the timer busy while the client settles it the same way. No write
 // is ever sent again.
@@ -59,7 +64,7 @@ class ProjectLoader;
 // answers.
 //
 // The next start defaults to the project of the last entry: of the entry
-// that stopped (as the stop reply names it, when the panel stopped it), and
+// that stopped (as a v9 stop reply names it, when the panel stopped it), and
 // of the newest entry the API lists when a connection starts or reconnect()
 // runs with nothing running. Only an active project of the workspace counts.
 //
@@ -90,10 +95,10 @@ class TimerCoordinator : public TimerActions, public TimerActivity
     Q_OBJECT
 
 public:
-    // Reads model and changes it through updates, the same model's; it
-    // must outlive the coordinator. A null clock follows the clock of the
-    // state client it is given.
-    TimerCoordinator(TimerModel *model, TimerModelUpdates *updates, Clock *clock, QObject *parent = nullptr);
+    // Reads model and changes it through roles, the same model's; it must
+    // outlive the coordinator. A null clock follows the clock of the state
+    // client it is given.
+    TimerCoordinator(TimerModel *model, const TimerModelRoles &roles, Clock *clock, QObject *parent = nullptr);
     ~TimerCoordinator() override;
 
     TimerModel *model() const;
@@ -132,9 +137,6 @@ public:
     bool chooseProject(const QVariant &projectId);
     // Refused while a chain is paused.
     bool chooseBillable(bool billable);
-    // Sets the next start's choice as given, with no check and no write.
-    void setSelectedProjectId(const QVariant &projectId);
-    void setBillable(bool billable);
 
     // Reads the state and the projects again.
     void refresh();
@@ -161,9 +163,9 @@ private:
     void beginMutation();
     void fetchProjects();
     bool updateEntry(const TimeEntryUpdate &update);
-    // start is true for a start or resume, and entryReply for a v9 write,
-    // whose reply is an entry rather than the whole state, so the state
-    // that shows it comes from a read.
+    // start is true for a start or resume, and entryReply for a write that
+    // went to v9, whose reply is an entry rather than the whole state, so
+    // the state that shows it comes from a read.
     void finishMutation(TimerActionResult::Outcome outcome, const ApiError &error, bool start = false, bool entryReply = false);
     void endMutation(TimerActionResult::Outcome outcome, const ApiError &error, bool start, bool entryReply);
     void loseWorkspace(const ApiError &error);
@@ -173,7 +175,9 @@ private:
     void clearKeptError();
 
     TimerModel *m_model;
-    TimerModelUpdates *m_updates;
+    TimerStateUpdates *m_state;
+    TimerSelectionUpdates *m_selection;
+    TimerCatalogUpdates *m_catalog;
     ProjectLoader *m_loader;
     // The clock given, or the state client's when none was.
     QPointer<Clock> m_fixedClock;

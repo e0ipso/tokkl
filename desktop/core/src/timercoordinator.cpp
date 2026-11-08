@@ -14,6 +14,7 @@ namespace
 {
 using Outcome = TimerActionResult::Outcome;
 
+// The outcome of the billable edit, a v9 write whose reply is an entry.
 Outcome outcomeOf(const ApiError &error, bool succeeded)
 {
     if (succeeded) {
@@ -30,16 +31,18 @@ QString tr(const char *text)
 }
 }
 
-TimerCoordinator::TimerCoordinator(TimerModel *model, TimerModelUpdates *updates, Clock *clock, QObject *parent)
+TimerCoordinator::TimerCoordinator(TimerModel *model, const TimerModelRoles &roles, Clock *clock, QObject *parent)
     : TimerActions(parent)
     , m_model(model)
-    , m_updates(updates)
-    , m_loader(new ProjectLoader(model, updates, this))
+    , m_state(roles.state)
+    , m_selection(roles.selection)
+    , m_catalog(roles.catalog)
+    , m_loader(new ProjectLoader(model, roles.catalog, this))
     , m_fixedClock(clock)
     , m_clientClock(clock == nullptr)
 {
     connect(m_model, &TimerModel::workspaceRefused, this, &TimerCoordinator::loseWorkspace);
-    m_updates->bind(nullptr, m_fixedClock);
+    m_state->bind(nullptr, m_fixedClock);
     for (auto signal : {&TimerModel::contextChanged,
                         &TimerModel::statusChanged,
                         &TimerModel::currentEntryChanged,
@@ -105,7 +108,7 @@ void TimerCoordinator::setStateClient(TimerStateClient *client)
         return;
     }
     detach();
-    m_updates->bind(client, m_clientClock ? (client ? client->clock() : nullptr) : m_fixedClock.data());
+    m_state->bind(client, m_clientClock ? (client ? client->clock() : nullptr) : m_fixedClock.data());
     Connection *connection = m_model->connection();
     if (client) {
         connect(client, &TimerStateClient::stateChanged, this, &TimerCoordinator::onStateChanged);
@@ -113,7 +116,7 @@ void TimerCoordinator::setStateClient(TimerStateClient *client)
         connect(client, &QObject::destroyed, this, [this] {
             detach();
             reset();
-            m_updates->connectionReplaced();
+            m_state->connectionReplaced();
         });
     }
     if (connection) {
@@ -123,7 +126,7 @@ void TimerCoordinator::setStateClient(TimerStateClient *client)
         connect(connection, &QObject::destroyed, this, &TimerCoordinator::reset);
     }
     reset();
-    m_updates->connectionReplaced();
+    m_state->connectionReplaced();
     onConnectionChanged();
     // A state the client already holds.
     onStateChanged();
@@ -138,7 +141,7 @@ void TimerCoordinator::detach()
         disconnect(connection, nullptr, this, nullptr);
     }
     // The clock stays until another client brings its own.
-    m_updates->bind(nullptr, m_updates->clock());
+    m_state->bind(nullptr, m_state->clock());
 }
 
 void TimerCoordinator::onConnectionChanged()
@@ -155,7 +158,7 @@ void TimerCoordinator::onConnectionChanged()
         }
     }
     m_lastState = state;
-    m_updates->contextUpdated();
+    m_state->contextUpdated();
 }
 
 void TimerCoordinator::reset()
@@ -170,7 +173,7 @@ void TimerCoordinator::reset()
     m_loaded = false;
     setError(QString());
     m_lastState = m_model->connectionState();
-    m_updates->resetContext();
+    m_state->resetContext();
     if (wasWriting) {
         Q_EMIT writeFinished(false, QString());
     }
@@ -183,16 +186,16 @@ bool TimerCoordinator::start()
     if (!m_model->canStartNew()) {
         return false;
     }
-    m_updates->startSent();
-    const NextStartSelection::Choice choice = m_updates->nextStart();
+    m_selection->startSent();
+    const NextStartSelection::Choice choice = m_selection->nextStart();
     StartEntry entry;
-    entry.start = m_updates->clock()->now().toUTC();
+    entry.start = m_state->clock()->now().toUTC();
     entry.projectId = choice.projectId;
     entry.billable = choice.billable;
     beginMutation();
 
-    m_model->connection()->startEntry(entry, m_epoch.guard(this, [this](const ApiResult<TimeEntry> &result) {
-        finishMutation(outcomeOf(result.error, result.ok()), result.error, true, true);
+    m_model->stateClient()->start(entry, m_epoch.guard(this, [this](const TimerActionResult &result) {
+        finishMutation(result.outcome, result.error, true, result.entry.has_value());
     }));
     return true;
 }
@@ -218,11 +221,12 @@ bool TimerCoordinator::stop()
     const qint64 entryId = m_model->currentEntry()->id;
     beginMutation();
 
-    m_model->connection()->stopEntry(entryId, m_epoch.guard(this, [this](const ApiResult<TimeEntry> &result) {
-        if (result.ok()) {
-            m_updates->entryEnded(*result.value);
+    m_model->stateClient()->stop(entryId, m_epoch.guard(this, [this](const TimerActionResult &result) {
+        // A v9 stop's reply names the project the server stopped.
+        if (result.entry) {
+            m_state->entryEnded(*result.entry);
         }
-        finishMutation(outcomeOf(result.error, result.ok()), result.error, false, true);
+        finishMutation(result.outcome, result.error, false, result.entry.has_value());
     }));
     return true;
 }
@@ -245,7 +249,7 @@ bool TimerCoordinator::resume()
     if (!m_model->canWrite() || m_model->isRunning() || !m_model->isPaused()) {
         return false;
     }
-    m_updates->startSent();
+    m_selection->startSent();
     beginMutation();
 
     m_model->stateClient()->resume(m_epoch.guard(this, [this](const TimerActionResult &result) {
@@ -271,12 +275,12 @@ bool TimerCoordinator::chooseProject(const QVariant &projectId)
     if (!m_model->canWrite() || m_model->isRunning() || m_model->isPaused()) {
         return false;
     }
-    const std::optional<NextStartSelection::Choice> choice = m_updates->choiceFor(projectId);
+    const std::optional<NextStartSelection::Choice> choice = m_selection->choiceFor(projectId);
     if (!choice) {
         return false;
     }
     clearKeptError();
-    m_updates->pick(*choice);
+    m_selection->pick(*choice);
     return true;
 }
 
@@ -287,7 +291,7 @@ bool TimerCoordinator::chooseBillable(bool billable)
         return false;
     }
     clearKeptError();
-    m_updates->pickBillable(billable);
+    m_selection->pickBillable(billable);
     const std::optional<TimeEntry> entry = m_model->currentEntry();
     if (!entry || entry->billable == billable) {
         return true;
@@ -295,16 +299,6 @@ bool TimerCoordinator::chooseBillable(bool billable)
     TimeEntryUpdate update;
     update.billable = billable;
     return updateEntry(update);
-}
-
-void TimerCoordinator::setSelectedProjectId(const QVariant &projectId)
-{
-    m_updates->pickProjectId(projectId);
-}
-
-void TimerCoordinator::setBillable(bool billable)
-{
-    m_updates->pickBillable(billable);
 }
 
 bool TimerCoordinator::updateEntry(const TimeEntryUpdate &update)
@@ -317,7 +311,7 @@ bool TimerCoordinator::updateEntry(const TimeEntryUpdate &update)
     m_model->connection()->updateEntry(entryId, update, m_epoch.guard(this, [this](const ApiResult<TimeEntry> &result) {
         // Stopped elsewhere before the edit: the reply names its project.
         if (result.ok() && !result.value->isRunning()) {
-            m_updates->entryEnded(*result.value);
+            m_state->entryEnded(*result.value);
         }
         finishMutation(outcomeOf(result.error, result.ok()), result.error, false, true);
     }));
@@ -330,7 +324,7 @@ void TimerCoordinator::beginMutation()
 {
     m_gate.begin();
     setError(QString());
-    m_updates->activityChanged();
+    m_state->activityChanged();
 }
 
 void TimerCoordinator::finishMutation(Outcome outcome, const ApiError &error, bool start, bool entryReply)
@@ -351,7 +345,7 @@ void TimerCoordinator::endMutation(Outcome outcome, const ApiError &error, bool 
         client->settle();
     }
     if (m_workspaceLost) {
-        m_updates->activityChanged();
+        m_state->activityChanged();
         return;
     }
 
@@ -378,18 +372,18 @@ void TimerCoordinator::endMutation(Outcome outcome, const ApiError &error, bool 
     if (ending.refresh && client) {
         client->refresh();
     }
-    m_updates->activityChanged();
+    m_state->activityChanged();
 }
 
 void TimerCoordinator::onStateChanged()
 {
     // Without a state held (a new generation, or no client) the message
     // stays.
-    const bool held = m_updates->heldState().has_value();
+    const bool held = m_state->heldState().has_value();
     if (held && !m_model->isBusy() && !m_keepError && !m_workspaceLost) {
         setError(QString());
     }
-    m_updates->showState();
+    m_state->showState();
     m_loader->resolveChosenProject();
     if (held) {
         m_loader->readLastEntryIfWanted();
@@ -403,7 +397,7 @@ void TimerCoordinator::onSettlingChanged()
     if (!m_model->isBusy() && !m_keepError && !m_workspaceLost) {
         setError(QString());
     }
-    m_updates->activityChanged();
+    m_state->activityChanged();
 }
 
 // ----- workspace access ----------------------------------------------------
@@ -416,7 +410,7 @@ void TimerCoordinator::loseWorkspace(const ApiError &error)
     // state stays unknown until a read after that answer.
     m_gate.settleWhenDone();
     m_error = tr("Tokkl cannot use this workspace any more (%1). Check your membership, then reconnect.").arg(error.message);
-    m_updates->forgetWorkspace();
+    m_state->forgetWorkspace();
     // The account may have another workspace now. Ask once; a different
     // default workspace starts a new generation, which lifts the block.
     Connection *connection = m_model->connection();
@@ -431,7 +425,7 @@ void TimerCoordinator::loseWorkspace(const ApiError &error)
 void TimerCoordinator::refresh()
 {
     TimerStateClient *client = m_model->stateClient();
-    if (client && m_updates->readable()) {
+    if (client && m_catalog->readable()) {
         client->refresh();
     }
     fetchProjects();
@@ -453,14 +447,14 @@ void TimerCoordinator::reconnect()
     }
     const bool wasLost = std::exchange(m_workspaceLost, false);
     m_rediscoveryUsed = false;
-    m_updates->wantLastEntry();
+    m_selection->wantLastEntry();
     setError(QString());
     if (wasLost) {
         // Shows the entry and chain of the state held again.
-        m_updates->showState();
+        m_state->showState();
         m_loader->resolveChosenProject();
     } else {
-        m_updates->activityChanged();
+        m_state->activityChanged();
     }
     connection->reconnect();
     if (m_model->isConnected()) {
@@ -486,7 +480,7 @@ void TimerCoordinator::clearKeptError()
 {
     if (m_keepError) {
         setError(QString());
-        m_updates->activityChanged();
+        m_state->activityChanged();
     }
 }
 

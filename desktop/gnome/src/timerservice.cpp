@@ -18,7 +18,6 @@
 
 #include <QDBusMessage>
 #include <QDBusMetaType>
-#include <QSet>
 
 #include <optional>
 #include <utility>
@@ -76,33 +75,51 @@ TimerService::TimerService(const Parts &parts, QObject *parent)
     qDBusRegisterMetaType<QMap<QString, QMap<QString, int>>>();
     new Timer1Adaptor(this);
 
-    // The source signals of each group: each marks the groups whose
-    // properties it can change, and the next turn of the event loop
-    // publishes them once. The countdown is left out: clients count down to
-    // PlannedEnd themselves. The alarm's signal is watched in setAlarm().
-    watch(TimerGroup | ActionsGroup,
-          m_timer,
+    // Any of these signals has every property read again on the next turn
+    // of the event loop, and only the values that differ from what the bus
+    // last saw are sent. No table says which signal changes which property,
+    // so none can miss one: a property's getter may read anything these
+    // objects announce. Elapsed time and the countdown are left out:
+    // clients count up from LocalStartTime and down to PlannedEnd
+    // themselves. The alarm's signal is watched in setAlarm().
+    watch(m_timer,
+          &TimerModel::connectionChanged,
+          &TimerModel::contextChanged,
+          &TimerModel::statusChanged,
           &TimerModel::currentEntryChanged,
           &TimerModel::chainChanged,
-          &TimerModel::indicatorChanged,
+          &TimerModel::sessionActiveChanged,
+          &TimerModel::projectsChanged,
+          &TimerModel::projectChoicesChanged,
+          &TimerModel::selectionChanged,
           &TimerModel::choiceChanged,
           &TimerModel::entryProjectChanged,
-          &TimerModel::statusChanged);
-    // ChosenProjectName reads the list too.
-    watch(ProjectsGroup | TimerGroup | ActionsGroup, m_timer, &TimerModel::projectsChanged);
-    watch(SessionGroup | ActionsGroup,
-          m_session,
+          &TimerModel::chosenProjectDetailsChanged,
+          &TimerModel::indicatorChanged);
+    watch(m_session,
           &PomodoroSession::modeChanged,
           &PomodoroSession::modeLockedChanged,
           &PomodoroSession::sessionChanged,
           &PomodoroSession::canStartSessionChanged,
           &PomodoroSession::ringingChanged,
           &PomodoroSession::messageChanged);
-    watch(LengthsGroup, m_preferences, &PomodoroPreferences::changed, &PomodoroPreferences::stateChanged);
-    watch(SoundsGroup, m_sounds, &SoundChoices::changed);
+    watch(m_preferences, &PomodoroPreferences::changed, &PomodoroPreferences::stateChanged);
+    watch(m_sounds, &SoundChoices::changed);
+    connect(m_timer, &TimerModel::connectionChanged, this, &TimerService::followStateClient);
+    followStateClient();
     connect(m_actions, &TimerCoordinator::writeFinished, this, &TimerService::onWriteFinished);
 
-    m_published = read(AllGroups);
+    m_published = read();
+    m_dirty = false;
+}
+
+void TimerService::followStateClient()
+{
+    disconnect(m_offsetWatch);
+    if (TimerStateClient *client = m_timer->stateClient()) {
+        m_offsetWatch = connect(client, &TimerStateClient::offsetChanged, this, &TimerService::markChanged);
+    }
+    markChanged();
 }
 
 TimerService::~TimerService()
@@ -124,8 +141,8 @@ bool TimerService::registerOn(QDBusConnection bus)
     }
     m_bus = bus;
     m_registered = true;
-    m_dirty = 0;
-    m_published = read(AllGroups);
+    m_dirty = false;
+    m_published = read();
     return true;
 }
 
@@ -136,14 +153,19 @@ void TimerService::setAlarm(PomodoroAlarm *alarm)
     }
     m_alarm = alarm;
     if (m_alarm) {
-        watch(SoundsGroup, m_alarm.data(), &PomodoroAlarm::failureChanged);
+        watch(m_alarm.data(), &PomodoroAlarm::failureChanged);
     }
-    mark(SoundsGroup);
+    markChanged();
 }
 
 QString TimerService::alarmError() const
 {
     return m_alarm ? m_alarm->failure() : QString();
+}
+
+uint TimerService::interfaceVersion() const
+{
+    return version;
 }
 
 bool TimerService::running() const
@@ -608,95 +630,36 @@ bool TimerService::PreviewSound(const QString &soundId)
 
 // ----- publishing ----------------------------------------------------------
 //
-// The one table of what the service publishes: each org.tokkl.Timer1
-// property with its group. The value is read through the property's
-// Q_PROPERTY getter, with the type the adaptor gives it on the bus, and the
-// group's source signals are the ones the constructor watches for it. A new
-// property is a Q_PROPERTY, its getter and a row here; the first read stops
-// the program when a Q_PROPERTY has no row, or a row no Q_PROPERTY.
+// Every Q_PROPERTY of the service is an org.tokkl.Timer1 property, read
+// through its getter with the type the adaptor gives it on the bus. A new
+// property is a Q_PROPERTY and its getter; when the getter reads something
+// none of the watched signals announces, that object's signal joins the
+// constructor's watch list.
 
-namespace
+const QList<QMetaProperty> &TimerService::publication()
 {
-struct PublishedProperty {
-    const char *name;
-    unsigned group;
-};
-}
-
-const TimerService::Publication &TimerService::publication()
-{
-    static const PublishedProperty table[] = {
-        {"Running", TimerGroup},
-        {"StartTime", TimerGroup},
-        {"LocalStartTime", TimerGroup},
-        {"Paused", TimerGroup},
-        {"ChainSeconds", TimerGroup},
-        {"IndicatorState", TimerGroup},
-        {"IndicatorColor", TimerGroup},
-        {"ChosenProject", TimerGroup},
-        {"ChosenProjectName", TimerGroup},
-        {"Billable", TimerGroup},
-        {"Status", TimerGroup},
-        {"ErrorString", TimerGroup},
-        {"Projects", ProjectsGroup},
-        {"ProjectsIncomplete", ProjectsGroup},
-        {"PomodoroMode", SessionGroup},
-        {"ModeLocked", SessionGroup},
-        {"SessionActive", SessionGroup},
-        {"CanStartSession", SessionGroup},
-        {"Phase", SessionGroup},
-        {"PhaseStart", SessionGroup},
-        {"PlannedEnd", SessionGroup},
-        {"PomodoroNumber", SessionGroup},
-        {"LongRestEvery", SessionGroup},
-        {"UpcomingPhase", SessionGroup},
-        {"Ringing", SessionGroup},
-        {"RingingTransition", SessionGroup},
-        {"SessionMessage", SessionGroup},
-        {"Actions", ActionsGroup},
-        {"Presentation", ActionsGroup},
-        {"PomodoroLengths", LengthsGroup},
-        {"PomodoroLengthsEditable", LengthsGroup},
-        {"PomodoroLengthErrors", LengthsGroup},
-        {"Sounds", SoundsGroup},
-        {"AlarmError", SoundsGroup},
-        {"PomodoroLengthLimits", FixedGroup},
-        {"SoundChoices", FixedGroup},
-    };
-    static const Publication rows = [] {
-        Publication rows;
-        QSet<int> indexes;
-        for (const PublishedProperty &row : table) {
-            const int index = staticMetaObject.indexOfProperty(row.name);
-            if (index < staticMetaObject.propertyOffset() || indexes.contains(index)) {
-                qFatal("TimerService: the publication table names %s, which is no Q_PROPERTY or is named twice", row.name);
-            }
-            indexes.insert(index);
-            rows.append({QString::fromLatin1(row.name), row.group, staticMetaObject.property(index)});
+    static const QList<QMetaProperty> properties = [] {
+        QList<QMetaProperty> properties;
+        for (int index = staticMetaObject.propertyOffset(); index < staticMetaObject.propertyCount(); ++index) {
+            properties.append(staticMetaObject.property(index));
         }
-        // Every org.tokkl.Timer1 property has a row, so none goes unpublished.
-        if (rows.size() != staticMetaObject.propertyCount() - staticMetaObject.propertyOffset()) {
-            qFatal("TimerService: a Q_PROPERTY has no row in the publication table");
-        }
-        return rows;
+        return properties;
     }();
-    return rows;
+    return properties;
 }
 
-QVariantMap TimerService::read(unsigned groups) const
+QVariantMap TimerService::read() const
 {
     QVariantMap values;
-    for (const Published &property : publication()) {
-        if (groups & property.group) {
-            values.insert(property.name, property.meta.read(this));
-        }
+    for (const QMetaProperty &property : publication()) {
+        values.insert(QString::fromLatin1(property.name()), property.read(this));
     }
     return values;
 }
 
-void TimerService::mark(unsigned groups)
+void TimerService::markChanged()
 {
-    m_dirty |= groups;
+    m_dirty = true;
     if (m_publishQueued) {
         return;
     }
@@ -710,16 +673,13 @@ void TimerService::mark(unsigned groups)
         Qt::QueuedConnection);
 }
 
-// Sends PropertiesChanged with the properties of the marked groups whose
-// value differs from what the bus last saw. A core signal that changed
-// nothing visible sends nothing.
+// A core signal that changed nothing visible sends nothing.
 void TimerService::publishChanges()
 {
-    const unsigned groups = std::exchange(m_dirty, 0u);
-    if (groups == 0) {
+    if (!std::exchange(m_dirty, false)) {
         return;
     }
-    const QVariantMap current = read(groups);
+    const QVariantMap current = read();
     QVariantMap changed;
     for (auto it = current.cbegin(); it != current.cend(); ++it) {
         if (m_published.value(it.key()) != it.value()) {

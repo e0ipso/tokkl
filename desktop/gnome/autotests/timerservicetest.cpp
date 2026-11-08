@@ -745,8 +745,14 @@ private Q_SLOTS:
             {QStringLiteral("Sounds"), QStringLiteral("a{ss} read")},
             {QStringLiteral("SoundChoices"), QStringLiteral("aa{sv} read")},
             {QStringLiteral("AlarmError"), QStringLiteral("s read")},
+            {QStringLiteral("InterfaceVersion"), QStringLiteral("u read")},
         };
         QCOMPARE(timer.properties, properties);
+        // The version of the interface, which the extension picks its
+        // fallbacks by.
+        const QVariant version = f.get(QStringLiteral("InterfaceVersion"));
+        QCOMPARE(version.metaType(), QMetaType::fromType<uint>());
+        QCOMPARE(version.toUInt(), 1u);
         const QMap<QString, QStringList> methods{
             {QStringLiteral("Start"), {QStringLiteral("out b")}},
             {QStringLiteral("Stop"), {QStringLiteral("out b")}},
@@ -905,20 +911,20 @@ private Q_SLOTS:
         QCOMPARE(f.result(QStringLiteral("SetProject"), {qint64(999)}).toBool(), false);
         QCOMPARE(f.get(QStringLiteral("ChosenProject")).toLongLong(), 12);
 
-        // Start creates a new entry on the chosen project.
+        // Start creates a new entry on the chosen project, against the
+        // revision shown.
         QCOMPARE(f.result(QStringLiteral("Start")).toBool(), true);
-        const QList<qsizetype> starts = f.find("POST", "/workspaces/7/time_entries");
+        const QList<qsizetype> starts = f.find("POST", "/app/timer/start");
         QCOMPARE(starts.size(), 1);
         const QJsonObject body = QJsonDocument::fromJson(f.transport.requests.at(starts.first()).body).object();
         QCOMPARE(body.value(QStringLiteral("created_with")).toString(), QStringLiteral("tokkl-gnome"));
         QCOMPARE(body.value(QStringLiteral("project_id")).toInteger(), 12);
-        QCOMPARE(body.value(QStringLiteral("duration")).toInteger(), -1);
+        QCOMPARE(body.value(QStringLiteral("revision")).toInteger(), f.revision);
         // A second start while the first is in flight sends nothing.
         QCOMPARE(f.result(QStringLiteral("Start")).toBool(), false);
-        QCOMPARE(f.find("POST", "/workspaces/7/time_entries").size(), 1);
+        QCOMPARE(f.find("POST", "/app/timer/start").size(), 1);
 
-        f.change(entryObject(5, 12, true));
-        f.respond(starts.first(), FakeTransport::answer(200, json(entryObject(5, 12, true))));
+        f.respond(starts.first(), FakeTransport::answer(200, f.change(entryObject(5, 12, true))));
         QVERIFY(f.serve());
         QCOMPARE(f.get(QStringLiteral("Running")).toBool(), true);
         const qint64 start = QDateTime::fromString(startedAt, Qt::ISODate).toSecsSinceEpoch();
@@ -946,10 +952,10 @@ private Q_SLOTS:
 
         // Stop, after which the next start defaults to the stopped entry's project.
         QCOMPARE(f.result(QStringLiteral("Stop")).toBool(), true);
-        const QList<qsizetype> stops = f.find("PATCH", "/workspaces/7/time_entries/5/stop");
+        const QList<qsizetype> stops = f.find("POST", "/app/timer/stop");
         QCOMPARE(stops.size(), 1);
-        f.change(QJsonValue::Null);
-        f.respond(stops.first(), FakeTransport::answer(200, json(entryObject(5, 12, false, true))));
+        QCOMPARE(f.transport.requests.at(stops.first()).body, json(revisionBody(f.revision)));
+        f.respond(stops.first(), FakeTransport::answer(200, f.change(QJsonValue::Null)));
         QVERIFY(f.serve());
         QCOMPARE(f.get(QStringLiteral("Running")).toBool(), false);
         QCOMPARE(f.get(QStringLiteral("StartTime")).toLongLong(), 0);
@@ -979,7 +985,7 @@ private Q_SLOTS:
         QVERIFY(refusedStart > 0);
         // One write at a time: nothing is sent while it runs.
         QCOMPARE(requestOf(f.result(QStringLiteral("RequestStart"))), 0ULL);
-        const QList<qsizetype> starts = f.find("POST", "/workspaces/7/time_entries");
+        const QList<qsizetype> starts = f.find("POST", "/app/timer/start");
         QCOMPARE(starts.size(), 1);
         f.respond(starts.first(), FakeTransport::answer(400, errorBody("Project is archived")));
         QTRY_COMPARE(f.recorder.finished.size(), 1);
@@ -990,8 +996,7 @@ private Q_SLOTS:
         // A start the server applies, with the next id.
         const qulonglong start = requestOf(f.result(QStringLiteral("RequestStart")));
         QVERIFY(start > refusedStart);
-        f.change(entryObject(5, 11, true));
-        f.respond(f.find("POST", "/workspaces/7/time_entries").last(), FakeTransport::answer(200, json(entryObject(5, 11, true))));
+        f.respond(f.find("POST", "/app/timer/start").last(), FakeTransport::answer(200, f.change(entryObject(5, 11, true))));
         QTRY_COMPARE(f.recorder.finished.size(), 2);
         QCOMPARE(f.recorder.finished.last(), (QVariantList{start, true, QString()}));
         QVERIFY(f.serve());
@@ -1012,8 +1017,7 @@ private Q_SLOTS:
         // nothing to do returns 0.
         QCOMPARE(requestOf(f.result(QStringLiteral("RequestResume"))), 0ULL);
         QCOMPARE(f.result(QStringLiteral("Stop")).toBool(), true);
-        f.change(QJsonValue::Null);
-        f.respond(f.find("PATCH", "/workspaces/7/time_entries/5/stop").last(), FakeTransport::answer(200, json(entryObject(5, 11, false))));
+        f.respond(f.find("POST", "/app/timer/stop").last(), FakeTransport::answer(200, f.change(QJsonValue::Null)));
         QVERIFY(f.serve());
         QVERIFY(f.ping());
         QCOMPARE(f.recorder.finished.size(), 3);
@@ -1036,6 +1040,15 @@ private Q_SLOTS:
         QCOMPARE(local, start - 90);
         QVERIFY(f.recorder.valuesOf(QStringLiteral("LocalStartTime")).contains(start - 90));
         QCOMPARE(f.clock.now().toSecsSinceEpoch() - local, f.daemon->timer.elapsedSeconds());
+
+        // This machine's clock is set 60 s forward. The same state, read
+        // again, moves only the offset, and LocalStartTime follows it.
+        f.clock.current = f.clock.current.addSecs(60);
+        f.serverAheadMs = 30000;
+        QVERIFY(f.push(f.state()));
+        QTRY_VERIFY(f.recorder.valuesOf(QStringLiteral("LocalStartTime")).contains(start - 30));
+        QCOMPARE(f.get(QStringLiteral("StartTime")).toLongLong(), start);
+        QCOMPARE(f.clock.now().toSecsSinceEpoch() - (start - 30), f.daemon->timer.elapsedSeconds());
 
         // Stopped elsewhere: both are 0.
         QVERIFY(f.push(f.change(QJsonValue::Null)));
@@ -1167,7 +1180,7 @@ private Q_SLOTS:
             const QList<qsizetype> resumes = f.find("POST", "/timer/resume");
             QCOMPARE(resumes.size(), before + 1);
             QCOMPARE(QJsonDocument::fromJson(f.transport.requests.at(resumes.last()).body).object(), revisionBody(shown));
-            QVERIFY(f.find("POST", "/workspaces/7/time_entries").isEmpty());
+            QVERIFY(f.find("POST", "/app/timer/start").isEmpty());
             ++running;
             const QDateTime resumed = f.clock.now();
             QVERIFY(f.answer("POST", "/timer/resume", f.change(chainEntry(running, resumed, std::nullopt), pauseObject(false, total, running))));
@@ -1180,10 +1193,9 @@ private Q_SLOTS:
 
         // Stop while running stops the clone and ends the chain.
         QCOMPARE(f.result(QStringLiteral("Stop")).toBool(), true);
-        const QList<qsizetype> stops = f.find("PATCH", QStringLiteral("/workspaces/7/time_entries/%1/stop").arg(running).toUtf8());
+        const QList<qsizetype> stops = f.find("POST", "/app/timer/stop");
         QCOMPARE(stops.size(), 1);
-        f.change(QJsonValue::Null);
-        f.respond(stops.first(), FakeTransport::answer(200, json(chainEntry(running, f.clock.now(), 300))));
+        f.respond(stops.first(), FakeTransport::answer(200, f.change(QJsonValue::Null)));
         QVERIFY(f.serve());
         QCOMPARE(f.get(QStringLiteral("Running")).toBool(), false);
         QCOMPARE(f.get(QStringLiteral("Paused")).toBool(), false);
@@ -1240,7 +1252,7 @@ private Q_SLOTS:
         QCOMPARE(f.result(QStringLiteral("Stop")).toBool(), false);
         QCOMPARE(f.result(QStringLiteral("Resume")).toBool(), false);
         QCOMPARE(f.result(QStringLiteral("Start")).toBool(), true);
-        QCOMPARE(f.find("POST", "/workspaces/7/time_entries").size(), 1);
+        QCOMPARE(f.find("POST", "/app/timer/start").size(), 1);
     }
 
     // A 409 shows the state the server sent instead, and says why nothing
@@ -1477,7 +1489,7 @@ private Q_SLOTS:
         QCOMPARE(f.get(QStringLiteral("ModeLocked")).toBool(), false);
         QCOMPARE(f.get(QStringLiteral("Phase")).toString(), QString());
         // The server saves the pomodoros: the service sends no entry.
-        QVERIFY(f.find("POST", "/workspaces/7/time_entries").isEmpty());
+        QVERIFY(f.find("POST", "/app/timer/start").isEmpty());
     }
 
     // A session ended on another device leaves the timer free again.
@@ -1610,7 +1622,7 @@ private Q_SLOTS:
         QCOMPARE(f.result(QStringLiteral("NextPhase")).toBool(), true);
         const QDateTime second = f.clock.now();
         QVERIFY(f.answer("POST", "/pomodoro/next", f.change(chainEntry(42, second, std::nullopt), QJsonValue::Null, pomodoroObject(work(second, 1), 42))));
-        QVERIFY(f.find("POST", "/workspaces/7/time_entries").isEmpty());
+        QVERIFY(f.find("POST", "/app/timer/start").isEmpty());
         QCOMPARE(f.get(QStringLiteral("Phase")).toString(), QStringLiteral("work"));
         QCOMPARE(f.get(QStringLiteral("PomodoroNumber")).toInt(), 2);
         QCOMPARE(f.get(QStringLiteral("UpcomingPhase")).toString(), QStringLiteral("longRest"));
@@ -1636,7 +1648,7 @@ private Q_SLOTS:
         QCOMPARE(f.get(QStringLiteral("ModeLocked")).toBool(), false);
         QCOMPARE(f.get(QStringLiteral("Phase")).toString(), QString());
         QCOMPARE(f.get(QStringLiteral("PlannedEnd")).toLongLong(), 0);
-        QVERIFY(f.find("POST", "/workspaces/7/time_entries").isEmpty());
+        QVERIFY(f.find("POST", "/app/timer/start").isEmpty());
         QCOMPARE(f.result(QStringLiteral("EndSession")).toBool(), false);
         QCOMPARE(f.result(QStringLiteral("SetPomodoroMode"), {QVariant(false)}).toBool(), true);
         QCOMPARE(f.get(QStringLiteral("PomodoroMode")).toBool(), false);
@@ -1675,7 +1687,7 @@ private Q_SLOTS:
             {QStringLiteral("stop"), iso(f.clock.now())},
         };
         QVERIFY(f.answer("POST", "/pomodoro/end", f.change(QJsonValue::Null, QJsonValue::Null, QJsonValue::Null, discarded)));
-        QVERIFY(f.find("POST", "/workspaces/7/time_entries").isEmpty());
+        QVERIFY(f.find("POST", "/app/timer/start").isEmpty());
         const QString message = f.get(QStringLiteral("SessionMessage")).toString();
         QVERIFY(!message.isEmpty());
         QVERIFY(QTest::qWaitFor([&f, &message] {
@@ -1782,9 +1794,8 @@ private Q_SLOTS:
         QCOMPARE(f.result(QStringLiteral("Activate")).toString(), QStringLiteral("handled"));
         // A click while the start waits for its answer applies nothing.
         QCOMPARE(f.result(QStringLiteral("Activate")).toString(), QStringLiteral("ignored"));
-        QCOMPARE(f.find("POST", "/workspaces/7/time_entries").size(), 1);
-        QVERIFY(f.answer("POST", "/workspaces/7/time_entries", json(entryObject(5, 11, true))));
-        f.change(entryObject(5, 11, true));
+        QCOMPARE(f.find("POST", "/app/timer/start").size(), 1);
+        QVERIFY(f.answer("POST", "/app/timer/start", f.change(entryObject(5, 11, true))));
         QVERIFY(f.serve());
         QCOMPARE(f.get(QStringLiteral("Running")).toBool(), true);
         QCOMPARE(f.get(QStringLiteral("ModeLocked")).toBool(), true);
@@ -1822,7 +1833,7 @@ private Q_SLOTS:
         QVERIFY(f.answer("POST", "/pomodoro/next", f.change(chainEntry(41, at, std::nullopt), QJsonValue::Null, pomodoroObject(shortRest(f.clock.now(), at), 41))));
         QCOMPARE(f.get(QStringLiteral("Phase")).toString(), QStringLiteral("shortRest"));
         QCOMPARE(f.get(QStringLiteral("Ringing")).toBool(), false);
-        QCOMPARE(f.find("POST", "/workspaces/7/time_entries").size(), 1);
+        QCOMPARE(f.find("POST", "/app/timer/start").size(), 1);
     }
 
     // The lengths follow the account; a save sends only what differs, and

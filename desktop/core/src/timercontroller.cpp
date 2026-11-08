@@ -10,7 +10,7 @@ TimerController::TimerController(QObject *parent)
 
 TimerController::TimerController(Clock *clock, QObject *parent)
     : TimerModel(parent)
-    , m_coordinator(new TimerCoordinator(this, this, clock, this))
+    , m_coordinator(new TimerCoordinator(this, roles(), clock, this))
 {
     setActivity(m_coordinator);
 }
@@ -35,16 +35,6 @@ TimerCoordinator *TimerController::coordinator() const
 void TimerController::setStateClient(TimerStateClient *client)
 {
     m_coordinator->setStateClient(client);
-}
-
-void TimerController::setSelectedProjectId(const QVariant &projectId)
-{
-    m_coordinator->setSelectedProjectId(projectId);
-}
-
-void TimerController::setBillable(bool billable)
-{
-    m_coordinator->setBillable(billable);
 }
 
 bool TimerController::start()

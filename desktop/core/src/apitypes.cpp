@@ -221,12 +221,13 @@ std::optional<QList<ListedEntry>> decodeListedEntries(const QJsonValue &value)
     return entries;
 }
 
-QByteArray encodeStartEntry(const StartEntry &entry, qint64 workspaceId, const QString &createdWith)
+namespace
+{
+QJsonObject startEntryObject(const StartEntry &entry, qint64 workspaceId, const QString &createdWith)
 {
     QJsonObject object{
         {QStringLiteral("created_with"), createdWith},
         {QStringLiteral("description"), entry.description},
-        {QStringLiteral("duration"), -1},
         {QStringLiteral("start"), utcTimestamp(entry.start)},
         {QStringLiteral("workspace_id"), workspaceId},
         {QStringLiteral("project_id"), idJson(entry.projectId)},
@@ -240,6 +241,21 @@ QByteArray encodeStartEntry(const StartEntry &entry, qint64 workspaceId, const Q
     if (entry.billable) {
         object.insert(QStringLiteral("billable"), *entry.billable);
     }
+    return object;
+}
+}
+
+QByteArray encodeStartEntry(const StartEntry &entry, qint64 workspaceId, const QString &createdWith)
+{
+    QJsonObject object = startEntryObject(entry, workspaceId, createdWith);
+    object.insert(QStringLiteral("duration"), -1);
+    return QJsonDocument(object).toJson(QJsonDocument::Compact);
+}
+
+QByteArray encodeTimerStart(qint64 revision, const StartEntry &entry, qint64 workspaceId, const QString &createdWith)
+{
+    QJsonObject object = startEntryObject(entry, workspaceId, createdWith);
+    object.insert(QStringLiteral("revision"), revision);
     return QJsonDocument(object).toJson(QJsonDocument::Compact);
 }
 

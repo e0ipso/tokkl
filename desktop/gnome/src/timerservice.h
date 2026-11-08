@@ -39,7 +39,8 @@ class TimerService : public QObject, protected QDBusContext
 
     // The org.tokkl.Timer1 properties, read by the generated adaptor. They
     // have no NOTIFY: the service sends their changes to the bus as
-    // PropertiesChanged, once per turn of the event loop.
+    // PropertiesChanged, once per turn of the event loop. Every Q_PROPERTY
+    // here is published.
     Q_PROPERTY(bool Running READ running)
     Q_PROPERTY(qint64 StartTime READ startTime)
     Q_PROPERTY(qint64 LocalStartTime READ localStartTime)
@@ -76,11 +77,15 @@ class TimerService : public QObject, protected QDBusContext
     Q_PROPERTY(QMap<QString, QString> Sounds READ sounds)
     Q_PROPERTY(QList<QVariantMap> SoundChoices READ soundCatalogue)
     Q_PROPERTY(QString AlarmError READ alarmError)
+    Q_PROPERTY(uint InterfaceVersion READ interfaceVersion)
 
 public:
     static const QString serviceName;
     static const QString objectPath;
     static const QString interfaceName;
+    // The InterfaceVersion this service publishes. Raise it by one in a
+    // release that adds members to org.tokkl.Timer1.
+    static constexpr uint version = 1;
     // The settings key of a transition's sound: "Sounds/workToShortRest" and
     // so on.
     static QString soundKey(TransitionKind kind);
@@ -158,6 +163,7 @@ public:
     QList<QVariantMap> soundCatalogue() const;
     // PomodoroAlarm::failure(), empty without an alarm.
     QString alarmError() const;
+    uint interfaceVersion() const;
 
 public Q_SLOTS:
     // The org.tokkl.Timer1 methods, called by the generated adaptor.
@@ -194,44 +200,24 @@ private:
     qulonglong follow(bool sent);
     void onWriteFinished(bool ok, const QString &message);
 
-    // The properties in groups that change together. Each core signal marks
-    // the groups it can change (watch()), and only those are read again.
-    enum Group : unsigned {
-        TimerGroup = 1u << 0, // the entry, chain, choice, indicator and status
-        ProjectsGroup = 1u << 1,
-        SessionGroup = 1u << 2,
-        ActionsGroup = 1u << 3, // Actions and Presentation, which read both the timer and the session
-        LengthsGroup = 1u << 4,
-        SoundsGroup = 1u << 5,
-        FixedGroup = 1u << 6, // never changes while the service runs
-        AllGroups = (1u << 7) - 1,
-    };
-
-    // A published property: its name on the bus, its group and the
-    // Q_PROPERTY its value is read through.
-    struct Published {
-        QString name;
-        unsigned group;
-        QMetaProperty meta;
-    };
-    using Publication = QList<Published>;
-    // Every org.tokkl.Timer1 property, from the table in timerservice.cpp.
-    static const Publication &publication();
-    // Marks groups whenever one of sender's signals fires.
+    // Every org.tokkl.Timer1 property: the Q_PROPERTYs of this class.
+    static const QList<QMetaProperty> &publication();
+    // Has the properties read again whenever one of sender's signals fires.
     template<typename Sender, typename... Signals>
-    void watch(unsigned groups, Sender *sender, Signals... signals)
+    void watch(Sender *sender, Signals... signals)
     {
-        (connect(sender, signals, this,
-                 [this, groups] {
-                     mark(groups);
-                 }),
-         ...);
+        (connect(sender, signals, this, &TimerService::markChanged), ...);
     }
-    // The values of the given groups, as the adaptor reads them.
-    QVariantMap read(unsigned groups) const;
-    // Marks the groups and publishes them when the event loop next runs.
-    void mark(unsigned groups);
-    // Sends PropertiesChanged now for what changed in the marked groups.
+    // Follows the offset of the timer's state client, which LocalStartTime
+    // reads and no model signal announces.
+    void followStateClient();
+    // Every property's value, as the adaptor reads it.
+    QVariantMap read() const;
+    // Something a property reads may have changed: publishes the changes
+    // when the event loop next runs.
+    void markChanged();
+    // Sends PropertiesChanged now for the properties whose value differs
+    // from what the bus last saw, if anything was marked.
     void publishChanges();
     // A method's answer, sent after what the method changed: D-Bus clients
     // read their cached properties when the answer arrives.
@@ -251,10 +237,11 @@ private:
     QPointer<PomodoroAlarm> m_alarm;
     QDBusConnection m_bus;
     bool m_registered = false;
+    QMetaObject::Connection m_offsetWatch;
     // The property values the bus last saw.
     QVariantMap m_published;
-    // The groups marked since the last publish.
-    unsigned m_dirty = 0;
+    // Something changed since the last publish.
+    bool m_dirty = false;
     qulonglong m_lastRequest = 0;
     // The request whose write runs; 0 for none.
     qulonglong m_request = 0;

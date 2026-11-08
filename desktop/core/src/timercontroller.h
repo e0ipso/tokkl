@@ -20,10 +20,10 @@ class TimerController : public TimerModel
     // Not owned. The connection is the client's.
     Q_PROPERTY(Tokkl::TimerStateClient *stateClient READ stateClient WRITE setStateClient NOTIFY connectionChanged)
     // Choices for the next start, for the connection's account: null or a
-    // project id, and the billable flag. Writing them checks nothing and
-    // sends nothing; the menu uses chooseProject() and chooseBillable().
-    Q_PROPERTY(QVariant selectedProjectId READ selectedProjectId WRITE setSelectedProjectId NOTIFY selectionChanged)
-    Q_PROPERTY(bool billable READ billable WRITE setBillable NOTIFY selectionChanged)
+    // project id, and the billable flag. They only read: chooseProject() and
+    // chooseBillable() change them, with their checks.
+    Q_PROPERTY(QVariant selectedProjectId READ selectedProjectId NOTIFY selectionChanged)
+    Q_PROPERTY(bool billable READ billable NOTIFY selectionChanged)
 
 public:
     // Uses the clock of the state client it is given, so QML needs no
@@ -39,8 +39,6 @@ public:
     // The controller does not own the client. Null leaves it without a
     // connection.
     void setStateClient(TimerStateClient *client);
-    void setSelectedProjectId(const QVariant &projectId);
-    void setBillable(bool billable);
 
     // See TimerCoordinator. The actions return true when a request was
     // sent.

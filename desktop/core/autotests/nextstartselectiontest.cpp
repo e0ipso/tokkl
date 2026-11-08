@@ -157,7 +157,7 @@ private Q_SLOTS:
         Fixture f;
         QVERIFY(f.connect());
         QSignalSpy changed(&f.selection, &NextStartSelection::changed);
-        f.selection.pickProjectId(11);
+        f.selection.pick({11, false});
         f.selection.pickBillable(true);
         QCOMPARE(f.selection.projectId(), 11);
         QCOMPARE(f.selection.projectIdVariant().toLongLong(), 11);
@@ -173,7 +173,7 @@ private Q_SLOTS:
         QVERIFY(!f.selection.billable());
         QCOMPARE(changed.count(), 3);
 
-        f.selection.pickProjectId(11);
+        f.selection.pick({11, false});
         f.selection.setConnection(nullptr);
         QVERIFY(!f.selection.projectId());
         // Nothing to choose for without a connection.
@@ -239,7 +239,7 @@ private Q_SLOTS:
     {
         Fixture f;
         QVERIFY(f.connect());
-        f.selection.pickProjectId(QVariant::fromValue(nullptr));
+        f.selection.pick({std::nullopt, false});
         const qsizetype before = f.transport.requests.size();
         f.selection.readLastEntry([] {
             return true;

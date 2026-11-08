@@ -12,6 +12,7 @@
 #include <QUrl>
 #include <QVariant>
 
+#include <functional>
 #include <memory>
 #include <optional>
 
@@ -106,6 +107,8 @@ public:
     // The account's entries of the last 9 days in every workspace, newest
     // first, with project metadata (GET /me/time_entries?meta=true).
     void fetchRecentEntries(Callback<QList<ListedEntry>> done = {});
+    // The v9 start and stop of a running entry. startTimer() and
+    // stopTimer() use them on a server without the app routes.
     void startEntry(const StartEntry &entry, Callback<TimeEntry> done = {});
     void stopEntry(qint64 entryId, Callback<TimeEntry> done = {});
     void updateEntry(qint64 entryId, const TimeEntryUpdate &update, Callback<TimeEntry> done = {});
@@ -133,6 +136,18 @@ public:
     void startPomodoro(const PomodoroStart &start, ActionCallback done = {});
     void nextPomodoroPhase(qint64 revision, ActionCallback done = {});
     void endPomodoro(qint64 revision, ActionCallback done = {});
+    // Start a running entry and stop the running one through POST
+    // /api/app/timer/start and /api/app/timer/stop, like the actions above:
+    // a 409 brings the server's state when the timer changed since
+    // revision, or for a stop when nothing runs. A server from before those
+    // routes answers 404: the write then goes to startEntry() or
+    // stopEntry(entryId), whose reply is the entry (TimerActionResult::entry)
+    // rather than the state, and so does every later start and stop of this
+    // generation. When the v9 route answers 404 as well, the app route was
+    // there and refused the write (a project or entry gone), so the next
+    // write tries it again.
+    void startTimer(qint64 revision, const StartEntry &entry, ActionCallback done = {});
+    void stopTimer(qint64 revision, qint64 entryId, ActionCallback done = {});
     // Opens GET /api/app/timer/events, or returns nullptr without a bound
     // account or during a 429 cooldown. The caller reads the stream's
     // signals; the connection deletes it after finished(). A new generation
@@ -177,11 +192,18 @@ private:
     // Sends a preferences request through the app path, or through v9 once
     // the app path answered 404 in this generation.
     void preferencesCall(const QByteArray &method, const QByteArray &body, ApiAccess access, Callback<PomodoroConfig> done);
+    // A start or stop through /api/app + path, or through v9 once that
+    // answered 404 in this generation; see startTimer().
+    using V9Write = std::function<void(Connection &, Callback<TimeEntry>)>;
+    void timerWrite(const QString &path, const QByteArray &body, V9Write v9, ActionCallback done);
 
     const QString m_clientName;
     AuthSession m_session;
     // The generation in which /api/app/me/preferences answered 404.
     std::optional<quint64> m_v9PreferencesGeneration;
+    // The generation in which /api/app/timer/start or /stop answered 404
+    // and the v9 route did not.
+    std::optional<quint64> m_v9TimerWritesGeneration;
 };
 
 }
