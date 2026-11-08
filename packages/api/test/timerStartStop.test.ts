@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { TimerState } from '@tokkl/types';
 import { listTimeEntries, serializeTimeEntry } from './fixtures/domain.ts';
+import { removeWorkspaceMember } from './fixtures/physical.ts';
 import { setup, type TestContext } from './helpers.ts';
 
 /** A user on an instance with a 1-minute resolution, so starts and stops keep their minute. */
@@ -147,4 +148,22 @@ test('start and stop refuse a bad body with 400 before they read the timer', asy
   const foreign = await ctx.json('POST', '/api/app/timer/start', { revision: 0, workspace_id: ctx.wid + 1000 });
   assert.equal(foreign.status, 403);
   assert.deepEqual(await stored(ctx), []);
+});
+
+test('stop refuses a user who is no longer a member of the running entry workspace, as v9 does', async () => {
+  const ctx = await timerSetup();
+  const idle = await state(ctx);
+  const started = await ctx.json<TimerState>('POST', '/api/app/timer/start', { revision: idle.revision });
+  assert.equal(started.status, 200);
+  assert.equal(await removeWorkspaceMember(ctx.db, ctx.wid, ctx.user.id), 1);
+
+  const refused = await ctx.json('POST', '/api/app/timer/stop', { revision: started.body.revision });
+  assert.equal(refused.status, 403);
+  assert.equal(refused.body, 'User does not have access to this resource.');
+  const v9 = await ctx.json(
+    'PATCH',
+    `/api/v9/workspaces/${ctx.wid}/time_entries/${started.body.running_entry!.id}/stop`,
+  );
+  assert.equal(v9.status, 403);
+  assert.equal((await stored(ctx))[0]?.stop, null);
 });

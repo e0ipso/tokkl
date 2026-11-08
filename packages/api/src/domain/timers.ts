@@ -221,6 +221,8 @@ export function createTimerOperations<R extends EntryRepositories>(runner: Timer
         await checkRevision(ctx, user, revision, now);
         const e = await ctx.entries.running(user.id);
         if (!e) return refusal(ctx, user, now, 'No timer is running');
+        // Like a v9 stop: only a member of the entry's workspace may stop it.
+        await memberWorkspace(ctx, user.id, e.workspaceId);
         await stopEntryAt(ctx, user, e, stop ?? now);
       });
     },
