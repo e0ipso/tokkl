@@ -113,7 +113,7 @@ std::optional<Me> AuthSession::account() const
 ServerApi AuthSession::server() const
 {
     // An account binds only after the announcement of its generation.
-    return hasAccount() && m_announcement.generation == m_generation ? m_announcement.server : ServerApi();
+    return hasAccount() && m_announcement.generation == m_generation && m_announcement.known ? m_announcement.server : ServerApi();
 }
 
 ApiClient &AuthSession::api()
@@ -240,9 +240,9 @@ void AuthSession::authenticate(bool explicitRequest)
     if (!hasAccount()) {
         setState(Connecting);
     }
-    if (m_announcement.generation != m_generation) {
+    if (m_announcement.generation != m_generation || (!m_announcement.pending && !m_announcement.known)) {
         readAnnouncement();
-    } else if (m_announcement.settled) {
+    } else if (!m_announcement.pending) {
         sendMe();
     }
     // Otherwise the read in flight sends /me once it settles.
@@ -250,12 +250,15 @@ void AuthSession::authenticate(bool explicitRequest)
 
 void AuthSession::readAnnouncement()
 {
-    // Once per generation. Its answer never touches the session state: a
-    // failure only means the routes of a server without the announcement,
-    // and a later generation asks again.
-    m_announcement = Announcement{m_generation, false, ServerApi()};
+    // Its answer never touches the session state. Until the server answers,
+    // the routes are those of a server without the announcement, and the
+    // next /me of the generation, such as the retry after a connectivity
+    // failure, asks again. An answer, with the fields or without, or a
+    // refusal holds for the generation.
+    m_announcement = Announcement{m_generation, true, false, ServerApi()};
     m_api.send("GET", instance().app(QStringLiteral("/status")), QByteArray(), [this](const HttpResponse &response) {
-        m_announcement.settled = true;
+        m_announcement.pending = false;
+        m_announcement.known = response.outcome == HttpResponse::Outcome::Finished && response.status < 500;
         m_announcement.server = serverApiFromResponse(response);
         sendMe();
     });

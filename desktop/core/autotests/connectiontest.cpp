@@ -1167,20 +1167,23 @@ private Q_SLOTS:
     void statusFailureAnnouncesNothing_data()
     {
         QTest::addColumn<HttpResponse>("status");
-        QTest::newRow("no answer") << FakeTransport::failure(HttpResponse::Outcome::NetworkError, QStringLiteral("Host unreachable"));
-        QTest::newRow("timeout") << FakeTransport::failure(HttpResponse::Outcome::Timeout);
-        QTest::newRow("not found") << FakeTransport::answer(404, "\"Not found\"");
-        QTest::newRow("unauthorized") << FakeTransport::answer(401, "\"Unauthorized\"");
-        QTest::newRow("rate limited") << FakeTransport::answer(429, "\"Too many requests\"", "120");
-        QTest::newRow("server error") << FakeTransport::answer(503, QByteArray());
-        QTest::newRow("not JSON") << FakeTransport::answer(200, "<html></html>");
+        QTest::addColumn<bool>("askedAgain"); // by the next /me of the generation
+        QTest::newRow("no answer") << FakeTransport::failure(HttpResponse::Outcome::NetworkError, QStringLiteral("Host unreachable")) << true;
+        QTest::newRow("timeout") << FakeTransport::failure(HttpResponse::Outcome::Timeout) << true;
+        QTest::newRow("server error") << FakeTransport::answer(503, QByteArray()) << true;
+        QTest::newRow("not found") << FakeTransport::answer(404, "\"Not found\"") << false;
+        QTest::newRow("unauthorized") << FakeTransport::answer(401, "\"Unauthorized\"") << false;
+        QTest::newRow("rate limited") << FakeTransport::answer(429, "\"Too many requests\"", "120") << false;
+        QTest::newRow("not JSON") << FakeTransport::answer(200, "<html></html>") << false;
     }
 
-    // A failed status read means the v9 routes for this generation. It
-    // never refuses the sign-in, pauses it or starts a cooldown.
+    // A failed status read means the v9 routes. It never refuses the
+    // sign-in, pauses it or starts a cooldown. Without an answer from the
+    // server the next /me asks again; an answer holds for the generation.
     void statusFailureAnnouncesNothing()
     {
         QFETCH(HttpResponse, status);
+        QFETCH(bool, askedAgain);
         Fixture f;
         f.transport.status = status;
         QVERIFY(connectAccount(f));
@@ -1191,6 +1194,50 @@ private Q_SLOTS:
 
         f.connection.fetchPreferences();
         QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/v9/me/preferences"));
+
+        const qsizetype before = f.transport.requests.size();
+        f.connection.refreshAccount();
+        QTRY_COMPARE(f.transport.requests.size(), before + 1);
+        QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/v9/me"));
+        QCOMPARE(f.transport.statusRequests.size(), askedAgain ? 2 : 1);
+        f.transport.respondLast(FakeTransport::answer(200, meBody(3, 7)));
+        QCOMPARE(f.connection.state(), Connection::Connected);
+        QCOMPARE(f.connection.server(), ServerApi());
+    }
+
+    // A status read that found no network, and a /me that failed the same
+    // way: the retry asks for the status again, and its answer picks the
+    // app routes.
+    void statusAskedAgainAfterANetworkFailure()
+    {
+        Fixture f;
+        f.transport.status = FakeTransport::failure(HttpResponse::Outcome::NetworkError, QStringLiteral("Host unreachable"));
+        f.store.secrets.insert(tokenKey(), token);
+        f.connection.setInstanceUrl(instance);
+        QTRY_COMPARE(f.transport.requests.size(), 1);
+        QCOMPARE(f.transport.statusRequests.size(), 1);
+        f.transport.respondLast(FakeTransport::failure(HttpResponse::Outcome::NetworkError, QStringLiteral("Host unreachable")));
+        QCOMPARE(f.connection.state(), Connection::Disconnected);
+        QVERIFY(!f.connection.isConnected());
+
+        // The network is back. refreshAccount() is what the retry timer runs.
+        f.transport.status = FakeTransport::currentStatus();
+        f.connection.refreshAccount();
+        QTRY_COMPARE(f.transport.requests.size(), 2);
+        QCOMPARE(f.transport.statusRequests.size(), 2);
+        f.transport.respondLast(FakeTransport::answer(200, meBody(3, 7)));
+        QCOMPARE(f.connection.state(), Connection::Connected);
+        QVERIFY(f.connection.server().timerActions);
+        QVERIFY(f.connection.server().appPreferences);
+
+        f.connection.fetchPreferences();
+        QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/app/me/preferences"));
+
+        // Known now: the next revalidation sends /me alone.
+        f.connection.refreshAccount();
+        QTRY_COMPARE(f.transport.requests.size(), 4);
+        QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/v9/me"));
+        QCOMPARE(f.transport.statusRequests.size(), 2);
     }
 
     // Once per generation: a revalidation, also one that finds another

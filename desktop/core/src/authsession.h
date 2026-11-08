@@ -24,7 +24,8 @@ namespace Tokkl
 // default workspace to the current generation. Before the first /me of a
 // generation, GET /api/app/status reads what the server announces, so the
 // routes are known once the account is bound. A failed or older answer
-// announces nothing, and the account binds all the same.
+// announces nothing, and the account binds all the same. Until the server
+// answers it, each later /me of the generation asks again first.
 //
 // Changing a setting or the stored secret starts a new generation: the
 // account is cleared at once, requests in flight are aborted, and replies
@@ -122,10 +123,12 @@ private:
         quint64 generation = 0;
         Me me;
     };
-    // The answer to the GET /api/app/status of one generation.
+    // The GET /api/app/status of one generation. known once the server
+    // answered it; no answer, a timeout or a 5xx leaves it unknown.
     struct Announcement {
         quint64 generation = 0;
-        bool settled = false;
+        bool pending = false;
+        bool known = false;
         ServerApi server;
     };
 
