@@ -14,8 +14,7 @@ import { openConnection } from '../../src/storage/connections.ts';
 import { createStorage } from '../../src/storage/index.ts';
 import { openReportReader } from '../../src/storage/repositories/report-reader.ts';
 import { ReportRunner } from '../../src/services/reportRunner.ts';
-import { collectReport } from '../../src/services/reports.ts';
-import { formatReportJob, type ReportJob } from '../../src/services/reportJobs.ts';
+import { runReportJob, type ReportJob } from '../../src/services/reportJobs.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 import { entryAccount } from './support/entry-timer.ts';
 
@@ -108,11 +107,11 @@ for (const backend of ['postgres', 'mysql', 'mariadb'] as const) {
           tagIds: [],
         }),
       );
-      const expected = formatReportJob(await collectReport(storage, user.id, user.defaultWorkspaceId, job.filter), job);
+      const expected = await runReportJob(storage, { userId: user.id, workspaceId: user.defaultWorkspaceId, job });
       const reader = await openReportReader(config);
       try {
         assert.deepEqual(
-          formatReportJob(await collectReport(reader, user.id, user.defaultWorkspaceId, job.filter), job),
+          await runReportJob(reader, { userId: user.id, workspaceId: user.defaultWorkspaceId, job }),
           expected,
         );
         await assert.rejects(

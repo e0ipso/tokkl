@@ -7,9 +7,17 @@ import { createTransactionRunner } from '../../src/storage/transactions.ts';
 import { createReportRepositories } from '../../src/storage/repositories/reports.ts';
 import { entryTimerFactory, entryAccount } from './support/entry-timer.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
-import { collectReport, formatReportEntries } from '../../src/services/reports.ts';
+import {
+  formatReportEntries,
+  readReport,
+  REPORT_BATCH_SIZE,
+  type ReportEntry,
+  type ReportReader,
+} from '../../src/services/reports.ts';
 import type { ReportFilter } from '../../src/domain/reportCommands.ts';
-import { formatReportJob } from '../../src/services/reportJobs.ts';
+import { runReportJob } from '../../src/services/reportJobs.ts';
+import type { ReportEntryProjection } from '../../src/storage/domain.ts';
+import type { ReportCursor } from '../../src/storage/contracts.ts';
 import expectedReports from './support/report-expected.json' with { type: 'json' };
 import type { PhysicalDatabase } from '../../src/storage/physical.ts';
 import type { Backend } from '../../src/storage/config.ts';
@@ -117,10 +125,9 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
       ];
       let expectedIndex = 0;
       for (const filter of filters) {
-        const data = await collectReport(operations, seeded.user.id, seeded.ws.id, filter);
         for (const job of jobs(filter))
           assert.deepEqual(
-            formatReportJob(data, job),
+            await runReportJob(operations, { userId: seeded.user.id, workspaceId: seeded.ws.id, job }),
             expectedReports[expectedIndex++],
             `${backend} ${job.kind} ${JSON.stringify(filter)}`,
           );
@@ -146,16 +153,21 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
           },
         });
         const consistent = createTransactionRunner({ ...connection, db: barrier }, factory);
-        const snapshot = await collectReport(consistent, seeded.user.id, seeded.ws.id, range);
-        const entry = snapshot.entries.find(e => e.projectId === seeded.p.id)!;
+        const everyEntry = async (report: ReportReader) => {
+          const all: ReportEntry[] = [];
+          await report.each(batch => all.push(...batch));
+          return all;
+        };
+        const snapshot = await readReport(consistent, seeded.user.id, seeded.ws.id, range, {}, everyEntry);
+        const entry = snapshot.find(e => e.projectId === seeded.p.id)!;
         assert.equal(changed, true);
         assert.equal(entry.projectName, 'Website');
         assert.ok(entry.tags.some(g => g.name === seeded.tags[0]!.name));
-        const fresh = await collectReport(operations, seeded.user.id, seeded.ws.id, range);
-        assert.equal(fresh.entries.find(e => e.projectId === seeded.p.id)!.projectName, 'Changed project');
-        assert.ok(fresh.entries.some(e => e.tags.some(g => g.name === 'Changed tag')));
+        const fresh = await readReport(operations, seeded.user.id, seeded.ws.id, range, {}, everyEntry);
+        assert.equal(fresh.find(e => e.projectId === seeded.p.id)!.projectName, 'Changed project');
+        assert.ok(fresh.some(e => e.tags.some(g => g.name === 'Changed tag')));
       });
-      // A history larger than the entry-list batching threshold still uses exactly two SELECTs.
+      // A history larger than a read batch is read a batch at a time, two SELECTs per batch.
       const more = Array.from({ length: 1201 }, (_, i) => ({
         workspace_id: seeded.ws.id,
         user_id: seeded.user.id,
@@ -191,14 +203,25 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
       const bounded = createTransactionRunner({ ...connection, db: counted }, db =>
         createReportRepositories(db, backend),
       );
-      const projections = await bounded.readSnapshot(r =>
-        r.reports.collect(seeded.user.id, seeded.ws.id, {
-          from: '2026-10-01T00:00:00.000Z',
-          to: '2026-11-01T00:00:00.000Z',
-        }),
-      );
+      const projections = await bounded.readSnapshot(async r => {
+        const all: ReportEntryProjection[] = [];
+        let after: ReportCursor | undefined;
+        for (;;) {
+          const batch = await r.reports.batch(
+            seeded.user.id,
+            seeded.ws.id,
+            { from: '2026-10-01T00:00:00.000Z', to: '2026-11-01T00:00:00.000Z' },
+            after,
+            REPORT_BATCH_SIZE,
+          );
+          all.push(...batch);
+          if (batch.length < REPORT_BATCH_SIZE) return all;
+          after = { start: batch.at(-1)!.start, id: batch.at(-1)!.id };
+        }
+      });
       assert.equal(projections.length, 1205);
-      assert.equal(count, 2);
+      assert.equal(new Set(projections.map(p => p.id)).size, 1205);
+      assert.equal(count, 2 * Math.ceil(1205 / REPORT_BATCH_SIZE));
       assert.equal(formatReportEntries(projections, seeded.user, seeded.ws, range).length, 1205);
       assert.equal((await sql`select count(*) as n from storage_migrations`.execute(connection.db)).rows.length, 1);
     },

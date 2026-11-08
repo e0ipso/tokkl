@@ -17,7 +17,6 @@ import type { JobResult, ReportJob } from '../../../src/services/reportJobs.ts';
 import {
   appEntry,
   csv,
-  detailedCsv,
   detailedRow,
   json,
   rangeHeaders,
@@ -25,6 +24,15 @@ import {
   summaryGroup,
 } from '../../../src/services/reportRows.ts';
 import { resolutionFor, type Group, type GroupKey, type Resolution } from '../../../src/services/reportAggregates.ts';
+import { toTogglCsv } from '../../../src/services/exports.ts';
+import type { DurationFormat } from '@tokkl/types';
+
+const detailedCsv = (entries: ReportEntry[], user: OracleUser, format: DurationFormat) =>
+  toTogglCsv(
+    entries.map(entry => ({ ...entry, tags: entry.tags.map(tag => tag.name) })),
+    user,
+    format,
+  );
 
 const nullableId = (v: number | string | null) => (v === null ? null : entityId(v));
 

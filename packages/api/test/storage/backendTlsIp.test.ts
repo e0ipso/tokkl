@@ -5,8 +5,7 @@ import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createStorage } from '../../src/storage/index.ts';
 import { openReadConnection } from '../../src/storage/connections.ts';
 import { ReportRunner } from '../../src/services/reportRunner.ts';
-import { collectReport } from '../../src/services/reports.ts';
-import { formatReportJob, type ReportJob } from '../../src/services/reportJobs.ts';
+import { runReportJob, type ReportJob } from '../../src/services/reportJobs.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 import { entryAccount } from './support/entry-timer.ts';
 
@@ -44,7 +43,7 @@ for (const backend of ['postgres', 'mysql', 'mariadb'] as const) {
       try {
         assert.deepEqual(
           await runner.run(user.id, user.defaultWorkspaceId, job),
-          formatReportJob(await collectReport(storage, user.id, user.defaultWorkspaceId, job.filter), job),
+          await runReportJob(storage, { userId: user.id, workspaceId: user.defaultWorkspaceId, job }),
         );
       } finally {
         await runner.close();

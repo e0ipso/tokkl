@@ -3,15 +3,16 @@ import type { StorageConfig } from '../storage/config.ts';
 import { reportRunsInline } from '../storage/repositories/report-reader.ts';
 import { ApplicationError, RequestCancelled, unavailable, type FailureKind } from '../lib/errors.ts';
 import { redactedDiagnostic, silentLogger, type ErrorDiagnostic, type Logger } from '../lib/logger.ts';
-import { collectReport, type ReportSource } from './reports.ts';
+import type { ReportSource } from './reports.ts';
 import type { AccountExportProjection, User } from '../storage/domain.ts';
 import type { Authentication } from '../domain/credentials.ts';
 import {
   formatExportJob,
-  formatReportJob,
+  runReportJob,
   type ExportAssemblyJob,
   type JobResult,
   type ReportJob,
+  type ReportJobWork,
 } from './reportJobs.ts';
 
 /** A queued report usually finishes within a second or two, so a full queue asks for a short wait. */
@@ -33,9 +34,7 @@ interface Pending {
   reject(error: Error): void;
   dispose(): void;
 }
-export type ReportWork =
-  | { userId: number; workspaceId: number; job: ReportJob; authentication?: Authentication }
-  | { data: AccountExportProjection; assembly: ExportAssemblyJob };
+export type ReportWork = ReportJobWork | { data: AccountExportProjection; assembly: ExportAssemblyJob };
 interface Reply {
   id?: number;
   ready?: boolean;
@@ -210,9 +209,7 @@ export class ReportRunner implements ReportExecutor {
       const build =
         'assembly' in work
           ? Promise.resolve().then(() => formatExportJob(work.data, work.assembly))
-          : collectReport(this.inline, work.userId, work.workspaceId, work.job.filter, work.authentication).then(data =>
-              formatReportJob(data, work.job),
-            );
+          : runReportJob(this.inline, work);
       this.inlineWork = build
         .then(result => {
           if (this.active === p) this.finish(p, result);

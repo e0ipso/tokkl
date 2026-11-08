@@ -24,7 +24,7 @@ const READS: { [R in keyof Repositories]: ReadonlyArray<MethodsOf<Repositories[R
   tags: ['list', 'findByIds', 'get', 'findByName'],
   entries: ['list', 'get', 'running', 'bounds', 'listDeleted', 'listAllDay', 'findDuplicate'],
   timers: ['read', 'getSession', 'getPauseChain', 'getRevision', 'affectedUsers'],
-  reports: ['collect'],
+  reports: ['count', 'ids', 'descriptions', 'entries', 'batch'],
   transfers: ['exportAccount'],
 };
 

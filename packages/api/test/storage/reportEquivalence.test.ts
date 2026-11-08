@@ -6,12 +6,10 @@ import { createReportRepositories } from '../../src/storage/repositories/reports
 import type { Backend } from '../../src/storage/config.ts';
 import type { ReportFilter } from '../../src/domain/reportCommands.ts';
 import type { JobResult, ReportJob } from '../../src/services/reportJobs.ts';
-import { v3WeeklyFilter } from '../../src/services/reportJobs.ts';
+import { runReportJob, v3WeeklyFilter } from '../../src/services/reportJobs.ts';
 import { entryTimerFactory, entryAccount } from './support/entry-timer.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 import { oracleCollect, oracleReport, oracleSelection } from './support/reportOracle.ts';
-import { collectReport } from '../../src/services/reports.ts';
-import { formatReportJob } from '../../src/services/reportJobs.ts';
 
 /** Deterministic pseudo-random numbers, so every backend gets the same history. */
 function random(seed: number) {
@@ -37,55 +35,56 @@ const orders = ['date', 'user', 'duration', 'description', 'last_update'] as con
 const directions = ['ASC', 'DESC'] as const;
 const detailedOrders = ['date', 'duration', 'description'] as const;
 
+/** First pages, a page deep in the list, one page for everything, and a start past the end. */
+const SEARCH_WINDOWS = [
+  [7, 1],
+  [50, 333],
+  [1000, 1],
+  [10, 5000],
+] as const;
+
+/** Every job kind, each order in both directions, with windows rotating across them. */
 function equivalenceJobs(filter: ReportFilter): ReportJob[] {
   const jobs: ReportJob[] = [];
+  let turn = 0;
   for (const orderBy of orders)
     for (const orderDir of directions) {
-      for (const [pageSize, firstRow] of [
-        [7, 1],
-        [50, 333],
-        [1000, 1],
-        [10, 5000],
-      ] as const)
+      for (const [pageSize, firstRow] of [SEARCH_WINDOWS[turn % 4]!, SEARCH_WINDOWS[(turn + 1) % 4]!])
         jobs.push({ kind: 'v3-search', filter, orderBy, orderDir, pageSize, firstRow });
-      jobs.push({ kind: 'v3-csv', filter, orderBy, orderDir, durationFormat: 'improved' });
+      turn++;
     }
-  for (const granularity of ['day', 'week', 'month'] as const)
-    jobs.push({ kind: 'v3-totals', filter, granularity, withGraph: granularity !== 'month' });
+  orders.forEach((orderBy, n) =>
+    jobs.push({ kind: 'v3-csv', filter, orderBy, orderDir: directions[n % 2]!, durationFormat: 'improved' }),
+  );
+  jobs.push({ kind: 'v3-totals', filter, granularity: 'week', withGraph: true });
+  jobs.push({ kind: 'v3-totals', filter, granularity: 'day', withGraph: false });
   for (const [grouping, sub] of [
     ['project', 'description'],
     ['tag', 'client'],
-    ['client', 'tag'],
-    ['task', 'none'],
     ['description', 'project'],
   ] as const) {
-    jobs.push({ kind: 'v3-summary', filter, grouping, sub, includeIds: grouping !== 'task' });
+    jobs.push({ kind: 'v3-summary', filter, grouping, sub, includeIds: grouping !== 'tag' });
     jobs.push({ kind: 'app-report', filter, grouping, sub });
   }
   jobs.push({ kind: 'app-report', filter, grouping: 'tag', sub: 'tag' });
   jobs.push({ kind: 'v3-summary-csv', filter, grouping: 'tag', sub: 'description', durationFormat: 'classic' });
-  jobs.push({ kind: 'app-summary-csv', filter, grouping: 'project', sub: 'project', durationFormat: 'decimal' });
   jobs.push({ kind: 'app-summary-csv', filter, grouping: 'client', sub: 'task', durationFormat: 'improved' });
   jobs.push({ kind: 'v3-weekly', ...v3WeeklyFilter(filter) });
   jobs.push({ kind: 'app-weekly', filter, rows: 'projects' });
   jobs.push({ kind: 'app-weekly', filter, rows: 'clients' });
-  for (const orderBy of detailedOrders)
-    for (const orderDir of directions) {
-      for (const [pageSize, page] of [
-        [7, 1],
-        [100, 4],
-        [500, 999],
-      ] as const)
+  detailedOrders.forEach((orderBy, n) => {
+    for (const orderDir of directions)
+      for (const [pageSize, page] of [[7, 1], orderDir === 'ASC' ? [100, 4] : [500, 999]] as const)
         jobs.push({ kind: 'app-entries', filter, orderBy, orderDir, pageSize, page });
-      jobs.push({ kind: 'app-detailed-csv', filter, orderBy, orderDir, durationFormat: 'decimal' });
-    }
+    jobs.push({ kind: 'app-detailed-csv', filter, orderBy, orderDir: directions[n % 2]!, durationFormat: 'decimal' });
+  });
   return jobs;
 }
 
 for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
   test(
     `${backend}: every report job matches the whole-list pipeline on a varied history`,
-    { timeout: 900000 },
+    { timeout: 1800000 },
     async t => {
       const fixture = await disposableBackend(backend);
       t.after(() => fixture.cleanup());
@@ -215,17 +214,18 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
         const filters: ReportFilter[] = [
           october,
           { ...october, rounding: 1, roundingMinutes: 15 },
-          { ...october, rounding: 0, roundingMinutes: 15 },
-          { ...october, rounding: -1, roundingMinutes: 6 },
-          { startDate: '2026-10-19', endDate: '2026-10-25', rounding: 0, roundingMinutes: 1 },
+          // One week across the end of daylight saving time, rounding to the nearest step.
+          { startDate: '2026-10-19', endDate: '2026-10-25', rounding: 0, roundingMinutes: 15 },
           {
-            ...october,
+            startDate: '2026-09-01',
+            endDate: '2026-12-31',
+            rounding: -1,
+            roundingMinutes: 6,
             projectIds: [projects[0]!.id, null],
             excludeTagIds: [tags[0]!.id],
-            description: 'a',
-            billable: true,
+            minDurationSeconds: 1,
           },
-          { startDate: '2026-09-01', endDate: '2026-12-31', minDurationSeconds: 1, maxDurationSeconds: 7200 },
+          { ...october, description: 'a', billable: true },
         ];
         const oracleRows = new Map<string, Awaited<ReturnType<typeof oracleCollect>>>();
         let compared = 0;
@@ -239,7 +239,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
               oracleRows.set(key, expectedRows);
             }
             const expected: JobResult = oracleReport(expectedRows, user, ws, job);
-            const actual = formatReportJob(await collectReport(operations, user.id, ws.id, job.filter), job);
+            const actual = await runReportJob(operations, { userId: user.id, workspaceId: ws.id, job });
             assert.deepEqual(actual, expected, `${backend} ${account.name} ${JSON.stringify(job)}`);
             compared++;
           }

@@ -11,6 +11,52 @@ function epoch(backend: Backend, column: string): RawBuilder<number> {
 export function reportDuration(backend: Backend): RawBuilder<number> {
   return sql<number>`${epoch(backend, 'e.stop')} - ${epoch(backend, 'e.start')}`;
 }
+/** Whole seconds since the epoch of a stored instant, read from its text without the milliseconds. */
+function wholeSeconds(backend: Backend, column: string): RawBuilder<number> {
+  const value = sql`substr(${sql.ref(column)}, 1, 19)`;
+  if (backend === 'sqlite') return sql<number>`unixepoch(${value})`;
+  if (backend === 'postgres') return sql<number>`cast(extract(epoch from cast(${value} as timestamp)) as bigint)`;
+  return sql<number>`timestampdiff(second, '1970-01-01 00:00:00', str_to_date(${value}, '%Y-%m-%dT%H:%i:%s'))`;
+}
+/** The millisecond digits of a stored instant (`YYYY-MM-DDTHH:MM:SS.sssZ`). */
+function millisecondPart(backend: Backend, column: string): RawBuilder<number> {
+  const digits = sql`substr(${sql.ref(column)}, 21, 3)`;
+  return backend === 'mysql' || backend === 'mariadb'
+    ? sql<number>`cast(${digits} as signed)`
+    : sql<number>`cast(${digits} as integer)`;
+}
+/** Integer division rounding toward negative infinity, for a positive integer divisor. */
+function floorDivide(backend: Backend, dividend: RawBuilder<number>, divisor: number): RawBuilder<number> {
+  if (!Number.isSafeInteger(divisor) || divisor < 1) throw new Error('Invalid report divisor');
+  const d = sql.lit(divisor);
+  // Both % operators truncate toward zero; adding the divisor once makes the remainder non-negative.
+  const exact = sql`(${dividend} - ((${dividend} % ${d}) + ${d}) % ${d})`;
+  return backend === 'mysql' || backend === 'mariadb'
+    ? sql<number>`(${exact} div ${d})`
+    : sql<number>`(${exact} / ${d})`;
+}
+/**
+ * The seconds a report shows for an entry: whole elapsed seconds between its stored millisecond
+ * instants, rounded per entry the way report formatting rounds them (`Math.ceil`, `Math.floor` or
+ * `Math.round` to a step of `minutes`).
+ */
+export function reportRoundedSeconds(
+  backend: Backend,
+  rounding: { mode: number; minutes: number },
+): RawBuilder<number> {
+  const elapsedMs = sql<number>`((${wholeSeconds(backend, 'e.stop')} - ${wholeSeconds(backend, 'e.start')}) * 1000 + ${millisecondPart(backend, 'e.stop')} - ${millisecondPart(backend, 'e.start')})`;
+  const seconds = floorDivide(backend, elapsedMs, 1000);
+  if (rounding.minutes <= 0) return seconds;
+  const step = rounding.minutes * 60;
+  const steps =
+    rounding.mode > 0
+      ? floorDivide(backend, sql<number>`(${seconds} + ${sql.lit(step - 1)})`, step)
+      : rounding.mode < 0
+        ? floorDivide(backend, seconds, step)
+        : // Math.round(s / step) is floor(s / step + 1/2), which is floor((2s + step) / 2step).
+          floorDivide(backend, sql<number>`(2 * ${seconds} + ${sql.lit(step)})`, 2 * step);
+  return sql<number>`(${steps} * ${sql.lit(step)})`;
+}
 /** SQLite lower() folds ASCII only. Bind literal text, including %, _ and backslash. */
 export function reportContains(backend: Backend, search: string): RawBuilder<boolean> {
   let value: RawBuilder<unknown> =

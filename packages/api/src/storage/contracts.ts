@@ -299,9 +299,67 @@ export interface ReportSelection {
   minDurationSeconds?: number;
   maxDurationSeconds?: number;
 }
+/**
+ * An order the database applies to selected report entries. Ties go to the entry id, in the same
+ * direction. `duration` sorts on the whole elapsed seconds after `rounding`, as reports show them.
+ */
+export interface ReportOrder {
+  by: 'start' | 'updated' | 'duration';
+  direction: 'ASC' | 'DESC';
+  /** -1 down, 0 nearest, 1 up, to a step of `minutes`; no rounding when `minutes` is 0 or less. */
+  rounding: { mode: number; minutes: number };
+}
+/** Rows skipped from the front of an ordered selection, and how many follow. */
+export interface ReportWindow {
+  offset: number;
+  limit: number;
+}
+/** Where a start/id batch read resumes: just after this entry. */
+export interface ReportCursor {
+  start: UtcInstant;
+  id: Id;
+}
+export interface ReportCounts {
+  entries: number;
+  billable: number;
+  /** Billable entries whose project has its own hourly rate. */
+  billableWithProjectRate: number;
+}
+/**
+ * Stopped, live entries of one user in one workspace that match a selection. Every read is bounded
+ * by its ids, window or batch size, so no call loads the whole selection's projections.
+ */
 export interface ReportsRepository {
-  /** Stopped, live entries ordered by start/id, with ordered tags in bounded relational queries. */
-  collect(userId: Id, workspaceId: Id, selection: ReportSelection): Promise<ReportEntryProjection[]>;
+  count(userId: Id, workspaceId: Id, selection: ReportSelection): Promise<ReportCounts>;
+  /** The selected ids in `order`; all of them without a window. */
+  ids(
+    userId: Id,
+    workspaceId: Id,
+    selection: ReportSelection,
+    order: ReportOrder,
+    window?: ReportWindow,
+  ): Promise<Id[]>;
+  /** Every selected id with its description, unordered, for orders the database cannot collate. */
+  descriptions(
+    userId: Id,
+    workspaceId: Id,
+    selection: ReportSelection,
+  ): Promise<Array<{ id: Id; description: string }>>;
+  /** The selected entries among `ids` with their ordered tags, in the order of `ids`. */
+  entries(
+    userId: Id,
+    workspaceId: Id,
+    selection: ReportSelection,
+    ids: readonly Id[],
+  ): Promise<ReportEntryProjection[]>;
+  /** Up to `limit` selected entries after `after` in start/id order, with their ordered tags. */
+  batch(
+    userId: Id,
+    workspaceId: Id,
+    selection: ReportSelection,
+    after: ReportCursor | undefined,
+    limit: number,
+  ): Promise<ReportEntryProjection[]>;
 }
 export interface TransfersRepository {
   /** All related projections are collected in one consistent read snapshot. */

@@ -9,6 +9,8 @@ import {
   catalogTaskRefQuery,
 } from '../packages/api/src/storage/repositories/catalog-queries.ts';
 import { createReportRepositories } from '../packages/api/src/storage/repositories/reports.ts';
+import type { ReportCursor } from '../packages/api/src/storage/contracts.ts';
+import { REPORT_BATCH_SIZE } from '../packages/api/src/services/reports.ts';
 import { createEntryRepositories } from '../packages/api/src/storage/repositories/entries.ts';
 import { createTransactionRunner } from '../packages/api/src/storage/transactions.ts';
 import { classifyHistoryPlan } from './history-plans.ts';
@@ -101,10 +103,18 @@ export async function inspectHistory(config: StorageConfig, userId: number, wid:
     const operations = createTransactionRunner({ ...c, db: counted }, db =>
       createReportRepositories(db, config.backend),
     );
-    const reportRows = await operations.readSnapshot(r =>
-      r.reports.collect(userId, wid, { from: `${from}T00:00:00.000Z`, to: `${to}T00:00:00.000Z` }),
-    );
-    const report = { rows: reportRows.length, selects: executed.length, queries: executed.splice(0) };
+    const reportRows = await operations.readSnapshot(async r => {
+      const selection = { from: `${from}T00:00:00.000Z`, to: `${to}T00:00:00.000Z` };
+      let rows = 0;
+      let after: ReportCursor | undefined;
+      for (;;) {
+        const batch = await r.reports.batch(userId, wid, selection, after, REPORT_BATCH_SIZE);
+        rows += batch.length;
+        if (batch.length < REPORT_BATCH_SIZE) return rows;
+        after = { start: batch.at(-1)!.start, id: batch.at(-1)!.id };
+      }
+    });
+    const report = { rows: reportRows, selects: executed.length, queries: executed.splice(0) };
     const entries = await createEntryRepositories(counted, config.backend).entries.list(userId, {
       from: `${from}T00:00:00.000Z`,
       to: `${to}T00:00:00.000Z`,

@@ -70,32 +70,34 @@ function localDateTime(iso: string, zone: string): [string, string] {
   const p = zonedParts(new Date(iso), zone);
   return [dateKey(new Date(iso), zone), `${pad2(p.hour)}:${pad2(p.minute)}:${pad2(p.second)}`];
 }
-export function toTogglCsv(
-  items: CsvItem[],
-  user: Pick<ExportUser, 'fullName' | 'email' | 'timezone'>,
-  durationFormat: DurationFormat = 'improved',
-): string {
-  const rows: Array<Array<string | number | null>> = [[...CSV_COLUMNS]];
-  for (const item of items) {
-    const [startDate, startTime] = localDateTime(item.start, user.timezone),
-      [endDate, endTime] = localDateTime(item.stop, user.timezone);
-    rows.push([
-      user.fullName,
-      user.email,
-      item.clientName,
-      item.projectName,
-      item.taskName,
-      item.description,
-      item.billable ? 'Yes' : 'No',
-      startDate,
-      item.allDay ? '' : startTime,
-      endDate,
-      item.allDay ? '' : endTime,
-      formatDuration(item.seconds, durationFormat),
-      item.tags.join(', '),
-    ]);
-  }
-  return toCsv(rows);
+type CsvUser = Pick<ExportUser, 'fullName' | 'email' | 'timezone'>;
+function togglCsvRow(item: CsvItem, user: CsvUser, durationFormat: DurationFormat): Array<string | number | null> {
+  const [startDate, startTime] = localDateTime(item.start, user.timezone),
+    [endDate, endTime] = localDateTime(item.stop, user.timezone);
+  return [
+    user.fullName,
+    user.email,
+    item.clientName,
+    item.projectName,
+    item.taskName,
+    item.description,
+    item.billable ? 'Yes' : 'No',
+    startDate,
+    item.allDay ? '' : startTime,
+    endDate,
+    item.allDay ? '' : endTime,
+    formatDuration(item.seconds, durationFormat),
+    item.tags.join(', '),
+  ];
+}
+/** The header line of Toggl's time entry CSV. */
+export const togglCsvHeader = (): string => toCsv([[...CSV_COLUMNS]]);
+/** The lines of `items` without the header. The header and the chunks concatenate into one CSV. */
+export function togglCsvLines(items: CsvItem[], user: CsvUser, durationFormat: DurationFormat = 'improved'): string {
+  return items.length ? toCsv(items.map(item => togglCsvRow(item, user, durationFormat))) : '';
+}
+export function toTogglCsv(items: CsvItem[], user: CsvUser, durationFormat: DurationFormat = 'improved'): string {
+  return togglCsvHeader() + togglCsvLines(items, user, durationFormat);
 }
 export function assembleCsvExport(
   data: AccountExportProjection,
