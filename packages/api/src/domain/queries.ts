@@ -18,7 +18,6 @@ import type {
   WorkspacesReader,
 } from '../storage/contracts.ts';
 import type {
-  AccountExportProjection,
   AccountToken,
   Client,
   EntryBounds,
@@ -149,7 +148,6 @@ export function createAccountQueries(r: AccountReadRepositories, deploymentSessi
       r.workspaces.getRole(userId, workspaceId),
     workspaceMembers: async (userId: Id, workspaceId: Id): Promise<WorkspaceMember[]> =>
       r.workspaces.listMembers((await memberWorkspace(r, userId, workspaceId)).id),
-    accountExport: (userId: Id): Promise<AccountExportProjection> => r.transfers.exportAccount(userId),
     accounts: (): Promise<User[]> => r.users.list(),
     pendingInvites: (): Promise<AccountToken[]> => r.tokens.listPendingInvites(new Date().toISOString()),
   };

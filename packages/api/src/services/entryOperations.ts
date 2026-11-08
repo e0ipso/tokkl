@@ -14,8 +14,8 @@ import {
   updateTimeEntry,
   type SplitEntries,
 } from '../domain/timeEntries.ts';
+import type { EntryTransactions } from '../domain/entryAccess.ts';
 import type { TimerPublication } from '../domain/timerSettlement.ts';
-import type { Storage } from '../storage/contracts.ts';
 import type { EntryDetails, Id, User } from '../storage/domain.ts';
 
 export interface EntryOperations {
@@ -40,7 +40,11 @@ export interface EntryOperations {
 }
 
 /** `storage` checks the user's credential around each transaction. */
-export function createEntryOperations(storage: Storage, user: User, publish: TimerPublication): EntryOperations {
+export function createEntryOperations(
+  storage: EntryTransactions,
+  user: User,
+  publish: TimerPublication,
+): EntryOperations {
   return {
     create: (wid, entry) => storage.transaction(ctx => createTimeEntry(ctx, user, wid, entry, publish)),
     update: (wid, id, changes) => storage.transaction(ctx => updateTimeEntry(ctx, user, wid, id, changes, publish)),

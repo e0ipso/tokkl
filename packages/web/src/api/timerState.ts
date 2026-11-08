@@ -91,6 +91,19 @@ export function explainTimerActionError(error: unknown): unknown {
 }
 
 /**
+ * Runs a request that writes the timer outside the timer actions, such as the finished entry typed
+ * into the idle bar. A request that got no reply fails with the offline `TimerActionError`, as a
+ * timer action does; other failures pass through.
+ */
+export async function attemptTimerRequest<T>(request: () => Promise<T>): Promise<T> {
+  try {
+    return await request();
+  } catch (error) {
+    throw explainTimerActionError(error);
+  }
+}
+
+/**
  * Mutation meta for a write that can move the timer revision: any entry write, and an edit of what
  * the running entry shows (its project, client, task or tags) or an import. Timer actions wait for
  * these writes and for no others, so a preference, profile or admin save never holds one up.

@@ -33,20 +33,31 @@ export interface BulkEditOptions {
   onDone?: () => void;
 }
 
-/** Applies JSON Patch operations to several entries in one request and reports the reply in a toast. */
-export function useBulkEdit(): (ids: number[], operations: PatchOperation[], options?: BulkEditOptions) => void {
+/**
+ * Applies JSON Patch operations to several entries in one request and reports the reply in a toast.
+ * The promise settles with the request, for a caller that keeps other actions out until then; it
+ * never rejects, because the toast already reports a failure.
+ */
+export function useBulkEdit(): (
+  ids: number[],
+  operations: PatchOperation[],
+  options?: BulkEditOptions,
+) => Promise<void> {
   const bulk = useBulkPatch();
   const toast = useToast();
   return (ids, operations, { success, onDone } = {}) =>
-    bulk.mutate(
-      { ids, operations },
-      {
-        onSuccess: result => {
-          const message = bulkEditMessage(result, success);
-          if (message) toast.show(message.text, { kind: message.kind });
-          onDone?.();
+    new Promise(resolve => {
+      bulk.mutate(
+        { ids, operations },
+        {
+          onSuccess: result => {
+            const message = bulkEditMessage(result, success);
+            if (message) toast.show(message.text, { kind: message.kind });
+            onDone?.();
+          },
+          onError: toast.error,
+          onSettled: () => resolve(),
         },
-        onError: toast.error,
-      },
-    );
+      );
+    });
 }

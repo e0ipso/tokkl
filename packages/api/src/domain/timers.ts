@@ -1,6 +1,7 @@
 /**
- * Timer actions: pause, resume and discard a pause chain, and run a Pomodoro session. Each action
- * checks the revision the client saw and answers with the view as committed.
+ * Timer actions: start and stop the timer, pause, resume and discard a pause chain, and run a
+ * Pomodoro session. Each action checks the revision the client saw and answers with the view as
+ * committed.
  */
 import { nextPhase, startSession, type PomodoroSessionConfig } from '@tokkl/common/pomodoroSession';
 import type { OperationContext } from '../storage/contracts.ts';
@@ -29,6 +30,16 @@ export interface StartPomodoro {
   entry: Omit<NewEntry, 'allDay' | 'times' | 'workspaceId'>;
 }
 
+export interface StartTimer {
+  /** The timer revision the client saw. */
+  revision: number;
+  /** The workspace of the new entry; the default workspace when absent or null. */
+  workspaceId?: Id | null;
+  /** When the entry starts; now when absent. */
+  start?: Date;
+  entry: Omit<NewEntry, 'allDay' | 'times' | 'workspaceId'>;
+}
+
 /** A refused timer action. It carries the current view, so the client can catch up without another read. */
 export class TimerRefusal extends StateConflict<TimerView> {}
 async function refusal(ctx: EntryContext, user: User, now: Date, message: string): Promise<never> {
@@ -50,11 +61,11 @@ async function pausedAt(ctx: EntryContext, user: User, revision: number, now: Da
   if (!c || c.cloneEntryId !== null) return refusal(ctx, user, now, 'The timer is not paused');
   return c;
 }
-/** A running entry that starts `now`, in whole seconds. */
-const runningFrom = (now: Date, labels: StartPomodoro['entry']): NewEntry => ({
+/** A running entry that starts at `start`, in whole seconds. */
+const runningFrom = (start: Date, labels: StartPomodoro['entry']): NewEntry => ({
   ...labels,
   allDay: false,
-  times: { start: wholeSeconds(now) },
+  times: { start: wholeSeconds(start) },
 });
 const copiedLabels = (e: EntryDetails): StartPomodoro['entry'] => ({
   description: e.description,
@@ -163,6 +174,33 @@ export function createTimerOperations<R extends EntryRepositories>(runner: Timer
   return {
     async getTimerState(userId: Id, now = new Date()): Promise<TimerView> {
       return action(userId, now, async () => {});
+    },
+    /**
+     * Starts a running entry the way a v9 create does: a running timer stops at the new start,
+     * and a Pomodoro session or pause chain it belonged to ends.
+     */
+    async startTimer(userId: Id, start: StartTimer, now = new Date()): Promise<TimerView> {
+      const explicit = start.workspaceId;
+      return action(
+        userId,
+        now,
+        async (ctx, user) => {
+          await checkRevision(ctx, user, start.revision, now);
+          const entry = runningFrom(start.start ?? now, start.entry);
+          await createTimeEntry(ctx, user, explicit ?? user.defaultWorkspaceId, entry, publish);
+        },
+        explicit ? [explicit] : [],
+        !explicit,
+      );
+    },
+    /** Stops the running entry at `stop`, or now, the way a v9 stop does. */
+    async stopTimer(userId: Id, revision: number, stop?: Date, now = new Date()): Promise<TimerView> {
+      return action(userId, now, async (ctx, user) => {
+        await checkRevision(ctx, user, revision, now);
+        const e = await ctx.entries.running(user.id);
+        if (!e) return refusal(ctx, user, now, 'No timer is running');
+        await stopEntryAt(ctx, user, e, stop ?? now);
+      });
     },
     async startPomodoro(userId: Id, start: StartPomodoro, now = new Date()): Promise<TimerView> {
       const explicit = start.workspaceId;

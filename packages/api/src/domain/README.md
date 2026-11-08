@@ -8,3 +8,8 @@ Two kinds of code touch storage. A `create*Operations` factory takes a runner (`
 `TimerRunner`) and each of its methods opens one transaction. A function that takes an
 `OperationContext` (`EntryContext`, `CatalogContext`) runs in the transaction its caller opened.
 The context has no `transaction` method, so it cannot start another one.
+
+A dependency parameter names only what the code calls. `getEntryIn` takes `{ entries: { get } }`,
+`stopEntryAt` the settings reader and `entries.update`, and the entry and catalog services take an
+`EntryTransactions` runner whose transactions hold the entry repositories only. A `Storage` fits
+each of these, and so does a test double that offers just the named methods.

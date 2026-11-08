@@ -5,7 +5,7 @@ import type { Repositories } from '../contracts.ts';
 import type { AccountExportProjection, MembershipRole, UserRole } from '../domain.ts';
 import { entityId, finiteNumber, jsonObject, safeInteger, utcInstant } from '../conversion.ts';
 import { catalogProjectQuery, catalogTaskQuery, client, projectSummary, tag, taskSummary } from './catalog-queries.ts';
-import { createEntryRepositories } from './entries.ts';
+import { createEntryRepositories, liveEntryPage } from './entries.ts';
 
 type Db = Kysely<PhysicalDatabase>;
 type Projection<K extends keyof AccountExportProjection> = Promise<AccountExportProjection[K]>;
@@ -124,21 +124,27 @@ async function exportedTags(db: Db, scope: Scope): Projection<'tags'> {
 
 /** The caller owns the consistent snapshot; every projection uses this supplied handle. */
 export function createTransferRepositories(db: Db, backend: Backend): Pick<Repositories, 'transfers'> {
+  // One projection at a time, in this order, on the caller's connection.
+  async function exportHead(userId: number) {
+    const user = await exportedUser(db, userId);
+    const memberships = await exportedMemberships(db, userId);
+    const scope = memberScope(db, userId);
+    const workspaces = await exportedWorkspaces(db, scope);
+    const clients = await exportedClients(db, scope);
+    const projects = await exportedProjects(db, backend, scope);
+    const tasks = await exportedTasks(db, backend, scope);
+    const tags = await exportedTags(db, scope);
+    return { user, memberships, workspaces, clients, projects, tasks, tags };
+  }
   return {
     transfers: {
-      // One projection at a time, in this order, on the caller's connection.
       async exportAccount(userId): Promise<AccountExportProjection> {
-        const user = await exportedUser(db, userId);
-        const memberships = await exportedMemberships(db, userId);
-        const scope = memberScope(db, userId);
-        const workspaces = await exportedWorkspaces(db, scope);
-        const clients = await exportedClients(db, scope);
-        const projects = await exportedProjects(db, backend, scope);
-        const tasks = await exportedTasks(db, backend, scope);
-        const tags = await exportedTags(db, scope);
+        const head = await exportHead(userId);
         const entries = await createEntryRepositories(db, backend).entries.list(userId);
-        return { user, memberships, workspaces, clients, projects, tasks, tags, entries };
+        return { ...head, entries };
       },
+      exportHead,
+      exportEntries: (userId, order, after, limit) => liveEntryPage(db, userId, order === 'newest', after, limit),
     },
   };
 }

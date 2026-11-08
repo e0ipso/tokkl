@@ -5,6 +5,7 @@
  * failed request does and the view shows its usual load error.
  */
 
+import { isFiniteNumber, isInstant, isSafeInteger } from '@tokkl/common/validators';
 import { t } from '../i18n/messages.ts';
 
 /** Checks a parsed JSON value against `T`, or throws. `at` names the value in the error message. */
@@ -31,8 +32,20 @@ function fail(at: string, expected: string): never {
 export const string: Decoder<string> = (value, at = ROOT) =>
   typeof value === 'string' ? value : fail(at, t('api.expectText'));
 
+/** A finite number, such as an amount or a length in seconds. */
 export const number: Decoder<number> = (value, at = ROOT) =>
-  typeof value === 'number' ? value : fail(at, t('api.expectNumber'));
+  isFiniteNumber(value) ? value : fail(at, t('api.expectNumber'));
+
+/** A whole number the client can count with exactly, such as an id, a revision or a page number. */
+export const integer: Decoder<number> = (value, at = ROOT) =>
+  isSafeInteger(value) ? value : fail(at, t('api.expectInteger'));
+
+/**
+ * An RFC 3339 instant with seconds and a zone, such as an entry's start or the server's clock. A
+ * date without a time (YYYY-MM-DD) is plain `string`.
+ */
+export const instant: Decoder<string> = (value, at = ROOT) =>
+  isInstant(value) ? value : fail(at, t('api.expectInstant'));
 
 export const boolean: Decoder<boolean> = (value, at = ROOT) =>
   typeof value === 'boolean' ? value : fail(at, t('api.expectBoolean'));

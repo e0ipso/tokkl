@@ -9,6 +9,7 @@ import { dateKey } from '@tokkl/common/time';
 import { serializeTimeEntry } from '../presenters/toggl.ts';
 import { parseEntrySplit } from '../commands/timeEntries.ts';
 import { readJson } from '../http/request.ts';
+import { streamDownload } from '../http/download.ts';
 import { getPreferences } from '../domain/accountValues.ts';
 import { parsePreferenceChanges } from '../commands/accounts.ts';
 
@@ -84,35 +85,35 @@ export function appRoutes(deps: AppRouteDeps): Router {
     if (!deleted) throw notFound('Time entry not found in trash');
     return res.json({ deleted });
   });
+  // Exports stream: headers go out with the first piece, once the credential and range were checked.
   app.get('/export.json', auth, async (_req, res) => {
     const instant = new Date().toISOString();
-    const result = await deps.exportAccount(
-      res.locals.auth,
-      { kind: 'export-json', exportedAt: instant, filename: `tokkl-${instant.slice(0, 10)}.json` },
-      { signal: res.locals.workSignal },
+    const filename = `tokkl-${instant.slice(0, 10)}.json`;
+    const headers = {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+    };
+    await streamDownload(res, headers, output =>
+      deps.exportAccount(res.locals.auth, { kind: 'export-json', exportedAt: instant, filename }, output, {
+        signal: res.locals.workSignal,
+      }),
     );
-    res
-      .set(result.headers)
-      .type('json')
-      .set('Content-Disposition', `attachment; filename="${result.filename}"`)
-      .send(result.body);
   });
   app.get('/export.csv', auth, async (req, res) => {
-    const result = await deps.exportAccount(
-      res.locals.auth,
-      {
-        kind: 'export-csv',
-        range: { from: query(req, 'start_date'), to: query(req, 'end_date') },
-        filename: `tokkl-entries-${new Date().toISOString().slice(0, 10)}.csv`,
-        durationFormat: 'improved',
-      },
-      { signal: res.locals.workSignal },
+    const filename = `tokkl-entries-${new Date().toISOString().slice(0, 10)}.csv`;
+    const assembly = {
+      kind: 'export-csv',
+      range: { from: query(req, 'start_date'), to: query(req, 'end_date') },
+      filename,
+      durationFormat: 'improved',
+    } as const;
+    const headers = {
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+    };
+    await streamDownload(res, headers, output =>
+      deps.exportAccount(res.locals.auth, assembly, output, { signal: res.locals.workSignal }),
     );
-    res
-      .set(result.headers)
-      .set('Content-Type', 'text/csv; charset=utf-8')
-      .set('Content-Disposition', `attachment; filename="${result.filename}"`)
-      .send(result.body);
   });
   return app;
 }

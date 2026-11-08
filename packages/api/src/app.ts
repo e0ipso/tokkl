@@ -3,7 +3,7 @@ import type { Config } from './config.ts';
 import type { Storage } from './storage/contracts.ts';
 import { standaloneRateLimits } from './storage/index.ts';
 import { createApplicationServices } from './services/application.ts';
-import { ReportRunner } from './services/reportRunner.ts';
+import { ReportRunner, type ReportExecutor } from './services/reportRunner.ts';
 import { createLocalTimerBus, type TimerBus } from './storage/timerBus.ts';
 import type { Deps } from './routes/context.ts';
 import { ADDRESS_LIMIT, FailureLimiter, PASSWORD_WINDOW_MS, SETUP_CODE_LIMIT } from './auth/rateLimit.ts';
@@ -32,6 +32,8 @@ export interface AppOptions {
   timerBus?: TimerBus;
   /** Where request failures and background errors are logged. Defaults to JSON lines on stdout/stderr. */
   logger?: Logger;
+  /** Runs reports and exports. Defaults to a `ReportRunner` on `config.storage`. The app closes it. */
+  reports?: ReportExecutor;
 }
 
 export function createApp({
@@ -41,6 +43,7 @@ export function createApp({
   timerStreamOptions,
   timerBus = createLocalTimerBus(),
   logger = createLogger({ level: config.logLevel }),
+  reports,
 }: AppOptions): Express {
   const app = express();
   const rateLimits = standaloneRateLimits(storage);
@@ -48,7 +51,7 @@ export function createApp({
   // The composition root: framework-free services plus the HTTP adapters the routers share.
   const services = createApplicationServices({
     storage,
-    reports: new ReportRunner(config.storage, storage, { logger }),
+    reports: reports ?? new ReportRunner(config.storage, storage, { logger }),
     streamOptions: timerStreamOptions,
     bus: timerBus,
     logger,

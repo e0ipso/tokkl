@@ -58,7 +58,7 @@ export function EntryLine({
   const toast = useToast();
 
   const patch = (operations: PatchOperation[]) =>
-    bulkEdit(
+    void bulkEdit(
       entries.map(e => e.id),
       operations,
     );
