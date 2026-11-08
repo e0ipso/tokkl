@@ -95,34 +95,40 @@ function isFavorite(value: unknown): boolean {
   );
 }
 
-/** Known preferences Tokkl's clients read, with the values they can use. Other keys are stored as sent. */
-const PREFERENCE_RULES: Record<string, PreferenceRule> = {
-  date_format: format,
-  timeofday_format: format,
-  duration_format: oneOf('improved', 'classic', 'decimal'),
-  theme: oneOf('system', 'light', 'dark'),
-  timerView: oneOf('list', 'calendar'),
-  collapseTimeEntries: boolean,
-  manualMode: boolean,
-  keyboard_shortcuts_enabled: boolean,
-  showTimeInTitle: boolean,
-  pomodoro_focus_interval_in_minutes: pomodoroRange('workMinutes'),
-  pomodoro_break_interval_in_minutes: pomodoroRange('shortRestMinutes'),
-  pomodoro_long_break_interval_in_minutes: pomodoroRange('longRestMinutes'),
-  pomodoro_long_break_every: pomodoroRange('longRestEvery'),
-  long_timer_reminder_enabled: boolean,
-  long_timer_reminder_hours: integerFrom(1, 168),
-  favorites: {
-    valid: value => Array.isArray(value) && value.length <= MAX_FAVORITES && value.every(isFavorite),
-    expected: `a list of at most ${MAX_FAVORITES} favorites with description, project_id, task_id, tags and billable`,
-  },
-};
+/**
+ * Known preferences Tokkl's clients read, with the values they can use. Other keys are stored as
+ * sent. A Map, so a key such as `constructor` finds no inherited rule.
+ */
+const PREFERENCE_RULES = new Map<string, PreferenceRule>(
+  Object.entries({
+    date_format: format,
+    timeofday_format: format,
+    duration_format: oneOf('improved', 'classic', 'decimal'),
+    theme: oneOf('system', 'light', 'dark'),
+    timerView: oneOf('list', 'calendar'),
+    collapseTimeEntries: boolean,
+    manualMode: boolean,
+    keyboard_shortcuts_enabled: boolean,
+    showTimeInTitle: boolean,
+    pomodoro_focus_interval_in_minutes: pomodoroRange('workMinutes'),
+    pomodoro_break_interval_in_minutes: pomodoroRange('shortRestMinutes'),
+    pomodoro_long_break_interval_in_minutes: pomodoroRange('longRestMinutes'),
+    pomodoro_long_break_every: pomodoroRange('longRestEvery'),
+    long_timer_reminder_enabled: boolean,
+    long_timer_reminder_hours: integerFrom(1, 168),
+    favorites: {
+      valid: value => Array.isArray(value) && value.length <= MAX_FAVORITES && value.every(isFavorite),
+      expected: `a list of at most ${MAX_FAVORITES} favorites with description, project_id, task_id, tags and billable`,
+    },
+  } satisfies Record<string, PreferenceRule>),
+);
 
-const isUsable = (key: string, value: unknown) => PREFERENCE_RULES[key]?.valid(value) ?? true;
+const isUsable = (key: string, value: unknown) => PREFERENCE_RULES.get(key)?.valid(value) ?? true;
 
 /** Why a preference value is unusable, as the 400 message, or undefined when the app can use it. */
 export function preferenceProblem(key: string, value: unknown): string | undefined {
-  return isUsable(key, value) ? undefined : `Invalid ${key}: expected ${PREFERENCE_RULES[key]!.expected}`;
+  const rule = PREFERENCE_RULES.get(key);
+  return !rule || rule.valid(value) ? undefined : `Invalid ${key}: expected ${rule.expected}`;
 }
 
 export function getPreferences(user: User): Preferences {

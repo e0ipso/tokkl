@@ -20,7 +20,7 @@ kk_relates_to:
 kk_depends_on: []
 kk_confidence: high
 ---
-`PREFERENCE_RULES` in `packages/api/src/domain/accountValues.ts` lists the preference keys Tokkl clients read and the values they can render: date and time-of-day formats, `duration_format`, `theme`, `timerView`, the boolean toggles, `favorites` (at most `MAX_FAVORITES`), and the four Pomodoro length keys. `parsePreferenceChanges` in `packages/api/src/commands/accounts.ts` answers 400 for a known key with an unusable value. Keys not in the table are stored as sent, so Toggl clients can keep their own settings.
+`PREFERENCE_RULES` in `packages/api/src/domain/accountValues.ts` lists the preference keys Tokkl clients read and the values they can render: date and time-of-day formats, `duration_format`, `theme`, `timerView`, the boolean toggles, `favorites` (at most `MAX_FAVORITES`), and the four Pomodoro length keys. `parsePreferenceChanges` in `packages/api/src/commands/accounts.ts` answers 400 for a known key with an unusable value. Keys not in the table are stored as sent, so Toggl clients can keep their own settings. The table is a `Map`, so `constructor`, `__proto__`, `toString` and other names every object inherits are unknown keys too, stored and read back like the rest. Look up any client-supplied name in a `Map` or behind `Object.hasOwn`, never by indexing a plain object: `GROUPINGS` in `commands/reports.ts` and `PATCH_FIELDS` in `commands/timeEntries.ts` check own names for the same reason.
 
 `getPreferences` drops stored values that fail their rule and falls back to `DEFAULT_PREFERENCES`, so values saved before validation existed never reach clients. A new preference the UI depends on needs a rule and a default here.
 

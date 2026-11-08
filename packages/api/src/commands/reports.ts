@@ -130,7 +130,8 @@ const GROUPINGS: Readonly<Record<string, Dimension>> = {
 /** A grouping by its request name, `fallback` when absent or empty; the name and the dimension. */
 export function parseGrouping(value: unknown, fallback: string, field: string): [string, Dimension] {
   const name = value === undefined || value === null || value === '' ? fallback : String(value);
-  const dim = GROUPINGS[name];
+  // Own names only: `constructor` or `toString` is no grouping.
+  const dim = Object.hasOwn(GROUPINGS, name) ? GROUPINGS[name] : undefined;
   if (!dim) throw invalidInput(`Invalid '${field}' value, allowed values are: '${Object.keys(GROUPINGS).join(', ')}'`);
   return [name, dim];
 }

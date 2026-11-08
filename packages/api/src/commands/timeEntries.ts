@@ -137,7 +137,8 @@ const PATCH_FIELDS: Readonly<Record<string, string>> = {
 
 /** The update body one JSON Patch operation stands for. */
 function operationBody(op: string, path: string, value: unknown): JsonBody {
-  const field = PATCH_FIELDS[path];
+  // Own paths only: `constructor` or `__proto__` is no field.
+  const field = Object.hasOwn(PATCH_FIELDS, path) ? PATCH_FIELDS[path] : undefined;
   if (!field) throw invalidInput(`Unsupported path ${path}`);
   if (!['add', 'remove', 'replace'].includes(op)) throw invalidInput(`Unsupported operation ${op}`);
   if (field === 'tags' || field === 'tag_ids') {
