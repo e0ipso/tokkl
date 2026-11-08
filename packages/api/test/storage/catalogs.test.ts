@@ -163,6 +163,19 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
             ['%_\\'],
           );
         }
+        // A range pages the same order in SQL: every slice equals that slice of the full list.
+        const allProjects = await runner.readSnapshot(r => r.projects.list(1));
+        assert.ok(allProjects.length >= 3);
+        for (const range of [
+          { offset: 0, limit: 1 },
+          { offset: 1, limit: 2 },
+          { offset: allProjects.length - 1, limit: 5 },
+          { offset: allProjects.length, limit: 5 },
+        ])
+          assert.deepEqual(
+            await runner.readSnapshot(r => r.projects.list(1, {}, range)),
+            allProjects.slice(range.offset, range.offset + range.limit),
+          );
         assert.deepEqual(
           (await runner.readSnapshot(r => r.tags.list(1))).map(r => r.name),
           ['%_\\', 'Name', 'Name ', 'É', 'é'],

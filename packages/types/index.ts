@@ -28,8 +28,20 @@ export type UserRole = 'admin' | 'user';
  *   actions under `/api/app/timer` and `/api/app/pomodoro`.
  * - `timer-edit`: `POST /api/app/timer/edit`.
  * - `pomodoro-revision`: `POST /api/app/pomodoro` checks an optional `revision`.
+ * - `pause-revision`: `POST /api/app/timer/pause` checks an optional `revision`.
+ * - `timer-edit-entry`: `POST /api/app/timer/edit` takes `entry_id` in place of, or next to,
+ *   `revision`, and an optional `start`.
+ * - `idempotency-keys`: the v9 time entry, client, project, task and tag creates, timer start,
+ *   Pomodoro start and entry split take an `Idempotency-Key` header.
  */
-export type ServerCapability = 'app-preferences' | 'timer-actions' | 'timer-edit' | 'pomodoro-revision';
+export type ServerCapability =
+  | 'app-preferences'
+  | 'timer-actions'
+  | 'timer-edit'
+  | 'pomodoro-revision'
+  | 'pause-revision'
+  | 'timer-edit-entry'
+  | 'idempotency-keys';
 
 /**
  * Tokkl only, in `GET /api/v9/me`: what this server's API offers. A client tests a capability
@@ -429,6 +441,23 @@ export interface JsonRestoreResult {
  */
 export interface AppStatus extends ServerApi {
   setup_required: boolean;
+  /** The Pomodoro session lengths `POST /api/app/pomodoro` and the preferences accept. */
+  pomodoro_limits: PomodoroLimits;
+}
+
+/** The inclusive range of whole numbers one Pomodoro length accepts, and the length a new account starts with. */
+export interface PomodoroLimit {
+  min: number;
+  max: number;
+  default: number;
+}
+
+/** One limit per length, named as `POST /api/app/pomodoro` names the length. */
+export interface PomodoroLimits {
+  work_minutes: PomodoroLimit;
+  short_rest_minutes: PomodoroLimit;
+  long_rest_minutes: PomodoroLimit;
+  long_rest_every: PomodoroLimit;
 }
 
 /** POST /api/app/admin/invites: the new invite, with the only copy of its link. */

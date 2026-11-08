@@ -176,6 +176,15 @@ export interface TimerStatesRow {
   discarded_entry_id: Int | null;
   discarded_start: string | null;
   discarded_stop: string | null;
+  session_entry_id: Int | null;
+}
+
+export interface IdempotencyKeysRow {
+  key_hash: string;
+  user_id: Int;
+  fingerprint: string;
+  result_id: Int;
+  created_at: string;
 }
 
 export interface RateLimitCountersRow {
@@ -208,5 +217,6 @@ export interface PhysicalDatabase {
   timer_states: TimerStatesRow;
   rate_limit_counters: RateLimitCountersRow;
   rate_limit_reservations: RateLimitReservationsRow;
+  idempotency_keys: IdempotencyKeysRow;
   storage_migrations: { version: Int; name: string; checksum: string; state: string; schema_hash: string | null };
 }

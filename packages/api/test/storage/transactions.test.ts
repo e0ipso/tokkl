@@ -3,7 +3,13 @@ import { test } from 'node:test';
 import { type Kysely } from 'kysely';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import type { PhysicalDatabase } from '../../src/storage/physical.ts';
-import { createTransactionRunner } from '../../src/storage/transactions.ts';
+import { StorageConflict } from '../../src/storage/errors.ts';
+import {
+  createTransactionRunner,
+  RETRY_BASE_DELAY_MS,
+  RETRY_MAX_DELAY_MS,
+  retryDelay,
+} from '../../src/storage/transactions.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 
 function repositoryFactory(db: Kysely<PhysicalDatabase>) {
@@ -148,3 +154,58 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
     },
   );
 }
+
+test('sqlite: a conflicted attempt reruns after a bounded, jittered wait', async () => {
+  const fixture = await disposableBackend('sqlite');
+  const connection = await initializeDatabase(fixture.config);
+  const waits: number[] = [];
+  const shares = [0, 0.5, 0.999];
+  const runner = createTransactionRunner(connection, repositoryFactory, {
+    random: () => shares.shift()!,
+    async sleep(milliseconds) {
+      waits.push(milliseconds);
+    },
+  });
+  try {
+    let attempts = 0;
+    await runner.transaction(
+      async ctx => {
+        await ctx.settings.put(`retry-${attempts}`, 'yes');
+        if (++attempts < 4) throw new StorageConflict(attempts === 2 ? 'deadlock' : 'serialization');
+      },
+      { maxAttempts: 4 },
+    );
+    assert.equal(attempts, 4);
+    assert.deepEqual(waits, [RETRY_BASE_DELAY_MS / 2, RETRY_BASE_DELAY_MS * 1.5, RETRY_BASE_DELAY_MS * 4 * 0.9995]);
+    // A conflict that is not retryable, or one on the last attempt, fails without waiting.
+    await assert.rejects(
+      runner.transaction(async () => {
+        throw new StorageConflict('unique');
+      }),
+    );
+    await assert.rejects(
+      runner.transaction(
+        async () => {
+          throw new StorageConflict('serialization');
+        },
+        { maxAttempts: 1 },
+      ),
+    );
+    assert.equal(waits.length, 3);
+  } finally {
+    await connection.close();
+    await fixture.cleanup();
+  }
+});
+
+test('retry waits double from the base and never pass the cap', () => {
+  for (let failed = 1; failed <= 10; failed++) {
+    const ceiling = Math.min(RETRY_MAX_DELAY_MS, RETRY_BASE_DELAY_MS * 2 ** (failed - 1));
+    assert.equal(
+      retryDelay(failed, () => 0),
+      ceiling / 2,
+    );
+    assert.ok(retryDelay(failed, () => 0.9999) < ceiling);
+    assert.ok(retryDelay(failed, () => 7) <= RETRY_MAX_DELAY_MS);
+  }
+});

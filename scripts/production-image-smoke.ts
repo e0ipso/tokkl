@@ -15,6 +15,13 @@ assert.equal(
 const image = args[1];
 assert.ok(image && !image.startsWith('-'), 'A built production image is required');
 const backends = ['sqlite', 'postgres', 'mysql', 'mariadb'] as const;
+/** The Pomodoro limits GET /api/app/status names. */
+const POMODORO_LIMITS = {
+  work_minutes: { min: 1, max: 180, default: 25 },
+  short_rest_minutes: { min: 1, max: 60, default: 5 },
+  long_rest_minutes: { min: 1, max: 60, default: 15 },
+  long_rest_every: { min: 1, max: 12, default: 4 },
+};
 assert.ok(
   args.length === 2 || (args.length === 4 && args[2] === '--backend' && backends.some(b => b === args[3])),
   'Invalid backend selection',
@@ -216,7 +223,16 @@ for (const backend of backends.filter(b => !args[3] || b === args[3])) {
     assert.deepEqual(await (await fetch(base + '/api/app/status')).json(), {
       setup_required: true,
       api_version: 1,
-      capabilities: ['app-preferences', 'timer-actions', 'timer-edit', 'pomodoro-revision'],
+      capabilities: [
+        'app-preferences',
+        'timer-actions',
+        'timer-edit',
+        'pomodoro-revision',
+        'pause-revision',
+        'timer-edit-entry',
+        'idempotency-keys',
+      ],
+      pomodoro_limits: POMODORO_LIMITS,
     });
     const setup = await fetch(base + '/api/app/setup', {
       method: 'POST',
@@ -253,7 +269,7 @@ for (const backend of backends.filter(b => !args[3] || b === args[3])) {
     const seed = `import { loadConfig } from './packages/api/src/config.ts'; import { initializeDatabase } from './packages/api/src/storage/migrations.ts'; const c=await initializeDatabase(loadConfig().config.storage); try { for(let offset=0;offset<30000;offset+=100) await c.db.insertInto('time_entries').values(Array.from({length:100},(_,i)=>({user_id:${me.id},workspace_id:${me.default_workspace_id},project_id:null,task_id:null,description:'image history '+(offset+i),start:'2026-10-05T10:00:00.000Z',stop:'2026-10-05T11:00:00.000Z',billable:0,duronly:0,all_day:0,deleted_at:null,created_with:'image-smoke',created_at:'2026-10-05T10:00:00.000Z',updated_at:'2026-10-05T11:00:00.000Z'}))).execute(); console.log(JSON.stringify({rows:Number((await c.db.selectFrom('time_entries').select(c.db.fn.countAll().as('n')).executeTakeFirstOrThrow()).n),migrations:await c.db.selectFrom('storage_migrations').selectAll().execute()})); } finally { await c.close(); }`;
     const seeded = JSON.parse(await docker(['exec', app, 'node', '--input-type=module', '-e', seed]));
     assert.equal(seeded.rows, 30000);
-    assert.equal(seeded.migrations.length, 5);
+    assert.equal(seeded.migrations.length, 7);
     event('seeded', seeded);
     const running = await json<{ id: number }>(`/api/v9/workspaces/${me.default_workspace_id}/time_entries`, 'POST', {
       description: 'persisted image timer',
@@ -344,7 +360,16 @@ for (const backend of backends.filter(b => !args[3] || b === args[3])) {
     assert.deepEqual(await json('/api/app/status'), {
       setup_required: false,
       api_version: 1,
-      capabilities: ['app-preferences', 'timer-actions', 'timer-edit', 'pomodoro-revision'],
+      capabilities: [
+        'app-preferences',
+        'timer-actions',
+        'timer-edit',
+        'pomodoro-revision',
+        'pause-revision',
+        'timer-edit-entry',
+        'idempotency-keys',
+      ],
+      pomodoro_limits: POMODORO_LIMITS,
     });
     assert.equal((await json<{ id: number }>('/api/v9/me')).id, me.id);
     assert.equal((await json<{ running_entry: { id: number } }>('/api/app/timer')).running_entry.id, running.id);

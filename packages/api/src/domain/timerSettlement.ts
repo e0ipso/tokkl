@@ -5,7 +5,7 @@
  */
 import type { OperationContext, Repositories } from '../storage/contracts.ts';
 import type { Id, TagLabel, TimerSnapshot } from '../storage/domain.ts';
-import { decodeTimerFingerprint, encodeTimerFingerprint, IDLE_TIMER_FINGERPRINT } from './timerFingerprint.ts';
+import { encodeTimerFingerprint, IDLE_TIMER_FINGERPRINT } from './timerFingerprint.ts';
 import { buildTimerView, type TimerView } from './timerView.ts';
 
 export type SettlementRepositories = Pick<Repositories, 'users' | 'entries' | 'timers' | 'tags'>;
@@ -64,10 +64,16 @@ export async function settleTimer(ctx: SettlementContext, userId: Id, publish: T
   const changed = fingerprint !== (data.revision?.fingerprint ?? IDLE_TIMER_FINGERPRINT);
   if (changed) {
     // The session the last revision showed may be gone now; its pomodoro may be the discarded one.
-    const prior = data.revision ? decodeTimerFingerprint(data.revision.fingerprint).sessionEntryId : null;
+    const prior = data.revision?.sessionEntryId ?? null;
     if (prior !== null && prior !== data.session?.entryId) left.add(prior);
     const discarded = await discardedPomodoro(ctx, userId, left);
-    data.revision = { userId, revision: (data.revision?.revision ?? 0) + 1, fingerprint, discardedPomodoro: discarded };
+    data.revision = {
+      userId,
+      revision: (data.revision?.revision ?? 0) + 1,
+      fingerprint,
+      discardedPomodoro: discarded,
+      sessionEntryId: data.session?.entryId ?? null,
+    };
     await ctx.timers.saveRevision(data.revision);
     const view = await buildTimerView(ctx, user, new Date(), data);
     ctx.afterCommit(() => publish(userId, view, user.createdAt));

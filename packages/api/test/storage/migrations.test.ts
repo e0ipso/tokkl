@@ -7,6 +7,7 @@ import type { PhysicalDatabase } from '../../src/storage/physical.ts';
 import { assertSchema, assertDefaultsAndForeignKeys, insert, rows } from './support/schemaAssertions.ts';
 import { assertInvariants } from './support/invariants.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
+import { IDLE_TIMER_FINGERPRINT } from '../../src/domain/timerFingerprint.ts';
 
 for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
   test(`${backend}: fresh schema, current restart and version validation`, async () => {
@@ -84,6 +85,58 @@ for (const backend of ['mysql', 'mariadb'] as const) {
           [2, 3],
         ]);
         // The upgrade ends with the full current schema, rate-limit tables included.
+        await assertSchema(connection.db, backend);
+      } finally {
+        await connection.close();
+      }
+    } finally {
+      await fixture.cleanup();
+    }
+  });
+}
+
+for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
+  test(`${backend}: the upgrade copies each revision's session entry out of its fingerprint`, async () => {
+    const fixture = await disposableBackend(backend);
+    try {
+      const connection = await openConnection<PhysicalDatabase>(fixture.config);
+      try {
+        const available = migrations(backend);
+        const version = available.findIndex(m => m.name === 'timer_session_entry');
+        await migrate(connection, available.slice(0, version));
+        const session = { userId: 1, entryId: 7, config: {}, phase: {} };
+        const fingerprints: Array<[string, number | null]> = [
+          [JSON.stringify({ running: { id: 7 }, session, chain: null }), 7],
+          [IDLE_TIMER_FINGERPRINT, null],
+          ['not json', null],
+          ['[]', null],
+          ['{"session":{"entryId":"7"}}', null],
+          ['{"session":{"entryId":1.5}}', null],
+          ['{"session":null}', null],
+        ];
+        const times = { created_at: '2026-10-01T00:00:00.000Z', updated_at: '2026-10-01T00:00:00.000Z' };
+        for (const [index, [fingerprint]] of fingerprints.entries()) {
+          const id = index + 1;
+          await insert(connection.db, backend, 'users', {
+            id,
+            email: `user${id}`,
+            password_hash: 'hash',
+            api_token: `token${id}`,
+            ...times,
+          });
+          await insert(connection.db, backend, 'timer_states', { user_id: id, revision: 3, fingerprint });
+        }
+        await migrate(connection);
+        const stored = new Map(
+          (await rows(connection.db, backend, 'timer_states')).map(row => [
+            Number(row.user_id),
+            row.session_entry_id === null ? null : Number(row.session_entry_id),
+          ]),
+        );
+        assert.deepEqual(
+          fingerprints.map((_, index) => stored.get(index + 1)),
+          fingerprints.map(([, expected]) => expected),
+        );
         await assertSchema(connection.db, backend);
       } finally {
         await connection.close();

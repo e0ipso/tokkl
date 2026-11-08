@@ -65,7 +65,8 @@ function timers(db: FixtureDatabase) {
   );
 }
 export const getTimerState = (db: FixtureDatabase, user: User, now?: Date) => timers(db).getTimerState(user.id, now);
-export const pauseTimer = (db: FixtureDatabase, user: User, now?: Date) => timers(db).pauseTimer(user.id, now);
+export const pauseTimer = (db: FixtureDatabase, user: User, now?: Date, revision?: number) =>
+  timers(db).pauseTimer(user.id, revision, now);
 export const resumeTimer = (db: FixtureDatabase, user: User, revision: unknown, now?: Date) =>
   timers(db).resumeTimer(user.id, revision, now);
 export const discardPause = (db: FixtureDatabase, user: User, revision: unknown, now?: Date) =>

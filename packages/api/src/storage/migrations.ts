@@ -10,12 +10,14 @@ import type { PhysicalDatabase } from './physical.ts';
 import {
   baselineDDL,
   createTableDDL,
+  idempotencyDDL,
   indexDDL,
   ledgerColumns,
   quote,
   rateLimitDDL,
   runningEntriesDDL,
   serverDDL,
+  timerSessionEntryDDL,
   totalsIndexes,
 } from './schema.ts';
 
@@ -52,6 +54,8 @@ export function migrations(backend: Backend): readonly Migration[] {
     },
     { version: 4, name: 'running_entries_by_user', statements: runningEntriesDDL(backend) },
     { version: 5, name: 'rate_limits', statements: rateLimitDDL(backend) },
+    { version: 6, name: 'timer_session_entry', statements: timerSessionEntryDDL(backend) },
+    { version: 7, name: 'idempotency_keys', statements: idempotencyDDL(backend) },
   ];
 }
 const run = (db: Kysely<PhysicalDatabase>, statement: string) => sql.raw(statement).execute(db);

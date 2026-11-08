@@ -1,11 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { TimerSnapshot } from '../src/storage/domain.ts';
-import {
-  decodeTimerFingerprint,
-  encodeTimerFingerprint,
-  IDLE_TIMER_FINGERPRINT,
-} from '../src/domain/timerFingerprint.ts';
+import { encodeTimerFingerprint, IDLE_TIMER_FINGERPRINT } from '../src/domain/timerFingerprint.ts';
 
 /** A running pomodoro with a project, a client, a task and tags out of id order. */
 const snapshot = {
@@ -46,11 +42,4 @@ test('the encoding stays byte for byte what earlier servers stored', () => {
       '"config":{"workMinutes":25,"shortRestMinutes":5,"longRestMinutes":15,"longRestEvery":4},' +
       '"phase":{"kind":"work","startedAt":"2026-10-14T09:00:00.000Z","completed":0}},"chain":null}',
   );
-});
-
-test('decoding reads the session entry back, and anything else as no session', () => {
-  assert.deepEqual(decodeTimerFingerprint(encodeTimerFingerprint(snapshot, [])), { sessionEntryId: 7 });
-  assert.deepEqual(decodeTimerFingerprint(IDLE_TIMER_FINGERPRINT), { sessionEntryId: null });
-  for (const text of ['', 'not json', 'null', '[]', '{"session":{"entryId":"7"}}', '{"session":{"entryId":1.5}}'])
-    assert.deepEqual(decodeTimerFingerprint(text), { sessionEntryId: null }, text);
 });

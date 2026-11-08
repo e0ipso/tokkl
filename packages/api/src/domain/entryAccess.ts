@@ -8,7 +8,16 @@ import { noWorkspaceAccess } from './membership.ts';
 
 export type EntryRepositories = Pick<
   Repositories,
-  'users' | 'workspaces' | 'settings' | 'clients' | 'projects' | 'tasks' | 'tags' | 'entries' | 'timers'
+  | 'users'
+  | 'workspaces'
+  | 'settings'
+  | 'clients'
+  | 'projects'
+  | 'tasks'
+  | 'tags'
+  | 'entries'
+  | 'idempotencyKeys'
+  | 'timers'
 >;
 export type EntryContext = OperationContext<EntryRepositories>;
 /** The reads a read-only snapshot gives an entry or timer operation. */

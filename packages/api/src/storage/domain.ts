@@ -189,6 +189,8 @@ export interface TimerRevision {
   revision: number;
   fingerprint: string;
   discardedPomodoro: DiscardedPomodoro | null;
+  /** The entry of the Pomodoro session this revision's state showed; null when it showed none. */
+  sessionEntryId: Id | null;
 }
 export interface TimerSnapshot {
   running: EntryDetails | null;

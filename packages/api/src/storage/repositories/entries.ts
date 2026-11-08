@@ -5,6 +5,7 @@ import type { EntryFilter, EntryInput, Repositories } from '../contracts.ts';
 import type { EntryDetails, TimeEntry, TagLabel } from '../domain.ts';
 import { booleanValue, entityId, safeInteger, utcInstant } from '../conversion.ts';
 import { classifyConflict } from '../errors.ts';
+import { createIdempotencyKeysRepository } from './idempotency-keys.ts';
 
 const nullableId = (v: number | string | null) => (v === null ? null : entityId(v));
 const instant = (v: string | null) => (v === null ? null : utcInstant(v));
@@ -128,7 +129,11 @@ async function write<T>(work: () => Promise<T>): Promise<T> {
     throw classifyConflict(error) ?? error;
   }
 }
-export function createEntryRepositories(db: Kysely<PhysicalDatabase>, backend: Backend): Pick<Repositories, 'entries'> {
+/** The entry repository, and the idempotency keys of the creates entry and catalog writes make. */
+export function createEntryRepositories(
+  db: Kysely<PhysicalDatabase>,
+  backend: Backend,
+): Pick<Repositories, 'entries' | 'idempotencyKeys'> {
   /** Replaces an entry's tags with tags of its own workspace. */
   async function replaceTags(userId: number, id: number, tagIds: readonly number[]): Promise<void> {
     const entry = await db
@@ -290,8 +295,13 @@ export function createEntryRepositories(db: Kysely<PhysicalDatabase>, backend: B
           .execute(),
       );
     },
-    async purgeDeleted(userId, id) {
-      let q = db.deleteFrom('time_entries').where('user_id', '=', userId).where('deleted_at', 'is not', null);
+    async purgeDeleted(userId, { workspaceIds, id }) {
+      if (!workspaceIds.length) return 0;
+      let q = db
+        .deleteFrom('time_entries')
+        .where('user_id', '=', userId)
+        .where('deleted_at', 'is not', null)
+        .where('workspace_id', 'in', workspaceIds);
       if (id !== undefined) q = q.where('id', '=', id);
       return safeInteger((await q.executeTakeFirstOrThrow()).numDeletedRows);
     },
@@ -317,5 +327,5 @@ export function createEntryRepositories(db: Kysely<PhysicalDatabase>, backend: B
       return row && entityId(row.id);
     },
   };
-  return { entries };
+  return { entries, idempotencyKeys: createIdempotencyKeysRepository(db, backend) };
 }

@@ -31,6 +31,7 @@ import type {
   Workspace,
   WorkspaceMember,
 } from './domain.ts';
+import type { RowRange } from '../lib/pagination.ts';
 
 // Inputs have passed domain validation. Repositories still enforce scoping and database constraints.
 export interface NewAccount {
@@ -191,7 +192,8 @@ export interface ProjectsReader {
   count(workspaceId: Id): Promise<number>;
   getMetadata(workspaceId: Id, id: Id): Promise<Project | undefined>;
   listForClient(workspaceId: Id, clientId: Id): Promise<Array<Pick<Project, 'id' | 'name'>>>;
-  list(workspaceId: Id, filter?: ProjectFilter): Promise<ProjectSummary[]>;
+  /** Ordered by folded name, then id. A `range` keeps only those rows of that order. */
+  list(workspaceId: Id, filter?: ProjectFilter, range?: RowRange): Promise<ProjectSummary[]>;
   get(workspaceId: Id, id: Id): Promise<ProjectSummary | undefined>;
   /** Indexed lookup; never computes history totals. */
   getRef(workspaceId: Id, id: Id): Promise<ProjectRef | undefined>;
@@ -263,7 +265,30 @@ export interface EntriesRepository extends EntriesReader {
   ): Promise<EntryDetails>;
   softDelete(userId: Id, workspaceId: Id, id: Id, at: UtcInstant): Promise<void>;
   restore(userId: Id, id: Id): Promise<EntryDetails>;
-  purgeDeleted(userId: Id, id?: Id): Promise<number>;
+  /** Deletes the user's trashed entries in `workspaceIds`, or only `id` among them. */
+  purgeDeleted(userId: Id, scope: { workspaceIds: Id[]; id?: Id }): Promise<number>;
+}
+/** A create a client named with an idempotency key. */
+export interface IdempotencyRecord {
+  /** Hash of the user and the client's key. */
+  keyHash: string;
+  userId: Id;
+  /** Digest of the request the key first came with. */
+  fingerprint: string;
+  /** The id of the record the create made. */
+  resultId: Id;
+  createdAt: UtcInstant;
+}
+export interface IdempotencyKeysRepository {
+  find(keyHash: string): Promise<IdempotencyRecord | undefined>;
+  /**
+   * Records a create. When another transaction recorded the same key first, it fails as a
+   * serialization conflict, so the runner runs the whole operation again and it finds that record.
+   */
+  insert(record: IdempotencyRecord): Promise<void>;
+  delete(keyHash: string): Promise<void>;
+  /** Deletes up to a batch of records created before `before`, skipping rows other writes hold. */
+  deleteExpired(before: UtcInstant): Promise<void>;
 }
 export interface TimersReader {
   read(userId: Id): Promise<TimerSnapshot>;
@@ -409,6 +434,7 @@ export interface Repositories {
   tasks: TasksRepository;
   tags: TagsRepository;
   entries: EntriesRepository;
+  idempotencyKeys: IdempotencyKeysRepository;
   timers: TimersRepository;
   reports: ReportsRepository;
   transfers: TransfersRepository;

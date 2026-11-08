@@ -2,9 +2,10 @@
  * The timer fingerprint: the text stored with each timer revision (`timer_revisions.fingerprint`).
  * Settlement compares it as a string to tell whether the visible state changed, so the encoding
  * must stay byte for byte what earlier servers stored. This module is the only place that writes
- * or reads it.
+ * it, and nothing reads data back out of it: what settlement needs from the last revision, such
+ * as the session entry it showed, is stored in columns of its own.
  */
-import type { Id, TagLabel, TimerSnapshot } from '../storage/domain.ts';
+import type { TagLabel, TimerSnapshot } from '../storage/domain.ts';
 
 const orderedTags = (tags: TagLabel[]) => [...tags].sort((a, b) => a.id - b.id).map(t => ({ id: t.id, name: t.name }));
 
@@ -67,28 +68,3 @@ export const IDLE_TIMER_FINGERPRINT = encodeTimerFingerprint(
   { running: null, pauseChain: null, session: null, revision: null },
   [],
 );
-
-/** What settlement reads back from a stored fingerprint. */
-export interface DecodedTimerFingerprint {
-  /** The entry of the Pomodoro session the stored state showed; null when it showed none. */
-  sessionEntryId: Id | null;
-}
-
-const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
-
-/**
- * Reads a stored fingerprint. Text this module did not write reads as a state without a session:
- * the id only names a pomodoro the change sent to the trash, so an unreadable one must not stop
- * the timer from settling.
- */
-export function decodeTimerFingerprint(text: string): DecodedTimerFingerprint {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    return { sessionEntryId: null };
-  }
-  const session = isRecord(parsed) ? parsed.session : undefined;
-  const entryId = isRecord(session) ? session.entryId : undefined;
-  return { sessionEntryId: typeof entryId === 'number' && Number.isSafeInteger(entryId) ? entryId : null };
-}

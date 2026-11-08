@@ -72,7 +72,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         assert.equal((await timer.getTimerState(user.id)).revision, state.revision);
       });
       await t.test('pause tag deletion, project detachment and destructive preparation preserve owners', async () => {
-        let state = await timer.pauseTimer(user.id, at('09:10:00'));
+        let state = await timer.pauseTimer(user.id, undefined, at('09:10:00'));
         const before = state.revision;
         await runner.transaction(async ctx => {
           const fx = createCatalogTimerEffects(ctx, publish);

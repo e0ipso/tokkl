@@ -18,15 +18,18 @@ import {
 } from './entryAccess.ts';
 import type { EntryFields, NewEntry } from './entryCommands.ts';
 import { entryDurationSeconds, wholeSeconds } from './entrySpans.ts';
+import { idempotent } from './idempotency.ts';
 import { memberWorkspace } from './membership.ts';
+import type { IdempotencyClaim } from '../lib/idempotency.ts';
 import { createTimeEntry, stopRunningEntry, updateTimeEntry } from './timeEntries.ts';
 import { settleTimer, settlementDue, touchTimer, type TimerPublication } from './timerSettlement.ts';
 import { buildTimerView, type TimerView } from './timerView.ts';
 
 export interface StartPomodoro {
   /**
-   * The timer revision the client saw. Optional for older clients; when present the start is
-   * refused unless it is current, because a start replaces whatever runs.
+   * The timer revision the client saw; the start is refused unless it is current, because a start
+   * replaces whatever runs. Absent only for older clients: `OPTIONAL_REVISION_ACTIONS` in
+   * `commands/timers.ts` says which client may omit it and when that ends.
    */
   revision?: number;
   /** The workspace of the session's entry; the default workspace when absent or null. */
@@ -34,6 +37,8 @@ export interface StartPomodoro {
   /** The lengths the client sent; the others come from the user's preferences. */
   lengths: Partial<PomodoroSessionConfig>;
   entry: Omit<NewEntry, 'allDay' | 'times' | 'workspaceId'>;
+  /** The request's `Idempotency-Key`; a repeat answers the timer as it is now and starts nothing. */
+  idempotency?: IdempotencyClaim;
 }
 
 export interface StartTimer {
@@ -44,14 +49,40 @@ export interface StartTimer {
   /** When the entry starts; now when absent. */
   start?: Date;
   entry: Omit<NewEntry, 'allDay' | 'times' | 'workspaceId'>;
+  /** The request's `Idempotency-Key`; a repeat answers the timer as it is now and starts nothing. */
+  idempotency?: IdempotencyClaim;
 }
 
-export interface EditTimer {
-  /** The timer revision the client saw. */
-  revision: number;
-  /** The running entry's labels to change; absent ones stay. Its times and workspace never change. */
-  entry: Omit<EntryFields, 'workspaceId'>;
+/**
+ * Runs a start once per idempotency key. A repeat is answered before the revision check, which the
+ * first start moved on, and changes nothing: the action's reply is then the timer as it is now.
+ */
+function startOnce(ctx: EntryContext, user: User, claim: IdempotencyClaim | undefined, start: () => Promise<Id>) {
+  return idempotent(ctx, user.id, claim, { create: start, reference: id => id, replay: async id => id });
 }
+
+/**
+ * An edit of the running entry. It names what the client saw with `revision`, `entryId` or both,
+ * and is refused unless each one it names still holds.
+ */
+export type EditTimer = EditPrecondition & {
+  /** A new start for the running entry; it stays when absent. */
+  start?: Date;
+  /** The running entry's labels to change; absent ones stay. Its stop and workspace never change. */
+  entry: Omit<EntryFields, 'workspaceId'>;
+};
+
+/**
+ * What an edit checks before it acts. A revision refuses the edit after any change to the timer;
+ * an entry id refuses it only once that entry no longer runs, so an unrelated change, such as a
+ * catalog rename the running entry shows, does not send the client round a 409 loop.
+ */
+export type EditPrecondition =
+  | {
+      /** The timer revision the client saw. */ revision: number;
+      /** The entry the client saw running. */ entryId?: Id;
+    }
+  | { revision?: undefined; entryId: Id };
 
 /** A refused timer action. It carries the current view, so the client can catch up without another read. */
 export class TimerRefusal extends StateConflict<TimerView> {}
@@ -130,6 +161,7 @@ export function createTimerOperations<R extends EntryRepositories>(runner: Timer
     if (!reply) throw new Error('The timer reply was not built');
     return reply;
   }
+  /** Starts a session and answers the id of its first pomodoro's entry. */
   async function startPomodoroWork(ctx: EntryContext, user: User, start: StartPomodoro, wid: Id, now: Date) {
     if (start.revision !== undefined) await checkRevision(ctx, user, start.revision, now);
     const config = { ...getPomodoroSessionConfig(user), ...start.lengths };
@@ -144,6 +176,7 @@ export function createTimerOperations<R extends EntryRepositories>(runner: Timer
       config,
       phase: { kind: phase.kind, startedAt: phase.startedAt.toISOString(), completed: phase.completed },
     });
+    return entry.id;
   }
   /** Moves the session on. A new work phase stops the ended entry and starts a copy of it. */
   async function nextPhaseWork(ctx: EntryContext, user: User, seen: number, now: Date) {
@@ -169,7 +202,8 @@ export function createTimerOperations<R extends EntryRepositories>(runner: Timer
     });
   }
   /** Stops the running entry and adds its stored length to the pause chain. */
-  async function pauseWork(ctx: EntryContext, user: User, now: Date) {
+  async function pauseWork(ctx: EntryContext, user: User, revision: number | undefined, now: Date) {
+    if (revision !== undefined) await checkRevision(ctx, user, revision, now);
     if (await ctx.timers.getSession(user.id)) return refusal(ctx, user, now, 'A Pomodoro session cannot be paused');
     const e = await ctx.entries.running(user.id);
     if (!e) return refusal(ctx, user, now, 'No timer is running');
@@ -221,9 +255,11 @@ export function createTimerOperations<R extends EntryRepositories>(runner: Timer
         userId,
         now,
         async (ctx, user) => {
-          await checkRevision(ctx, user, start.revision, now);
-          const entry = runningFrom(start.start ?? now, start.entry);
-          await createTimeEntry(ctx, user, explicit ?? user.defaultWorkspaceId, entry, publish);
+          await startOnce(ctx, user, start.idempotency, async () => {
+            await checkRevision(ctx, user, start.revision, now);
+            const entry = runningFrom(start.start ?? now, start.entry);
+            return (await createTimeEntry(ctx, user, explicit ?? user.defaultWorkspaceId, entry, publish)).id;
+          });
         },
         explicit ? [explicit] : [],
         !explicit,
@@ -239,22 +275,18 @@ export function createTimerOperations<R extends EntryRepositories>(runner: Timer
       });
     },
     /**
-     * Edits the running entry's labels the way a v9 edit of it does, with the same validation and
-     * the same membership check.
+     * Edits the running entry's labels and start the way a v9 edit of it does, with the same
+     * validation and the same membership check.
      */
     async editTimer(userId: Id, edit: EditTimer, now = new Date()): Promise<TimerView> {
       return action(userId, now, async (ctx, user) => {
-        await checkRevision(ctx, user, edit.revision, now);
+        if (edit.revision !== undefined) await checkRevision(ctx, user, edit.revision, now);
         const e = await ctx.entries.running(user.id);
         if (!e) return refusal(ctx, user, now, 'No timer is running');
-        await updateTimeEntry(
-          ctx,
-          user,
-          e.workspaceId,
-          e.id,
-          { ...edit.entry, times: {}, tagAction: 'replace' },
-          publish,
-        );
+        if (edit.entryId !== undefined && edit.entryId !== e.id)
+          return refusal(ctx, user, now, `Entry ${edit.entryId} is no longer the running entry`);
+        const times = edit.start ? { start: edit.start } : {};
+        await updateTimeEntry(ctx, user, e.workspaceId, e.id, { ...edit.entry, times, tagAction: 'replace' }, publish);
       });
     },
     async startPomodoro(userId: Id, start: StartPomodoro, now = new Date()): Promise<TimerView> {
@@ -262,7 +294,11 @@ export function createTimerOperations<R extends EntryRepositories>(runner: Timer
       return action(
         userId,
         now,
-        (ctx, user) => startPomodoroWork(ctx, user, start, explicit ?? user.defaultWorkspaceId, now),
+        async (ctx, user) => {
+          await startOnce(ctx, user, start.idempotency, () =>
+            startPomodoroWork(ctx, user, start, explicit ?? user.defaultWorkspaceId, now),
+          );
+        },
         explicit ? [explicit] : [],
         !explicit,
       );
@@ -277,8 +313,13 @@ export function createTimerOperations<R extends EntryRepositories>(runner: Timer
         await ctx.timers.deleteSession(user.id);
       });
     },
-    async pauseTimer(userId: Id, now = new Date()): Promise<TimerView> {
-      return action(userId, now, (ctx, user) => pauseWork(ctx, user, now));
+    /**
+     * Pauses the running entry. A `revision` is checked like any other action's; without one the
+     * pause acts on whatever runs, for older clients (see `OPTIONAL_REVISION_ACTIONS` in
+     * `commands/timers.ts`).
+     */
+    async pauseTimer(userId: Id, revision: number | undefined, now = new Date()): Promise<TimerView> {
+      return action(userId, now, (ctx, user) => pauseWork(ctx, user, revision, now));
     },
     async resumeTimer(userId: Id, revision: number, now = new Date()): Promise<TimerView> {
       return action(userId, now, (ctx, user) => resumeWork(ctx, user, revision, now));

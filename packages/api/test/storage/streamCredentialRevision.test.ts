@@ -90,6 +90,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
             revision: 41,
             fingerprint: 'stream-fingerprint',
             discardedPomodoro: null,
+            sessionEntryId: null,
           }),
         );
         for (const [kind, auth] of Object.entries(accepted) as Array<[keyof typeof accepted, Authentication]>) {

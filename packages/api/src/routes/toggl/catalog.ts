@@ -1,7 +1,7 @@
 import type { Request, Router } from 'express';
 import type { Deps } from '../context.ts';
 import { jsonRead } from '../context.ts';
-import { readJson } from '../../http/request.ts';
+import { readIdempotencyClaim, readJson } from '../../http/request.ts';
 import {
   parseClientChanges,
   parseClientRestore,
@@ -74,11 +74,12 @@ function projectRoutes(deps: CatalogRouteDeps, api: Router): void {
     '/workspaces/:wid/projects',
     jsonRead(deps, async (req, res, queries) => {
       const ws = await queries.workspace(res.locals.auth.user.id, parseId(req.params.wid));
-      const projects = await queries.workspaceProjects(ws, projectFilter(req));
+      const filter = projectFilter(req);
       const window = optionalPageWindow(req, PROJECT_PAGES);
-      return (window ? slicePage(projects, window) : projects).map(({ project }) =>
-        serializeProject(project, ws.defaultCurrency),
-      );
+      const projects = window
+        ? await queries.workspaceProjectsPage(ws, filter, window)
+        : await queries.workspaceProjects(ws, filter);
+      return projects.map(({ project }) => serializeProject(project, ws.defaultCurrency));
     }),
   );
   api.get(
@@ -91,7 +92,7 @@ function projectRoutes(deps: CatalogRouteDeps, api: Router): void {
   api.post('/workspaces/:wid/projects', async (req, res) => {
     const ws = await authorizedWorkspace(deps, req, res);
     const project = parseNewProject(readJson(req));
-    const created = await deps.catalogsFor(res.locals.auth).createProject(ws.id, project);
+    const created = await deps.catalogsFor(res.locals.auth).createProject(ws.id, project, readIdempotencyClaim(req));
     res.json(serializeProject(created, ws.defaultCurrency));
   });
   api.put('/workspaces/:wid/projects/:pid', async (req, res) => {
@@ -148,7 +149,7 @@ function taskRoutes(deps: CatalogRouteDeps, api: Router): void {
     const ws = await authorizedWorkspace(deps, req, res);
     const pid = parseId(req.params.pid);
     const task = parseNewTask(readJson(req));
-    const created = await deps.catalogsFor(res.locals.auth).createTask(ws.id, pid, task);
+    const created = await deps.catalogsFor(res.locals.auth).createTask(ws.id, pid, task, readIdempotencyClaim(req));
     res.json(serializeTask(created));
   });
   api.put('/workspaces/:wid/projects/:pid/tasks/:tid', async (req, res) => {
@@ -185,7 +186,9 @@ function clientRoutes(deps: CatalogRouteDeps, api: Router): void {
   api.post('/workspaces/:wid/clients', async (req, res) => {
     const ws = await authorizedWorkspace(deps, req, res);
     const client = parseNewClient(readJson(req));
-    res.json(serializeClient(await deps.catalogsFor(res.locals.auth).createClient(ws.id, client)));
+    res.json(
+      serializeClient(await deps.catalogsFor(res.locals.auth).createClient(ws.id, client, readIdempotencyClaim(req))),
+    );
   });
   api.put('/workspaces/:wid/clients/:cid', async (req, res) => {
     const ws = await authorizedWorkspace(deps, req, res);
@@ -226,7 +229,7 @@ function tagRoutes(deps: CatalogRouteDeps, api: Router): void {
   api.post('/workspaces/:wid/tags', async (req, res) => {
     const ws = await authorizedWorkspace(deps, req, res);
     const name = parseTagName(readJson(req));
-    res.json(serializeTag(await deps.catalogsFor(res.locals.auth).createTag(ws.id, name)));
+    res.json(serializeTag(await deps.catalogsFor(res.locals.auth).createTag(ws.id, name, readIdempotencyClaim(req))));
   });
   api.put('/workspaces/:wid/tags/:tid', async (req, res) => {
     const ws = await authorizedWorkspace(deps, req, res);

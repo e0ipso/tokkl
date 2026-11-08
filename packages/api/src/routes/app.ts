@@ -8,11 +8,12 @@ import { parseId } from '../lib/values.ts';
 import { dateKey } from '@tokkl/common/time';
 import { serializeTimeEntry } from '../presenters/toggl.ts';
 import { parseEntrySplit } from '../commands/timeEntries.ts';
-import { readJson } from '../http/request.ts';
+import { readIdempotencyClaim, readJson } from '../http/request.ts';
 import { streamDownload } from '../http/download.ts';
 import { getPreferences } from '../domain/accountValues.ts';
 import { parsePreferenceChanges } from '../commands/accounts.ts';
-import { presentServerApi } from '../presenters/serverApi.ts';
+import { presentPomodoroLimits, presentServerApi } from '../presenters/serverApi.ts';
+import type { AppStatus } from '@tokkl/types';
 
 export type AppRouteDeps = Pick<
   Deps,
@@ -24,9 +25,14 @@ export function appRoutes(deps: AppRouteDeps): Router {
   const app = createRouter(),
     auth = deps.auth.requireAuth;
   // The status reply also names this server's API version and capabilities, so a client picks its
-  // routes from them, and never from a 404.
+  // routes from them, and never from a 404, and the Pomodoro lengths the server accepts.
   app.get('/status', async (_req, res) => {
-    res.json({ setup_required: await sessions.setupRequired(), ...presentServerApi() });
+    const status: AppStatus = {
+      setup_required: await sessions.setupRequired(),
+      ...presentServerApi(),
+      pomodoro_limits: presentPomodoroLimits(),
+    };
+    res.json(status);
   });
   app.post('/setup', sessions.firstAdmin);
   app.get('/invites/:token', sessions.inviteInfo);
@@ -52,7 +58,8 @@ export function appRoutes(deps: AppRouteDeps): Router {
   // Both halves or neither: the entry keeps the first, a new entry takes the second.
   app.post('/time_entries/:id/split', auth, async (req, res) => {
     const id = parseId(req.params.id);
-    const { first, second } = await deps.entriesFor(res.locals.auth).split(id, parseEntrySplit(readJson(req)));
+    const split = parseEntrySplit(readJson(req));
+    const { first, second } = await deps.entriesFor(res.locals.auth).split(id, split, readIdempotencyClaim(req));
     const presentation = { meta: true, user: res.locals.auth.user };
     return res.json({
       first: serializeTimeEntry(first, presentation),

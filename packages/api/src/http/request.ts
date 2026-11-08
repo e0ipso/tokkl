@@ -1,6 +1,7 @@
 /** Readers for what a request carries: its JSON or text body, its client address and its cookies. */
 import express, { type Request, type RequestHandler } from 'express';
 import { invalidInput } from '../lib/errors.ts';
+import { IDEMPOTENCY_KEY_HEADER, idempotencyClaim, type IdempotencyClaim } from '../lib/idempotency.ts';
 import type { JsonBody } from '../lib/values.ts';
 
 /**
@@ -24,6 +25,20 @@ export function readJson(req: Request): JsonBody {
   const body = parseBody(req);
   if (body === null || typeof body !== 'object' || Array.isArray(body)) throw invalidInput('Invalid JSON input');
   return body as JsonBody;
+}
+
+/** A JSON object body, or an empty one when the request sends no body, for actions whose fields are all optional. */
+export function readOptionalJson(req: Request): JsonBody {
+  return readText(req).trim() === '' ? {} : readJson(req);
+}
+
+/** The request's `Idempotency-Key` claim, for a create that accepts one; undefined without the header. */
+export function readIdempotencyClaim(req: Request): IdempotencyClaim | undefined {
+  return idempotencyClaim(req.get(IDEMPOTENCY_KEY_HEADER), {
+    method: req.method,
+    url: req.originalUrl,
+    body: readText(req),
+  });
 }
 
 export function readJsonArray(req: Request): unknown[] {

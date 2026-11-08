@@ -53,7 +53,7 @@ test('SQLite legacy schema version 2 is refused without modifying its data', asy
 
 test('a fresh database has no memberships until setup creates the first admin, who owns its workspace', async () => {
   const db = await openDatabase();
-  assert.equal(await completedMigrations(db), 5);
+  assert.equal(await completedMigrations(db), 7);
   assert.deepEqual(await memberships(db), []);
 
   const app = testServer(
@@ -491,6 +491,34 @@ test("trash restore needs membership of the entry's workspace", async () => {
   assert.equal(refused.body, 'User does not have access to this resource.');
   const row = { deleted_at: (await storageFor(a.db).entries.get(b.user.id, left, true))!.deletedAt };
   assert.notEqual(row.deleted_at, null, 'the entry stays in the trash');
+});
+
+test("purging the trash needs membership of the entry's workspace", async () => {
+  const a = await setup();
+  const b = await addUser(a, { email: 'b@example.com', role: 'user' });
+  await addWorkspaceMember(a.db, a.wid, b.user.id, 'member');
+  const trashed = async (wid: number) => {
+    const ws = `/api/v9/workspaces/${wid}`;
+    const body = { start: '2026-10-01T08:00:00Z', duration: 600, workspace_id: wid };
+    const id = (await b.json('POST', `${ws}/time_entries`, body)).body.id as number;
+    assert.equal((await b.json('DELETE', `${ws}/time_entries/${id}`)).status, 200);
+    return id;
+  };
+  const shared = [await trashed(a.wid), await trashed(a.wid)];
+  const own = [await trashed(b.wid), await trashed(b.wid)];
+  await removeWorkspaceMember(a.db, a.wid, b.user.id);
+  const inTrash = async () => ((await b.json('GET', '/api/app/trash')).body as Array<{ id: number }>).map(e => e.id);
+
+  const refused = await b.json('DELETE', `/api/app/trash/${shared[0]}`);
+  assert.equal(refused.status, 403);
+  assert.equal(refused.body, 'User does not have access to this resource.');
+  assert.equal((await b.json('DELETE', `/api/app/trash/${own[0]}`)).body.deleted, 1, 'an own entry is purged');
+  assert.equal((await b.json('DELETE', `/api/app/trash/${own[0]}`)).status, 404, 'a purged entry is gone');
+
+  // Emptying the trash keeps the entries of the workspace B left.
+  assert.equal((await b.json('DELETE', '/api/app/trash')).body.deleted, 1);
+  assert.deepEqual((await inTrash()).sort(), [...shared].sort());
+  for (const id of shared) assert.ok(await storageFor(a.db).entries.get(b.user.id, id, true), `entry ${id} is kept`);
 });
 
 test("a non-member cannot delete another workspace's project or trash its entries", async () => {

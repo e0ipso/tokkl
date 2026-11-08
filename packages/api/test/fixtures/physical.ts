@@ -67,7 +67,16 @@ function normalizeRows(rows: Array<Record<string, any>>): Array<Record<string, a
 export async function corruptRecord(
   handle: FixtureDatabase,
   table:
-    'time_entries' | 'users' | 'sessions' | 'account_tokens' | 'clients' | 'projects' | 'tasks' | 'tags' | 'workspaces',
+    | 'time_entries'
+    | 'users'
+    | 'sessions'
+    | 'account_tokens'
+    | 'clients'
+    | 'projects'
+    | 'tasks'
+    | 'tags'
+    | 'workspaces'
+    | 'idempotency_keys',
   changes: Record<string, unknown>,
   where: Record<string, unknown> = {},
 ): Promise<void> {

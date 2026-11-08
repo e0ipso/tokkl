@@ -55,7 +55,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
             publish,
           ),
         );
-        const paused = await timer.pauseTimer(user.id, at('09:10:00'));
+        const paused = await timer.pauseTimer(user.id, undefined, at('09:10:00'));
         assert.equal(paused.pause?.seconds, 600);
         assert.equal(paused.running_entry, null);
         await assert.rejects(timer.resumeTimer(user.id, 0, at('09:11:00')), error => {
@@ -68,7 +68,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         });
         const resumed = await timer.resumeTimer(user.id, paused.revision, at('09:15:00'));
         assert.deepEqual(resumed.running_entry?.tags, ['a', 'Z']);
-        const again = await timer.pauseTimer(user.id, at('09:15:10'));
+        const again = await timer.pauseTimer(user.id, undefined, at('09:15:10'));
         assert.equal(again.pause?.seconds, 600);
         const idle = await timer.discardPause(user.id, again.revision, at('09:16:00'));
         assert.equal(idle.pause, null);
@@ -82,7 +82,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           at('11:00:00'),
         );
         const original = cycle.running_entry!.id;
-        await assert.rejects(timer.pauseTimer(user.id, at('11:00:01')), failsWith(409));
+        await assert.rejects(timer.pauseTimer(user.id, undefined, at('11:00:01')), failsWith(409));
         await assert.rejects(timer.startPomodoro(user.id, {}, at('11:00:01')), failsWith(409));
         cycle = await timer.nextPomodoroPhase(user.id, cycle.revision, at('11:05:00'));
         assert.equal(cycle.pomodoro?.phase.kind, 'shortRest');
@@ -117,9 +117,9 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         await runner.transaction(ctx =>
           entries.createTimeEntry(ctx, user, user.defaultWorkspaceId, { start: at('12:00:00').toISOString() }, publish),
         );
-        let chain = await timer.pauseTimer(user.id, at('12:10:00'));
+        let chain = await timer.pauseTimer(user.id, undefined, at('12:10:00'));
         chain = await timer.resumeTimer(user.id, chain.revision, at('12:15:00'));
-        chain = await timer.pauseTimer(user.id, at('12:20:00'));
+        chain = await timer.pauseTimer(user.id, undefined, at('12:20:00'));
         assert.equal(chain.pause?.seconds, 900);
         await timer.discardPause(user.id, chain.revision, at('12:25:00'));
         assert.deepEqual(

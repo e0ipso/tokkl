@@ -89,7 +89,7 @@ export async function getTask(
   if (!value) throw notFound('Task not found');
   return value;
 }
-async function getTag(ctx: { tags: Pick<TagsReader, 'get'> }, wid: Id, id: Id): Promise<Tag> {
+export async function getTag(ctx: { tags: Pick<TagsReader, 'get'> }, wid: Id, id: Id): Promise<Tag> {
   const value = await ctx.tags.get(wid, id);
   if (!value) throw notFound('Tag not found');
   return value;
