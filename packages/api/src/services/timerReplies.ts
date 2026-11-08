@@ -24,6 +24,7 @@ export function presentTimerOperations(operations: TimerOperations): PresentedTi
     getTimerState: (...args) => presented(operations.getTimerState(...args)),
     startTimer: (...args) => presented(operations.startTimer(...args)),
     stopTimer: (...args) => presented(operations.stopTimer(...args)),
+    editTimer: (...args) => presented(operations.editTimer(...args)),
     startPomodoro: (...args) => presented(operations.startPomodoro(...args)),
     nextPomodoroPhase: (...args) => presented(operations.nextPomodoroPhase(...args)),
     endPomodoro: (...args) => presented(operations.endPomodoro(...args)),

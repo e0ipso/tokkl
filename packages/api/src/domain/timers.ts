@@ -16,10 +16,10 @@ import {
   type EntryReaders,
   type EntryRepositories,
 } from './entryAccess.ts';
-import type { NewEntry } from './entryCommands.ts';
+import type { EntryFields, NewEntry } from './entryCommands.ts';
 import { entryDurationSeconds, wholeSeconds } from './entrySpans.ts';
 import { memberWorkspace } from './membership.ts';
-import { createTimeEntry, stopRunningEntry } from './timeEntries.ts';
+import { createTimeEntry, stopRunningEntry, updateTimeEntry } from './timeEntries.ts';
 import { settleTimer, settlementDue, touchTimer, type TimerPublication } from './timerSettlement.ts';
 import { buildTimerView, type TimerView } from './timerView.ts';
 
@@ -44,6 +44,13 @@ export interface StartTimer {
   /** When the entry starts; now when absent. */
   start?: Date;
   entry: Omit<NewEntry, 'allDay' | 'times' | 'workspaceId'>;
+}
+
+export interface EditTimer {
+  /** The timer revision the client saw. */
+  revision: number;
+  /** The running entry's labels to change; absent ones stay. Its times and workspace never change. */
+  entry: Omit<EntryFields, 'workspaceId'>;
 }
 
 /** A refused timer action. It carries the current view, so the client can catch up without another read. */
@@ -229,6 +236,25 @@ export function createTimerOperations<R extends EntryRepositories>(runner: Timer
         const e = await ctx.entries.running(user.id);
         if (!e) return refusal(ctx, user, now, 'No timer is running');
         await stopRunningEntry(ctx, user, e, stop ?? now);
+      });
+    },
+    /**
+     * Edits the running entry's labels the way a v9 edit of it does, with the same validation and
+     * the same membership check.
+     */
+    async editTimer(userId: Id, edit: EditTimer, now = new Date()): Promise<TimerView> {
+      return action(userId, now, async (ctx, user) => {
+        await checkRevision(ctx, user, edit.revision, now);
+        const e = await ctx.entries.running(user.id);
+        if (!e) return refusal(ctx, user, now, 'No timer is running');
+        await updateTimeEntry(
+          ctx,
+          user,
+          e.workspaceId,
+          e.id,
+          { ...edit.entry, times: {}, tagAction: 'replace' },
+          publish,
+        );
       });
     },
     async startPomodoro(userId: Id, start: StartPomodoro, now = new Date()): Promise<TimerView> {
