@@ -11,6 +11,7 @@ _None._
 
 ## Conventions (how we build)
 - Open [**JSON restore: idempotent, skips with reasons, keeps archive state**](practice-json-restore-rules.md) to learn about: importJsonExport skips records it cannot map with a reason, never replaces a running timer, and re-archives projects after task import. #server #import #restore #backup
+- Open [**Creates take an Idempotency-Key, recorded in the create's own transaction**](practice-creates-take-an-idempotency-key.md) to learn about: v9 entry and catalog creates, timer and Pomodoro start and entry split run once per user and key for 24 hours; a different request with the key is 422. #api #database #concurrency
 - Open [**Toggl CSV import: choose team-export users by opaque key**](practice-toggl-csv-import-selects-users-by-opaque-key.md) to learn about: Team CSVs list users by JSON key; send one user=<key> query param per user; a real multi-user import without one is a 400. #server #api #import #validation
 - Open [**Toggl v9 DELETE routes answer an empty 200**](practice-v9-deletes-answer-an-empty-200.md) to learn about: Time entry, project, task, client and tag DELETEs send status 200 with no body; the web client maps that to null. #api #toggl-v9
 
@@ -33,6 +34,12 @@ _None yet._
 - Open [**Entry resolution at DST imports and reports**](../time-handling/stopped-entry-resolution/practice-entry-resolution-at-dst-imports-and-reports.md) — DST changes, report rounding and exact imports have distinct resolution behavior and shared fixture coverage.
 ### #backup
 - Open [**JSON restore: idempotent, skips with reasons, keeps archive state**](practice-json-restore-rules.md) — importJsonExport skips records it cannot map with a reason, never replaces a running timer, and re-archives projects after task import.
+### #concurrency
+- Open [**Creates take an Idempotency-Key, recorded in the create's own transaction**](practice-creates-take-an-idempotency-key.md) — v9 entry and catalog creates, timer and Pomodoro start and entry split run once per user and key for 24 hours; a different request with the key is 422.
+### #database
+- Open [**Project and task totals rely on the live-entry partial indexes**](../reports-and-totals/practice-live-entry-indexes-back-project-and-task-totals.md) — Migration 2 adds time_entries_project_live and time_entries_task_live; totals SQL must keep using them.
+- Open [**Users, roles and workspace membership**](../users-and-admin/map-users-roles-and-workspace-membership.md) — Account roles, scoped membership contracts, protected writes and neutral multi-user fixtures.
+- Open [**Creates take an Idempotency-Key, recorded in the create's own transaction**](practice-creates-take-an-idempotency-key.md) — v9 entry and catalog creates, timer and Pomodoro start and entry split run once per user and key for 24 hours; a different request with the key is 422.
 ### #restore
 - Open [**JSON restore: idempotent, skips with reasons, keeps archive state**](practice-json-restore-rules.md) — importJsonExport skips records it cannot map with a reason, never replaces a running timer, and re-archives projects after task import.
 ### #toggl-v9

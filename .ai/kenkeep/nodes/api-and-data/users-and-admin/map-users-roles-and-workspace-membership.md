@@ -36,6 +36,8 @@ Membership operations use transaction-bound workspace repository contracts in `s
 
 Workspace-scoped paths verify `ctx.workspaces.forMember(userId, wid)` before reads or writes; missing membership returns403 without distinguishing missing workspaces. Protected imports and timer/catalog writes recheck membership under transaction guards. A stored default workspace is not authorization. `PUT /me` rejects an inaccessible default workspace.
 
+A user who left a workspace gets the 403 for any change to their entries there, as for timers. That covers trash: restoring or purging one trashed entry of such a workspace (`POST /api/app/time_entries/{id}/restore`, `DELETE /api/app/trash/{id}`) is refused, and emptying the trash (`DELETE /api/app/trash`, `purgeDeletedEntries` in `domain/timeEntries.ts`) deletes only the entries of the user's current workspaces and keeps the rest. The trash list still shows them.
+
 The `/me` collections (`/me/workspaces`, `/me/organizations` with a real `user_count`, and the per-workspace lists) and `assembleJsonExport` in `services/exports.ts` use membership-scoped repository projections. There is no helper that lists every workspace on the instance; add one only for a deliberate admin feature.
 
 Shared workspaces are out of scope in `docs/PRD.md`: each account tracks time in its own workspace and data is never shared between accounts. Account creation through the users repository inserts an owner membership for a new workspace. First-admin setup, invite acceptance and the `addUser` test helper all go through it. Some code relies on one member per workspace. Fix these before adding shared workspaces (several members in one workspace):

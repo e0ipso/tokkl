@@ -1,11 +1,11 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:25499fdf182d14ee4f112fb292257c1ad95027d5c5a088178a2bf76739f26fb9'
-node_count: 111
+nodes_hash: 'sha256:159d74adbb6f1c69afb881ac5cdb7aa6f0f3d2fdec3a1e25e793a6b6f8ba1ee3'
+node_count: 112
 ---
 # kenkeep Graph
 
-Total nodes: 111
+Total nodes: 112
 
 ## map-admin-user-management-api-and-the-last-active-admin-rule
 
@@ -366,7 +366,7 @@ Total nodes: 111
 - **title:** Timer state service: settlement, revision and the discarded pomodoro
 - **path:** api-and-data/timer-state/map-timer-state-service-settlement-revision-and-discarded-pomodoro.md
 - **tags:** api, timer, pomodoro, pause
-- **relates_to:** practice-stopped-entries-snap-to-the-time-resolution-on-write, map-pomodoro-session-model-in-packages-common-pomodorosession, map-timer-event-stream-keep-alive-auth-rechecks-and-stream-cap
+- **relates_to:** practice-stopped-entries-snap-to-the-time-resolution-on-write, map-pomodoro-session-model-in-packages-common-pomodorosession, map-timer-event-stream-keep-alive-auth-rechecks-and-stream-cap, practice-creates-take-an-idempotency-key
 - **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:map:9
 
 ## map-tokkl-kde-live-widgets-reload-with-plasmashell
@@ -512,6 +512,14 @@ Total nodes: 111
 - **path:** api-and-data/password-and-csrf-rules/practice-cookie-writes-and-session-starting-routes-need-the-csrf-header.md
 - **tags:** server, auth, csrf
 - **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:practice:9
+
+## practice-creates-take-an-idempotency-key
+
+- **kind:** practice
+- **title:** Creates take an Idempotency-Key, recorded in the create's own transaction
+- **path:** api-and-data/toggl-compat-and-import/practice-creates-take-an-idempotency-key.md
+- **tags:** api, database, concurrency
+- **relates_to:** map-timer-state-service-settlement-revision-and-discarded-pomodoro, practice-live-entry-indexes-back-project-and-task-totals
 
 ## practice-desktop-app-identifiers-use-the-canpicasoft-com-domain
 
