@@ -11,6 +11,7 @@
 // operations, so the tests run in order: the failed opens come first, while
 // no wallet is open.
 
+#include "fakes.h"
 #include "instanceurl.h"
 #include "kdeconnection.h"
 #include "kdetimerstate.h"
@@ -231,20 +232,6 @@ struct ReceivedRequest {
     }
 };
 
-// The pomodoro_limits a current server announces.
-QJsonObject pomodoroLimits()
-{
-    const auto limit = [](int max, int value) {
-        return QJsonObject{{QStringLiteral("min"), 1}, {QStringLiteral("max"), max}, {QStringLiteral("default"), value}};
-    };
-    return QJsonObject{
-        {QStringLiteral("work_minutes"), limit(180, 25)},
-        {QStringLiteral("short_rest_minutes"), limit(60, 5)},
-        {QStringLiteral("long_rest_minutes"), limit(60, 15)},
-        {QStringLiteral("long_rest_every"), limit(12, 4)},
-    };
-}
-
 // Answers the Tokkl API calls a connection makes, as user 3 in workspace 7,
 // and records every request with its body.
 class TokklServer : public QObject
@@ -299,36 +286,14 @@ private:
 
         QByteArray body = "[]";
         if (request.path.endsWith("/api/v9/me")) {
-            body = QJsonDocument(QJsonObject{
-                                     {QStringLiteral("id"), 3},
-                                     {QStringLiteral("api_token"), QStringLiteral("tok-kde")},
-                                     {QStringLiteral("email"), QStringLiteral("bea@example.test")},
-                                     {QStringLiteral("fullname"), QStringLiteral("Bea")},
-                                     {QStringLiteral("timezone"), QStringLiteral("UTC")},
-                                     {QStringLiteral("default_workspace_id"), 7},
-                                     {QStringLiteral("beginning_of_week"), 1},
-                                 })
-                       .toJson(QJsonDocument::Compact);
+            body = meBody();
         } else if (request.path.endsWith("/me/time_entries/current")) {
             body = "null";
         } else if (request.path.endsWith("/api/app/status")) {
             // A server at the floor the core supports.
-            body = QJsonDocument(QJsonObject{
-                                     {QStringLiteral("setup_required"), false},
-                                     {QStringLiteral("api_version"), 1},
-                                     {QStringLiteral("capabilities"),
-                                      QJsonArray{QStringLiteral("app-preferences"),
-                                                 QStringLiteral("timer-actions"),
-                                                 QStringLiteral("timer-edit"),
-                                                 QStringLiteral("pomodoro-revision"),
-                                                 QStringLiteral("pause-revision"),
-                                                 QStringLiteral("timer-edit-entry"),
-                                                 QStringLiteral("idempotency-keys"),
-                                                 QStringLiteral("catalog-revision"),
-                                                 QStringLiteral("latest-entry")}},
-                                     {QStringLiteral("pomodoro_limits"), pomodoroLimits()},
-                                 })
-                       .toJson(QJsonDocument::Compact);
+            QJsonObject status = currentServerApi();
+            status.insert(QStringLiteral("setup_required"), false);
+            body = json(status);
         } else if (request.method == "GET" && request.path.endsWith("/api/app/timer")) {
             // Nothing runs, for the state client of TokklTimerState.
             body = QJsonDocument(QJsonObject{
@@ -370,11 +335,6 @@ private:
     QTcpServer m_server;
     QHash<QTcpSocket *, QByteArray> m_buffers;
 };
-
-QString tokenKey(const QString &url)
-{
-    return credentialKey(parseInstanceUrl(url), AuthMode::Token, QString());
-}
 }
 
 class KdeConnectionTest : public QObject

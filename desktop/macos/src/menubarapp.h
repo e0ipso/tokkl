@@ -3,7 +3,6 @@
 #include "apitypes.h"
 
 #include <QObject>
-#include <QPointer>
 #include <QUrl>
 
 #include <memory>
@@ -45,10 +44,8 @@ class Transport;
 // a running or paused timer in either mode, it pauses a running timer,
 // resumes a paused one and starts a stopped one. In Pomodoro mode with
 // nothing running it starts a session. The menu's Start Timer starts a new
-// entry and its Stop Timer ends the chain. TimerController holds the timer:
-// the menu and the status item read its TimerModel and act through its
-// TimerCoordinator, which keeps the request, project and billable rules. The
-// session rules stay in PomodoroSession.
+// entry and its Stop Timer ends the chain. TimerController keeps the
+// request, project and billable rules; PomodoroSession the session rules.
 class MenuBarApp : public QObject
 {
     Q_OBJECT
@@ -63,23 +60,22 @@ public:
     // "tokkl-macos/<Tokkl version>". The caller owns it.
     static Transport *createTransport(QObject *parent = nullptr);
 
-    // Uses the given parts; the app owns none of them. A null login item
-    // hides the toggle; a null alarm player keeps the alarm silent. The
-    // settings keep the connection, the Pomodoro mode and the alarm sounds.
+    // Owns none of the parts. The settings keep the connection, the Pomodoro
+    // mode and the sound choices; the sound files are in soundsDirectory.
     MenuBarApp(Transport *transport,
                CredentialStore *store,
-               StatusItem *statusItem,
-               LoginItem *loginItem,
-               AlarmPlayer *alarmPlayer,
+               StatusItem &statusItem,
+               LoginItem &loginItem,
+               AlarmPlayer &alarmPlayer,
                QSettings &settings,
                Clock &clock,
+               const QString &soundsDirectory,
                QObject *parent = nullptr);
     ~MenuBarApp() override;
 
     // Applies the saved settings and, when no instance is set, opens the
     // settings window.
     void start();
-
 
 public Q_SLOTS:
     void showSettings();
@@ -101,7 +97,7 @@ private:
     void activate();
     void updateItem();
 
-    QPointer<StatusItem> m_statusItem;
+    StatusItem &m_statusItem;
     QSettings &m_settings;
     // The app's parts are its children; the destructor deletes the ones
     // that use others first. The settings window is a top-level widget, so

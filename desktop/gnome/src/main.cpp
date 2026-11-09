@@ -8,7 +8,6 @@
 // them, and TimerService only maps them onto the bus.
 
 #include "clock.h"
-#include "configurationadapter.h"
 #include "keychaincredentialstore.h"
 #include "pomodoroalarm.h"
 #include "pomodorostore.h"
@@ -109,14 +108,13 @@ int main(int argc, char **argv)
     Tokkl::TimerController *timer = stack.timer();
     Tokkl::SoundChoices sounds(&settings, &Tokkl::TimerService::soundKey);
     Tokkl::ServiceSettings connectionSettings(&settings, stack.connection(), &store);
-    Tokkl::ConfigurationAdapter configuration(&connectionSettings);
     // The Pomodoro alarm, from the bundled sounds the package installs.
     Tokkl::PulseAlarmBackend alarmBackend(QCoreApplication::applicationName());
     QObject::connect(&alarmBackend, &Tokkl::PulseAlarmBackend::errorOccurred, &app, [](const QString &message) {
         qCWarning(lcTimerd).noquote() << "no sound:" << message;
     });
-    Tokkl::PomodoroAlarm alarm(stack.session(), &alarmBackend, &sounds, QStringLiteral(TOKKL_SOUNDS_DIR));
-    Tokkl::TimerService service({timer, timer->coordinator(), stack.session(), stack.preferences(), &sounds, &configuration, &alarm});
+    Tokkl::PomodoroAlarm alarm(*stack.session(), alarmBackend, sounds, QStringLiteral(TOKKL_SOUNDS_DIR));
+    Tokkl::TimerService service({timer, stack.session(), stack.preferences(), &sounds, &connectionSettings, &alarm});
     connectionSettings.load();
     if (!service.registerOn(bus)) {
         std::fprintf(stderr, "tokkl-timerd: could not own %s on the session bus: %s\n", qPrintable(Tokkl::TimerService::serviceName),

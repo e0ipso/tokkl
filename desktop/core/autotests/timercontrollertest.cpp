@@ -31,20 +31,6 @@ const QByteArray editPath = "/app/timer/edit";
 // The v9 create route, which a start never uses.
 const QByteArray v9StartPath = "/v9/workspaces/7/time_entries";
 
-// The account. What its server announces comes from GET /api/app/status.
-QByteArray meBody(qint64 id, qint64 workspace)
-{
-    const QJsonObject me{
-        {QStringLiteral("id"), id},
-        {QStringLiteral("email"), QStringLiteral("bea@example.test")},
-        {QStringLiteral("fullname"), QStringLiteral("Bea")},
-        {QStringLiteral("timezone"), QStringLiteral("UTC")},
-        {QStringLiteral("default_workspace_id"), workspace},
-        {QStringLiteral("beginning_of_week"), 1},
-    };
-    return QJsonDocument(me).toJson(QJsonDocument::Compact);
-}
-
 QJsonObject entryObject(qint64 id, qint64 workspace, const QString &start, bool running = true, std::optional<qint64> project = std::nullopt)
 {
     const QDateTime begin = QDateTime::fromString(start, Qt::ISODate);
@@ -97,11 +83,6 @@ QJsonObject projectObject(qint64 id, qint64 workspace, const QString &color, boo
                        {QStringLiteral("color"), color},
                        {QStringLiteral("active"), active},
                        {QStringLiteral("billable"), false}};
-}
-
-QByteArray json(const QJsonObject &object)
-{
-    return QJsonDocument(object).toJson(QJsonDocument::Compact);
 }
 
 // A page of distinct active projects of the workspace, ids first .. first + count - 1.
@@ -466,6 +447,12 @@ private Q_SLOTS:
         QCOMPARE(f.timer.chosenProjectLabel().kind, ProjectLabelParts::Kind::Named);
         QCOMPARE(f.timer.chosenProjectLabelVariant().value(QStringLiteral("name")).toString(), QStringLiteral("Alpha"));
         QCOMPARE(f.timer.chosenProjectLabelVariant().value(QStringLiteral("kind")).toString(), QStringLiteral("named"));
+        // Only an active project of the list is a choice; 0 is no project.
+        for (const QVariant &refused : {QVariant(33), QVariant(-1), QVariant(QStringLiteral("eleven"))}) {
+            QVERIFY(!f.timer.chooseProject(refused));
+        }
+        QVERIFY(f.timer.chooseProject(0));
+        QVERIFY(f.timer.chosenProjectId().isNull());
     }
 
     void exposesContextAndEntry()
@@ -802,18 +789,16 @@ private Q_SLOTS:
         QCOMPARE(f.stateReads(), reads);
     }
 
-    // The messages are looked up in the coordinator's own context, where
-    // lupdate files the tr() calls of timercoordinator.cpp, so a catalog
-    // extracted from the sources translates them.
-    void messagesUseTheCoordinatorsContext()
+    // The messages use the controller's own context, where lupdate files them.
+    void messagesUseTheControllersContext()
     {
-        ContextTranslator translator("Tokkl::TimerCoordinator");
+        ContextTranslator translator("Tokkl::TimerController");
         QVERIFY(QCoreApplication::installTranslator(&translator));
         Fixture f;
         QVERIFY(connectAccount(f, instanceA, 3, 7, "null"));
         QVERIFY(f.timer.start());
         f.respond(f.last("POST", startPath), FakeTransport::answer(409, f.nextState(entryBody(30, 7, clockText(f.clock.now().addSecs(-4)), true, 11))));
-        QCOMPARE(f.timer.errorString(), QStringLiteral("[Tokkl::TimerCoordinator] The timer changed on another device first."));
+        QCOMPARE(f.timer.errorString(), QStringLiteral("[Tokkl::TimerController] The timer changed on another device first."));
     }
 
     // Another device started an entry this one has not seen yet. The start

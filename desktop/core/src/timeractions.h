@@ -27,8 +27,8 @@ enum class PrimaryAction {
 
 // The part of the timer a Pomodoro session works with: whether the timer
 // holds an entry or could start something new, the project and billable
-// flag a session starts with, and the click's toggle. TimerCoordinator
-// implements it. The session reads the server's state through a
+// flag a session starts with, and the click's toggle. TimerModel and
+// TimerController implement it. The session reads the server's state through a
 // SessionState of its own, the one the timer reads.
 class TimerActions : public QObject
 {

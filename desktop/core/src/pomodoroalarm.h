@@ -1,7 +1,6 @@
 #pragma once
 
 #include <QObject>
-#include <QPointer>
 #include <QString>
 
 namespace Tokkl
@@ -17,7 +16,7 @@ class SoundChoices;
 // transition switches the loop. preview() plays a sound once on the same
 // output.
 //
-// The files are the four bundled WAVs in soundsDirectory(). A sound whose
+// The files are the four bundled WAVs in the sounds directory. A sound whose
 // file is not there plays nothing. That, and a sound the output reports it
 // could not play, is logged and shows in failure() for the panels to tell
 // the user.
@@ -26,19 +25,13 @@ class PomodoroAlarm : public QObject
     Q_OBJECT
 
 public:
-    // Owns none of them; the output must outlive the alarm. A null output
-    // plays nothing. An alarm already ringing starts at once.
-    PomodoroAlarm(PomodoroSession *session, AlarmOutput *output, SoundChoices *choices, const QString &soundsDirectory, QObject *parent = nullptr);
+    // Owns none of them; all must outlive the alarm. An alarm already
+    // ringing starts at once.
+    PomodoroAlarm(PomodoroSession &session, AlarmOutput &output, SoundChoices &choices, const QString &soundsDirectory, QObject *parent = nullptr);
     ~PomodoroAlarm() override;
 
-    QString soundsDirectory() const;
-    void setSoundsDirectory(const QString &directory);
-    // The file of a sound id in the directory, or empty when the id is not
-    // in the catalogue or the file is not there.
-    QString locate(const QString &soundId) const;
-
-    // Plays the sound once. False, and nothing plays, without an output or
-    // for an id or file that is not there.
+    // Plays the sound once. False, and nothing plays, for an id or file
+    // that is not there.
     bool preview(const QString &soundId);
 
     // Why the last sound the alarm tried did not play, in words for the
@@ -57,9 +50,9 @@ private:
     // not there.
     QString soundToPlay(const QString &soundId);
 
-    QPointer<PomodoroSession> m_session;
-    AlarmOutput *m_output;
-    QPointer<SoundChoices> m_choices;
+    PomodoroSession &m_session;
+    AlarmOutput &m_output;
+    SoundChoices &m_choices;
     QString m_directory;
     // The file that loops; empty while nothing rings.
     QString m_looping;

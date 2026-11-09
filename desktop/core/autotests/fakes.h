@@ -3,8 +3,10 @@
 // Scripted stand-ins for the network, its streams and KDE Wallet.
 // Nothing here touches a real host, wallet or configuration file.
 
+#include "apitypes.h"
 #include "clock.h"
 #include "credentialstore.h"
+#include "instanceurl.h"
 #include "transport.h"
 
 #include <QDateTime>
@@ -49,6 +51,105 @@ inline QJsonObject currentServerApi()
              {QStringLiteral("long_rest_minutes"), QJsonObject{{QStringLiteral("min"), 1}, {QStringLiteral("max"), 60}, {QStringLiteral("default"), 15}}},
              {QStringLiteral("long_rest_every"), QJsonObject{{QStringLiteral("min"), 1}, {QStringLiteral("max"), 12}, {QStringLiteral("default"), 4}}},
          }},
+    };
+}
+
+// The store key of a token account on the instance at url.
+inline QString tokenKey(const QString &url)
+{
+    return Tokkl::credentialKey(Tokkl::parseInstanceUrl(url), Tokkl::AuthMode::Token, QString());
+}
+
+inline QByteArray json(const QJsonValue &value)
+{
+    return value.isArray() ? QJsonDocument(value.toArray()).toJson(QJsonDocument::Compact) : QJsonDocument(value.toObject()).toJson(QJsonDocument::Compact);
+}
+
+inline QString iso(const QDateTime &time)
+{
+    return time.toUTC().toString(Qt::ISODateWithMs);
+}
+
+// The account GET /api/v9/me answers.
+inline QByteArray meBody(qint64 id = 3, qint64 workspace = 7)
+{
+    return json(QJsonObject{
+        {QStringLiteral("id"), id},
+        {QStringLiteral("email"), QStringLiteral("bea@example.test")},
+        {QStringLiteral("fullname"), QStringLiteral("Bea")},
+        {QStringLiteral("timezone"), QStringLiteral("UTC")},
+        {QStringLiteral("default_workspace_id"), workspace},
+        {QStringLiteral("beginning_of_week"), 1},
+    });
+}
+
+// The account's preferences with these Pomodoro lengths, and one key the
+// companions do not read.
+inline QByteArray preferencesBody(const Tokkl::PomodoroConfig &config = {1, 1, 1, 2})
+{
+    return json(QJsonObject{
+        {QStringLiteral("pomodoro_focus_interval_in_minutes"), config.workMinutes},
+        {QStringLiteral("pomodoro_break_interval_in_minutes"), config.shortRestMinutes},
+        {QStringLiteral("pomodoro_long_break_interval_in_minutes"), config.longRestMinutes},
+        {QStringLiteral("pomodoro_long_break_every"), config.longRestEvery},
+        {QStringLiteral("theme"), QStringLiteral("dark")},
+    });
+}
+
+// An error body: the API sends the message as a bare JSON string.
+inline QByteArray errorBody(const char *text)
+{
+    return QByteArrayLiteral("\"") + QByteArray(text) + QByteArrayLiteral("\"");
+}
+
+// A session's phase on the server's clock, with what the server derives
+// from it, for one-minute lengths and a long rest after every second work.
+struct Phase {
+    QString kind;
+    QDateTime start;
+    int completed = 0;
+    QString upcoming;
+    QString transition;
+    int number = 1;
+    QDateTime pomodoroStart;
+};
+
+inline Phase work(const QDateTime &start, int completed = 0)
+{
+    const bool last = completed + 1 >= 2;
+    return Phase{QStringLiteral("work"),
+                 start,
+                 completed,
+                 last ? QStringLiteral("longRest") : QStringLiteral("shortRest"),
+                 last ? QStringLiteral("workToLongRest") : QStringLiteral("workToShortRest"),
+                 completed + 1,
+                 start};
+}
+
+inline Phase shortRest(const QDateTime &start, const QDateTime &pomodoroStart)
+{
+    return Phase{QStringLiteral("shortRest"), start, 1, QStringLiteral("work"), QStringLiteral("shortRestToWork"), 1, pomodoroStart};
+}
+
+inline QJsonObject pomodoroJson(const Phase &phase, qint64 entryId)
+{
+    return QJsonObject{
+        {QStringLiteral("work_minutes"), 1},
+        {QStringLiteral("short_rest_minutes"), 1},
+        {QStringLiteral("long_rest_minutes"), 1},
+        {QStringLiteral("long_rest_every"), 2},
+        {QStringLiteral("phase"),
+         QJsonObject{
+             {QStringLiteral("kind"), phase.kind},
+             {QStringLiteral("start"), iso(phase.start)},
+             {QStringLiteral("completed"), phase.completed},
+             {QStringLiteral("planned_end"), iso(phase.start.addSecs(60))},
+         }},
+        {QStringLiteral("upcoming_phase"), phase.upcoming},
+        {QStringLiteral("transition"), phase.transition},
+        {QStringLiteral("number"), phase.number},
+        {QStringLiteral("entry_id"), entryId},
+        {QStringLiteral("pomodoro_start"), iso(phase.pomodoroStart.isValid() ? phase.pomodoroStart : phase.start)},
     };
 }
 
@@ -305,6 +406,37 @@ private:
             },
             Qt::QueuedConnection);
     }
+};
+
+// A keyring whose writes wait until the test finishes them, in any order.
+// Reads find nothing.
+class HeldStore : public FakeCredentialStore
+{
+    Q_OBJECT
+
+public:
+    struct Write {
+        QString key;
+        QPointer<QObject> context;
+        Callback done;
+    };
+
+    void write(const QString &key, const QString &, QObject *context, Callback done) override
+    {
+        held.append(Write{key, context, done});
+    }
+
+    void finish(qsizetype index)
+    {
+        const Write write = held.at(index);
+        const Tokkl::CredentialResult result{Tokkl::CredentialResult::Status::Ok, QString()};
+        reportWrite(write.key, result);
+        if (write.context) {
+            write.done(result);
+        }
+    }
+
+    QList<Write> held;
 };
 
 // A clock that moves only when the test advances it. Each advance is one tick.

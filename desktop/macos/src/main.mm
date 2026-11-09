@@ -57,7 +57,16 @@ int main(int argc, char *argv[])
     QSettings settings;
     Tokkl::SystemClock clock;
 
-    Tokkl::MenuBarApp tokkl(transport.get(), &store, &statusItem, &loginItem, &alarmPlayer, settings, clock);
+    // The bundle's Contents/Resources/sounds, which the build fills from
+    // TOKKL_POMODORO_SOUND_FILES.
+    Tokkl::MenuBarApp tokkl(transport.get(),
+                            &store,
+                            statusItem,
+                            loginItem,
+                            alarmPlayer,
+                            settings,
+                            clock,
+                            QCoreApplication::applicationDirPath() + QStringLiteral("/../Resources/sounds"));
     QObject::connect(&tokkl, &Tokkl::MenuBarApp::settingsShown, &tokkl, &bringToFront);
     // The configured base URL only: it never holds credentials.
     QObject::connect(&tokkl, &Tokkl::MenuBarApp::openUrlRequested, &tokkl, [](const QUrl &url) {

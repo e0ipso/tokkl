@@ -20,17 +20,6 @@ const QString token = QStringLiteral("tok-state-1");
 const QString statePath = QStringLiteral("/api/app/timer");
 const QString eventsPath = QStringLiteral("/api/app/timer/events");
 
-// The account. What its server announces comes from GET /api/app/status.
-QByteArray meBody(qint64 id, qint64 workspace)
-{
-    const QJsonObject me{
-        {QStringLiteral("id"), id},
-        {QStringLiteral("email"), QStringLiteral("bea@example.test")},
-        {QStringLiteral("default_workspace_id"), workspace},
-    };
-    return QJsonDocument(me).toJson(QJsonDocument::Compact);
-}
-
 // A state with nothing running, built offsetMs after the given time.
 QByteArray stateBody(qint64 revision, const QDateTime &clientNow, qint64 offsetMs = 0)
 {

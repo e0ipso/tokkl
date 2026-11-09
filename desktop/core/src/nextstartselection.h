@@ -2,10 +2,8 @@
 
 #include "apitypes.h"
 #include "epoch.h"
-#include "nextstartdefaults.h"
 
 #include <QObject>
-#include <QPointer>
 #include <QVariant>
 
 #include <functional>
@@ -17,17 +15,8 @@ namespace Tokkl
 class Connection;
 class ProjectCatalog;
 
-// The project and billable flag of the next start, and the automatic
-// defaults that set them. The choice goes with the context: reset(), as for
-// another account, and a new connection clear it.
-//
-// After a stop the next start uses the stopped entry's project; when a
-// context starts with nothing running it uses the project of the account's
-// newest entry. Only an active project of the workspace counts, and
-// any other gives no project. A pick by the user wins over both until the
-// next start or stop. NextStartDefaults decides when a default may still
-// apply. A TimerModel owns the selection and reads it; its TimerCoordinator
-// picks and starts through it (TimerModelRoles::selection).
+// The next start's project and billable flag: a pick, or the active project
+// of the stopped or newest entry; a pick wins until the next start or stop.
 class NextStartSelection : public QObject
 {
     Q_OBJECT
@@ -40,28 +29,16 @@ public:
         bool operator==(const Choice &other) const = default;
     };
 
-    // The choice for a project the menu offers: null or 0 for no project,
-    // else an active project of projects with its billable default.
-    // nullopt for anything else.
-    static std::optional<Choice> forProject(const QVariant &projectId, const QList<Project> &projects);
-    // The default after an entry of projectId stopped.
-    static Choice afterStop(std::optional<qint64> projectId, const QList<Project> &projects);
-    // The default from the account's newest entry, or none.
-    static Choice fromLatestEntry(const std::optional<ListedEntry> &latest, qint64 workspaceId);
-
-    // The catalog is not owned and must outlive the selection.
-    explicit NextStartSelection(const ProjectCatalog *catalog, QObject *parent = nullptr);
-
-    // Not owned. Null leaves nothing to choose for. Either way the choice
-    // is cleared.
-    void setConnection(Connection *connection);
+    // Neither is owned; both must outlive the selection.
+    NextStartSelection(const ProjectCatalog *catalog, Connection &connection, QObject *parent = nullptr);
 
     // The project and billable flag a start sends.
     Choice choice() const;
     std::optional<qint64> projectId() const;
     QVariant projectIdVariant() const;
     bool billable() const;
-    // forProject() against the catalog's projects.
+    // Null or 0 for no project, else an active project with its billable
+    // default; nullopt for anything else.
     std::optional<Choice> choiceFor(const QVariant &projectId) const;
 
     // A pick by the user, which no default replaces until the next start or
@@ -104,11 +81,20 @@ Q_SIGNALS:
 private:
     void apply(const Choice &choice);
     void set(const Choice &choice);
+    // The pick, a stop default waiting for the list and a last-entry read
+    // on its way no longer apply.
+    void clear();
 
     const ProjectCatalog *m_catalog;
-    QPointer<Connection> m_connection;
+    Connection &m_connection;
     Choice m_choice;
-    NextStartDefaults m_defaults;
+    bool m_picked = false;
+    // A stopped entry's project, waiting for the project list.
+    std::optional<qint64> m_stopDefault;
+    bool m_lastEntryWanted = false;
+    quint64 m_lastEntryReads = 0;
+    // The last-entry read that may still apply, or 0.
+    quint64 m_lastEntryRead = 0;
     // Advanced by reset(); last-entry reads from before do nothing.
     Epoch m_epoch;
 };

@@ -1,6 +1,6 @@
 // SessionCredentials on its own: which settings name the account, the
 // secret read for them, and a write the store refused. connectiontest
-// covers it through AuthSession.
+// covers it through Connection.
 
 #include "fakes.h"
 #include "sessioncredentials.h"
@@ -15,11 +15,6 @@ namespace
 {
 const QString instanceA = QStringLiteral("https://a.example.test");
 const QString instanceB = QStringLiteral("https://b.example.test");
-
-QString tokenKey(const QString &url)
-{
-    return credentialKey(parseInstanceUrl(url), AuthMode::Token, QString());
-}
 
 CredentialResult refused()
 {

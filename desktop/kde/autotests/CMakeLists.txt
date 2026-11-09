@@ -23,7 +23,7 @@ add_test(NAME smoke-session
         -P ${CMAKE_CURRENT_SOURCE_DIR}/smokesessiontest.cmake)
 ecm_add_test(kdeconnectiontest.cpp
     TEST_NAME kdeconnection
-    LINK_LIBRARIES tokklkde Qt6::DBus Qt6::Test)
+    LINK_LIBRARIES tokklkde tokklcorefakes Qt6::DBus Qt6::Test)
 target_compile_definitions(kdeconnection PRIVATE
     TOKKL_VERSION_STRING="${TOKKL_RESOLVED_VERSION}"
     TOKKL_DBUS_DAEMON="${TOKKL_DBUS_DAEMON}")

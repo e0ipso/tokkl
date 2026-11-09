@@ -275,10 +275,11 @@ private:
 };
 }
 
-NetworkTransport::NetworkTransport(const QString &clientName, QObject *parent)
+NetworkTransport::NetworkTransport(const QString &clientName, QObject *parent, const TransportLimits &limits)
     : Transport(parent)
     , m_manager(new QNetworkAccessManager(this))
     , m_userAgent(clientName.toUtf8() + QByteArrayLiteral("/" TOKKL_VERSION_STRING))
+    , m_limits(limits)
 {
     // A redirect could carry the Authorization header to another origin.
     // The client reports redirects instead of following them.
@@ -308,7 +309,7 @@ QNetworkRequest NetworkTransport::networkRequest(const HttpRequest &request, con
 PendingReply *NetworkTransport::send(const HttpRequest &request)
 {
     QNetworkReply *reply = m_manager->sendCustomRequest(networkRequest(request, "application/json"), request.method, request.body);
-    return new NetworkReply(request.method, reply, m_timeoutMs, m_maxResponseBytes, this);
+    return new NetworkReply(request.method, reply, m_limits.timeoutMs, m_limits.maxResponseBytes, this);
 }
 
 PendingStream *NetworkTransport::openStream(const HttpRequest &request)
@@ -317,37 +318,7 @@ PendingStream *NetworkTransport::openStream(const HttpRequest &request)
     // The idle timer of the stream stands in for Qt's transfer timeout.
     streamRequest.setTransferTimeout(0);
     QNetworkReply *reply = m_manager->get(streamRequest);
-    return new NetworkStream(reply, m_streamIdleTimeoutMs, m_maxResponseBytes, this);
-}
-
-int NetworkTransport::timeout() const
-{
-    return m_timeoutMs;
-}
-
-void NetworkTransport::setTimeout(int ms)
-{
-    m_timeoutMs = ms;
-}
-
-int NetworkTransport::streamIdleTimeout() const
-{
-    return m_streamIdleTimeoutMs;
-}
-
-void NetworkTransport::setStreamIdleTimeout(int ms)
-{
-    m_streamIdleTimeoutMs = ms;
-}
-
-qint64 NetworkTransport::maxResponseBytes() const
-{
-    return m_maxResponseBytes;
-}
-
-void NetworkTransport::setMaxResponseBytes(qint64 bytes)
-{
-    m_maxResponseBytes = bytes;
+    return new NetworkStream(reply, m_limits.streamIdleTimeoutMs, m_limits.maxResponseBytes, this);
 }
 
 }

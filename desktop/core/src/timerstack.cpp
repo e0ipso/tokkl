@@ -14,7 +14,7 @@ TimerStack::TimerStack(Transport *transport,
     , m_stateClient(m_connection, clock, this)
     , m_timer(m_stateClient, this)
     , m_preferences(&m_connection, this)
-    , m_session(clock, *m_timer.coordinator(), m_stateClient, pomodoroStore, this)
+    , m_session(clock, m_timer, m_stateClient, pomodoroStore, this)
 {
 }
 

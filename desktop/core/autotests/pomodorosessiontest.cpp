@@ -37,26 +37,6 @@ const QByteArray endPath = "/app/pomodoro/end";
 const QByteArray timerStartPath = "/app/timer/start";
 const QString tooShort = QStringLiteral("This pomodoro was too short to save.");
 
-// The account. Its server is a current one: the fixture's transport
-// answers GET /api/app/status with the capabilities.
-QByteArray meBody()
-{
-    const QJsonObject me{
-        {QStringLiteral("id"), 3},
-        {QStringLiteral("email"), QStringLiteral("bea@example.test")},
-        {QStringLiteral("fullname"), QStringLiteral("Bea")},
-        {QStringLiteral("timezone"), QStringLiteral("UTC")},
-        {QStringLiteral("default_workspace_id"), 7},
-        {QStringLiteral("beginning_of_week"), 1},
-    };
-    return QJsonDocument(me).toJson(QJsonDocument::Compact);
-}
-
-QString iso(const QDateTime &time)
-{
-    return time.toUTC().toString(Qt::ISODateWithMs);
-}
-
 // A running entry of the workspace in the v9 shape.
 QJsonObject runningEntry(qint64 id, const QDateTime &start)
 {
@@ -79,57 +59,6 @@ QByteArray projectsBody()
     return QByteArrayLiteral(R"([{"id":11,"workspace_id":7,"client_id":null,"client_name":null,"name":"Alpha","color":"#06aaf5","active":true,"billable":true}])");
 }
 
-// The phase of a session on the server's clock, with what the server derives
-// from it. Lengths are one minute, with a long rest after every second work
-// phase.
-struct Phase {
-    QString kind;
-    QDateTime start;
-    int completed = 0;
-    QString upcoming;
-    QString transition;
-    int number = 1;
-    QDateTime pomodoroStart; // the open pomodoro's start; the phase start when invalid
-};
-
-Phase work(const QDateTime &start, int completed = 0)
-{
-    return Phase{QStringLiteral("work"),
-                 start,
-                 completed,
-                 completed + 1 >= 2 ? QStringLiteral("longRest") : QStringLiteral("shortRest"),
-                 completed + 1 >= 2 ? QStringLiteral("workToLongRest") : QStringLiteral("workToShortRest"),
-                 completed + 1,
-                 start};
-}
-
-Phase shortRest(const QDateTime &start, const QDateTime &pomodoroStart)
-{
-    return Phase{QStringLiteral("shortRest"), start, 1, QStringLiteral("work"), QStringLiteral("shortRestToWork"), 1, pomodoroStart};
-}
-
-QJsonObject pomodoroJson(const Phase &phase, qint64 entryId)
-{
-    const QDateTime pomodoroStart = phase.pomodoroStart.isValid() ? phase.pomodoroStart : phase.start;
-    return QJsonObject{
-        {QStringLiteral("work_minutes"), 1},
-        {QStringLiteral("short_rest_minutes"), 1},
-        {QStringLiteral("long_rest_minutes"), 1},
-        {QStringLiteral("long_rest_every"), 2},
-        {QStringLiteral("phase"),
-         QJsonObject{
-             {QStringLiteral("kind"), phase.kind},
-             {QStringLiteral("start"), iso(phase.start)},
-             {QStringLiteral("completed"), phase.completed},
-             {QStringLiteral("planned_end"), iso(phase.start.addSecs(60))},
-         }},
-        {QStringLiteral("upcoming_phase"), phase.upcoming},
-        {QStringLiteral("transition"), phase.transition},
-        {QStringLiteral("number"), phase.number},
-        {QStringLiteral("entry_id"), entryId},
-        {QStringLiteral("pomodoro_start"), iso(pomodoroStart)},
-    };
-}
 }
 
 // A timer that is only TimerActions, as a session sees it: answers the test
@@ -284,7 +213,7 @@ class PomodoroSessionTest : public QObject
 
         void createSession()
         {
-            session = std::make_unique<PomodoroSession>(clock, *timer.coordinator(), client, store);
+            session = std::make_unique<PomodoroSession>(clock, timer, client, store);
         }
 
         QDateTime serverNow() const
@@ -399,7 +328,7 @@ private Q_SLOTS:
     {
         Fixture f(false);
         SwitchingStore store;
-        PomodoroSession session(f.clock, *f.timer.coordinator(), f.client, store);
+        PomodoroSession session(f.clock, f.timer, f.client, store);
         QSignalSpy changed(&session, &PomodoroSession::modeChanged);
         QVERIFY(!session.pomodoroMode());
 
@@ -413,20 +342,16 @@ private Q_SLOTS:
         QVERIFY(!store.stored);
     }
 
-    // The menus' actions come from one set of rules; the policies say where
-    // the panels differ: GNOME waits for Ready, and only KDE holds Project
-    // and Billable during a session.
+    // The menus' actions come from one set of rules; GNOME's write items
+    // also wait for Ready.
     void menuActionsFollowTheTimerAndTheSession()
     {
         Fixture f;
         const auto plasma = [&f] {
-            return MenuActionStates::of(f.timer, f.session.get(), MenuActionPolicy::plasma());
-        };
-        const auto macos = [&f] {
-            return MenuActionStates::of(f.timer, f.session.get(), MenuActionPolicy::macos());
+            return MenuActionStates::of(f.timer, f.session.get());
         };
         const auto gnome = [&f] {
-            return MenuActionStates::of(f.timer, f.session.get(), MenuActionPolicy::gnome());
+            return MenuActionStates::of(f.timer, f.session.get(), true);
         };
         MenuActions actions;
         actions.setTimer(&f.timer);
@@ -441,13 +366,13 @@ private Q_SLOTS:
         QVERIFY(!plasma().project.enabled && !plasma().billable.enabled);
         QVERIFY(plasma().mode.enabled);
         // Without a session the menu reads as Timer mode.
-        QVERIFY(MenuActionStates::of(f.timer, nullptr, MenuActionPolicy::plasma()).run.visible);
-        QVERIFY(!MenuActionStates::of(f.timer, nullptr, MenuActionPolicy::plasma()).mode.enabled);
+        QVERIFY(MenuActionStates::of(f.timer, nullptr).run.visible);
+        QVERIFY(!MenuActionStates::of(f.timer, nullptr).mode.enabled);
 
         QVERIFY(connectAccount(f));
         QVERIFY(!changes.isEmpty());
         QVERIFY(actions.states() == plasma());
-        for (const MenuActionStates &states : {plasma(), macos(), gnome()}) {
+        for (const MenuActionStates &states : {plasma(), gnome()}) {
             QVERIFY(states.run.enabled && states.project.enabled && states.billable.enabled);
             QCOMPARE(states.project.label, QStringLiteral("project"));
         }
@@ -460,7 +385,7 @@ private Q_SLOTS:
         f.respond(f.last("GET", statePath), f.state(std::nullopt));
         QCOMPARE(f.timer.status(), TimerModel::Error);
         QVERIFY(f.timer.canWrite());
-        QVERIFY(plasma().run.enabled && macos().run.enabled && plasma().project.enabled);
+        QVERIFY(plasma().run.enabled && plasma().project.enabled);
         QVERIFY(!gnome().run.enabled && !gnome().project.enabled && !gnome().billable.enabled);
         // A billable choice clears the kept message.
         QVERIFY(f.timer.chooseBillable(false));
@@ -479,14 +404,14 @@ private Q_SLOTS:
         QVERIFY(!plasma().startSession.enabled);
         f.respond(f.last("POST", startPath), f.state(work(f.serverNow())));
         QVERIFY(f.session->isActive());
-        for (const MenuActionStates &states : {plasma(), macos(), gnome()}) {
+        for (const MenuActionStates &states : {plasma(), gnome()}) {
             QVERIFY(!states.run.visible && !states.startSession.visible);
             QVERIFY(states.nextPhase.visible && states.nextPhase.enabled && states.endSession.visible && states.endSession.enabled);
             QCOMPARE(states.nextPhase.label, QStringLiteral("shortRest"));
             QVERIFY(!states.mode.enabled);
             QCOMPARE(states.mode.label, QStringLiteral("pomodoroModeLocked"));
         }
-        for (const MenuActionStates &states : {plasma(), macos(), gnome()}) {
+        for (const MenuActionStates &states : {plasma(), gnome()}) {
             QVERIFY(!states.project.enabled && !states.billable.enabled);
         }
         QVERIFY(!f.timer.canChooseProject() && !f.timer.canChooseBillable());

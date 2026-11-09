@@ -18,7 +18,7 @@ namespace Tokkl
 // for them.
 //
 // It reads the secret and remembers a write the store refused, but decides
-// nothing about the account: AuthSession reacts to its signals.
+// nothing about the account: Connection reacts to its signals.
 class SessionCredentials : public QObject
 {
     Q_OBJECT

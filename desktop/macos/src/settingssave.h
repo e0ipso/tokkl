@@ -4,7 +4,6 @@
 #include "connectionsettings.h"
 
 #include <QObject>
-#include <QPointer>
 #include <QString>
 
 #include <array>
@@ -48,9 +47,8 @@ public:
 
     static const QString monochromeIconKey;
 
-    // Uses them all, owning none. Null preferences post no lengths; null
-    // settings or sounds store nothing there.
-    SettingsSave(ConnectionSetup *setup, QSettings *settings, PomodoroPreferences *preferences, SoundChoices *sounds, QObject *parent = nullptr);
+    // Uses them all, owning none.
+    SettingsSave(ConnectionSetup *setup, QSettings &settings, PomodoroPreferences &preferences, SoundChoices &sounds, QObject *parent = nullptr);
 
     bool isRunning() const;
     // Why the last save could not write the settings file; empty when it
@@ -88,9 +86,9 @@ private:
     void settle();
 
     ConnectionSetup *m_setup;
-    QPointer<QSettings> m_settings;
-    QPointer<PomodoroPreferences> m_preferences;
-    QPointer<SoundChoices> m_sounds;
+    QSettings &m_settings;
+    PomodoroPreferences &m_preferences;
+    SoundChoices &m_sounds;
     // Counts saves; a store answer for an earlier one is dropped.
     quint64 m_serial = 0;
     bool m_running = false;

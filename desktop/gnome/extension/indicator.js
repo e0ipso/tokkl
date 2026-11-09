@@ -121,11 +121,7 @@ export const TokklIndicator = GObject.registerClass(
             this._detailItem.label.clutter_text.line_wrap = true;
             this.menu.addMenuItem(this._detailItem);
 
-            // Start, or Stop while an entry runs or a chain is paused. It never
-            // pauses: Stop ends the chain. Pomodoro mode hides it unless a timer
-            // runs or is paused, since the service starts no timer then. An
-            // active session hides it in either mode: the session owns the
-            // timer, whichever device started it.
+            // Start or Stop, as the service's Actions say. Stop ends the chain.
             this._toggleItem = new PopupMenu.PopupMenuItem(_('Start'));
             this._toggleItem.connect('activate', () => this._startOrStop());
             this.menu.addMenuItem(this._toggleItem);
@@ -375,7 +371,7 @@ export const TokklIndicator = GObject.registerClass(
         }
 
         _startOrStop() {
-            this._request(this._time.running || this._time.paused ? 'Stop' : 'Start');
+            this._request(this._property('Actions', null)?.run?.label === 'stop' ? 'Stop' : 'Start');
         }
 
         // The service answers false when it refused a choice, and then announces

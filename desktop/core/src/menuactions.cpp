@@ -15,22 +15,7 @@ QVariantMap ActionState::toVariantMap() const
     };
 }
 
-MenuActionPolicy MenuActionPolicy::plasma()
-{
-    return {WriteGate::CanWrite};
-}
-
-MenuActionPolicy MenuActionPolicy::macos()
-{
-    return {WriteGate::CanWrite};
-}
-
-MenuActionPolicy MenuActionPolicy::gnome()
-{
-    return {WriteGate::Ready};
-}
-
-MenuActionStates MenuActionStates::of(const TimerModel &timer, const PomodoroSession *session, const MenuActionPolicy &policy)
+MenuActionStates MenuActionStates::of(const TimerModel &timer, const PomodoroSession *session, bool waitForReady)
 {
     const bool running = timer.isRunning();
     const bool paused = timer.isPaused();
@@ -39,7 +24,7 @@ MenuActionStates MenuActionStates::of(const TimerModel &timer, const PomodoroSes
     // exactly when the timer shows a session.
     const bool active = session && session->isActive();
     const bool pomodoroIdle = session && session->pomodoroMode() && !held;
-    const bool gateOpen = policy.writeGate == MenuActionPolicy::WriteGate::CanWrite || timer.status() == TimerModel::Ready;
+    const bool gateOpen = !waitForReady || timer.status() == TimerModel::Ready;
     const bool writable = gateOpen && timer.canWrite();
 
     MenuActionStates states;
@@ -93,13 +78,7 @@ QVariantMap MenuActionStates::toVariantMap() const
 }
 
 MenuActions::MenuActions(QObject *parent)
-    : MenuActions(MenuActionPolicy::plasma(), parent)
-{
-}
-
-MenuActions::MenuActions(const MenuActionPolicy &policy, QObject *parent)
     : QObject(parent)
-    , m_policy(policy)
 {
 }
 
@@ -170,7 +149,7 @@ QVariantMap MenuActions::statesVariant() const
 
 void MenuActions::update()
 {
-    const MenuActionStates states = m_timer ? MenuActionStates::of(*m_timer, m_session, m_policy) : MenuActionStates();
+    const MenuActionStates states = m_timer ? MenuActionStates::of(*m_timer, m_session) : MenuActionStates();
     if (states != m_states) {
         m_states = states;
         Q_EMIT changed();

@@ -2,7 +2,6 @@
 
 #include "apitypes.h"
 
-#include <QPointer>
 #include <QTimer>
 #include <QWidget>
 
@@ -62,23 +61,15 @@ class SettingsWindow : public QWidget
     Q_OBJECT
 
 public:
-    // Uses the given transport, store, settings, login item, preferences,
-    // sound choices and alarm; the window owns none of them. loginItem may
-    // be null: the toggle is hidden. With null preferences the lengths
-    // cannot be edited; with a null alarm Preview plays nothing.
-    // Its fields have object names: url, urlNote, token, password, email,
-    // secret, storeError, saveError, test, testResult, login, monochrome,
-    // loginNote, save, lengthsNote, pomodoroError and soundError, and per
-    // length length:<key> and lengthError:<key> (pomodoroPreferenceKey()),
-    // per transition sound:<name> and preview:<name> (transitionKindName()).
-    // Its ConnectionSetup is a child.
+    // Owns none of the parts but its ConnectionSetup. The fields' object
+    // names are set in the constructor.
     SettingsWindow(Transport *transport,
                    CredentialStore *store,
-                   QSettings *settings,
-                   LoginItem *loginItem,
-                   PomodoroPreferences *preferences,
-                   SoundChoices *sounds,
-                   PomodoroAlarm *alarm,
+                   QSettings &settings,
+                   LoginItem &loginItem,
+                   PomodoroPreferences &preferences,
+                   SoundChoices &sounds,
+                   PomodoroAlarm &alarm,
                    QWidget *parent = nullptr);
     ~SettingsWindow() override;
 
@@ -131,12 +122,12 @@ private:
     void loadSounds();
     void preview(TransitionKind kind);
 
-    QPointer<QSettings> m_settings;
-    LoginItem *m_loginItem;
+    QSettings &m_settings;
+    LoginItem &m_loginItem;
     ConnectionSetup *m_setup;
-    QPointer<PomodoroPreferences> m_preferences;
-    QPointer<SoundChoices> m_sounds;
-    QPointer<PomodoroAlarm> m_alarm;
+    PomodoroPreferences &m_preferences;
+    SoundChoices &m_sounds;
+    PomodoroAlarm &m_alarm;
     SettingsSave *m_save;
     QTimer m_loadTimer;
 

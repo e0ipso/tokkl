@@ -19,32 +19,6 @@ namespace
 const QString instanceA = QStringLiteral("https://a.example.test");
 const QString instanceB = QStringLiteral("https://b.example.test");
 
-// A store whose writes answer only when the test says so.
-class HeldStore : public CredentialStore
-{
-public:
-    void read(const QString &, QObject *, Callback) override
-    {
-    }
-
-    void write(const QString &key, const QString &secret, QObject *, Callback done) override
-    {
-        held.append({key, secret, std::move(done)});
-    }
-
-    void finish(qsizetype index, CredentialResult::Status status = CredentialResult::Status::Ok)
-    {
-        held.at(index).done(CredentialResult{status, {}});
-    }
-
-    struct Write {
-        QString key;
-        QString secret;
-        Callback done;
-    };
-    QList<Write> held;
-};
-
 struct Fixture {
     QTemporaryDir dir;
     FakeTransport transport;
@@ -88,6 +62,9 @@ private Q_SLOTS:
         QTest::addColumn<QString>("mode");
         QTest::addColumn<QString>("email");
         QTest::newRow("address") << QStringLiteral("not a url") << QStringLiteral("token") << QString();
+        QTest::newRow("no address") << QString() << QStringLiteral("token") << QString();
+        QTest::newRow("not http") << QStringLiteral("ftp://a.example.test") << QStringLiteral("token") << QString();
+        QTest::newRow("user info") << QStringLiteral("https://bea:pw@a.example.test") << QStringLiteral("token") << QString();
         QTest::newRow("method") << instanceA << QStringLiteral("cookie") << QString();
         QTest::newRow("email") << instanceA << QStringLiteral("password") << QStringLiteral("  ");
     }

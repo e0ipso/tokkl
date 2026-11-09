@@ -2,7 +2,6 @@
 
 #include "timer1adaptor.h"
 
-#include "configurationadapter.h"
 #include "connection.h"
 #include "menuactions.h"
 #include "pomodoroalarm.h"
@@ -10,10 +9,10 @@
 #include "pomodorosession.h"
 #include "pomodorosounds.h"
 #include "projectchoices.h"
+#include "servicesettings.h"
 #include "soundchoices.h"
 #include "statuspresentation.h"
-#include "timercoordinator.h"
-#include "timermodel.h"
+#include "timercontroller.h"
 #include "timerstateclient.h"
 
 #include <QDBusMessage>
@@ -28,6 +27,8 @@ namespace Tokkl
 const QString TimerService::serviceName = QStringLiteral("org.tokkl.Timer1");
 const QString TimerService::objectPath = QStringLiteral("/org/tokkl/Timer1");
 const QString TimerService::interfaceName = QStringLiteral("org.tokkl.Timer1");
+const QString TimerService::credentialStoreError = QStringLiteral("org.tokkl.Timer1.Error.CredentialStore");
+const QString TimerService::supersededError = QStringLiteral("org.tokkl.Timer1.Error.Superseded");
 
 namespace
 {
@@ -61,11 +62,10 @@ QString TimerService::clientName()
 TimerService::TimerService(const Parts &parts, QObject *parent)
     : QObject(parent)
     , m_timer(parts.timer)
-    , m_actions(parts.actions)
     , m_session(parts.session)
     , m_preferences(parts.preferences)
     , m_sounds(parts.sounds)
-    , m_configuration(parts.configuration)
+    , m_settings(parts.settings)
     , m_alarm(parts.alarm)
     , m_bus(QString())
 {
@@ -109,7 +109,7 @@ TimerService::TimerService(const Parts &parts, QObject *parent)
     // LocalStartTime reads the state client's offset, which no model
     // signal announces.
     watch(m_timer->stateClient(), &TimerStateClient::offsetChanged);
-    connect(m_actions, &TimerCoordinator::writeFinished, this, &TimerService::onWriteFinished);
+    connect(m_timer, &TimerController::writeFinished, this, &TimerService::onWriteFinished);
 
     m_published = read();
     m_dirty = false;
@@ -326,7 +326,7 @@ QMap<QString, QVariantMap> TimerService::actions() const
     // GNOME's menu has always waited for Status ready before it offered a
     // write, and has left Project and Billable to the timer during a
     // session; the policy keeps both.
-    const QVariantMap states = MenuActionStates::of(*m_timer, m_session, MenuActionPolicy::gnome()).toVariantMap();
+    const QVariantMap states = MenuActionStates::of(*m_timer, m_session, true).toVariantMap();
     QMap<QString, QVariantMap> actions;
     for (auto it = states.cbegin(); it != states.cend(); ++it) {
         actions.insert(it.key(), it.value().toMap());
@@ -419,42 +419,42 @@ QList<QVariantMap> TimerService::soundCatalogue() const
 bool TimerService::Start()
 {
     // In Pomodoro mode the desktop starts no timer: sessions run instead.
-    return answer(!m_session->pomodoroMode() && m_actions->start());
+    return answer(!m_session->pomodoroMode() && m_timer->start());
 }
 
 bool TimerService::Stop()
 {
-    return answer(m_actions->stop());
+    return answer(m_timer->stop());
 }
 
 bool TimerService::Pause()
 {
-    return answer(m_actions->pause());
+    return answer(m_timer->pause());
 }
 
 bool TimerService::Resume()
 {
-    return answer(m_actions->resume());
+    return answer(m_timer->resume());
 }
 
 qulonglong TimerService::RequestStart()
 {
-    return answer(follow(!m_session->pomodoroMode() && m_actions->start()));
+    return answer(follow(!m_session->pomodoroMode() && m_timer->start()));
 }
 
 qulonglong TimerService::RequestStop()
 {
-    return answer(follow(m_actions->stop()));
+    return answer(follow(m_timer->stop()));
 }
 
 qulonglong TimerService::RequestPause()
 {
-    return answer(follow(m_actions->pause()));
+    return answer(follow(m_timer->pause()));
 }
 
 qulonglong TimerService::RequestResume()
 {
-    return answer(follow(m_actions->resume()));
+    return answer(follow(m_timer->resume()));
 }
 
 qulonglong TimerService::follow(bool sent)
@@ -480,19 +480,37 @@ void TimerService::onWriteFinished(bool ok, const QString &message)
 
 bool TimerService::SetProject(qint64 projectId)
 {
-    return answer(m_actions->chooseProject(projectId == 0 ? QVariant::fromValue(nullptr) : QVariant(projectId)));
+    return answer(m_timer->chooseProject(projectId == 0 ? QVariant::fromValue(nullptr) : QVariant(projectId)));
 }
 
 bool TimerService::SetBillable(bool billable)
 {
-    return answer(m_actions->chooseBillable(billable));
+    return answer(m_timer->chooseBillable(billable));
 }
 
 void TimerService::Configure(const QString &instanceUrl, const QString &authMode, const QString &email, const QString &secret)
 {
-    // The adapter answers once the credential store has.
+    // Answered once the credential store has, with the message for the user.
     setDelayedReply(true);
-    m_configuration->configure(instanceUrl, authMode, email, secret, ConfigurationAdapter::Call{message(), QDBusContext::connection()});
+    m_settings->configure(instanceUrl, authMode, email, secret, [call = message(), bus = QDBusContext::connection()](const ServiceSettings::Outcome &outcome) {
+        switch (outcome.kind) {
+        case ServiceSettings::Outcome::Kind::Saved:
+            bus.send(call.createReply());
+            break;
+        case ServiceSettings::Outcome::Kind::Invalid:
+            bus.send(call.createErrorReply(QDBusError::InvalidArgs, outcome.message));
+            break;
+        case ServiceSettings::Outcome::Kind::StoreRefused:
+            bus.send(call.createErrorReply(credentialStoreError, outcome.message));
+            break;
+        case ServiceSettings::Outcome::Kind::NotWritten:
+            bus.send(call.createErrorReply(QDBusError::Failed, outcome.message));
+            break;
+        case ServiceSettings::Outcome::Kind::Superseded:
+            bus.send(call.createErrorReply(supersededError, outcome.message));
+            break;
+        }
+    });
     publishChanges();
 }
 
@@ -542,7 +560,7 @@ void TimerService::RefreshPreferences()
 
 void TimerService::RefreshProjects()
 {
-    m_actions->refreshProjects();
+    m_timer->refreshProjects();
     publishChanges();
 }
 

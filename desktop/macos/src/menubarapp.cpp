@@ -13,7 +13,6 @@
 #include "timerstack.h"
 #include "transport.h"
 
-#include <QCoreApplication>
 #include <QSettings>
 
 namespace Tokkl
@@ -36,11 +35,12 @@ Transport *MenuBarApp::createTransport(QObject *parent)
 
 MenuBarApp::MenuBarApp(Transport *transport,
                        CredentialStore *store,
-                       StatusItem *statusItem,
-                       LoginItem *loginItem,
-                       AlarmPlayer *alarmPlayer,
+                       StatusItem &statusItem,
+                       LoginItem &loginItem,
+                       AlarmPlayer &alarmPlayer,
                        QSettings &settings,
                        Clock &clock,
+                       const QString &soundsDirectory,
                        QObject *parent)
     : QObject(parent)
     , m_statusItem(statusItem)
@@ -53,15 +53,9 @@ MenuBarApp::MenuBarApp(Transport *transport,
     , m_session(m_stack->session())
 {
     m_sounds = new SoundChoices(&settings, &MenuBarApp::soundKey, this);
-    // The bundle's Contents/Resources/sounds, which the build fills from
-    // TOKKL_POMODORO_SOUND_FILES.
-    m_alarm = new PomodoroAlarm(m_session,
-                                alarmPlayer,
-                                m_sounds,
-                                QString(QCoreApplication::applicationDirPath() + QStringLiteral("/../Resources/sounds")),
-                                this);
-    m_menu = new StatusMenu(m_timer, m_timer->coordinator(), m_session, m_alarm, this);
-    m_settingsWindow = std::make_unique<SettingsWindow>(transport, store, &settings, loginItem, m_preferences, m_sounds, m_alarm);
+    m_alarm = new PomodoroAlarm(*m_session, alarmPlayer, *m_sounds, soundsDirectory, this);
+    m_menu = new StatusMenu(*m_timer, *m_session, *m_alarm, this);
+    m_settingsWindow = std::make_unique<SettingsWindow>(transport, store, settings, loginItem, *m_preferences, *m_sounds, *m_alarm);
 
     connect(m_menu, &StatusMenu::settingsRequested, this, &MenuBarApp::showSettings);
     connect(m_menu, &StatusMenu::openRequested, this, &MenuBarApp::openUrlRequested);
@@ -82,11 +76,9 @@ MenuBarApp::MenuBarApp(Transport *transport,
         connect(m_session, signal, this, &MenuBarApp::updateItem);
     }
 
-    if (m_statusItem) {
-        m_statusItem->setMenu(m_menu->menu());
-        connect(m_statusItem, &StatusItem::activated, this, &MenuBarApp::activate);
-        connect(m_statusItem, &StatusItem::reduceMotionChanged, this, &MenuBarApp::updateItem);
-    }
+    m_statusItem.setMenu(m_menu->menu());
+    connect(&m_statusItem, &StatusItem::activated, this, &MenuBarApp::activate);
+    connect(&m_statusItem, &StatusItem::reduceMotionChanged, this, &MenuBarApp::updateItem);
     updateItem();
 }
 
@@ -95,9 +87,7 @@ MenuBarApp::MenuBarApp(Transport *transport,
 // The children would otherwise go in the order they were made.
 MenuBarApp::~MenuBarApp()
 {
-    if (m_statusItem) {
-        m_statusItem->setMenu(nullptr);
-    }
+    m_statusItem.setMenu(nullptr);
     m_settingsWindow.reset();
     delete m_menu;
     delete m_alarm;
@@ -113,14 +103,6 @@ void MenuBarApp::start()
         showSettings();
     }
 }
-
-
-
-
-
-
-
-
 
 void MenuBarApp::showSettings()
 {
@@ -142,8 +124,8 @@ void MenuBarApp::applySettings()
 void MenuBarApp::activate()
 {
     // Mid-phase a click must not skip the phase, so it opens the menu.
-    if (m_session->activate() == PomodoroSession::Activation::OpenMenu && m_statusItem) {
-        m_statusItem->popUpMenu();
+    if (m_session->activate() == PomodoroSession::Activation::OpenMenu) {
+        m_statusItem.popUpMenu();
     }
 }
 
@@ -154,15 +136,12 @@ void MenuBarApp::resumed()
 
 void MenuBarApp::updateItem()
 {
-    if (!m_statusItem) {
-        return;
-    }
-    m_statusItem->setTitle(StatusWords::menuBarTitle(*m_timer, *m_session));
-    m_statusItem->setToolTip(StatusWords::summary(*m_timer, *m_session));
-    m_statusItem->setAccessibleName(StatusWords::itemName(*m_timer, *m_session));
+    m_statusItem.setTitle(StatusWords::menuBarTitle(*m_timer, *m_session));
+    m_statusItem.setToolTip(StatusWords::summary(*m_timer, *m_session));
+    m_statusItem.setAccessibleName(StatusWords::itemName(*m_timer, *m_session));
     const bool monochrome = m_settings.value(SettingsSave::monochromeIconKey, false).toBool();
-    m_statusItem->setImage(
-        StatusImage::compose(ProjectIndicator::fromTimer(*m_timer, m_statusItem->reduceMotion()), monochrome, m_session->pomodoroMode()));
+    m_statusItem.setImage(
+        StatusImage::compose(ProjectIndicator::fromTimer(*m_timer, m_statusItem.reduceMotion()), monochrome, m_session->pomodoroMode()));
 }
 
 }

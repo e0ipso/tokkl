@@ -15,10 +15,6 @@ add_library(tokklcore STATIC
     apitimer.cpp
     apitypes.cpp
     apitypes.h
-    authsession.cpp
-    authsession.h
-    chosenproject.cpp
-    chosenproject.h
     clock.cpp
     clock.h
     connection.cpp
@@ -40,7 +36,6 @@ add_library(tokklcore STATIC
     menuactions.h
     mutationgate.cpp
     mutationgate.h
-    nextstartdefaults.h
     nextstartselection.cpp
     nextstartselection.h
     pomodoroalarm.cpp
@@ -55,12 +50,8 @@ add_library(tokklcore STATIC
     pomodorostore.h
     projectcatalog.cpp
     projectcatalog.h
-    projectcatalogadapter.cpp
-    projectcatalogadapter.h
     projectchoices.cpp
     projectchoices.h
-    projectloader.cpp
-    projectloader.h
     sessioncredentials.cpp
     sessioncredentials.h
     sessionstate.h
@@ -73,8 +64,6 @@ add_library(tokklcore STATIC
     timeractions.h
     timercontroller.cpp
     timercontroller.h
-    timercoordinator.cpp
-    timercoordinator.h
     timermodel.cpp
     timermodel.h
     timerstack.cpp
