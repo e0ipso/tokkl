@@ -22,6 +22,7 @@ import {
     phaseName,
     pomodoroModeLabel,
     projectLabel,
+    refreshProjectsOnOpen,
     serviceOutdated,
     serviceRunning,
     sessionLine,
@@ -204,6 +205,43 @@ test('the panel button and the preferences read nothing of a service below the f
     assert.equal(serviceOutdated(null), false);
     assert.equal(cachedProperty(gone, 'Status', 'none'), 'none');
     assert.equal(interfaceVersion(gone), 0);
+});
+
+// The menu's opening asks the service to check the projects, once, and
+// only a running service the extension supports: a call to one that is gone
+// would start it.
+test('opening the menu asks the service to check the projects', () => {
+    const checks = [];
+    const withMethod = proxy => {
+        if (proxy) proxy.RefreshProjectsRemote = done => checks.push(done);
+        return proxy;
+    };
+    const current = withMethod(fakeProxy(':1.7', { InterfaceVersion: 2 }));
+    assert.equal(refreshProjectsOnOpen(true, current), true);
+    assert.equal(checks.length, 1);
+    // Closing sends nothing.
+    assert.equal(refreshProjectsOnOpen(false, current), false);
+    assert.equal(checks.length, 1);
+
+    for (const proxy of [
+        withMethod(fakeProxy(null, { InterfaceVersion: 2 })),
+        withMethod(fakeProxy(':1.7', { InterfaceVersion: 1 })),
+        null,
+    ]) {
+        assert.equal(refreshProjectsOnOpen(true, proxy), false);
+    }
+    assert.equal(checks.length, 1);
+
+    // A failed check only logs.
+    const warn = console.warn;
+    const warnings = [];
+    console.warn = message => warnings.push(message);
+    try {
+        checks[0](null, new Error('No reply'));
+    } finally {
+        console.warn = warn;
+    }
+    assert.deepEqual(warnings, ['Tokkl: RefreshProjects failed: No reply']);
 });
 
 // The panel button and the preferences window stop at the same floor.

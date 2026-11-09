@@ -406,9 +406,8 @@ void TimerCoordinator::loseWorkspace(const ApiError &error)
 
 // ----- reads ---------------------------------------------------------------
 
-void TimerCoordinator::refresh()
+void TimerCoordinator::refreshProjects()
 {
-    refreshState();
     m_loader->fetchProjects();
 }
 

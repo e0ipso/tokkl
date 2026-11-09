@@ -632,7 +632,8 @@ private Q_SLOTS:
 
         // A late read of the admin's running entry.
         QVERIFY(holdApp(QStringLiteral("a"), "GET", QStringLiteral("/timer")));
-        s.timer.refresh();
+        s.state.refresh();
+        s.timer.refreshProjects();
         QTRY_COMPARE_WITH_TIMEOUT(heldReplies(QStringLiteral("a")), 1, timeoutMs);
         const auto heldRead = s.transport.sinceApp(0, "GET", QStringLiteral("/timer")).last();
         s.replaceToken(u);
@@ -689,7 +690,8 @@ private Q_SLOTS:
         QCOMPARE(s.timer.currentEntry()->start, a.running->start);
 
         QVERIFY(holdApp(QStringLiteral("a"), "GET", QStringLiteral("/timer")));
-        s.timer.refresh();
+        s.state.refresh();
+        s.timer.refreshProjects();
         QTRY_COMPARE_WITH_TIMEOUT(heldReplies(QStringLiteral("a")), 1, timeoutMs);
         const qsizetype switchedAt = s.transport.log.size();
         s.signIn(b);
@@ -734,7 +736,8 @@ private Q_SLOTS:
 
         QVERIFY(control(QStringLiteral("/remove-membership"), {{QStringLiteral("user"), m.key}, {QStringLiteral("wid"), m.workspaceId}}));
         const qsizetype before = s.transport.log.size();
-        s.timer.refresh();
+        s.state.refresh();
+        s.timer.refreshProjects();
         QTRY_VERIFY_WITH_TIMEOUT(s.timer.workspaceAccessLost(), timeoutMs);
         QTRY_VERIFY_WITH_TIMEOUT(!s.transport.since(before, "GET", QStringLiteral("/me")).isEmpty()
                                      && s.transport.since(before, "GET", QStringLiteral("/me")).first()->response,
@@ -820,7 +823,8 @@ private Q_SLOTS:
         QVERIFY(control(QStringLiteral("/disable"), {{QStringLiteral("user"), dp.key}}));
 
         const qsizetype before = s.transport.log.size();
-        s.timer.refresh();
+        s.state.refresh();
+        s.timer.refreshProjects();
         QTRY_COMPARE_WITH_TIMEOUT(s.connection.state(), Connection::AuthenticationFailed, timeoutMs);
         QTest::qWait(500);
         // The entry read refuses the credentials; the catalog read sent with

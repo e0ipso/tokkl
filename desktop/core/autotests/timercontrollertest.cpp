@@ -1691,8 +1691,7 @@ private Q_SLOTS:
         const QByteArray projects = "[" + json(projectObject(11, 7, QStringLiteral("#06aaf5"))) + "," + json(projectObject(12, 7, QStringLiteral("#9e5bd9"))) + "]";
         QVERIFY(connectAccount(f, instanceA, 3, 7, entryBody(5, 7, startedAt, true, 11)));
         f.changeCatalog();
-        f.timer.refresh();
-        QVERIFY(f.answerState(entryBody(5, 7, startedAt, true, 11)));
+        f.timer.refreshProjects();
         QVERIFY(f.answerList(projects));
         QCOMPARE(f.timer.chosenProjectId().toLongLong(), 11);
 
@@ -2071,13 +2070,11 @@ private Q_SLOTS:
         const QByteArray forbidden("\"User does not have access to this resource.\"");
         if (trigger == "catalog") {
             f.transport.holdCatalog = true;
-            f.timer.refresh();
-            QVERIFY(f.answerState(entryBody(5, 7, startedAt)));
+            f.timer.refreshProjects();
             f.transport.respondCatalog(f.transport.catalogRequests.size() - 1, FakeTransport::answer(403, forbidden));
         } else if (trigger == "projects") {
             f.changeCatalog();
-            f.timer.refresh();
-            QVERIFY(f.answerState(entryBody(5, 7, startedAt)));
+            f.timer.refreshProjects();
             QVERIFY(f.answerList(FakeTransport::answer(403, forbidden)));
         } else if (trigger == "start") {
             QVERIFY(f.timer.start());
@@ -2116,7 +2113,7 @@ private Q_SLOTS:
             f.clock.advance(1000);
         }
         f.timer.resumed();
-        f.timer.refresh();
+        f.timer.refreshProjects();
         QVERIFY(!f.timer.start());
         QVERIFY(!f.timer.stop());
         QCOMPARE(f.otherRequests(), requests);
@@ -2147,8 +2144,7 @@ private Q_SLOTS:
         QVERIFY(connectAccount(f, instanceA, 3, 7, "null"));
         // A start goes out while a catalog read is pending.
         f.transport.holdCatalog = true;
-        f.timer.refresh();
-        QVERIFY(f.answerState("null"));
+        f.timer.refreshProjects();
         QVERIFY(f.timer.start());
         const qsizetype post = f.last("POST", startPath);
 
@@ -2419,12 +2415,12 @@ private Q_SLOTS:
         f.changeCatalog();
         if (viaReconnect) {
             f.timer.reconnect();
+            const qsizetype read = f.last("GET", statePath);
+            QVERIFY(read >= before);
+            f.respond(read, f.stateAnswer(current));
         } else {
-            f.timer.refresh();
+            f.timer.refreshProjects();
         }
-        const qsizetype read = f.last("GET", statePath);
-        QVERIFY(read >= before);
-        f.respond(read, f.stateAnswer(current));
         const qsizetype list = f.listRead();
         QVERIFY(list >= before);
         f.respond(list, FakeTransport::answer(200, projectsBody(7)));
@@ -2437,8 +2433,7 @@ private Q_SLOTS:
         // Another change, refresh and poll while that read is out ask nothing
         // more.
         f.changeCatalog();
-        f.timer.refresh();
-        QVERIFY(f.answerState(current));
+        f.timer.refreshProjects();
         QVERIFY(f.answerList(projectsBody(7)));
         poll(f);
         QVERIFY(f.answerState(current));
@@ -2476,8 +2471,7 @@ private Q_SLOTS:
             // Known from a first read, then read again after a reload.
             f.respond(older, FakeTransport::answer(200, archived));
             f.changeCatalog();
-            f.timer.refresh();
-            QVERIFY(f.answerState(current));
+            f.timer.refreshProjects();
             QVERIFY(f.answerList(projectsBody(7)));
             older = f.last("GET", "/projects/33");
         }
@@ -2487,8 +2481,7 @@ private Q_SLOTS:
         // Project 33 is deleted, a reload completes, then the older read
         // answers with the project as it was.
         f.changeCatalog();
-        f.timer.refresh();
-        QVERIFY(f.answerState(current));
+        f.timer.refreshProjects();
         QVERIFY(f.answerList(projectsBody(7)));
         QCOMPARE(f.find("GET", "/projects/33").size(), reads);
         f.respond(older, FakeTransport::answer(200, archived));
@@ -2526,7 +2519,7 @@ private Q_SLOTS:
         Fixture f;
         QVERIFY(connectAccount(f, instanceA, 3, 7, "null"));
         f.changeCatalog();
-        f.timer.refresh();
+        f.timer.refreshProjects();
         QVERIFY(f.answerList("[" + json(projectObject(12, 7, color)) + "]"));
         QVERIFY(f.timer.chooseProject(12));
         QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::Project);
@@ -2562,7 +2555,7 @@ private Q_SLOTS:
 
         // A projects reload with a new colour.
         f.changeCatalog();
-        f.timer.refresh();
+        f.timer.refreshProjects();
         QVERIFY(f.answerList("[" + json(projectObject(11, 7, QStringLiteral("#d92b2b"))) + "]"));
         QCOMPARE(f.timer.indicatorColor(), QStringLiteral("#d92b2b"));
         QCOMPARE(indicator.count(), 4);
@@ -2643,7 +2636,7 @@ private Q_SLOTS:
         QCOMPARE(changed.count(), 0);
 
         f.changeCatalog();
-        f.timer.refresh();
+        f.timer.refreshProjects();
         QVERIFY(f.answerList("[" + json(projectObject(11, 7, QStringLiteral("#06aaf5"))) + "," + json(projectObject(12, 7, QStringLiteral("#9e5bd9"))) + "]"));
         QCOMPARE(changed.count(), 1);
         QCOMPARE(f.timer.projectChoicesVariant().size(), 2);
@@ -2662,6 +2655,42 @@ private Q_SLOTS:
                                      map.value(QStringLiteral("color")).toString()));
         }
         return projects;
+    }
+
+    // Opening a menu checks the projects alone: one revision read, the list
+    // only when the revision moved, and nothing more while a check is on
+    // its way. The state is not read again.
+    void openingTheMenuChecksTheProjectsOnly()
+    {
+        Fixture f;
+        const QByteArray current = entryBody(5, 7, startedAt);
+        QVERIFY(connectAccount(f, instanceA, 3, 7, current));
+        const qsizetype stateReads = f.stateReads();
+        const qsizetype others = f.otherRequests();
+        const qsizetype checks = f.transport.catalogRequests.size();
+
+        f.timer.refreshProjects();
+        QTRY_COMPARE(f.transport.catalogRequests.size(), checks + 1);
+        QTest::qWait(20);
+        QCOMPARE(f.otherRequests(), others);
+
+        f.changeCatalog();
+        f.timer.refreshProjects();
+        QVERIFY(f.answerList("[" + json(projectObject(12, 7, QStringLiteral("#112233"))) + "]"));
+        QCOMPARE(f.transport.catalogRequests.size(), checks + 2);
+        QCOMPARE(f.otherRequests(), others + 1);
+        QCOMPARE(f.timer.projects().size(), 1);
+        QCOMPARE(f.timer.projects().constFirst().toMap().value(QStringLiteral("id")).toLongLong(), 12);
+
+        f.transport.holdCatalog = true;
+        f.timer.refreshProjects();
+        f.timer.refreshProjects();
+        f.timer.refreshProjects();
+        QCOMPARE(f.transport.catalogRequests.size(), checks + 3);
+        f.transport.respondCatalog(checks + 2, FakeTransport::catalogAt(f.catalogRevision));
+        QTest::qWait(20);
+        QCOMPARE(f.otherRequests(), others + 1);
+        QCOMPARE(f.stateReads(), stateReads);
     }
 
     // The list is read again only when the catalog revision moved: a new
@@ -2685,8 +2714,7 @@ private Q_SLOTS:
         // Nothing changed: a refresh and a wake each ask for the revision
         // and read no list.
         QSignalSpy changed(&f.timer, &TimerController::projectsChanged);
-        f.timer.refresh();
-        QVERIFY(f.answerState(current));
+        f.timer.refreshProjects();
         QTest::qWait(20);
         f.timer.resumed();
         QVERIFY(f.answerState(current));
@@ -2698,8 +2726,7 @@ private Q_SLOTS:
         // The client was renamed and project 12 deleted, which change no
         // project's own fields; the revision moved.
         f.changeCatalog();
-        f.timer.refresh();
-        QVERIFY(f.answerState(current));
+        f.timer.refreshProjects();
         const qsizetype read = f.listRead();
         QVERIFY(read >= 0);
         QCOMPARE(f.transport.requests.at(read).url.query(), QStringLiteral("active=true&page=1&per_page=200"));
@@ -2708,8 +2735,7 @@ private Q_SLOTS:
         QCOMPARE(changed.count(), 1);
 
         // The same revision again keeps that list.
-        f.timer.refresh();
-        QVERIFY(f.answerState(current));
+        f.timer.refreshProjects();
         QTest::qWait(20);
         QCOMPARE(f.transport.catalogRequests.size(), 5);
         QCOMPARE(f.find("GET", "/projects").size(), lists + 1);
@@ -2724,30 +2750,25 @@ private Q_SLOTS:
         const QByteArray current = entryBody(5, 7, startedAt);
         QVERIFY(connectAccount(f, instanceA, 3, 7, current));
         f.transport.holdCatalog = true;
-        f.timer.refresh();
-        QVERIFY(f.answerState(current));
+        f.timer.refreshProjects();
         QCOMPARE(f.transport.catalogRequests.size(), 2);
-        f.timer.refresh();
-        QVERIFY(f.answerState(current));
+        f.timer.refreshProjects();
         QCOMPARE(f.transport.catalogRequests.size(), 2);
         f.transport.respondCatalog(1, FakeTransport::catalogAt(2));
         const qsizetype read = f.listRead();
         QVERIFY(read >= 0);
-        f.timer.refresh();
-        QVERIFY(f.answerState(current));
+        f.timer.refreshProjects();
         QCOMPARE(f.transport.catalogRequests.size(), 2);
 
         // Revision 3 lands now; the list answers as it was at 2.
         f.respond(read, FakeTransport::answer(200, projectsBody(7)));
-        f.timer.refresh();
-        QVERIFY(f.answerState(current));
+        f.timer.refreshProjects();
         QCOMPARE(f.transport.catalogRequests.size(), 3);
         f.transport.respondCatalog(2, FakeTransport::catalogAt(3));
         QVERIFY(f.answerList("[" + json(projectObject(12, 7, QStringLiteral("#112233"))) + "]"));
         QCOMPARE(listed(f), QStringList{QStringLiteral("12 P12  #112233")});
 
-        f.timer.refresh();
-        QVERIFY(f.answerState(current));
+        f.timer.refreshProjects();
         f.transport.respondCatalog(3, FakeTransport::catalogAt(3));
         QCOMPARE(f.find("GET", "/projects").size(), 3);
     }
@@ -2760,13 +2781,11 @@ private Q_SLOTS:
         const QByteArray current = entryBody(5, 7, startedAt);
         QVERIFY(connectAccount(f, instanceA, 3, 7, current));
         f.changeCatalog();
-        f.timer.refresh();
-        QVERIFY(f.answerState(current));
+        f.timer.refreshProjects();
         QVERIFY(f.answerList(FakeTransport::answer(503, "\"Unavailable\"")));
         QCOMPARE(listed(f), QStringList{QStringLiteral("11 Alpha  #06aaf5")});
 
-        f.timer.refresh();
-        QVERIFY(f.answerState(current));
+        f.timer.refreshProjects();
         QVERIFY(f.answerList(projectsBody(7)));
         QCOMPARE(f.find("GET", "/projects").size(), 3);
     }

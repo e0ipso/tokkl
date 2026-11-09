@@ -35,7 +35,10 @@ class ProjectLoader;
 // The timer state is the server's, from a TimerStateClient, and the
 // connection is the client's. The client reads the state, follows its event
 // stream, polls while the stream is down, and reads again on a wake and
-// whenever the connection becomes Connected again.
+// whenever the connection becomes Connected again. The projects have no
+// stream: they are read when a context starts, after a connectivity loss,
+// on a wake and a reconnect, and checked whenever a panel opens its menu
+// (refreshProjects()).
 //
 // One mutation runs at a time; clicks while it runs are ignored. Start,
 // stop, pause, resume and stop while paused are the server's timer actions,
@@ -139,12 +142,15 @@ public:
     // Refused unless TimerModel::canChooseBillable().
     bool chooseBillable(bool billable);
 
-    // Reads the state, and the projects when they changed since the last
-    // read.
-    void refresh();
+    // The user is about to see the projects, as when a panel opens its
+    // menu: reads the catalog's revision, and the whole list only when the
+    // revision moved since the list was read. Sends nothing while a read
+    // of them is on its way or the workspace cannot be read. The state is
+    // not read again: the state client follows it.
+    void refreshProjects();
     // The session woke from sleep: the state client reads the state and
-    // replaces its stream, and the projects are read as by refresh(). Not
-    // resume().
+    // replaces its stream, and the projects are read as by
+    // refreshProjects(). Not resume().
     void resumed();
     // Explicit reconnect: lifts a workspace block, revalidates the account
     // and reads the state and the projects again.

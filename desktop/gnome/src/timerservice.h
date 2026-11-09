@@ -190,6 +190,7 @@ public Q_SLOTS:
     bool EndSession();
     bool SetPomodoroLengths(int work, int shortRest, int longRest, int longRestEvery);
     void RefreshPreferences();
+    void RefreshProjects();
     bool SetSound(const QString &transition, const QString &soundId);
     bool PreviewSound(const QString &soundId);
 

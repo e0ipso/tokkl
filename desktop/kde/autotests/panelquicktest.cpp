@@ -52,6 +52,7 @@ class PanelFixture : public QObject
     Q_PROPERTY(Tokkl::PomodoroSession *session READ session CONSTANT)
     Q_PROPERTY(Tokkl::PomodoroPreferences *preferences READ preferences CONSTANT)
     Q_PROPERTY(int requestCount READ requestCount)
+    Q_PROPERTY(int catalogChecks READ catalogChecks)
 
 public:
     explicit PanelFixture(QObject *parent = nullptr)
@@ -90,6 +91,20 @@ public:
     int requestCount() const
     {
         return int(m_transport.requests.size());
+    }
+
+    // The reads of the workspace's catalog revision, which the transport
+    // answers on its own.
+    int catalogChecks() const
+    {
+        return int(m_transport.catalogRequests.size());
+    }
+
+    // The projects changed on the server: the next catalog read answers a
+    // new revision.
+    Q_INVOKABLE void changeCatalog()
+    {
+        m_transport.catalog = FakeTransport::catalogAt(++m_catalogRevision);
     }
 
     // Stores a token for the instance and selects it, as the Configure page
@@ -190,6 +205,7 @@ public:
 
 private:
     FakeTransport m_transport;
+    qint64 m_catalogRevision = 1;
     FakeCredentialStore m_store;
     FakeClock m_clock;
     Connection m_connection{&m_transport, &m_store, testClientName()};

@@ -777,6 +777,7 @@ private Q_SLOTS:
             {QStringLiteral("EndSession"), {QStringLiteral("out b")}},
             {QStringLiteral("SetPomodoroLengths"), {QStringLiteral("in i"), QStringLiteral("in i"), QStringLiteral("in i"), QStringLiteral("in i"), QStringLiteral("out b")}},
             {QStringLiteral("RefreshPreferences"), {}},
+            {QStringLiteral("RefreshProjects"), {}},
             {QStringLiteral("SetSound"), {QStringLiteral("in s"), QStringLiteral("in s"), QStringLiteral("out b")}},
             {QStringLiteral("PreviewSound"), {QStringLiteral("in s"), QStringLiteral("out b")}},
         };
@@ -1064,6 +1065,31 @@ private Q_SLOTS:
         QCOMPARE(f.get(QStringLiteral("StartTime")).toLongLong(), 0);
     }
 
+    // RefreshProjects, which the extension calls when its menu opens, asks
+    // for the catalog revision and reads the list only when it moved.
+    void refreshProjectsReadsTheListWhenItMoved()
+    {
+        Fixture f;
+        QVERIFY(f.start());
+        QVERIFY(f.connect());
+        const qsizetype lists = f.find("GET", "/projects").size();
+        const qsizetype checks = f.transport.catalogRequests.size();
+        const qsizetype states = f.find("GET", "/timer").size();
+
+        QCOMPARE(f.timer(QStringLiteral("RefreshProjects")).type(), QDBusMessage::ReplyMessage);
+        QTRY_COMPARE(f.transport.catalogRequests.size(), checks + 1);
+        QTest::qWait(20);
+        QCOMPARE(f.find("GET", "/projects").size(), lists);
+
+        f.transport.catalog = FakeTransport::catalogAt(2);
+        QCOMPARE(f.timer(QStringLiteral("RefreshProjects")).type(), QDBusMessage::ReplyMessage);
+        QTRY_COMPARE(f.find("GET", "/projects").size(), lists + 1);
+        QVERIFY(f.answer("GET", "/projects", json(QJsonArray{projectObject(12, QStringLiteral("Beta"), QStringLiteral("#112233"), true)})));
+        QTRY_COMPARE(f.service->projects().size(), 1);
+        QCOMPARE(f.service->projects().constFirst().value(QStringLiteral("name")).toString(), QStringLiteral("Beta"));
+        QCOMPARE(f.find("GET", "/timer").size(), states);
+    }
+
     // A project list cut short at the paging limit is published as such.
     void projectsIncompleteIsPublished()
     {
@@ -1082,7 +1108,7 @@ private Q_SLOTS:
         // The projects changed, and every page up to the limit is full and
         // new.
         f.transport.catalog = FakeTransport::catalogAt(2);
-        f.daemon->timer.refresh();
+        QCOMPARE(f.timer(QStringLiteral("RefreshProjects")).type(), QDBusMessage::ReplyMessage);
         for (int number = 1; number <= Connection::maxProjectPages; ++number) {
             QJsonArray shifted;
             for (const QJsonValue &value : std::as_const(page)) {

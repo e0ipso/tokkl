@@ -101,6 +101,26 @@ export function supportedProperty(proxy, name, fallback) {
 }
 
 /**
+ * Asks the service to check the projects once the menu opens, so a project
+ * renamed or deleted on another device does not stay in the menu: the
+ * service reads the workspace's catalog revision, and Projects changes when
+ * the list did. Nothing goes to a service that is not running (the call
+ * would start it) or that is older than the extension supports. The check
+ * has nothing to show, so a failed call is only logged.
+ *
+ * @param {boolean} open whether the menu is now open
+ * @param {import('gi://Gio').DBusProxy | null} proxy
+ * @returns {boolean} whether the call went out
+ */
+export function refreshProjectsOnOpen(open, proxy) {
+    if (!open || !serviceRunning(proxy) || serviceOutdated(proxy)) return false;
+    proxy.RefreshProjectsRemote((_result, error) => {
+        if (error) console.warn(`Tokkl: RefreshProjects failed: ${error.message}`);
+    });
+    return true;
+}
+
+/**
  * Seconds since startTime, never negative. startTime is the LocalStartTime
  * property, the start on this machine's clock: Unix seconds, or 0 when no
  * entry runs.

@@ -715,6 +715,29 @@ TestCase {
         compare(fixture.request(start).body.billable, false);
     }
 
+    // Every opening of the menu checks the projects, and reads them only
+    // when they changed, so a project renamed or deleted elsewhere does not
+    // stay in the submenu.
+    function test_openingTheMenuChecksTheProjects() {
+        connectAccount(instanceA, 3, 7);
+        const checks = fixture.catalogChecks;
+        const requests = fixture.requestCount;
+        openMenu();
+        tryVerify(() => fixture.catalogChecks === checks + 1, 3000, "one check");
+        wait(50);
+        compare(fixture.requestCount, requests, "no list read for an unchanged catalog");
+        closeMenu();
+        verify(projectItem("Alpha") !== null);
+
+        fixture.changeCatalog();
+        openMenu();
+        tryVerify(() => fixture.catalogChecks === checks + 2, 3000, "another check");
+        answer("GET", "/projects", 200, [project(12, 7, "Beta renamed", false)]);
+        tryVerify(() => projectItem("Beta renamed") !== null, 3000, "the renamed project");
+        compare(projectItem("Alpha"), null);
+        closeMenu();
+    }
+
     function test_projectsFollowPagination() {
         const firstPage = [];
         for (let i = 1; i <= 200; ++i) {

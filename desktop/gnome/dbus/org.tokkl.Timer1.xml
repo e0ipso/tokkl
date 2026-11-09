@@ -357,6 +357,13 @@
     </method>
     <!-- Read the lengths from the server again. -->
     <method name="RefreshPreferences"/>
+    <!-- The user is about to see Projects, as when a menu opens: the
+         service asks the server whether the workspace's projects changed,
+         and reads them again only when they did; Projects and
+         ProjectsIncomplete then change as usual. Nothing more is sent while
+         a check is on its way, without a connected account, or once the
+         workspace is lost. -->
+    <method name="RefreshProjects"/>
     <!-- Choose the sound a transition plays. Fails with
          org.freedesktop.DBus.Error.InvalidArgs for a transition or a sound
          id the service does not know. Returns false when the choice cannot

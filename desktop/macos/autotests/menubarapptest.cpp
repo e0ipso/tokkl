@@ -866,6 +866,35 @@ private Q_SLOTS:
         QCOMPARE(body.value(QStringLiteral("project_id")).toInteger(), 12);
     }
 
+    // Each opening of the menu checks the projects: one read of the catalog
+    // revision, and the list only when the revision moved.
+    void openingTheMenuChecksTheProjects()
+    {
+        Fixture f;
+        QVERIFY(f.connect(QByteArrayLiteral("null")));
+        StatusMenu &menu = *appPart<StatusMenu>(f.app);
+        QTRY_VERIFY(!f.transport.catalogRequests.isEmpty());
+        const qsizetype checks = f.transport.catalogRequests.size();
+        const qsizetype list = f.last("GET", "/projects");
+
+        // As when the system opens the menu.
+        Q_EMIT menu.menu()->aboutToShow();
+        QTRY_COMPARE(f.transport.catalogRequests.size(), checks + 1);
+        QTest::qWait(20);
+        QCOMPARE(f.last("GET", "/projects"), list);
+
+        // Beta was renamed on the server.
+        f.transport.catalog = FakeTransport::catalogAt(2);
+        Q_EMIT menu.menu()->aboutToShow();
+        QVERIFY(f.waitFor("GET", "/projects", list));
+        QByteArray renamed = projectsBody();
+        renamed.replace("\"name\":\"Beta\"", "\"name\":\"Beta renamed\"");
+        f.respond(f.last("GET", "/projects"), 200, renamed);
+        QTRY_VERIFY(projectAction(menu, QStringLiteral("Beta renamed (Acme)")));
+        QVERIFY(!projectAction(menu, QStringLiteral("Beta (Acme)")));
+        QCOMPARE(f.transport.catalogRequests.size(), checks + 2);
+    }
+
     // The next start defaults to the last entry's project, a pick while
     // stopped wins, and Billable follows the pick.
     void projectMenuWhileStopped()
