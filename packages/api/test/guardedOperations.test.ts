@@ -38,6 +38,12 @@ test('signed-in account operations refuse a stale credential in their read snaps
   await assert.rejects(services.accountsFor(stale).findSessionUser('no-such-session'), refused);
 });
 
+test('the services the routers share hold no account operations without a credential check', async t => {
+  const { services } = await signedIn(t);
+  for (const [name, value] of Object.entries(services))
+    assert.ok(typeof value !== 'object' || value === null || !('createSession' in value), name);
+});
+
 test('the signed-in timer read refuses a stale credential', async t => {
   const { services, valid, stale } = await signedIn(t);
   assert.equal((await services.timersFor(valid).getTimerState()).revision, 0);

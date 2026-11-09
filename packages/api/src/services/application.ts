@@ -15,6 +15,7 @@ import {
   type AccountOperations,
   type AccountPasswordAttempt,
 } from '../domain/accounts.ts';
+import type { AccountSecurityEffects } from '../domain/accountGuards.ts';
 import {
   authenticatedUser,
   isActiveAdmin,
@@ -36,7 +37,7 @@ import { credentialCheck, credentialKey } from './streamCredentials.ts';
 import { startMaintenance } from './maintenance.ts';
 import { createTimerDelivery } from './timerDelivery.ts';
 import { presentTimerOperations, type PresentedTimerOperations } from './timerReplies.ts';
-import type { EventStreamResponse, TimerStreamOptions } from './timerStreams.ts';
+import type { EventStreamResponse, TimerStreamOptions, TimerStreams } from './timerStreams.ts';
 
 export interface ApplicationServiceOptions {
   storage: Storage;
@@ -125,6 +126,23 @@ function boundAccountOperations(
 }
 export type SignedInAccountOperations = ReturnType<typeof boundAccountOperations>;
 
+/** A credential change rechecks the account's open timer streams. */
+const accountSecurity = (timerStreams: Pick<TimerStreams, 'recheck'>): AccountSecurityEffects => ({
+  recheckUser: id => timerStreams.recheck(id),
+});
+
+/**
+ * The account operations without a credential check, for the session handlers alone: setup,
+ * sign-in, invites and password resets run before the request has a credential. Routers get the
+ * guarded `accountsFor` instead.
+ */
+export function createSessionAccountOperations(
+  storage: Storage,
+  services: Pick<ApplicationServices, 'timerStreams'>,
+): AccountOperations<Repositories> {
+  return createAccountOperations(storage, accountSecurity(services.timerStreams));
+}
+
 export function createApplicationServices({
   storage,
   reports,
@@ -135,7 +153,7 @@ export function createApplicationServices({
   imports,
 }: ApplicationServiceOptions) {
   const { timerStreams, publish, settled } = createTimerDelivery({ storage, bus, logger, streamOptions });
-  const security = { recheckUser: (id: number) => timerStreams.recheck(id) };
+  const security = accountSecurity(timerStreams);
   const streamCredentials = { check: (authentication: Authentication) => credentialCheck(storage, authentication) };
   const entryEffects = createAccountEntryEffects<Repositories>(publish);
   const maintenance = startMaintenance(storage, { logger });
@@ -153,7 +171,6 @@ export function createApplicationServices({
     });
   }
   return {
-    accounts: createAccountOperations(storage, security),
     timerStreams,
     publish,
     reports,

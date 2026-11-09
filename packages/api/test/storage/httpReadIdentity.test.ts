@@ -8,6 +8,7 @@ import { createApp } from '../../src/app.ts';
 import { ReportRunner } from '../../src/services/reportRunner.ts';
 import { createAccountEntryEffects } from '../../src/domain/timerEffects.ts';
 import { withBodies } from '../fixtures/accountBodies.ts';
+import { createSessionAccountOperations } from '../../src/services/application.ts';
 import { testConfig } from '../helpers.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 import { trackedWorkers } from './support/reportWorkers.ts';
@@ -50,7 +51,7 @@ test('SQLite authenticated reads reject a replacement account with reused IDs', 
   });
   const server = await serveInvariant(app),
     services = app.locals.services;
-  const accounts = withBodies(services.accounts, storage);
+  const accounts = withBodies(createSessionAccountOperations(storage, services), storage);
   t.after(async () => {
     await server.close();
     await storage.close();
@@ -133,7 +134,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
     });
     const server = await serveInvariant(app),
       services = app.locals.services;
-    const accounts = withBodies(services.accounts, storage);
+    const accounts = withBodies(createSessionAccountOperations(storage, services), storage);
     t.after(async () => {
       await server.close();
       await storage.close();
@@ -220,7 +221,7 @@ test('SQLite queued HTTP reports reject a replacement account with reused IDs', 
   });
   const server = await serveInvariant(app),
     services = app.locals.services;
-  const accounts = withBodies(services.accounts, storage);
+  const accounts = withBodies(createSessionAccountOperations(storage, services), storage);
   t.after(async () => {
     await server.close();
     await storage.close();

@@ -2,7 +2,7 @@ import express, { type Express } from 'express';
 import type { Config } from './config.ts';
 import type { Storage } from './domain/ports.ts';
 import { standaloneRateLimits } from './storage/index.ts';
-import { createApplicationServices } from './services/application.ts';
+import { createApplicationServices, createSessionAccountOperations } from './services/application.ts';
 import { ReportRunner, type ReportExecutor } from './services/reportRunner.ts';
 import { createLocalTimerBus, type TimerBus } from './storage/timerBus.ts';
 import type { Deps } from './routes/context.ts';
@@ -61,7 +61,7 @@ export function createApp({
     ...services,
     loginLimiter,
     auth: createAuthMiddleware(storage, loginLimiter),
-    sessions: createSessionHandlers(storage, services.accounts, {
+    sessions: createSessionHandlers(storage, createSessionAccountOperations(storage, services), {
       loginLimiter,
       setupLimiter: new FailureLimiter(rateLimits, 'setup-code', SETUP_CODE_LIMIT, PASSWORD_WINDOW_MS),
       sessionDays: config.sessionDays,
