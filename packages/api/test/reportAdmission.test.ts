@@ -4,7 +4,6 @@ import type { AddressInfo } from 'node:net';
 import express from 'express';
 import { openSQLiteDatabase, storageFor } from './fixtures/database.ts';
 import { insertAccount } from './fixtures/domain.ts';
-import type { Authentication } from '../src/domain/credentials.ts';
 import { errorHandler } from '../src/http/errors.ts';
 import { ApplicationError, RequestCancelled } from '../src/lib/errors.ts';
 import { silentLogger } from '../src/lib/logger.ts';
@@ -20,7 +19,6 @@ import { testConfig, testServer } from './helpers.ts';
 import { runReport, runExport } from './fixtures/reportRunner.ts';
 import { fakeReportWorkers, postedJobs } from './fixtures/fakeReportWorker.ts';
 import type { JobSource } from '../src/services/reportExecution.ts';
-import type { Storage } from '../src/domain/ports.ts';
 
 const INLINE = { backend: 'sqlite' as const, filename: ':memory:', busyTimeoutMs: 5000 };
 const WEEKLY = {
@@ -118,10 +116,12 @@ test('a download that runs past its deadline is given up with a 503 and Retry-Af
   assert.ok(Date.now() - started < 2000);
 });
 
-/** Storage that counts its read snapshots. */
-function countingReads(storage: Storage): { storage: Storage; reads: () => number } {
+/** Application services over `reports` whose storage counts its read snapshots, and an account's export. */
+async function exportReads(t: TestContext, reports: ReportExecutor) {
+  const db = await openSQLiteDatabase();
+  const storage = storageFor(db);
   let reads = 0;
-  return {
+  const services = createApplicationServices({
     storage: {
       ...storage,
       readSnapshot: work => {
@@ -129,16 +129,7 @@ function countingReads(storage: Storage): { storage: Storage; reads: () => numbe
         return storage.readSnapshot(work);
       },
     },
-    reads: () => reads,
-  };
-}
-
-test('a full download lane refuses an account export before reading it', async t => {
-  const db = await openSQLiteDatabase();
-  const counted = countingReads(storageFor(db));
-  const services = createApplicationServices({
-    storage: counted.storage,
-    reports: fullRunner(t),
+    reports,
     bus: createLocalTimerBus(),
     clock: systemClock,
     settings: DEFAULT_SERVICE_SETTINGS,
@@ -152,56 +143,29 @@ test('a full download lane refuses an account export before reading it', async t
     passwordHash: 'unused',
     role: 'user',
   });
-  const authentication: Authentication = {
-    user,
-    credential: { kind: 'api-token', token: user.apiToken },
-    authMethod: 'basic',
-  };
-  await assert.rejects(
+  const exportAccount = (signal?: AbortSignal) =>
     services.exportAccount(
-      authentication,
+      { user, credential: { kind: 'api-token', token: user.apiToken }, authMethod: 'basic' },
       { kind: 'export-json', exportedAt: '2026-01-01T00:00:00Z', filename: 'x' },
       async () => {},
-    ),
+      { signal },
+    );
+  return { exportAccount, reads: () => reads };
+}
+
+test('a full download lane or a cancelled request refuses an account export before reading it', async t => {
+  const full = await exportReads(t, fullRunner(t));
+  await assert.rejects(
+    full.exportAccount(),
     error =>
       error instanceof ApplicationError &&
       error.kind === 'unavailable' &&
       error.message === 'Report queue is full' &&
       error.retryAfterSeconds === 2,
   );
-  assert.equal(counted.reads(), 0);
-});
-
-test('a cancelled account export reads nothing', async t => {
-  const db = await openSQLiteDatabase();
-  const counted = countingReads(storageFor(db));
-  const reports = createReportRunner(INLINE, { readSnapshot: () => Promise.reject(new Error('unused')) });
-  const services = createApplicationServices({
-    storage: counted.storage,
-    reports,
-    bus: createLocalTimerBus(),
-    clock: systemClock,
-    settings: DEFAULT_SERVICE_SETTINGS,
-    sessionDays: 30,
-  });
-  t.after(() => services.close());
-  const user = await insertAccount(db, {
-    email: 'cancel@example.test',
-    fullname: 'Cancel',
-    timezone: 'UTC',
-    passwordHash: 'unused',
-    role: 'user',
-  });
-  await assert.rejects(
-    services.exportAccount(
-      { user, credential: { kind: 'api-token', token: user.apiToken }, authMethod: 'basic' },
-      { kind: 'export-json', exportedAt: '2026-01-01T00:00:00Z', filename: 'x' },
-      async () => {},
-      { signal: AbortSignal.abort() },
-    ),
-    error => error instanceof RequestCancelled,
-  );
-  assert.equal(counted.reads(), 0);
+  const cancelled = await exportReads(t, createReportRunner(INLINE, UNUSED));
+  await assert.rejects(cancelled.exportAccount(AbortSignal.abort()), error => error instanceof RequestCancelled);
+  assert.deepEqual([full.reads(), cancelled.reads()], [0, 0]);
 });
 
 test('a full report queue answers a report request before it reads the workspace', async t => {

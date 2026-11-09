@@ -29,6 +29,15 @@ export interface TestContext {
 
 export const PASSWORD = 'correct horse battery';
 
+/** A request without the API token, as a logged-out browser sends it. */
+export const anonymous = (
+  ctx: TestContext,
+  method: string,
+  path: string,
+  body?: unknown,
+  headers: Record<string, string> = {},
+) => ctx.request(method, path, body, { authorization: '', ...headers });
+
 /** Records the JSON lines loggers write to the console until the test ends. */
 export function recordLogs(t: NodeTestContext): Array<Record<string, unknown>> {
   const lines: Array<Record<string, unknown>> = [];

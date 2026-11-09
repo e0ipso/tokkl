@@ -128,65 +128,36 @@ test('Start posts the new entry at the cached revision and takes the reply as th
   assert.equal(invalidated(qc, keys.entries), true, 'the lists refetch for the started entry');
 });
 
-test('Stop posts the stop time at the cached revision; a 409 hands over the current state', async t => {
-  const qc = seeded();
-  qc.setQueryData(keys.timer, state(3, running(5)));
-  const { fetch, sent } = answering({ status: 409, body: state(4, running(6)) }, { status: 200, body: state(5) });
-  t.mock.method(globalThis, 'fetch', fetch);
-  await assert.rejects(
-    stopTimer(qc, '2026-10-27T10:30:00.000Z'),
-    (error: unknown) => error instanceof TimerActionError && error.kind === 'conflict',
-  );
-  assert.deepEqual(sent[0], {
-    path: '/api/app/timer/stop',
-    method: 'POST',
-    body: { revision: 3, stop: '2026-10-27T10:30:00.000Z' },
-  });
-  // The conflict's state replaced the stale one, so the next stop goes out at its revision.
-  assert.equal(qc.getQueryData<TimerState>(keys.timer)?.running_entry?.id, 6);
-  await stopTimer(qc);
-  assert.deepEqual(sent[1]?.body, { revision: 4 });
-  assert.equal(qc.getQueryData<TimerState>(keys.timer)?.running_entry, null);
-});
+const actions: Array<[string, (qc: QueryClient) => Promise<unknown>, string, Record<string, unknown>]> = [
+  [
+    'Stop',
+    qc => stopTimer(qc, '2026-10-27T10:30:00.000Z'),
+    '/api/app/timer/stop',
+    { stop: '2026-10-27T10:30:00.000Z' },
+  ],
+  ['Pause', qc => pauseTimer(qc), '/api/app/timer/pause', {}],
+  [
+    'A Pomodoro start',
+    qc => startPomodoro(qc, { description: 'Focus', work_minutes: 25 }),
+    '/api/app/pomodoro',
+    { created_with: 'tokkl-web', description: 'Focus', work_minutes: 25 },
+  ],
+];
 
-test('Pause posts at the cached revision; a 409 hands over the current state', async t => {
-  const qc = seeded();
-  qc.setQueryData(keys.timer, state(3, running(5)));
-  const { fetch, sent } = answering({ status: 409, body: state(4, running(6)) }, { status: 200, body: state(5) });
-  t.mock.method(globalThis, 'fetch', fetch);
-  await assert.rejects(
-    pauseTimer(qc),
-    (error: unknown) => error instanceof TimerActionError && error.kind === 'conflict',
-  );
-  assert.deepEqual(sent[0], { path: '/api/app/timer/pause', method: 'POST', body: { revision: 3 } });
-  assert.equal(qc.getQueryData<TimerState>(keys.timer)?.running_entry?.id, 6, 'the conflict state is adopted');
-  await pauseTimer(qc);
-  assert.deepEqual(sent[1]?.body, { revision: 4 });
-  assert.equal(qc.getQueryData<TimerState>(keys.timer)?.revision, 5);
-});
-
-test('a Pomodoro start posts at the cached revision; a 409 hands over the current state', async t => {
-  const qc = seeded();
-  qc.setQueryData(keys.timer, state(3));
-  const { fetch, sent } = answering(
-    { status: 409, body: state(4, running(6)) },
-    { status: 200, body: state(5, running(7)) },
-  );
-  t.mock.method(globalThis, 'fetch', fetch);
-  await assert.rejects(
-    startPomodoro(qc, { description: 'Focus', work_minutes: 25 }),
-    (error: unknown) => error instanceof TimerActionError && error.kind === 'conflict',
-  );
-  assert.deepEqual(sent[0], {
-    path: '/api/app/pomodoro',
-    method: 'POST',
-    body: { created_with: 'tokkl-web', description: 'Focus', work_minutes: 25, revision: 3 },
+for (const [name, act, path, body] of actions)
+  test(`${name} posts at the cached revision; a 409 hands over the current state`, async t => {
+    const qc = seeded();
+    qc.setQueryData(keys.timer, state(3, running(5)));
+    const { fetch, sent } = answering({ status: 409, body: state(4, running(6)) }, { status: 200, body: state(5) });
+    t.mock.method(globalThis, 'fetch', fetch);
+    await assert.rejects(act(qc), (error: unknown) => error instanceof TimerActionError && error.kind === 'conflict');
+    assert.deepEqual(sent[0], { path, method: 'POST', body: { ...body, revision: 3 } });
+    // The conflict's state replaced the stale one, so the next action goes out at its revision.
+    assert.equal(qc.getQueryData<TimerState>(keys.timer)?.running_entry?.id, 6);
+    await act(qc);
+    assert.deepEqual(sent[1]?.body, { ...body, revision: 4 });
+    assert.equal(qc.getQueryData<TimerState>(keys.timer)?.revision, 5);
   });
-  assert.equal(qc.getQueryData<TimerState>(keys.timer)?.running_entry?.id, 6, 'the conflict state is adopted');
-  await startPomodoro(qc, { description: 'Focus' });
-  assert.deepEqual(sent[1]?.body, { created_with: 'tokkl-web', description: 'Focus', revision: 4 });
-  assert.equal(qc.getQueryData<TimerState>(keys.timer)?.running_entry?.id, 7);
-});
 
 test('a Start that got no reply fails with the offline message', async t => {
   const qc = seeded();
