@@ -9,7 +9,7 @@ import { errorHandler } from '../src/http/errors.ts';
 import { ApplicationError, RequestCancelled, unavailable } from '../src/lib/errors.ts';
 import { silentLogger } from '../src/lib/logger.ts';
 import { importRoutes } from '../src/routes/imports.ts';
-import { createImportAdmission, IMPORT_BUSY_RETRY_SECONDS } from '../src/services/importAdmission.ts';
+import { createImportAdmission } from '../src/services/importAdmission.ts';
 import { importsById } from './fixtures/imports.ts';
 import { createTimerPublication } from '../src/services/timerPublication.ts';
 import { initializeDatabase } from '../src/storage/migrations.ts';
@@ -18,11 +18,14 @@ import { entryAccount, entryTimerFactory } from './storage/support/entry-timer.t
 import { setup, type TestContext } from './helpers.ts';
 import { entryCount } from './fixtures/observations.ts';
 
+/** The `Retry-After` of a refused import, in seconds: a short wait, like a full report queue. */
+const BUSY_RETRY_SECONDS = 5;
+
 const busy = (error: unknown) =>
   error instanceof ApplicationError &&
   error.kind === 'unavailable' &&
   error.message === 'Too many imports are running' &&
-  error.retryAfterSeconds === IMPORT_BUSY_RETRY_SECONDS;
+  error.retryAfterSeconds === BUSY_RETRY_SECONDS;
 
 test('import admission bounds imports in all and per account', () => {
   const admission = createImportAdmission({ maxImports: 2, maxPerUser: 1 });
@@ -75,7 +78,7 @@ test('an import is admitted with its declared length, or the body limit when it 
       importAdmission: {
         admit: (_userId: number, bytes: number) => {
           admitted.push(bytes);
-          throw unavailable('Too many imports are running', IMPORT_BUSY_RETRY_SECONDS);
+          throw unavailable('Too many imports are running', BUSY_RETRY_SECONDS);
         },
       },
       importsFor: () => {
@@ -90,7 +93,7 @@ test('an import is admitted with its declared length, or the body limit when it 
   const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/import/json`;
   const sized = await fetch(url, { method: 'POST', body: '{"format":"tokkl-export"}' });
   assert.equal(sized.status, 503);
-  assert.equal(sized.headers.get('retry-after'), String(IMPORT_BUSY_RETRY_SECONDS));
+  assert.equal(sized.headers.get('retry-after'), String(BUSY_RETRY_SECONDS));
   // A streamed body is sent chunked, without a length.
   const chunked = await fetch(url, {
     method: 'POST',
@@ -164,7 +167,7 @@ test('a second import from one account gets 503 with Retry-After while the first
   }
   assert.equal(second.status, 503);
   assert.equal(second.body, 'Too many imports are running');
-  assert.equal(second.headers.get('retry-after'), String(IMPORT_BUSY_RETRY_SECONDS));
+  assert.equal(second.headers.get('retry-after'), String(BUSY_RETRY_SECONDS));
   const csv = await ctx.request('POST', '/api/app/import/toggl-csv', 'x', { 'content-type': 'text/csv' });
   assert.equal(csv.status, 503);
 

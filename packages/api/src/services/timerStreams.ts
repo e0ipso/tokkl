@@ -35,7 +35,7 @@ const KEEP_ALIVE_EVENT = 'event: keep-alive\ndata:\n\n';
  * `retry:` field. Each stream gets its own random wait between them, so clients that lost their
  * streams together, after a restart or a proxy reload, do not all reconnect at once.
  */
-export const RECONNECT_DELAY_MS = Object.freeze({ min: 5000, max: 15000 });
+const RECONNECT_DELAY_MS = Object.freeze({ min: 5000, max: 15000 });
 const reconnectDelay = () =>
   RECONNECT_DELAY_MS.min + Math.floor(Math.random() * (RECONNECT_DELAY_MS.max - RECONNECT_DELAY_MS.min + 1));
 /** The keep-alive interval and the bounds of one process's timer streams. */
