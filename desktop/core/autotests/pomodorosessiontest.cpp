@@ -284,7 +284,7 @@ class PomodoroSessionTest : public QObject
 
         void createSession()
         {
-            session = std::make_unique<PomodoroSession>(clock, *timer.coordinator(), client, store);
+            session = std::make_unique<PomodoroSession>(clock, timer, client, store);
         }
 
         QDateTime serverNow() const
@@ -399,7 +399,7 @@ private Q_SLOTS:
     {
         Fixture f(false);
         SwitchingStore store;
-        PomodoroSession session(f.clock, *f.timer.coordinator(), f.client, store);
+        PomodoroSession session(f.clock, f.timer, f.client, store);
         QSignalSpy changed(&session, &PomodoroSession::modeChanged);
         QVERIFY(!session.pomodoroMode());
 

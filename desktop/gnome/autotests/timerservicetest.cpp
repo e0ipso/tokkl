@@ -434,7 +434,7 @@ struct Daemon {
         , connectionSettings(&settings, &connection, store)
         , configuration(&connectionSettings)
         , alarm(&session, &output, &sounds, bundledSoundsDir())
-        , service({&timer, timer.coordinator(), &session, stack.preferences(), &sounds, &configuration, &alarm})
+        , service({&timer, &session, stack.preferences(), &sounds, &configuration, &alarm})
     {
         connectionSettings.load();
     }

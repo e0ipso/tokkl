@@ -29,8 +29,7 @@ class PomodoroAlarm;
 class PomodoroPreferences;
 class PomodoroSession;
 class SoundChoices;
-class TimerCoordinator;
-class TimerModel;
+class TimerController;
 
 class TimerService : public QObject, protected QDBusContext
 {
@@ -97,12 +96,11 @@ public:
     static QString clientName();
 
     // What the service serves, none of it owned and none of it null. The
-    // session must be built on the timer's coordinator, and the alarm, which
+    // session must be built on the timer, and the alarm, which
     // PreviewSound plays on and AlarmError follows, on the same session and
     // sound choices.
     struct Parts {
-        TimerModel *timer = nullptr;
-        TimerCoordinator *actions = nullptr;
+        TimerController *timer = nullptr;
         PomodoroSession *session = nullptr;
         PomodoroPreferences *preferences = nullptr;
         SoundChoices *sounds = nullptr;
@@ -226,8 +224,7 @@ private:
         return value;
     }
 
-    TimerModel *m_timer;
-    TimerCoordinator *m_actions;
+    TimerController *m_timer;
     PomodoroSession *m_session;
     PomodoroPreferences *m_preferences;
     SoundChoices *m_sounds;

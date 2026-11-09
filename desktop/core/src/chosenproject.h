@@ -12,7 +12,7 @@ namespace Tokkl
 
 // What the menu and the panel indicator show of the chosen project: the
 // project of the running or paused entry, or of the next start, as the
-// catalog knows it. It reads nothing: ProjectLoader reads a chosen project
+// catalog knows it. It reads nothing: the timer reads a chosen project
 // the catalog lacks. Until a newer read answers, the indicator keeps what
 // the last one found.
 class ChosenProject : public QObject

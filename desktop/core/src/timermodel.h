@@ -5,7 +5,7 @@
 #include "connection.h"
 #include "nextstartselection.h"
 #include "projectcatalog.h"
-#include "projectcatalogadapter.h"
+#include "mutationgate.h"
 #include "projectchoices.h"
 #include "timeractions.h"
 #include "timerstateclient.h"
@@ -21,94 +21,9 @@ namespace Tokkl
 
 class ChosenProject;
 
-// What the timer's actions are doing, as the model shows it. TimerCoordinator
-// is the one source; the model only reads it.
-class TimerActivity
-{
-public:
-    virtual ~TimerActivity() = default;
-
-    // A write runs: its answer has not come yet.
-    virtual bool writing() const = 0;
-    // The message of the last action, or of a lost workspace; empty for
-    // none.
-    virtual QString message() const = 0;
-    // A workspace operation answered 403. The model hides the workspace's
-    // data and reads nothing of it until a new generation or a reconnect.
-    virtual bool workspaceLost() const = 0;
-};
-
-// How TimerCoordinator changes what a TimerModel shows, apart from what the
-// panels read, in three roles (TimerModelRoles). Each change is one
-// operation whose notifications the model sends; the coordinator emits none
-// of the model's signals. The model implements the state role itself and
-// hands out its NextStartSelection as the selection role and a
-// ProjectCatalogAdapter as the catalog role. Only its subclass,
-// TimerController, hands them to the coordinator, so a panel holding a
-// TimerModel can only read. Each consumer takes only the roles it uses:
-// ProjectLoader takes the catalog alone.
-
-// The state shown, and the changes of context, activity and state.
-class TimerStateUpdates
-{
-public:
-    virtual ~TimerStateUpdates() = default;
-
-    // The state the client accepted; none before the first read.
-    virtual const std::optional<TimerState> &heldState() const = 0;
-
-    // The connection's account, workspace or state changed: announces the
-    // context and the status.
-    virtual void contextUpdated() = 0;
-    // What the actions do (TimerActivity) changed: announces the status.
-    virtual void activityChanged() = 0;
-
-    // Shows the state held. The next-start defaults the change asks for
-    // apply before the panels hear of it; then the change, the elapsed time
-    // and the status are announced.
-    virtual void showState() = 0;
-    // A new context: the projects and the next start's choice are forgotten and every answer on its way is dropped. Then shows the
-    // state held and announces the context and the status.
-    virtual void resetContext() = 0;
-    // The workspace was lost: its projects and the next start's choice are
-    // forgotten, the state shows without the workspace's data, and the
-    // status is announced.
-    virtual void forgetWorkspace() = 0;
-};
-
-// The three roles of one model, as TimerController hands them over.
-// The selection is the project and billable flag of the next start, as the
-// user picks them and a start uses them.
-struct TimerModelRoles {
-    TimerStateUpdates *state = nullptr;
-    NextStartSelection *selection = nullptr;
-    TimerCatalogUpdates *catalog = nullptr;
-};
-
-// What a panel shows of the timer: the running entry of the connection's
-// validated account and workspace, its elapsed time, the pause chain, the
-// projects, the project and billable flag chosen for the next start, and a
-// status. Its public interface only reads. It reads one TimerStateClient,
-// given when it is built, and the client's connection and clock; the
-// TimerCoordinator changes it through its roles (TimerModelRoles), and the
-// panels act through the coordinator.
-//
-// What it shows is derived from one timer state, the one the client
-// accepted, and from nothing else. Elapsed time is recomputed on every clock
-// tick from the entry's server start and the client's server time, so a
-// sleep, a late tick or a skewed clock loses nothing. While the state holds
-// a Pomodoro session, its open pomodoro is the running entry and belongs to
-// the session: running and paused are false and sessionActive is true. A
-// chain or entry in another workspace is not shown, and neither is anything
-// of a workspace the coordinator lost access to.
-//
-// The model shows the projects it names and starts no read: ProjectCatalog
-// keeps what is known of the workspace's projects, ChosenProject shows the
-// chosen one from it, and ProjectLoader, the coordinator's, reads the list,
-// a chosen project the list lacks and the last entry into them.
-// NextStartSelection holds the next start's choice, and the model applies
-// its defaults as the states it shows ask for them.
-class TimerModel : public QObject, protected TimerStateUpdates
+// What a panel shows of the timer, derived from the one state the client
+// accepted; TimerController, its only subclass, acts and changes it.
+class TimerModel : public TimerActions
 {
     Q_OBJECT
 
@@ -215,13 +130,13 @@ public:
     Connection::State connectionState() const;
     bool isStale() const;
     bool workspaceAccessLost() const;
-    bool isBusy() const;
+    bool isBusy() const override;
     bool canWrite() const;
     // Something new could start now: canWrite(), and nothing runs, no
     // chain is paused and no session is active. A start and a Pomodoro
     // session's start both ask this, so the cooldown, a lost workspace and
     // a write in flight hold both.
-    bool canStartNew() const;
+    bool canStartNew() const override;
     // The project of the next start can be chosen now: canWrite(), and no
     // entry runs, no chain is paused and no session is active. A held
     // entry's project is fixed, and a session's open pomodoro is a running
@@ -233,7 +148,9 @@ public:
     bool canChooseBillable() const;
     // What the timer's toggle does: Pause while an entry runs, Resume while
     // a chain is paused, otherwise Start.
-    PrimaryAction toggleAction() const;
+    PrimaryAction toggleAction() const override;
+    bool holdsEntry() const override;
+    Selection selection() const override;
     QString errorString() const;
     Status status() const;
 
@@ -263,8 +180,7 @@ public:
     static QString formatElapsed(qint64 seconds);
 
 Q_SIGNALS:
-    // A read of the workspace's projects answered 403: the account may have
-    // lost the workspace. The coordinator decides.
+    // A read of the workspace's projects answered 403.
     void workspaceRefused(const Tokkl::ApiError &error);
 
     void contextChanged();
@@ -284,23 +200,25 @@ Q_SIGNALS:
     void indicatorChanged();
 
 protected:
-    // Reads the client's state, connection and clock (for elapsed time and
-    // ticks). The client is not owned and must outlive the model. The model
-    // reads what the actions do from activity, which must outlive it too. A
-    // subclass that owns the activity passes it once built.
+    // The client is not owned and must outlive the model.
     explicit TimerModel(TimerStateClient &client, QObject *parent = nullptr);
-    void setActivity(const TimerActivity *activity);
 
-    // The roles, for the subclass to hand to the coordinator.
-    TimerModelRoles roles();
+    const std::optional<TimerState> &heldState() const;
+    void contextUpdated();
+    // Shows the state held, applying the next-start defaults it asks for first.
+    void showState();
+    // A new context: the projects and the next start's choice are forgotten.
+    void resetContext();
+    // The workspace was lost: its projects and the next start's choice go.
+    void forgetWorkspace();
 
-    // TimerStateUpdates.
-    const std::optional<TimerState> &heldState() const override;
-    void contextUpdated() override;
-    void activityChanged() override;
-    void showState() override;
-    void resetContext() override;
-    void forgetWorkspace() override;
+    // Reads the projects when the workspace can be read and the list changed.
+    void fetchProjects();
+    // Reads the chosen project when the list lacks it, then shows it.
+    void resolveChosenProject();
+    // After a state: reads the last entry's project for the next start when asked.
+    void readLastEntryIfWanted();
+    bool readable() const;
 
 private:
     // What a new state changed in the view, between stage() and publish().
@@ -327,7 +245,8 @@ private:
     void updateElapsed();
     void updateProjectChoices();
 
-    const TimerActivity *m_activity = nullptr;
+    void showChosenProject();
+
     TimerStateClient &m_state;
     Connection &m_connection;
 
@@ -336,12 +255,16 @@ private:
     // The workspace's projects and the one read on its own.
     ProjectCatalog *m_catalog;
     ChosenProject *m_chosen;
-    NextStartSelection *m_next;
-    // The catalog role over the three above.
-    ProjectCatalogAdapter m_catalogRole;
     qint64 m_elapsed = 0;
     // What projectChoices last announced.
     QVariantList m_projectChoices;
+
+protected:
+    NextStartSelection *m_next;
+    // The write that runs, the message of the last action and a lost workspace.
+    MutationGate m_gate;
+    QString m_error;
+    bool m_workspaceLost = false;
 };
 
 }

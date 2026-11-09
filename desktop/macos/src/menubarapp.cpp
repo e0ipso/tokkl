@@ -60,7 +60,7 @@ MenuBarApp::MenuBarApp(Transport *transport,
                                 m_sounds,
                                 QString(QCoreApplication::applicationDirPath() + QStringLiteral("/../Resources/sounds")),
                                 this);
-    m_menu = new StatusMenu(m_timer, m_timer->coordinator(), m_session, m_alarm, this);
+    m_menu = new StatusMenu(m_timer, m_session, m_alarm, this);
     m_settingsWindow = std::make_unique<SettingsWindow>(transport, store, &settings, loginItem, m_preferences, m_sounds, m_alarm);
 
     connect(m_menu, &StatusMenu::settingsRequested, this, &MenuBarApp::showSettings);

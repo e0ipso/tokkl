@@ -802,18 +802,16 @@ private Q_SLOTS:
         QCOMPARE(f.stateReads(), reads);
     }
 
-    // The messages are looked up in the coordinator's own context, where
-    // lupdate files the tr() calls of timercoordinator.cpp, so a catalog
-    // extracted from the sources translates them.
-    void messagesUseTheCoordinatorsContext()
+    // The messages use the controller's own context, where lupdate files them.
+    void messagesUseTheControllersContext()
     {
-        ContextTranslator translator("Tokkl::TimerCoordinator");
+        ContextTranslator translator("Tokkl::TimerController");
         QVERIFY(QCoreApplication::installTranslator(&translator));
         Fixture f;
         QVERIFY(connectAccount(f, instanceA, 3, 7, "null"));
         QVERIFY(f.timer.start());
         f.respond(f.last("POST", startPath), FakeTransport::answer(409, f.nextState(entryBody(30, 7, clockText(f.clock.now().addSecs(-4)), true, 11))));
-        QCOMPARE(f.timer.errorString(), QStringLiteral("[Tokkl::TimerCoordinator] The timer changed on another device first."));
+        QCOMPARE(f.timer.errorString(), QStringLiteral("[Tokkl::TimerController] The timer changed on another device first."));
     }
 
     // Another device started an entry this one has not seen yet. The start

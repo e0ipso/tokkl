@@ -10,7 +10,7 @@ namespace Tokkl
 {
 
 TimerModel::TimerModel(TimerStateClient &client, QObject *parent)
-    : QObject(parent)
+    : TimerActions(parent)
     , m_state(client)
     , m_connection(*client.connection())
     , m_catalog(new ProjectCatalog(
@@ -20,7 +20,6 @@ TimerModel::TimerModel(TimerStateClient &client, QObject *parent)
           this))
     , m_chosen(new ChosenProject(m_catalog, this))
     , m_next(new NextStartSelection(m_catalog, this))
-    , m_catalogRole(this, m_catalog, m_next, m_chosen)
 {
     m_next->setConnection(&m_connection);
     connect(&client.clock(), &Clock::ticked, this, &TimerModel::updateElapsed);
@@ -39,14 +38,22 @@ TimerModel::TimerModel(TimerStateClient &client, QObject *parent)
     for (auto signal : {&TimerModel::choiceChanged, &TimerModel::entryProjectChanged, &TimerModel::projectsChanged}) {
         connect(this, signal, this, &TimerModel::updateProjectChoices);
     }
+    // After the handlers above, which apply a next-start default that waited
+    // for the list.
+    connect(m_catalog, &ProjectCatalog::listLoaded, this, &TimerModel::resolveChosenProject);
+    connect(m_catalog, &ProjectCatalog::projectResolved, this, &TimerModel::resolveChosenProject);
+    connect(this, &TimerModel::selectionChanged, this, &TimerModel::resolveChosenProject);
+    for (auto signal : {&TimerModel::contextChanged,
+                        &TimerModel::statusChanged,
+                        &TimerModel::currentEntryChanged,
+                        &TimerModel::chainChanged,
+                        &TimerModel::sessionActiveChanged,
+                        &TimerModel::choiceChanged}) {
+        connect(this, signal, this, &TimerActions::changed);
+    }
 }
 
 TimerModel::~TimerModel() = default;
-
-void TimerModel::setActivity(const TimerActivity *activity)
-{
-    m_activity = activity;
-}
 
 TimerStateClient *TimerModel::stateClient() const
 {
@@ -85,12 +92,12 @@ bool TimerModel::isStale() const
 
 bool TimerModel::workspaceAccessLost() const
 {
-    return m_activity && m_activity->workspaceLost();
+    return m_workspaceLost;
 }
 
 bool TimerModel::isBusy() const
 {
-    return (m_activity && m_activity->writing()) || m_state.settling();
+    return m_gate.running() || m_state.settling();
 }
 
 bool TimerModel::canWrite() const
@@ -113,6 +120,16 @@ bool TimerModel::canChooseBillable() const
     return canWrite() && !isPaused() && !isSessionActive();
 }
 
+bool TimerModel::holdsEntry() const
+{
+    return isRunning() || isPaused();
+}
+
+TimerActions::Selection TimerModel::selection() const
+{
+    return {chosenProject(), chosenBillable()};
+}
+
 PrimaryAction TimerModel::toggleAction() const
 {
     if (isRunning()) {
@@ -123,9 +140,8 @@ PrimaryAction TimerModel::toggleAction() const
 
 QString TimerModel::errorString() const
 {
-    const QString message = m_activity ? m_activity->message() : QString();
-    if (!message.isEmpty()) {
-        return message;
+    if (!m_error.isEmpty()) {
+        return m_error;
     }
     if (m_connection.state() != Connection::Connected) {
         return m_connection.errorString();
@@ -161,7 +177,7 @@ TimerModel::Status TimerModel::status() const
     if (isBusy()) {
         return Busy;
     }
-    if (workspaceAccessLost() || (m_activity && !m_activity->message().isEmpty())) {
+    if (workspaceAccessLost() || !m_error.isEmpty()) {
         return Error;
     }
     if (isStale()) {
@@ -311,13 +327,6 @@ QString TimerModel::formatElapsed(qint64 seconds)
     return QStringLiteral("%1:%2").arg(seconds / 3600).arg((seconds % 3600) / 60, 2, 10, QLatin1Char('0'));
 }
 
-// ----- the coordinator's roles ----------------------------------------------
-
-TimerModelRoles TimerModel::roles()
-{
-    return {this, m_next, &m_catalogRole};
-}
-
 const std::optional<TimerState> &TimerModel::heldState() const
 {
     return m_state.state();
@@ -326,11 +335,6 @@ const std::optional<TimerState> &TimerModel::heldState() const
 void TimerModel::contextUpdated()
 {
     Q_EMIT contextChanged();
-    Q_EMIT statusChanged();
-}
-
-void TimerModel::activityChanged()
-{
     Q_EMIT statusChanged();
 }
 
@@ -350,7 +354,7 @@ void TimerModel::resetContext()
     applyDefaults(change);
     publish(change);
     m_catalog->clearList();
-    m_catalogRole.showChosenProject();
+    showChosenProject();
     contextUpdated();
 }
 
@@ -362,8 +366,47 @@ void TimerModel::forgetWorkspace()
     publish(change);
     m_catalog->clearList();
     m_next->forget();
-    m_catalogRole.showChosenProject();
+    showChosenProject();
     Q_EMIT statusChanged();
+}
+
+bool TimerModel::readable() const
+{
+    return m_connection.isConnected() && !workspaceAccessLost() && !m_connection.rateLimitedUntil().isValid();
+}
+
+void TimerModel::fetchProjects()
+{
+    if (readable()) {
+        m_catalog->fetch(&m_connection);
+    }
+}
+
+void TimerModel::resolveChosenProject()
+{
+    const std::optional<qint64> id = chosenProject();
+    if (id && readable() && m_catalog->needsLookUp(*id)) {
+        m_catalog->lookUp(&m_connection, *id, workspaceId(), [this](qint64 projectId) {
+            return chosenProject() == projectId;
+        });
+    }
+    // After the read is on its way, so the indicator shows it pending.
+    showChosenProject();
+}
+
+void TimerModel::readLastEntryIfWanted()
+{
+    // A running entry sets the default when it stops; otherwise ask for the last one.
+    if (!isSessionActive() && m_next->takeLastEntryWanted() && !isRunning() && readable()) {
+        m_next->readLastEntry([this] {
+            return !workspaceAccessLost() && !isRunning();
+        });
+    }
+}
+
+void TimerModel::showChosenProject()
+{
+    m_chosen->show(chosenProject(), isRunning() || isPaused());
 }
 
 void TimerModel::onProjectReadFailed(const ApiError &error)

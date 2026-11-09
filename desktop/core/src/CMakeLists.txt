@@ -55,12 +55,8 @@ add_library(tokklcore STATIC
     pomodorostore.h
     projectcatalog.cpp
     projectcatalog.h
-    projectcatalogadapter.cpp
-    projectcatalogadapter.h
     projectchoices.cpp
     projectchoices.h
-    projectloader.cpp
-    projectloader.h
     sessioncredentials.cpp
     sessioncredentials.h
     sessionstate.h
@@ -73,8 +69,6 @@ add_library(tokklcore STATIC
     timeractions.h
     timercontroller.cpp
     timercontroller.h
-    timercoordinator.cpp
-    timercoordinator.h
     timermodel.cpp
     timermodel.h
     timerstack.cpp

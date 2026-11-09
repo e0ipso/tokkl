@@ -1,6 +1,6 @@
 #pragma once
 
-#include "timercoordinator.h"
+#include "epoch.h"
 #include "timermodel.h"
 
 #include <QVariant>
@@ -8,11 +8,8 @@
 namespace Tokkl
 {
 
-// The timer as one object, for QML (TokklTimer) and the panels: the
-// TimerModel it is, which shows the timer, and the TimerCoordinator it owns,
-// which acts. Its properties are the model's; its actions and slots go to
-// the coordinator, which holds the rules (see timercoordinator.h). A panel
-// that keeps reading and acting apart takes model() and coordinator().
+// The timer for QML (TokklTimer) and the panels: the TimerModel it shows and
+// the actions, one write at a time, tied to the connection's generation.
 class TimerController : public TimerModel
 {
     Q_OBJECT
@@ -26,28 +23,56 @@ public:
     explicit TimerController(TimerStateClient &client, QObject *parent = nullptr);
     ~TimerController() override;
 
-    TimerModel *model();
-    TimerCoordinator *coordinator() const;
-
-    // See TimerCoordinator. The actions return true when a request was
-    // sent.
+    // True when a request was sent. All but chooseProject() are refused
+    // while a session is active; start() also while paused.
     Q_INVOKABLE bool start();
+    // While paused, discards the chain.
     Q_INVOKABLE bool stop();
     Q_INVOKABLE bool pause();
     Q_INVOKABLE bool resume();
-    Q_INVOKABLE bool toggle();
+    // Pauses a running entry, resumes a paused chain, otherwise starts.
+    Q_INVOKABLE bool toggle() override;
+    // Null, 0 or an active project's id, while canChooseProject().
     Q_INVOKABLE bool chooseProject(const QVariant &projectId);
+    // While an entry runs, also edits that entry's billable flag.
     Q_INVOKABLE bool chooseBillable(bool billable);
 
 public Q_SLOTS:
-    // A panel opens its menu: checks whether the projects changed; see
-    // TimerCoordinator::refreshProjects().
+    // A panel opens its menu: reads the projects when their revision moved.
     void refreshProjects();
     // Explicit reconnect: lifts a workspace block and revalidates the account.
     void reconnect();
 
+Q_SIGNALS:
+    // A write ended; message is why it failed, empty for a new generation.
+    void writeFinished(bool ok, const QString &message);
+
 private:
-    TimerCoordinator *m_coordinator;
+    void onConnectionChanged();
+    void onStateChanged();
+    void onSettlingChanged();
+    void reset();
+    void beginMutation();
+    void refreshState();
+    bool updateEntry(const TimeEntryUpdate &update);
+    // start is true for a start or resume.
+    void finishMutation(TimerActionResult::Outcome outcome, const ApiError &error, bool start = false);
+    void endMutation(TimerActionResult::Outcome outcome, const ApiError &error, bool start);
+    void loseWorkspace(const ApiError &error);
+    void setError(const QString &error);
+    // Clears a kept message on a user action.
+    void clearKeptError();
+
+    TimerStateClient &m_client;
+    // Advanced by reset(); callbacks from an earlier epoch do nothing.
+    Epoch m_epoch;
+    Connection::State m_lastState = Connection::Unconfigured;
+    // The data of the current context was requested once.
+    bool m_loaded = false;
+    // m_error is a refused start's or resume's message, or a 409's, which a
+    // new state leaves in place.
+    bool m_keepError = false;
+    bool m_rediscoveryUsed = false;
 };
 
 }

@@ -26,8 +26,7 @@ class ProjectCatalog;
 // newest entry. Only an active project of the workspace counts, and
 // any other gives no project. A pick by the user wins over both until the
 // next start or stop. NextStartDefaults decides when a default may still
-// apply. A TimerModel owns the selection and reads it; its TimerCoordinator
-// picks and starts through it (TimerModelRoles::selection).
+// apply. A TimerModel owns the selection; its TimerController picks through it.
 class NextStartSelection : public QObject
 {
     Q_OBJECT

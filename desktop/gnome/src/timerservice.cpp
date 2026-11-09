@@ -12,8 +12,7 @@
 #include "projectchoices.h"
 #include "soundchoices.h"
 #include "statuspresentation.h"
-#include "timercoordinator.h"
-#include "timermodel.h"
+#include "timercontroller.h"
 #include "timerstateclient.h"
 
 #include <QDBusMessage>
@@ -61,7 +60,6 @@ QString TimerService::clientName()
 TimerService::TimerService(const Parts &parts, QObject *parent)
     : QObject(parent)
     , m_timer(parts.timer)
-    , m_actions(parts.actions)
     , m_session(parts.session)
     , m_preferences(parts.preferences)
     , m_sounds(parts.sounds)
@@ -109,7 +107,7 @@ TimerService::TimerService(const Parts &parts, QObject *parent)
     // LocalStartTime reads the state client's offset, which no model
     // signal announces.
     watch(m_timer->stateClient(), &TimerStateClient::offsetChanged);
-    connect(m_actions, &TimerCoordinator::writeFinished, this, &TimerService::onWriteFinished);
+    connect(m_timer, &TimerController::writeFinished, this, &TimerService::onWriteFinished);
 
     m_published = read();
     m_dirty = false;
@@ -419,42 +417,42 @@ QList<QVariantMap> TimerService::soundCatalogue() const
 bool TimerService::Start()
 {
     // In Pomodoro mode the desktop starts no timer: sessions run instead.
-    return answer(!m_session->pomodoroMode() && m_actions->start());
+    return answer(!m_session->pomodoroMode() && m_timer->start());
 }
 
 bool TimerService::Stop()
 {
-    return answer(m_actions->stop());
+    return answer(m_timer->stop());
 }
 
 bool TimerService::Pause()
 {
-    return answer(m_actions->pause());
+    return answer(m_timer->pause());
 }
 
 bool TimerService::Resume()
 {
-    return answer(m_actions->resume());
+    return answer(m_timer->resume());
 }
 
 qulonglong TimerService::RequestStart()
 {
-    return answer(follow(!m_session->pomodoroMode() && m_actions->start()));
+    return answer(follow(!m_session->pomodoroMode() && m_timer->start()));
 }
 
 qulonglong TimerService::RequestStop()
 {
-    return answer(follow(m_actions->stop()));
+    return answer(follow(m_timer->stop()));
 }
 
 qulonglong TimerService::RequestPause()
 {
-    return answer(follow(m_actions->pause()));
+    return answer(follow(m_timer->pause()));
 }
 
 qulonglong TimerService::RequestResume()
 {
-    return answer(follow(m_actions->resume()));
+    return answer(follow(m_timer->resume()));
 }
 
 qulonglong TimerService::follow(bool sent)
@@ -480,12 +478,12 @@ void TimerService::onWriteFinished(bool ok, const QString &message)
 
 bool TimerService::SetProject(qint64 projectId)
 {
-    return answer(m_actions->chooseProject(projectId == 0 ? QVariant::fromValue(nullptr) : QVariant(projectId)));
+    return answer(m_timer->chooseProject(projectId == 0 ? QVariant::fromValue(nullptr) : QVariant(projectId)));
 }
 
 bool TimerService::SetBillable(bool billable)
 {
-    return answer(m_actions->chooseBillable(billable));
+    return answer(m_timer->chooseBillable(billable));
 }
 
 void TimerService::Configure(const QString &instanceUrl, const QString &authMode, const QString &email, const QString &secret)
@@ -542,7 +540,7 @@ void TimerService::RefreshPreferences()
 
 void TimerService::RefreshProjects()
 {
-    m_actions->refreshProjects();
+    m_timer->refreshProjects();
     publishChanges();
 }
 

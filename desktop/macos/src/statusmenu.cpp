@@ -5,8 +5,7 @@
 #include "pomodoroalarm.h"
 #include "pomodorosession.h"
 #include "statuswords.h"
-#include "timercoordinator.h"
-#include "timermodel.h"
+#include "timercontroller.h"
 
 #include <QAction>
 #include <QMenu>
@@ -14,10 +13,9 @@
 namespace Tokkl
 {
 
-StatusMenu::StatusMenu(TimerModel *timer, TimerCoordinator *actions, PomodoroSession *session, PomodoroAlarm *alarm, QObject *parent)
+StatusMenu::StatusMenu(TimerController *timer, PomodoroSession *session, PomodoroAlarm *alarm, QObject *parent)
     : QObject(parent)
     , m_timer(timer)
-    , m_actions(actions)
     , m_session(session)
     , m_alarm(alarm)
     , m_menu(std::make_unique<QMenu>())
@@ -25,8 +23,8 @@ StatusMenu::StatusMenu(TimerModel *timer, TimerCoordinator *actions, PomodoroSes
     // The projects have no stream: each opening asks the core to check
     // them, so a project renamed or deleted elsewhere does not stay listed.
     connect(m_menu.get(), &QMenu::aboutToShow, this, [this] {
-        if (m_actions) {
-            m_actions->refreshProjects();
+        if (m_timer) {
+            m_timer->refreshProjects();
         }
     });
 
@@ -40,13 +38,13 @@ StatusMenu::StatusMenu(TimerModel *timer, TimerCoordinator *actions, PomodoroSes
 
     m_startStopAction = m_menu->addAction(QString());
     connect(m_startStopAction, &QAction::triggered, this, [this] {
-        if (!m_timer || !m_actions) {
+        if (!m_timer) {
             return;
         }
         if (m_timer->isRunning() || m_timer->isPaused()) {
-            m_actions->stop();
+            m_timer->stop();
         } else {
-            m_actions->start();
+            m_timer->start();
         }
     });
 
@@ -87,8 +85,8 @@ StatusMenu::StatusMenu(TimerModel *timer, TimerCoordinator *actions, PomodoroSes
     m_billableAction = m_menu->addAction(tr("Billable"));
     m_billableAction->setCheckable(true);
     connect(m_billableAction, &QAction::triggered, this, [this] {
-        if (m_timer && m_actions) {
-            m_actions->chooseBillable(!m_timer->chosenBillable());
+        if (m_timer) {
+            m_timer->chooseBillable(!m_timer->chosenBillable());
         }
         refresh();
     });
@@ -97,8 +95,8 @@ StatusMenu::StatusMenu(TimerModel *timer, TimerCoordinator *actions, PomodoroSes
 
     m_reconnectAction = m_menu->addAction(tr("Reconnect"));
     connect(m_reconnectAction, &QAction::triggered, this, [this] {
-        if (m_actions) {
-            m_actions->reconnect();
+        if (m_timer) {
+            m_timer->reconnect();
         }
     });
 
@@ -305,8 +303,8 @@ QAction *StatusMenu::addProjectChoice(const QString &label, const QVariant &proj
     action->setChecked(checked);
     action->setEnabled(enabled);
     connect(action, &QAction::triggered, this, [this, projectId] {
-        if (m_actions) {
-            m_actions->chooseProject(projectId);
+        if (m_timer) {
+            m_timer->chooseProject(projectId);
         }
         // The action checked itself; a refused choice must not leave it so.
         m_projectItems.reset();

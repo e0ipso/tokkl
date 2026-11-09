@@ -116,7 +116,7 @@ int main(int argc, char **argv)
         qCWarning(lcTimerd).noquote() << "no sound:" << message;
     });
     Tokkl::PomodoroAlarm alarm(stack.session(), &alarmBackend, &sounds, QStringLiteral(TOKKL_SOUNDS_DIR));
-    Tokkl::TimerService service({timer, timer->coordinator(), stack.session(), stack.preferences(), &sounds, &configuration, &alarm});
+    Tokkl::TimerService service({timer, stack.session(), stack.preferences(), &sounds, &configuration, &alarm});
     connectionSettings.load();
     if (!service.registerOn(bus)) {
         std::fprintf(stderr, "tokkl-timerd: could not own %s on the session bus: %s\n", qPrintable(Tokkl::TimerService::serviceName),
