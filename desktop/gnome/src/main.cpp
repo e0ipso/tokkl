@@ -105,7 +105,7 @@ int main(int argc, char **argv)
     Tokkl::SettingsPomodoroStore pomodoroStore(&settings);
     // The connection, the timer and the Pomodoro session, which are the
     // server's, read through one state client.
-    Tokkl::TimerStack stack(&transport, &store, &pomodoroStore, clock, Tokkl::TimerService::clientName());
+    Tokkl::TimerStack stack(&transport, &store, pomodoroStore, clock, Tokkl::TimerService::clientName());
     Tokkl::TimerController *timer = stack.timer();
     Tokkl::SoundChoices sounds(&settings, &Tokkl::TimerService::soundKey);
     Tokkl::ServiceSettings connectionSettings(&settings, stack.connection(), &store);

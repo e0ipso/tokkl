@@ -101,7 +101,7 @@ class TimerCoordinator : public TimerActions, public TimerActivity
 public:
     // Reads model and changes it through roles, the same model's; it must
     // outlive the coordinator. The clock is not owned.
-    TimerCoordinator(TimerModel *model, const TimerModelRoles &roles, Clock *clock, QObject *parent = nullptr);
+    TimerCoordinator(TimerModel *model, const TimerModelRoles &roles, Clock &clock, QObject *parent = nullptr);
     ~TimerCoordinator() override;
 
     TimerModel *model() const;
@@ -186,7 +186,7 @@ private:
     NextStartSelection *m_selection;
     TimerCatalogUpdates *m_catalog;
     ProjectLoader *m_loader;
-    QPointer<Clock> m_clock;
+    Clock &m_clock;
 
     // Advanced by reset(); callbacks from an earlier epoch do nothing.
     Epoch m_epoch;

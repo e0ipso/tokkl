@@ -22,7 +22,7 @@ class TimerController : public TimerModel
 
 public:
     // Uses the given clock, which the controller does not own.
-    explicit TimerController(Clock *clock, QObject *parent = nullptr);
+    explicit TimerController(Clock &clock, QObject *parent = nullptr);
     ~TimerController() override;
 
     TimerModel *model();

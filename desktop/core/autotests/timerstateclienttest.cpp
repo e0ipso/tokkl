@@ -66,7 +66,7 @@ class TimerStateClientTest : public QObject
         FakeCredentialStore store;
         FakeClock clock;
         Connection connection{&transport, &store, clock, testClientName()};
-        TimerStateClient client{&connection, &clock};
+        TimerStateClient client{connection, clock};
         QSignalSpy changes{&client, &TimerStateClient::stateChanged};
         QSignalSpy streamingChanges{&client, &TimerStateClient::streamingChanged};
 

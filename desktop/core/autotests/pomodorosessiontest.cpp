@@ -265,8 +265,8 @@ class PomodoroSessionTest : public QObject
         FakeClock clock;
         SettingsPomodoroStore store{&settings};
         Connection connection{&transport, &credentials, clock, testClientName()};
-        TimerStateClient client{&connection, &clock};
-        TimerController timer{&clock};
+        TimerStateClient client{connection, clock};
+        TimerController timer{clock};
         // Absent for a test that creates it later, as after a restart.
         std::unique_ptr<PomodoroSession> session;
         qint64 revision = 0; // of the last state built
@@ -285,7 +285,7 @@ class PomodoroSessionTest : public QObject
 
         void createSession()
         {
-            session = std::make_unique<PomodoroSession>(&clock, timer.coordinator(), &client, &store);
+            session = std::make_unique<PomodoroSession>(clock, *timer.coordinator(), client, store);
         }
 
         QDateTime serverNow() const
@@ -400,7 +400,7 @@ private Q_SLOTS:
     {
         Fixture f(false);
         SwitchingStore store;
-        PomodoroSession session(&f.clock, f.timer.coordinator(), &f.client, &store);
+        PomodoroSession session(f.clock, *f.timer.coordinator(), f.client, store);
         QSignalSpy changed(&session, &PomodoroSession::modeChanged);
         QVERIFY(!session.pomodoroMode());
 
@@ -544,7 +544,7 @@ private Q_SLOTS:
         QVERIFY(connectAccount(f));
         StandInTimer timer;
         timer.chosen = {11, true};
-        PomodoroSession session(&f.clock, &timer, &f.client, &f.store);
+        PomodoroSession session(f.clock, timer, f.client, f.store);
 
         QCOMPARE(session.activate(), PomodoroSession::Activation::Handled);
         QCOMPARE(timer.toggles, 1);
@@ -580,7 +580,7 @@ private Q_SLOTS:
         Fixture f(false);
         StandInTimer timer;
         StandInState state(&f.clock);
-        PomodoroSession session(&f.clock, &timer, &state, &f.store);
+        PomodoroSession session(f.clock, timer, state, f.store);
         QVERIFY(!session.isActive());
 
         const std::optional<QJsonValue> json = parseJsonBody(f.state(work(f.clock.now())));

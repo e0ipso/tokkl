@@ -9,7 +9,6 @@
 
 #include <QDateTime>
 #include <QObject>
-#include <QPointer>
 #include <QString>
 
 namespace Tokkl
@@ -107,9 +106,9 @@ public:
     Q_ENUM(Activation)
 
     // Uses the clock, the timer, the state and the store, none of which it
-    // owns. state must be the one the timer reads; a timer that takes
-    // another needs another session.
-    PomodoroSession(Clock *clock, TimerActions *timer, SessionState *state, PomodoroStore *store, QObject *parent = nullptr);
+    // owns; all of them must outlive the session. state must be the one the
+    // timer reads.
+    PomodoroSession(Clock &clock, TimerActions &timer, SessionState &state, PomodoroStore &store, QObject *parent = nullptr);
 
     bool pomodoroMode() const;
     // Returns false, and changes nothing, while modeLocked or when the
@@ -193,12 +192,11 @@ private:
     void updateClock();
     void setMessage(const QString &message);
 
-    QPointer<Clock> m_clock;
-    QPointer<TimerActions> m_timer;
-    QPointer<SessionState> m_client;
-    QPointer<PomodoroStore> m_store;
+    TimerActions &m_timer;
+    SessionState &m_client;
+    PomodoroStore &m_store;
 
-    bool m_pomodoroMode = false;
+    bool m_pomodoroMode;
     bool m_pending = false; // an action waits for its answer
     // Advanced on accountReset(): the answer to an action sent before never
     // comes, and one that does is ignored.

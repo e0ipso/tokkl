@@ -75,13 +75,13 @@ public:
     static constexpr qsizetype maxEventBytes = 1024 * 1024;
 
     // Neither is owned; both must outlive the client.
-    TimerStateClient(Connection *connection, Clock *clock, QObject *parent = nullptr);
+    TimerStateClient(Connection &connection, Clock &clock, QObject *parent = nullptr);
     ~TimerStateClient() override;
 
     Connection *connection() const;
     // The clock the client was given; a timer or session built on the
-    // client can share it.
-    Clock *clock() const;
+    // client shares it.
+    Clock &clock() const;
     const std::optional<TimerState> &state() const override;
     bool streaming() const;
     bool settling() const override;
@@ -167,9 +167,9 @@ private:
     void withRevision(const std::function<void(Connection &, qint64, ActionCallback)> &action, ActionCallback done);
     void refuseLater(const ActionCallback &done, const QString &message);
 
-    QPointer<Connection> m_connection;
-    QPointer<Clock> m_clock;
-    quint64 m_generation = 0;
+    Connection &m_connection;
+    Clock &m_clock;
+    quint64 m_generation;
     Connection::State m_lastState = Connection::Unconfigured;
     bool m_started = false; // read and streamed in this generation
 

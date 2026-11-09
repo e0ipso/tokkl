@@ -426,7 +426,7 @@ struct Daemon {
     Daemon(Transport *transport, CredentialStore *store, const QString &settingsFile, Clock *clock)
         : settings(settingsFile, QSettings::IniFormat)
         , pomodoroStore(&settings)
-        , stack(transport, store, &pomodoroStore, *clock, TimerService::clientName())
+        , stack(transport, store, pomodoroStore, *clock, TimerService::clientName())
         , connection(*stack.connection())
         , timer(*stack.timer())
         , session(*stack.session())

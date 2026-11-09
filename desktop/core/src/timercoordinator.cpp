@@ -14,7 +14,7 @@ namespace
 using Outcome = TimerActionResult::Outcome;
 }
 
-TimerCoordinator::TimerCoordinator(TimerModel *model, const TimerModelRoles &roles, Clock *clock, QObject *parent)
+TimerCoordinator::TimerCoordinator(TimerModel *model, const TimerModelRoles &roles, Clock &clock, QObject *parent)
     : TimerActions(parent)
     , m_model(model)
     , m_state(roles.state)
@@ -24,7 +24,7 @@ TimerCoordinator::TimerCoordinator(TimerModel *model, const TimerModelRoles &rol
     , m_clock(clock)
 {
     connect(m_model, &TimerModel::workspaceRefused, this, &TimerCoordinator::loseWorkspace);
-    m_state->bind(nullptr, m_clock);
+    m_state->bind(nullptr, &m_clock);
     for (auto signal : {&TimerModel::contextChanged,
                         &TimerModel::statusChanged,
                         &TimerModel::currentEntryChanged,
@@ -95,7 +95,7 @@ void TimerCoordinator::setStateClient(TimerStateClient *client)
         return;
     }
     detach();
-    m_state->bind(client, m_clock);
+    m_state->bind(client, &m_clock);
     Connection *connection = m_model->connection();
     if (client) {
         connect(client, &TimerStateClient::stateChanged, this, &TimerCoordinator::onStateChanged);
@@ -127,7 +127,7 @@ void TimerCoordinator::detach()
     if (Connection *connection = m_model->connection()) {
         disconnect(connection, nullptr, this, nullptr);
     }
-    m_state->bind(nullptr, m_clock);
+    m_state->bind(nullptr, &m_clock);
 }
 
 void TimerCoordinator::onConnectionChanged()

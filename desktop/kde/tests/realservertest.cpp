@@ -235,7 +235,7 @@ struct Session {
     RecordingTransport transport;
     FakeClock clock;
     MemoryPomodoroStore pomodoroStore;
-    TimerStack stack{&transport, &store, &pomodoroStore, clock, QStringLiteral("tokkl-kde")};
+    TimerStack stack{&transport, &store, pomodoroStore, clock, QStringLiteral("tokkl-kde")};
     // The stack's parts, by the names the tests read them under.
     Connection &connection{*stack.connection()};
     TimerController &timer{*stack.timer()};

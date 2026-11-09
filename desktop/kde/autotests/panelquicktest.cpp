@@ -238,7 +238,7 @@ private:
     SettingsPomodoroStore m_pomodoroStore{&m_settings};
     // The connection, the timer and the session as every companion builds
     // them. After the fakes, so it goes first.
-    TimerStack m_stack{&m_transport, &m_store, &m_pomodoroStore, m_clock, testClientName()};
+    TimerStack m_stack{&m_transport, &m_store, m_pomodoroStore, m_clock, testClientName()};
     QSet<qsizetype> m_answered;
 };
 

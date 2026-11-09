@@ -240,8 +240,8 @@ class TimerControllerTest : public QObject
         FakeCredentialStore store;
         FakeClock clock;
         Connection connection{&transport, &store, clock, testClientName()};
-        TimerStateClient state{&connection, &clock};
-        TimerController timer{&clock};
+        TimerStateClient state{connection, clock};
+        TimerController timer{clock};
         QSet<qsizetype> answered;
         qint64 revision = 0; // of the last state built
 
@@ -2817,7 +2817,7 @@ private Q_SLOTS:
         FakeTransport otherTransport;
         FakeCredentialStore otherStore;
         Connection other(&otherTransport, &otherStore, f.clock, testClientName());
-        TimerStateClient otherState(&other, &f.clock);
+        TimerStateClient otherState(other, f.clock);
         f.timer.setStateClient(&otherState);
         QCOMPARE(f.timer.stateClient(), &otherState);
         QCOMPARE(f.timer.connection(), &other);
@@ -2830,7 +2830,7 @@ private Q_SLOTS:
 
         // A client that goes away takes its connection with it.
         {
-            TimerStateClient scoped(&f.connection, &f.clock);
+            TimerStateClient scoped(f.connection, f.clock);
             f.timer.setStateClient(&scoped);
             QCOMPARE(f.timer.connection(), &f.connection);
         }

@@ -10,21 +10,17 @@
 namespace Tokkl
 {
 
-TimerStateClient::TimerStateClient(Connection *connection, Clock *clock, QObject *parent)
+TimerStateClient::TimerStateClient(Connection &connection, Clock &clock, QObject *parent)
     : SessionState(parent)
     , m_connection(connection)
     , m_clock(clock)
+    , m_generation(connection.generation())
 {
-    if (m_connection) {
-        m_generation = m_connection->generation();
-        connect(m_connection, &Connection::stateChanged, this, &TimerStateClient::onConnectionStateChanged);
-        // A bind to another account under the same state sends only this.
-        connect(m_connection, &Connection::accountChanged, this, &TimerStateClient::onConnectionStateChanged);
-        connect(m_connection, &Connection::generationChanged, this, &TimerStateClient::onGenerationChanged);
-    }
-    if (m_clock) {
-        connect(m_clock, &Clock::ticked, this, &TimerStateClient::onTick);
-    }
+    connect(&m_connection, &Connection::stateChanged, this, &TimerStateClient::onConnectionStateChanged);
+    // A bind to another account under the same state sends only this.
+    connect(&m_connection, &Connection::accountChanged, this, &TimerStateClient::onConnectionStateChanged);
+    connect(&m_connection, &Connection::generationChanged, this, &TimerStateClient::onGenerationChanged);
+    connect(&m_clock, &Clock::ticked, this, &TimerStateClient::onTick);
     onConnectionStateChanged();
 }
 
@@ -38,10 +34,10 @@ TimerStateClient::~TimerStateClient()
 
 Connection *TimerStateClient::connection() const
 {
-    return m_connection;
+    return &m_connection;
 }
 
-Clock *TimerStateClient::clock() const
+Clock &TimerStateClient::clock() const
 {
     return m_clock;
 }
@@ -68,15 +64,14 @@ qint64 TimerStateClient::serverOffsetMs() const
 
 QDateTime TimerStateClient::serverNow() const
 {
-    const QDateTime now = m_clock ? m_clock->now() : QDateTime::currentDateTimeUtc();
-    return now.addMSecs(m_offsetMs);
+    return m_clock.now().addMSecs(m_offsetMs);
 }
 
 // ----- reading the state ---------------------------------------------------
 
 bool TimerStateClient::readable() const
 {
-    return m_connection && m_connection->isConnected() && !m_connection->rateLimitedUntil().isValid();
+    return m_connection.isConnected() && !m_connection.rateLimitedUntil().isValid();
 }
 
 void TimerStateClient::refresh()
@@ -95,13 +90,11 @@ void TimerStateClient::requestRead(bool fresh)
     }
     m_reading = true;
     m_readAgain = false;
-    if (m_clock) {
-        m_nextPoll = m_clock->now().addMSecs(pollIntervalMs);
-    }
+    m_nextPoll = m_clock.now().addMSecs(pollIntervalMs);
     QPointer<TimerStateClient> self(this);
     const quint64 generation = m_generation;
     const quint64 serial = ++m_readsSent;
-    m_connection->fetchTimerState([self, generation, serial](const ApiResult<TimerState> &result) {
+    m_connection.fetchTimerState([self, generation, serial](const ApiResult<TimerState> &result) {
         if (!self || generation != self->m_generation) {
             return;
         }
@@ -148,7 +141,7 @@ bool TimerStateClient::adopt(const TimerState &state)
         return false;
     }
     m_state = state;
-    setOffset(m_clock ? m_clock->now().msecsTo(state.serverTime) : 0);
+    setOffset(m_clock.now().msecsTo(state.serverTime));
     Q_EMIT stateChanged();
     return true;
 }
@@ -166,11 +159,8 @@ void TimerStateClient::setOffset(qint64 offsetMs)
 
 void TimerStateClient::onConnectionStateChanged()
 {
-    if (!m_connection) {
-        return;
-    }
-    const Connection::State state = m_connection->state();
-    const bool up = m_connection->isConnected() && state == Connection::Connected;
+    const Connection::State state = m_connection.state();
+    const bool up = m_connection.isConnected() && state == Connection::Connected;
     // A new account, or back from a connectivity failure or a cooldown.
     const bool cameUp = up && (!m_started || m_lastState != Connection::Connected);
     m_lastState = state;
@@ -186,7 +176,7 @@ void TimerStateClient::onConnectionStateChanged()
 
 void TimerStateClient::onGenerationChanged()
 {
-    m_generation = m_connection ? m_connection->generation() : 0;
+    m_generation = m_connection.generation();
     closeStream();
     m_reconnectAt = QDateTime();
     m_backoffMs = reconnectMinMs;
@@ -208,7 +198,7 @@ void TimerStateClient::onGenerationChanged()
 void TimerStateClient::resumed()
 {
     refresh();
-    if (!m_connection || !m_connection->isConnected()) {
+    if (!m_connection.isConnected()) {
         return;
     }
     // A stream from before the sleep may be dead without knowing it yet.
@@ -218,10 +208,7 @@ void TimerStateClient::resumed()
 
 void TimerStateClient::onTick()
 {
-    if (!m_clock) {
-        return;
-    }
-    const QDateTime now = m_clock->now();
+    const QDateTime now = m_clock.now();
     const qint64 gap = m_lastTick.isValid() ? m_lastTick.msecsTo(now) : 0;
     m_lastTick = now;
     if (gap > resumeGapMs || gap < -resumeGapMs) {
@@ -242,10 +229,10 @@ void TimerStateClient::onTick()
 void TimerStateClient::openStream()
 {
     m_reconnectAt = QDateTime();
-    if (!m_connection || !m_connection->isConnected()) {
+    if (!m_connection.isConnected()) {
         return;
     }
-    PendingStream *stream = m_connection->openTimerEvents();
+    PendingStream *stream = m_connection.openTimerEvents();
     if (!stream) {
         scheduleReconnect(); // a cooldown
         return;
@@ -273,12 +260,9 @@ void TimerStateClient::closeStream()
 
 void TimerStateClient::scheduleReconnect()
 {
-    if (!m_clock) {
-        return;
-    }
     const int baseMs = std::max(m_backoffMs, m_retryFloorMs);
-    const int waitMs = retryWaitMs(baseMs, *m_clock);
-    m_reconnectAt = m_clock->now().addMSecs(waitMs);
+    const int waitMs = retryWaitMs(baseMs, m_clock);
+    m_reconnectAt = m_clock.now().addMSecs(waitMs);
     qCDebug(lcNet) << "Event stream reconnects in" << waitMs << "ms";
     m_backoffMs = std::min(m_backoffMs * 2, reconnectMaxMs);
 }
@@ -287,11 +271,11 @@ void TimerStateClient::onStreamEnded()
 {
     // The connection refused the credentials, or the stream belongs to an
     // earlier generation.
-    if (!m_connection || m_connection->generation() != m_generation) {
+    if (m_connection.generation() != m_generation) {
         return;
     }
     const bool delivered = m_streaming;
-    if (delivered && m_clock && m_streamingSince.isValid() && m_streamingSince.msecsTo(m_clock->now()) >= reconnectMaxMs) {
+    if (delivered && m_streamingSince.isValid() && m_streamingSince.msecsTo(m_clock.now()) >= reconnectMaxMs) {
         m_backoffMs = reconnectMinMs;
     }
     ++m_streamSerial;
@@ -419,7 +403,7 @@ void TimerStateClient::setStreaming(bool streaming)
         return;
     }
     m_streaming = streaming;
-    m_streamingSince = streaming && m_clock ? m_clock->now() : QDateTime();
+    m_streamingSince = streaming ? m_clock.now() : QDateTime();
     Q_EMIT streamingChanged();
 }
 
@@ -463,15 +447,11 @@ void TimerStateClient::refuseLater(const ActionCallback &done, const QString &me
 
 void TimerStateClient::withRevision(const std::function<void(Connection &, qint64, ActionCallback)> &action, ActionCallback done)
 {
-    if (!m_connection) {
-        refuseLater(done, tr("Not connected to a Tokkl account."));
-        return;
-    }
     if (!m_state) {
         refuseLater(done, tr("The timer has not been read yet."));
         return;
     }
-    action(*m_connection, m_state->revision, adopting(std::move(done)));
+    action(m_connection, m_state->revision, adopting(std::move(done)));
 }
 
 void TimerStateClient::start(const StartEntry &entry, ActionCallback done)
@@ -505,11 +485,7 @@ void TimerStateClient::discard(ActionCallback done)
 
 void TimerStateClient::edit(qint64 entryId, const TimeEntryUpdate &update, ActionCallback done)
 {
-    if (!m_connection) {
-        refuseLater(done, tr("Not connected to a Tokkl account."));
-        return;
-    }
-    m_connection->editTimer(entryId, update, adopting(std::move(done)));
+    m_connection.editTimer(entryId, update, adopting(std::move(done)));
 }
 
 void TimerStateClient::startPomodoro(const PomodoroStart &start, ActionCallback done)

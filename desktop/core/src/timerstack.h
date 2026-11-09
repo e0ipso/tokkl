@@ -33,12 +33,11 @@ class TimerStack : public QObject
 
 public:
     // Nothing given is owned, and all of it must outlive the stack.
-    // pomodoroStore keeps the Pomodoro mode across restarts; without one the
-    // mode is not kept. clientName goes into the created_with field of the
-    // entries the connection starts.
+    // pomodoroStore keeps the Pomodoro mode across restarts. clientName goes
+    // into the created_with field of the entries the connection starts.
     TimerStack(Transport *transport,
                CredentialStore *credentials,
-               PomodoroStore *pomodoroStore,
+               PomodoroStore &pomodoroStore,
                Clock &clock,
                const QString &clientName,
                QObject *parent = nullptr);

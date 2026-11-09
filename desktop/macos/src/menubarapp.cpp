@@ -46,7 +46,7 @@ MenuBarApp::MenuBarApp(Transport *transport,
     , m_statusItem(statusItem)
     , m_settings(settings)
     , m_pomodoroStore(new SettingsPomodoroStore(&settings, this))
-    , m_stack(new TimerStack(transport, store, m_pomodoroStore, clock, clientName(), this))
+    , m_stack(new TimerStack(transport, store, *m_pomodoroStore, clock, clientName(), this))
     , m_connection(m_stack->connection())
     , m_timer(m_stack->timer())
     , m_preferences(m_stack->preferences())
