@@ -39,10 +39,10 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       );
       const runner = createTransactionRunner(connection, repositoryFactory);
       const events: string[] = [];
-      let publicationErrors = 0;
+      const publicationErrors: unknown[] = [];
       const reportingRunner = createTransactionRunner(connection, repositoryFactory, {
-        publicationFailed() {
-          publicationErrors++;
+        afterCommitFailed(error) {
+          publicationErrors.push(error);
           throw new Error('reporter failed');
         },
       });
@@ -106,7 +106,8 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           });
         });
         assert.deepEqual(events.slice(2), ['one', 'two', 'published', 'next']);
-        assert.equal(publicationErrors, 1);
+        assert.equal(publicationErrors.length, 1);
+        assert.match((publicationErrors[0] as Error).message, /publication failed/);
         await runner.transaction(async ctx => {
           ctx.beforeCommit('replace', async () => {
             events.push('obsolete');

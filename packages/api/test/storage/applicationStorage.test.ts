@@ -4,6 +4,7 @@ import { parseStorageConfig } from '../../src/storage/config.ts';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import type { Repositories } from '../../src/domain/ports.ts';
 import { createStorage } from '../fixtures/storageShortcuts.ts';
+import { createStorage as createPlainStorage } from '../../src/storage/index.ts';
 import { entryAccount } from './support/entry-timer.ts';
 
 test('composed storage shares rollback, snapshots, dry runs and awaited closure', async () => {
@@ -42,6 +43,27 @@ test('composed storage shares rollback, snapshots, dry runs and awaited closure'
   await storage.close();
   await storage.close();
   await assert.rejects(storage.health());
+});
+
+test('storage reports a failed after-commit callback and the write stays committed', async () => {
+  const config = parseStorageConfig({ TOKKL_DATABASE_URL: 'sqlite::memory:' }, '.');
+  const failures: unknown[] = [];
+  const storage = createPlainStorage(await initializeDatabase(config), {
+    afterCommitFailed: error => failures.push(error),
+  });
+  try {
+    const failure = new Error('delivery failed');
+    const id = await storage.transaction(async ctx => {
+      ctx.afterCommit(async () => {
+        throw failure;
+      });
+      return (await ctx.workspaces.create('kept')).id;
+    });
+    assert.deepEqual(failures, [failure]);
+    assert.equal((await storage.readSnapshot(r => r.workspaces.get(id)))?.name, 'kept');
+  } finally {
+    await storage.close();
+  }
 });
 
 test('storage closure drains active operations before releasing the underlying connection', async () => {

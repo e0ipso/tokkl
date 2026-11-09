@@ -18,8 +18,11 @@ export interface TransactionRunner<R extends object> {
   readSnapshot<T>(work: (repositories: R) => Promise<T>): Promise<T>;
 }
 export interface TransactionRunnerOptions {
-  /** Error details are deliberately omitted. Reporting must never fail an already committed write. */
-  publicationFailed?: () => void | Promise<void>;
+  /**
+   * Hears each after-commit callback that threw. The write has committed by then, so the failure is
+   * only reported; a reporter that throws is ignored.
+   */
+  afterCommitFailed?: (error: unknown) => void;
   /** A number in [0, 1) that spreads retries apart. Defaults to `Math.random`. */
   random?: () => number;
   /** Waits between attempts. Defaults to a timer. */
@@ -202,14 +205,17 @@ async function drainBeforeCommit(attempt: Attempt): Promise<void> {
   }
 }
 
-/** After-commit work runs once the connection is released. A failure never fails the commit. */
+/**
+ * After-commit work runs once the connection is released, each callback after the one before. A
+ * failure never fails the commit: it goes to `afterCommitFailed` and the next callback still runs.
+ */
 async function runAfterCommit(after: Hook[], options: TransactionRunnerOptions): Promise<void> {
-  for (const publish of after) {
+  for (const callback of after) {
     try {
-      await publish();
-    } catch {
+      await callback();
+    } catch (error) {
       try {
-        await options.publicationFailed?.();
+        options.afterCommitFailed?.(error);
       } catch {
         /* committed writes remain successful */
       }

@@ -1,23 +1,30 @@
 import type { StorageConnection } from './connections.ts';
 import type { PhysicalDatabase } from './physical.ts';
 import type { RateLimitChecks, ReadOnlyRepositories, Storage, TransactionContext } from '../domain/ports.ts';
-import { createTransactionRunner } from './transactions.ts';
+import { createTransactionRunner, type TransactionRunnerOptions } from './transactions.ts';
 import { createAccountRepositories } from './repositories/accounts.ts';
 import { createCatalogRepositories } from './repositories/catalogs.ts';
 import { createEntryRepositories } from './repositories/entries.ts';
 import { createTimerRepositories } from './repositories/timers.ts';
 import { createTransferRepositories } from './repositories/transfers.ts';
 import { createReportRepositories } from './repositories/reports.ts';
+
+export type StorageOptions = Pick<TransactionRunnerOptions, 'afterCommitFailed'>;
+
 /** Takes ownership of an initialized connection. Every operation binds all repositories together. */
-export function createStorage(connection: StorageConnection<PhysicalDatabase>): Storage {
-  const operations = createTransactionRunner(connection, db => ({
-    ...createAccountRepositories(db, connection.backend),
-    ...createCatalogRepositories(db, connection.backend),
-    ...createEntryRepositories(db, connection.backend),
-    ...createTimerRepositories(db, connection.backend),
-    ...createTransferRepositories(db, connection.backend),
-    ...createReportRepositories(db, connection.backend),
-  }));
+export function createStorage(connection: StorageConnection<PhysicalDatabase>, options: StorageOptions = {}): Storage {
+  const operations = createTransactionRunner(
+    connection,
+    db => ({
+      ...createAccountRepositories(db, connection.backend),
+      ...createCatalogRepositories(db, connection.backend),
+      ...createEntryRepositories(db, connection.backend),
+      ...createTimerRepositories(db, connection.backend),
+      ...createTransferRepositories(db, connection.backend),
+      ...createReportRepositories(db, connection.backend),
+    }),
+    options,
+  );
   const active = new Set<Promise<unknown>>();
   let accepting = true;
   let closing: Promise<void> | undefined;
