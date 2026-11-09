@@ -247,17 +247,21 @@ private Q_SLOTS:
                                   R"("short_rest_minutes":{"min":1,"max":60,"default":5},"long_rest_minutes":{"min":1,"max":60,"default":15},)"
                                   R"("long_rest_every":{"min":1,"max":12,"default":4}})";
         const QByteArray current = R"({"setup_required":false,"api_version":1,"capabilities":)"
-                                   R"(["app-preferences","timer-actions","timer-edit","pomodoro-revision","pause-revision","timer-edit-entry","idempotency-keys"],)"
+                                   R"(["app-preferences","timer-actions","timer-edit","pomodoro-revision","pause-revision","timer-edit-entry","idempotency-keys",)"
+                                   R"("catalog-revision","latest-entry"],)"
             + limits + "}";
         const QByteArray withoutLimits = R"({"api_version":1,"capabilities":)"
-                                         R"(["app-preferences","timer-actions","pomodoro-revision","pause-revision","timer-edit-entry","idempotency-keys"]})";
+                                         R"(["app-preferences","timer-actions","pomodoro-revision","pause-revision","timer-edit-entry","idempotency-keys",)"
+                                         R"("catalog-revision","latest-entry"]})";
         const QStringList all{QStringLiteral("app-preferences"),
                               QStringLiteral("timer-actions"),
                               QStringLiteral("timer-edit"),
                               QStringLiteral("pomodoro-revision"),
                               QStringLiteral("pause-revision"),
                               QStringLiteral("timer-edit-entry"),
-                              QStringLiteral("idempotency-keys")};
+                              QStringLiteral("idempotency-keys"),
+                              QStringLiteral("catalog-revision"),
+                              QStringLiteral("latest-entry")};
         QTest::newRow("older server") << 200 << QByteArray(R"({"setup_required":false})") << qint64(0) << QStringList() << false;
         QTest::newRow("current server") << 200 << current << qint64(1) << all << true;
         QTest::newRow("no Pomodoro limits") << 200 << withoutLimits << qint64(1)
@@ -266,12 +270,21 @@ private Q_SLOTS:
                                                            QStringLiteral("pomodoro-revision"),
                                                            QStringLiteral("pause-revision"),
                                                            QStringLiteral("timer-edit-entry"),
-                                                           QStringLiteral("idempotency-keys")}
+                                                           QStringLiteral("idempotency-keys"),
+                                                           QStringLiteral("catalog-revision"),
+                                                           QStringLiteral("latest-entry")}
                                             << false;
         QTest::newRow("before pause revisions")
             << 200 << QByteArray(R"({"api_version":1,"capabilities":["app-preferences","timer-actions","timer-edit","pomodoro-revision"]})") << qint64(1)
             << QStringList{QStringLiteral("app-preferences"), QStringLiteral("timer-actions"), QStringLiteral("timer-edit"), QStringLiteral("pomodoro-revision")}
             << false;
+        // Without one capability of the floor.
+        for (const QString &missing : {QStringLiteral("catalog-revision")}) {
+            QStringList rest = all;
+            rest.removeAll(missing);
+            QTest::addRow("without %s", qPrintable(missing))
+                << 200 << QByteArray(current).replace(QByteArray(",\"" + missing.toUtf8() + "\""), "") << qint64(1) << rest << false;
+        }
         QTest::newRow("version 0 with every capability") << 200 << QByteArray(current).replace("\"api_version\":1", "\"api_version\":0") << qint64(0) << all
                                                          << false;
         QTest::newRow("unknown names kept") << 200 << QByteArray(R"({"api_version":2,"capabilities":["timer-actions","time-travel",7,null]})") << qint64(2)
@@ -373,7 +386,8 @@ private Q_SLOTS:
                               QStringLiteral("pause-revision"),
                               QStringLiteral("pomodoro-revision"),
                               QStringLiteral("timer-edit-entry"),
-                              QStringLiteral("idempotency-keys")}));
+                              QStringLiteral("idempotency-keys"),
+                              QStringLiteral("catalog-revision")}));
     }
 
     // The announcement in a /me body, as an earlier server sent it, does
@@ -427,6 +441,16 @@ private Q_SLOTS:
         QVERIFY(Tokkl::decodeProjects(*parseJsonBody("[]"))->isEmpty());
         QVERIFY(!Tokkl::decodeProjects(*parseJsonBody("null")));
         QVERIFY(!Tokkl::decodeProjects(*parseJsonBody(R"([{"id":1}])")));
+    }
+
+    void decodeCatalogRevision()
+    {
+        QCOMPARE(Tokkl::decodeCatalogRevision(*parseJsonBody(R"({"revision":0})")).value_or(-1), qint64(0));
+        QCOMPARE(Tokkl::decodeCatalogRevision(*parseJsonBody(R"({"revision":42})")).value_or(-1), qint64(42));
+        QVERIFY(!Tokkl::decodeCatalogRevision(*parseJsonBody(R"({"revision":-1})")));
+        QVERIFY(!Tokkl::decodeCatalogRevision(*parseJsonBody(R"({"revision":"42"})")));
+        QVERIFY(!Tokkl::decodeCatalogRevision(*parseJsonBody(R"({})")));
+        QVERIFY(!Tokkl::decodeCatalogRevision(*parseJsonBody("42")));
     }
 
     void errors_data()

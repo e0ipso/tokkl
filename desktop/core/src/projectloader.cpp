@@ -17,10 +17,10 @@ ProjectLoader::ProjectLoader(const TimerModel *view, TimerCatalogUpdates *update
     connect(m_view, &TimerModel::selectionChanged, this, &ProjectLoader::resolveChosenProject);
 }
 
-void ProjectLoader::fetchProjects(ProjectCatalog::ListRead read)
+void ProjectLoader::fetchProjects()
 {
     if (m_catalog->readable()) {
-        m_catalog->readProjects(read);
+        m_catalog->readProjects();
     }
 }
 

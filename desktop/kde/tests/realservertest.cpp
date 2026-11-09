@@ -714,8 +714,8 @@ private Q_SLOTS:
         QCOMPARE(s.transport.sinceApp(switchedAt, "POST", QStringLiteral("/timer/stop")).size(), 1);
     }
 
-    // The account loses the workspace it works in. The read of its projects
-    // is refused with 403: the companion asks /me once, blocks writes and its
+    // The account loses the workspace it works in. The read of its catalog
+    // revision is refused with 403: the companion asks /me once, blocks writes and its
     // workspace reads, and sends nothing more. The credentials are not
     // treated as refused. A stop would not show the loss: POST
     // /api/app/timer/stop checks only that the workspace exists, so it would
@@ -743,9 +743,11 @@ private Q_SLOTS:
 
         s.idle();
 
-        const auto reads = s.transport.since(before, "GET", QStringLiteral("/workspaces/%1/projects").arg(m.workspaceId));
+        // The catalog revision is the workspace read the refresh sends.
+        const auto reads = s.transport.sinceApp(before, "GET", QStringLiteral("/workspaces/%1/catalog").arg(m.workspaceId));
         QCOMPARE(reads.size(), 1);
         QCOMPARE(reads.first()->response->status, 403);
+        QVERIFY(s.transport.since(before, "GET", QStringLiteral("/workspaces/%1/projects").arg(m.workspaceId)).isEmpty());
         QCOMPARE(s.transport.since(before, "GET", QStringLiteral("/me")).size(), 1);
         // The refresh read the state too, which the account keeps.
         QCOMPARE(s.transport.sinceApp(before, "GET", QStringLiteral("/timer")).size(), 1);
@@ -821,7 +823,7 @@ private Q_SLOTS:
         s.timer.refresh();
         QTRY_COMPARE_WITH_TIMEOUT(s.connection.state(), Connection::AuthenticationFailed, timeoutMs);
         QTest::qWait(500);
-        // The entry read refuses the credentials; the projects read sent with
+        // The entry read refuses the credentials; the catalog read sent with
         // it may be refused first and trigger one /me. Nothing is written.
         const auto all = s.transport.since(before);
         QVERIFY2(all.size() >= 2 && all.size() <= 3, qPrintable(describe(all)));

@@ -39,7 +39,9 @@ inline QJsonObject currentServerApi()
                     QStringLiteral("pomodoro-revision"),
                     QStringLiteral("pause-revision"),
                     QStringLiteral("timer-edit-entry"),
-                    QStringLiteral("idempotency-keys")}},
+                    QStringLiteral("idempotency-keys"),
+                    QStringLiteral("catalog-revision"),
+                    QStringLiteral("latest-entry")}},
         {QStringLiteral("pomodoro_limits"),
          QJsonObject{
              {QStringLiteral("work_minutes"), QJsonObject{{QStringLiteral("min"), 1}, {QStringLiteral("max"), 180}, {QStringLiteral("default"), 25}}},
@@ -121,24 +123,34 @@ public:
         return answer(200, QJsonDocument(body).toJson(QJsonDocument::Compact));
     }
 
-    // GET /api/app/status is recorded apart from the other requests, so
-    // their indexes stay as they were. Unless holdStatus is set, it gets
-    // status from the event loop; a held one waits for respondStatus().
+    // GET /api/app/workspaces/{wid}/catalog answering revision.
+    static Tokkl::HttpResponse catalogAt(qint64 revision)
+    {
+        return answer(200, QJsonDocument(QJsonObject{{QStringLiteral("revision"), revision}}).toJson(QJsonDocument::Compact));
+    }
+
+    // GET /api/app/status and GET /api/app/workspaces/{wid}/catalog are
+    // recorded apart from the other requests, so their indexes stay as they
+    // were. Unless holdStatus or holdCatalog is set, they get status or
+    // catalog from the event loop; a held one waits for respondStatus() or
+    // respondCatalog().
     Tokkl::PendingReply *send(const Tokkl::HttpRequest &request) override
     {
         auto *reply = new FakeReply(this);
-        if (request.method == "GET" && request.url.path().endsWith(QLatin1String("/api/app/status"))) {
+        const QString path = request.url.path();
+        if (request.method == "GET" && path.endsWith(QLatin1String("/api/app/status"))) {
             statusRequests.append(request);
             statusReplies.append(reply);
             if (!holdStatus) {
-                QMetaObject::invokeMethod(
-                    this,
-                    [reply = QPointer<FakeReply>(reply), response = status] {
-                        if (reply) {
-                            reply->deliver(response);
-                        }
-                    },
-                    Qt::QueuedConnection);
+                deliverLater(reply, status);
+            }
+            return reply;
+        }
+        if (request.method == "GET" && path.contains(QLatin1String("/api/app/workspaces/")) && path.endsWith(QLatin1String("/catalog"))) {
+            catalogRequests.append(request);
+            catalogReplies.append(reply);
+            if (!holdCatalog) {
+                deliverLater(reply, catalog);
             }
             return reply;
         }
@@ -150,6 +162,14 @@ public:
     void respondStatus(qsizetype index, const Tokkl::HttpResponse &response)
     {
         QPointer<FakeReply> reply = statusReplies.at(index);
+        if (reply) {
+            reply->deliver(response);
+        }
+    }
+
+    void respondCatalog(qsizetype index, const Tokkl::HttpResponse &response)
+    {
+        QPointer<FakeReply> reply = catalogReplies.at(index);
         if (reply) {
             reply->deliver(response);
         }
@@ -209,8 +229,27 @@ public:
     bool holdStatus = false;
     QList<Tokkl::HttpRequest> statusRequests;
     QList<QPointer<FakeReply>> statusReplies;
+    // The same for the workspace's catalog revision. A test that changes
+    // the projects a list read answers sets a new revision here.
+    Tokkl::HttpResponse catalog = catalogAt(1);
+    bool holdCatalog = false;
+    QList<Tokkl::HttpRequest> catalogRequests;
+    QList<QPointer<FakeReply>> catalogReplies;
     QList<Tokkl::HttpRequest> streamRequests;
     QList<QPointer<FakeStream>> streams;
+
+private:
+    void deliverLater(FakeReply *reply, const Tokkl::HttpResponse &response)
+    {
+        QMetaObject::invokeMethod(
+            this,
+            [reply = QPointer<FakeReply>(reply), response] {
+                if (reply) {
+                    reply->deliver(response);
+                }
+            },
+            Qt::QueuedConnection);
+    }
 };
 
 class FakeCredentialStore : public Tokkl::CredentialStore

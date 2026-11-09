@@ -29,9 +29,9 @@ public:
     // outlive the loader. The loader sees no other role of the model.
     ProjectLoader(const TimerModel *view, TimerCatalogUpdates *catalog, QObject *parent = nullptr);
 
-    // Reads the workspace's projects, when the workspace can be read: their
-    // changes since the last read, or the whole list.
-    void fetchProjects(ProjectCatalog::ListRead read);
+    // Reads the workspace's projects when the workspace can be read and the
+    // list changed since the last read.
+    void fetchProjects();
     // Reads the chosen project when the list lacks it and the workspace can
     // be read, then has the model show it.
     void resolveChosenProject();

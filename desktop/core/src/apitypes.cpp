@@ -98,6 +98,7 @@ QStringList ServerFloor::capabilities()
         QStringLiteral("pomodoro-revision"),
         QStringLiteral("timer-edit-entry"),
         QStringLiteral("idempotency-keys"),
+        QStringLiteral("catalog-revision"),
     };
 }
 
@@ -213,9 +214,6 @@ std::optional<Project> decodeProject(const QJsonValue &value)
         || !optionalBool(object.value(QLatin1String("billable")), project.billable, false)) {
         return std::nullopt;
     }
-    // Only a delta read needs it; without it the catalog reads the whole
-    // list each time.
-    project.at = timestamp(object.value(QLatin1String("at"))).value_or(QDateTime());
     return project;
 }
 
@@ -233,6 +231,15 @@ std::optional<QList<Project>> decodeProjects(const QJsonValue &value)
         projects.append(std::move(*project));
     }
     return projects;
+}
+
+std::optional<qint64> decodeCatalogRevision(const QJsonValue &value)
+{
+    const std::optional<qint64> revision = integer(value.toObject().value(QLatin1String("revision")));
+    if (!revision || *revision < 0) {
+        return std::nullopt;
+    }
+    return revision;
 }
 
 std::optional<TimeEntry> decodeTimeEntry(const QJsonValue &value)

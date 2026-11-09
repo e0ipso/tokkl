@@ -133,6 +133,7 @@ struct ServerApi {
 //   "timer-edit-entry": POST /api/app/timer/edit names the running entry.
 //   "idempotency-keys": the timer and Pomodoro starts take an
 //   Idempotency-Key.
+//   "catalog-revision": GET /api/app/workspaces/{wid}/catalog.
 // The same status also carries pomodoro_limits, which the client needs too.
 // Against an older server no account binds, and the connection says the
 // server needs an update.
@@ -167,9 +168,6 @@ struct Project {
     QString color;
     bool active = true;
     bool billable = false;
-    // When the server last changed it (the v9 at field); invalid when the
-    // answer has none. ProjectCatalog reads the changes since the newest.
-    QDateTime at;
 
     QVariantMap toVariantMap() const;
     bool operator==(const Project &other) const = default;
@@ -412,6 +410,8 @@ std::optional<Me> decodeMe(const QJsonValue &value);
 ServerApi decodeServerApi(const QJsonObject &status);
 std::optional<Project> decodeProject(const QJsonValue &value);
 std::optional<QList<Project>> decodeProjects(const QJsonValue &value);
+// The revision of GET /api/app/workspaces/{wid}/catalog, from 0 up.
+std::optional<qint64> decodeCatalogRevision(const QJsonValue &value);
 std::optional<TimeEntry> decodeTimeEntry(const QJsonValue &value);
 std::optional<QList<TimeEntry>> decodeTimeEntries(const QJsonValue &value);
 // null for no running entry.

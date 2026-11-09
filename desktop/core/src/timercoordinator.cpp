@@ -143,15 +143,11 @@ void TimerCoordinator::detach()
 void TimerCoordinator::onConnectionChanged()
 {
     const Connection::State state = m_model->connectionState();
-    if (m_model->isConnected()) {
-        if (!m_loaded) {
-            m_loaded = true;
-            fetchProjects(ProjectCatalog::ListRead::Full);
-        } else if (state == Connection::Connected && m_lastState != Connection::Connected) {
-            // Back from a connectivity failure or a cooldown. The state
-            // client reads the state itself.
-            fetchProjects(ProjectCatalog::ListRead::Changes);
-        }
+    // The first read of a context, or back from a connectivity failure or a
+    // cooldown. The state client reads the state itself.
+    if (m_model->isConnected() && (!m_loaded || (state == Connection::Connected && m_lastState != Connection::Connected))) {
+        m_loaded = true;
+        fetchProjects();
     }
     m_lastState = state;
     m_state->contextUpdated();
@@ -413,7 +409,7 @@ void TimerCoordinator::loseWorkspace(const ApiError &error)
 void TimerCoordinator::refresh()
 {
     refreshState();
-    fetchProjects(ProjectCatalog::ListRead::Changes);
+    fetchProjects();
 }
 
 void TimerCoordinator::refreshState()
@@ -429,7 +425,7 @@ void TimerCoordinator::resumed()
     if (TimerStateClient *client = m_model->stateClient()) {
         client->resumed();
     }
-    fetchProjects(ProjectCatalog::ListRead::Changes);
+    fetchProjects();
 }
 
 void TimerCoordinator::reconnect()
@@ -453,16 +449,15 @@ void TimerCoordinator::reconnect()
     if (m_model->isConnected()) {
         // The account stays bound through revalidation; no state change
         // would trigger the reload. The state that answers also replaces an
-        // automatic next-start default with the last entry's project. A
-        // reconnect the user asks for trusts no list merged from changes.
+        // automatic next-start default with the last entry's project.
         refreshState();
-        fetchProjects(ProjectCatalog::ListRead::Full);
+        fetchProjects();
     }
 }
 
-void TimerCoordinator::fetchProjects(ProjectCatalog::ListRead read)
+void TimerCoordinator::fetchProjects()
 {
-    m_loader->fetchProjects(read);
+    m_loader->fetchProjects();
 }
 
 void TimerCoordinator::setError(const QString &error)

@@ -445,9 +445,9 @@ void TimerModel::wantLastEntry()
     m_next->wantLastEntry();
 }
 
-void TimerModel::readProjects(ProjectCatalog::ListRead read)
+void TimerModel::readProjects()
 {
-    m_catalog->fetch(m_connection, m_clock ? m_clock->now() : QDateTime(), read);
+    m_catalog->fetch(m_connection);
 }
 
 void TimerModel::lookUpProject(qint64 id, std::function<bool(qint64)> stillWanted)

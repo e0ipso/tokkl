@@ -121,7 +121,7 @@ public:
     virtual bool readable() const = 0;
     // Reads the workspace's projects through the connection, unless a read
     // is on its way; see ProjectCatalog::fetch().
-    virtual void readProjects(ProjectCatalog::ListRead read) = 0;
+    virtual void readProjects() = 0;
     // Reads project id of the workspace on its own when the list, once
     // known, lacks it and its own read is missing, out of date and not on
     // its way. The answer counts while stillWanted(id) is true.
@@ -381,7 +381,7 @@ protected:
 
     // TimerCatalogUpdates.
     bool readable() const override;
-    void readProjects(ProjectCatalog::ListRead read) override;
+    void readProjects() override;
     void lookUpProject(qint64 id, std::function<bool(qint64)> stillWanted) override;
     bool takeLastEntryWanted() override;
     void readLastEntry(std::function<bool()> stillWanted) override;

@@ -224,26 +224,14 @@ void Connection::fetchProjectPage(const std::shared_ptr<ProjectPages> &pages)
         });
 }
 
-void Connection::fetchProjectChanges(const QDateTime &since, Callback<QList<Project>> done)
+void Connection::fetchCatalogRevision(Callback<qint64> done)
 {
-    const qint64 workspace = workspaceId();
-    // Without active, the server answers archived projects too, so an
-    // archival shows as a change.
-    m_session.api().call<QList<Project>>(
-        "GET",
-        api(QStringLiteral("/workspaces/%1/projects?since=%2&page=1&per_page=%3").arg(workspace).arg(since.toSecsSinceEpoch()).arg(projectPageSize)),
-        QByteArray(),
-        ApiAccess::Read,
-        [workspace](const QJsonValue &value) -> std::optional<QList<Project>> {
-            std::optional<QList<Project>> projects = decodeProjects(value);
-            if (projects) {
-                projects->removeIf([workspace](const Project &project) {
-                    return project.workspaceId != workspace;
-                });
-            }
-            return projects;
-        },
-        std::move(done));
+    m_session.api().call<qint64>("GET",
+                                 app(QStringLiteral("/workspaces/%1/catalog").arg(workspaceId())),
+                                 QByteArray(),
+                                 ApiAccess::Read,
+                                 &decodeCatalogRevision,
+                                 std::move(done));
 }
 
 void Connection::fetchProject(qint64 projectId, Callback<Project> done)

@@ -1077,7 +1077,9 @@ private Q_SLOTS:
         QVERIFY(f.connect());
         QCOMPARE(f.get(QStringLiteral("ProjectsIncomplete")).toBool(), false);
 
-        // Every page up to the limit is full and new.
+        // The projects changed, and every page up to the limit is full and
+        // new.
+        f.transport.catalog = FakeTransport::catalogAt(2);
         f.daemon->timer.refresh();
         for (int number = 1; number <= Connection::maxProjectPages; ++number) {
             QJsonArray shifted;
@@ -1086,6 +1088,10 @@ private Q_SLOTS:
                 project.insert(QStringLiteral("id"), project.value(QStringLiteral("id")).toInteger() + (number - 1) * Connection::projectPageSize);
                 shifted.append(project);
             }
+            QVERIFY(QTest::qWaitFor([&f] {
+                const QList<qsizetype> reads = f.find("GET", "/projects");
+                return !reads.isEmpty() && !f.answered.contains(reads.last());
+            }));
             QVERIFY(f.answer("GET", "/projects", json(shifted)));
         }
         QTRY_COMPARE(f.get(QStringLiteral("ProjectsIncomplete")).toBool(), true);

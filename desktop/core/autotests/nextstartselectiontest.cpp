@@ -73,10 +73,18 @@ struct Fixture {
         return connection.isConnected();
     }
 
-    void loadProjects()
+    // True once the list read that follows the catalog revision answered.
+    bool loadProjects()
     {
-        catalog.fetch(&connection, QDateTime(), ProjectCatalog::ListRead::Full);
+        const qsizetype before = transport.requests.size();
+        catalog.fetch(&connection);
+        if (!QTest::qWaitFor([&] {
+                return transport.requests.size() > before;
+            })) {
+            return false;
+        }
         transport.respondLast(FakeTransport::answer(200, projectsBody));
+        return catalog.listKnown();
     }
 };
 }
@@ -320,7 +328,7 @@ private Q_SLOTS:
         QVERIFY(f.connect());
         f.selection.stopped(11);
         QVERIFY(!f.selection.projectId());
-        f.loadProjects();
+        QVERIFY(f.loadProjects());
         f.selection.listLoaded();
         QCOMPARE(f.selection.projectId(), 11);
         QVERIFY(f.selection.billable());
@@ -332,7 +340,7 @@ private Q_SLOTS:
         QVERIFY(f.connect());
         f.selection.stopped(11);
         f.selection.pickBillable(false);
-        f.loadProjects();
+        QVERIFY(f.loadProjects());
         f.selection.listLoaded();
         QVERIFY(!f.selection.projectId());
     }
@@ -341,7 +349,7 @@ private Q_SLOTS:
     {
         Fixture f;
         QVERIFY(f.connect());
-        f.loadProjects();
+        QVERIFY(f.loadProjects());
         f.selection.pick(Choice{11, true});
         f.selection.stopped(12);
         QVERIFY(!f.selection.projectId());
@@ -354,7 +362,7 @@ private Q_SLOTS:
     {
         Fixture f;
         QVERIFY(f.connect());
-        f.loadProjects();
+        QVERIFY(f.loadProjects());
         f.selection.pick(Choice{11, true});
         f.selection.forget();
         QVERIFY(!f.selection.projectId());
