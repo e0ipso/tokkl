@@ -22,17 +22,14 @@ async function presented(work: Promise<TimerView>): Promise<TimerState> {
   }
 }
 
+/** Every timer operation answers a view. One that did not would fail to compile here. */
+type ViewOperations = { [Name in keyof TimerOperations]: (...args: never[]) => Promise<TimerView> };
+
+/** Wraps every operation of `operations`, so a new one needs no change here. */
 export function presentTimerOperations(operations: TimerOperations): PresentedTimerOperations {
-  return {
-    getTimerState: (...args) => presented(operations.getTimerState(...args)),
-    startTimer: (...args) => presented(operations.startTimer(...args)),
-    stopTimer: (...args) => presented(operations.stopTimer(...args)),
-    editTimer: (...args) => presented(operations.editTimer(...args)),
-    startPomodoro: (...args) => presented(operations.startPomodoro(...args)),
-    nextPomodoroPhase: (...args) => presented(operations.nextPomodoroPhase(...args)),
-    endPomodoro: (...args) => presented(operations.endPomodoro(...args)),
-    pauseTimer: (...args) => presented(operations.pauseTimer(...args)),
-    resumeTimer: (...args) => presented(operations.resumeTimer(...args)),
-    discardPause: (...args) => presented(operations.discardPause(...args)),
-  };
+  const views: ViewOperations = operations;
+  const wrapped = {} as Record<keyof TimerOperations, (...args: never[]) => Promise<TimerState>>;
+  for (const name of Object.keys(views) as Array<keyof TimerOperations>)
+    wrapped[name] = (...args) => presented(views[name](...args));
+  return wrapped as PresentedTimerOperations;
 }
