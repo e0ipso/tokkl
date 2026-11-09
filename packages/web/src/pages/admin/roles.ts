@@ -1,4 +1,4 @@
-import type { UserRole } from '../../api/types.ts';
+import type { UserRole } from '@tokkl/types';
 import type { MessageKey } from '../../i18n/messages.ts';
 
 /** The instance roles, with the catalog key of each one's name. */

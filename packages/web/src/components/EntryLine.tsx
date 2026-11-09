@@ -2,7 +2,7 @@ import { useRef, useState, type ReactNode } from 'react';
 import { usePreferences, useSavePreferences } from '../api/account.ts';
 import { useCreateEntry, useUpdateEntry } from '../api/entries.ts';
 import { useSettings } from '../api/settings.ts';
-import type { PatchOperation } from '../api/types.ts';
+import type { PatchOperation } from '@tokkl/types';
 import { duplicateInput } from '../lib/duplicateEntry.ts';
 import { MAX_FAVORITES, entryPatch, withFavorite } from '../lib/entryPatches.ts';
 import type { NonEmpty, StoppedEntry } from '../lib/entryRows.ts';

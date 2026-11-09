@@ -25,7 +25,9 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       const publish = createTimerPublication(async (id, state) => {
         events.push([id, state.revision]);
       });
-      const timer = entries.timersById(id => presentTimerOperations(createTimerOperations(runner, { id }, publish))),
+      const timer = entries.timersById((id, clock) =>
+          presentTimerOperations(createTimerOperations(runner, { id }, publish, clock)),
+        ),
         effects = createAccountEntryEffects<ReturnType<ReturnType<typeof entryTimerFactory>>>(publish);
       const accounts = createAccountOperations(runner, { async recheckUser() {} });
       const client = await runner.transaction(ctx => catalog.createClient(ctx, wid, { name: 'Client' }));

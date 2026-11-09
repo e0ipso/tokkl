@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { accountRequests } from '../../../api/account.ts';
 import { stale } from '../../../api/keys.ts';
-import type { Me } from '../../../api/types.ts';
+import type { Me } from '@tokkl/types';
 import { Icon } from '../../../components/Icon.tsx';
 import { useToast } from '../../../components/Toast.tsx';
 import { copyText } from '../../../lib/clipboard.ts';

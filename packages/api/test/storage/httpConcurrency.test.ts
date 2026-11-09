@@ -7,7 +7,7 @@ import { openConnection } from '../../src/storage/connections.ts';
 import type { PhysicalDatabase } from '../../src/storage/physical.ts';
 import { initializeDatabase, migrations } from '../../src/storage/migrations.ts';
 import { assertCurrent } from './support/migrationLedger.ts';
-import { createApplication } from '../../src/app.ts';
+import { composeApp } from '../fixtures/app.ts';
 import { withBodies } from '../fixtures/accountBodies.ts';
 import { createSessionAccountOperations } from '../../src/services/application.ts';
 import { sha256 } from '../../src/lib/crypto.ts';
@@ -24,13 +24,13 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
     const stores = [createStorage(c), createStorage(other)];
     const barrier = transactionBarrier();
     const apps = stores.map(storage =>
-      createApplication({
+      composeApp({
         storage: barrier.wrap(storage),
         config: { ...testConfig(), storage: config },
         setup: { code: 'TEST-CODE' },
       }),
     );
-    const servers = await Promise.all(apps.map(application => serveInvariant(application.app)));
+    const servers = await Promise.all(apps.map(application => serveInvariant(application)));
     t.after(async () => {
       barrier.release();
       await Promise.all(servers.map(s => s.close()));

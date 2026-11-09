@@ -3,7 +3,7 @@ import { formatDuration } from '@tokkl/common/duration';
 import { addDays } from '@tokkl/common/time';
 import { parseTimeOfDay } from '@tokkl/common/timeOfDay';
 import { useSplitEntry } from '../api/entries.ts';
-import type { TimeEntry } from '../api/types.ts';
+import type { TimeEntry } from '@tokkl/types';
 import { instantAt, localDay } from '../lib/entryTime.ts';
 import { minutesOfDay } from '../lib/format.ts';
 import type { Settings } from '../lib/settings.ts';

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { PomodoroLimits, Preferences } from '../../../api/types.ts';
+import type { PomodoroLimits, Preferences } from '@tokkl/types';
 import {
   changesFrom,
   dateFormatOptions,

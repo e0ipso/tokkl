@@ -48,7 +48,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           revisions.push(state.revision);
         });
         const timers = [runner, second].map(r =>
-          entries.bodyTimers(id => presentTimerOperations(createTimerOperations(r, { id }, publish))),
+          entries.bodyTimers((id, clock) => presentTimerOperations(createTimerOperations(r, { id }, publish, clock))),
         );
         await t.test('absent state races on separate connections produce one session and a 409', async () => {
           assert.equal(await runner.readSnapshot(ctx => ctx.timers.getRevision(user.id)), undefined);
@@ -109,8 +109,8 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
               });
             },
           };
-          const late = entries.bodyTimers(id =>
-            presentTimerOperations(createTimerOperations(wrapper, { id }, publish)),
+          const late = entries.bodyTimers((id, clock) =>
+            presentTimerOperations(createTimerOperations(wrapper, { id }, publish, clock)),
           );
           // A settled read takes no transaction, so the reply is checked on an action that commits one.
           const before = await timers[0]!.getTimerState(user.id, at('09:06:00'));
@@ -126,8 +126,8 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
               assert.equal((await runner.readSnapshot(ctx => ctx.timers.getRevision(id)))?.revision, state.revision);
               throw new Error('subscriber failure');
             });
-            const timer = entries.bodyTimers(id =>
-              presentTimerOperations(createTimerOperations(runner, { id }, broken)),
+            const timer = entries.bodyTimers((id, clock) =>
+              presentTimerOperations(createTimerOperations(runner, { id }, broken, clock)),
             );
             const state = await timer.endPomodoro(user.id, before.revision, at('09:10:00'));
             assert.equal(failed, 1);

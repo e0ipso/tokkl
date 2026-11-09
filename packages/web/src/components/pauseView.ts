@@ -1,4 +1,4 @@
-import type { TimeEntry, TimerPause } from '../api/types.ts';
+import type { TimeEntry, TimerPause } from '@tokkl/types';
 import type { EntryDraft } from './useEntryFields.ts';
 
 /**

@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createApp } from './app.ts';
+import { composeApp } from './app.ts';
 import type { Config } from '../../src/config.ts';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createStorage } from '../../src/storage/index.ts';
@@ -35,7 +35,7 @@ const config: Config = {
   // The parent test reads this process's stdout line by line.
   logLevel: 'warn',
 };
-const app = createApp({ storage, config, setup: { code: null } });
+const { app, close } = composeApp({ storage, config, setup: { code: null } });
 const server = app.listen(0, '127.0.0.1');
 await new Promise(resolve => server.once('listening', resolve));
 const response = await fetch(`http://127.0.0.1:${(server.address() as AddressInfo).port}/api/app/report`, {
@@ -46,7 +46,7 @@ const response = await fetch(`http://127.0.0.1:${(server.address() as AddressInf
 process.stdout.write(`report ${response.status}\n`);
 server.closeAllConnections();
 server.close(async () => {
-  await app.locals.close();
+  await close();
   await storage.close();
   rmSync(dir, { recursive: true, force: true });
   process.stdout.write('closed\n');

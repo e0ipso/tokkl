@@ -3,7 +3,7 @@ import { useWid } from '../api/account.ts';
 import { clientRequests, useClients } from '../api/clients.ts';
 import { stale } from '../api/keys.ts';
 import { useProjects } from '../api/projects.ts';
-import type { Client } from '../api/types.ts';
+import type { Client } from '@tokkl/types';
 import { Icon } from '../components/Icon.tsx';
 import { closeModalThen } from '../components/Overlay.tsx';
 import { useAction } from '../components/useAction.ts';

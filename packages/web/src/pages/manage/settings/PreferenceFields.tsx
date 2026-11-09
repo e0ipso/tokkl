@@ -1,5 +1,5 @@
 import { formatDuration } from '@tokkl/common/duration';
-import type { PomodoroLimits } from '../../../api/types.ts';
+import type { PomodoroLimits } from '@tokkl/types';
 import type { useFieldErrors } from '../../../components/FieldError.tsx';
 import { LengthStepper, LengthStepperGrid } from '../../../components/LengthStepper.tsx';
 import { formatDate, formatTime } from '../../../lib/format.ts';

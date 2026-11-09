@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import type { PatchOperation } from '../api/types.ts';
+import type { PatchOperation } from '@tokkl/types';
 import { entryPatch } from '../lib/entryPatches.ts';
 import { Icon } from './Icon.tsx';
 import { ProjectPicker } from './ProjectPicker.tsx';

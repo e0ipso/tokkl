@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import type { AddressInfo } from 'node:net';
-import type { Express } from 'express';
+import type { HttpApp } from '../../../src/app.ts';
 import type { TimerState } from '@tokkl/types';
 import type { Storage } from '../../../src/domain/ports.ts';
 
@@ -47,8 +47,8 @@ export function transactionBarrier() {
     release: () => armed?.release.resolve(),
   };
 }
-export async function serveInvariant(app: Express) {
-  const server = app.listen(0, '127.0.0.1');
+export async function serveInvariant(http: HttpApp) {
+  const server = http.app.listen(0, '127.0.0.1');
   await once(server, 'listening');
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   return {
@@ -64,7 +64,7 @@ export async function serveInvariant(app: Express) {
       });
     },
     async close() {
-      await app.locals.close();
+      await http.close();
       server.closeAllConnections();
       await new Promise<void>(r => server.close(() => r()));
     },

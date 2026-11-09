@@ -1,4 +1,4 @@
-import type { TimeEntry } from '../api/types.ts';
+import type { TimeEntry } from '@tokkl/types';
 import { draftOf, editsSince, type EntryDraft } from './useEntryFields.ts';
 
 /** A timer this bar started, remembered until it first loads as the running entry. */

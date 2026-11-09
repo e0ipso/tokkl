@@ -1,6 +1,6 @@
 import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import type { TimerState } from './types.ts';
+import type { TimerState } from '@tokkl/types';
 import { DEFAULT_RETRY, connectTimerStream, retryDelay, type TimerEventSource } from './timerStream.ts';
 
 class FakeSource implements TimerEventSource {
@@ -148,7 +148,7 @@ test('a source the browser gave up on is closed and reopened after the delay, un
   assert.deepEqual(statuses, [true, false], 'a stopped stream reports nothing more');
 });
 
-test('a stream that stays silent past the timeout counts as down and opens again', t => {
+test('a stream that stays silent past the timeout counts as down and opens again after the delay', t => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const { sources, at, states, statuses, stop } = setup();
   at(0).start(1);
@@ -161,10 +161,14 @@ test('a stream that stays silent past the timeout counts as down and opens again
   assert.deepEqual(statuses, [true]);
   assert.equal(sources.length, 1);
 
-  // A proxy that holds the body back: nothing arrives, so polling takes over and a new source opens.
+  // A proxy that holds the body back: nothing arrives, so polling takes over and a new source opens
+  // after the retry wait.
   t.mock.timers.tick(1);
   assert.deepEqual(statuses, [true, false]);
   assert.equal(at(0).closed, true);
+  t.mock.timers.tick(4999);
+  assert.equal(sources.length, 1);
+  t.mock.timers.tick(1);
   assert.equal(sources.length, 2);
   at(1).start(3);
   assert.deepEqual(
@@ -195,6 +199,7 @@ test('keep-alives do not keep a connection that never sent a state', t => {
   assert.equal(sources.length, 1);
   t.mock.timers.tick(1);
   assert.equal(at(0).closed, true, 'the wait runs from the open, whatever keep-alives arrive');
+  t.mock.timers.tick(5000);
   assert.equal(sources.length, 2);
   assert.deepEqual(statuses, [], 'it never counted as up');
 
@@ -206,6 +211,8 @@ test('keep-alives do not keep a connection that never sent a state', t => {
   t.mock.timers.tick(59_999);
   at(1).emit('keep-alive', '');
   t.mock.timers.tick(1);
+  assert.equal(at(1).closed, true);
+  t.mock.timers.tick(5000);
   assert.equal(sources.length, 3);
   assert.deepEqual(statuses, [true, false]);
   stop();
@@ -247,6 +254,38 @@ test('each failure in a row waits longer, and a well-formed state starts the cou
   at(4).start(1);
   giveUp(4);
   reopensAfter(7500);
+  stop();
+});
+
+test('a stream that stays silent again and again waits longer each time, until a state arrives', t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  // The midpoint of each range: 7.5 s, then 12.5 s, then 22.5 s.
+  const { sources, at, statuses, stop } = setup(() => 0.5);
+  const silentFor = (ms: number) => t.mock.timers.tick(ms);
+  const reopensAfter = (ms: number) => {
+    const before = sources.length;
+    t.mock.timers.tick(ms - 1);
+    assert.equal(sources.length, before, `nothing opens before ${ms} ms`);
+    t.mock.timers.tick(1);
+    assert.equal(sources.length, before + 1, `a source opens at ${ms} ms`);
+  };
+  // Behind a proxy that holds every body back, each source opens and then says nothing.
+  at(0).open();
+  silentFor(60_000);
+  assert.equal(at(0).closed, true);
+  reopensAfter(7500);
+  at(1).open();
+  silentFor(60_000);
+  reopensAfter(12_500);
+  at(2).open();
+  silentFor(60_000);
+  reopensAfter(22_500);
+  assert.deepEqual(statuses, [], 'polling stays on throughout');
+  // A delivered state starts the count again.
+  at(3).start(1);
+  silentFor(60_000);
+  reopensAfter(7500);
+  assert.deepEqual(statuses, [true, false]);
   stop();
 });
 

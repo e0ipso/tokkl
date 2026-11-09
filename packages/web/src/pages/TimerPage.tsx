@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { usePreferences, useSavePreferences } from '../api/account.ts';
 import { useEntries, useEntryBounds } from '../api/entries.ts';
 import { useProjects } from '../api/projects.ts';
-import type { Favorite, TimeEntry } from '../api/types.ts';
+import type { Favorite, TimeEntry } from '@tokkl/types';
 import { addDays, startOfWeek } from '@tokkl/common/time';
 import { EntryList } from '../components/EntryList.tsx';
 import { Icon } from '../components/Icon.tsx';

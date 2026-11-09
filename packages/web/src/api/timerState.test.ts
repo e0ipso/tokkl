@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { QueryClient, onlineManager } from '@tanstack/react-query';
-import type { TimeEntry, TimerPause, TimerPomodoro, TimerState } from './types.ts';
+import type { TimeEntry, TimerPause, TimerPomodoro, TimerState } from '@tokkl/types';
 import {
   MOVES_TIMER,
   TIMER_CONFLICT_MESSAGE,

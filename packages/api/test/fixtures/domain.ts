@@ -67,7 +67,9 @@ function timers(db: FixtureDatabase) {
   const runner: TimerRunner<Repositories> = ctx
     ? { transaction: work => work(ctx), readSnapshot: storageFor(db).readSnapshot }
     : storageFor(db);
-  return entries.bodyTimers(id => presentTimerOperations(createTimerOperations(runner, { id }, publication(db))));
+  return entries.bodyTimers((id, clock) =>
+    presentTimerOperations(createTimerOperations(runner, { id }, publication(db), clock)),
+  );
 }
 export const getTimerState = (db: FixtureDatabase, user: User, now?: Date) => timers(db).getTimerState(user.id, now);
 export const pauseTimer = (db: FixtureDatabase, user: User, now?: Date, revision?: number) =>

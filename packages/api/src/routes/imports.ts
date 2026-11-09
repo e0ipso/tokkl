@@ -48,20 +48,20 @@ function startCsvImport(deps: ImportRouteDeps, req: Request, res: Response) {
   const users = queryList(req, 'user');
   if (users?.length === 0) throw invalidInput('Invalid user selection');
   const options = { dryRun: query(req, 'dry_run') === 'true', users, signal: res.locals.workSignal };
-  return deps.importsFor(res.locals.auth).importTogglCsv(res.locals.auth.user.id, text, options);
+  return deps.importsFor(res.locals.auth).importTogglCsv(text, options);
 }
 function startJsonImport(deps: ImportRouteDeps, req: Request, res: Response) {
   const data = parseImportFile(takeText(req));
   const options = { dryRun: query(req, 'dry_run') === 'true', signal: res.locals.workSignal };
-  return deps.importsFor(res.locals.auth).importJsonExport(res.locals.auth.user.id, data, options);
+  return deps.importsFor(res.locals.auth).importJsonExport(data, options);
 }
 
 /**
- * The account imports under `/api/app`. `createApp` mounts this router before the API's 1 MB body
- * parser: each route authenticates, CSRF check included, and takes an import place sized by the
- * file's declared length before it reads its body, so only a signed-in user with a free place can
- * make the server hold a large one. A request that goes away cancels its import, which then rolls
- * back whole.
+ * The account imports under `/api/app`. `createHttpApp` in `app.ts` mounts this router before the
+ * API's 1 MB body parser: each route authenticates, CSRF check included, and takes an import place
+ * sized by the file's declared length before it reads its body, so only a signed-in user with a
+ * free place can make the server hold a large one. A request that goes away cancels its import,
+ * which then rolls back whole.
  */
 export function importRoutes(deps: ImportRouteDeps): Router {
   const api = createRouter();

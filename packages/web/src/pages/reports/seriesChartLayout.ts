@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
 import { parseDateKey } from '@tokkl/common/time';
-import type { Report } from '../../api/types.ts';
+import type { Report } from '@tokkl/types';
 import { monthName, shortDate, weekdayName } from '../../lib/format.ts';
 import { t } from '../../i18n/messages.ts';
 

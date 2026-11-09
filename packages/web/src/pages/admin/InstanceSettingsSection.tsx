@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { adminRequests } from '../../api/admin.ts';
 import type { Checked } from '../../api/client.ts';
 import { keys, stale } from '../../api/keys.ts';
-import type { InstanceSettings } from '../../api/types.ts';
+import type { InstanceSettings } from '@tokkl/types';
 import { useFieldErrors } from '../../components/FieldError.tsx';
 import { useToast } from '../../components/Toast.tsx';
 import { useAction } from '../../components/useAction.ts';

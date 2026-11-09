@@ -4,7 +4,7 @@ import { ApiError, RequestTimeoutError } from './client.ts';
 import { clientRequests } from './clients.ts';
 import { ignoreReply } from './decode.ts';
 import { entryRequests } from './entries.ts';
-import { newIdempotencyKey, postCreate, sendCreate } from './idempotency.ts';
+import { postCreate, sendCreate } from './idempotency.ts';
 import { projectRequests } from './projects.ts';
 import { tagRequests } from './tags.ts';
 
@@ -42,10 +42,14 @@ async function runningTimers<T>(t: TestContext, pending: Promise<T>): Promise<T>
   return outcome.value;
 }
 
-test('a key is 32 hex characters, and each one is new', () => {
-  const key = newIdempotencyKey();
-  assert.match(key, /^[0-9a-f]{32}$/);
-  assert.notEqual(newIdempotencyKey(), key);
+test('a create goes out under a key of 32 hex characters, and each create gets a new one', async () => {
+  const keys: string[] = [];
+  const send = async (key: string) => keys.push(key);
+  await sendCreate('POST /k {}', send);
+  await sendCreate('POST /k {}', send);
+  assert.match(keys[0]!, /^[0-9a-f]{32}$/);
+  assert.match(keys[1]!, /^[0-9a-f]{32}$/);
+  assert.notEqual(keys[1], keys[0]);
 });
 
 test('a create whose outcome is unknown goes out once more with the same request and key', async t => {

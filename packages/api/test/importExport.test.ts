@@ -841,10 +841,11 @@ test('a JSON file that is not a Tokkl export is refused before a transaction ope
         throw new Error('A transaction opened');
       },
     },
+    1,
     async () => {},
   );
   await assert.rejects(
-    imports.importJsonExport(1, { format: 'something-else' }, { dryRun: false }),
+    imports.importJsonExport({ format: 'something-else' }, { dryRun: false }),
     error => error instanceof ApplicationError && error.message === 'This is not a Tokkl JSON export',
   );
   assert.equal(transactions, 0);

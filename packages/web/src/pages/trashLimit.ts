@@ -1,4 +1,4 @@
-import type { TrashTotal } from '../api/types.ts';
+import type { TrashTotal } from '@tokkl/types';
 import { t } from '../i18n/messages.ts';
 
 /**

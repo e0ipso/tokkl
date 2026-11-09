@@ -1,4 +1,4 @@
-import type { PomodoroPhaseKind, TimerState } from '../api/types.ts';
+import type { PomodoroPhaseKind, TimerState } from '@tokkl/types';
 import { t, type MessageKey } from '../i18n/messages.ts';
 
 const PHASE_LABEL = {

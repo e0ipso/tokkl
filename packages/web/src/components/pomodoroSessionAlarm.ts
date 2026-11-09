@@ -1,4 +1,4 @@
-import type { PomodoroTransition, TimerState } from '../api/types.ts';
+import type { PomodoroTransition, TimerState } from '@tokkl/types';
 
 /** Same-origin WAV phrases have no MP3 encoder padding at the loop boundary. */
 const SOUNDS: Record<PomodoroTransition, string> = {

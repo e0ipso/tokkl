@@ -1,6 +1,6 @@
 import { forwardRef, useId, useImperativeHandle, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { useProjects } from '../api/projects.ts';
-import type { TimeEntry } from '../api/types.ts';
+import type { TimeEntry } from '@tokkl/types';
 import { Icon } from './Icon.tsx';
 import { ProjectDot, ProjectLabel, projectColorStyle } from './ProjectLabel.tsx';
 import { ProjectPicker } from './ProjectPicker.tsx';

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { TimeEntry } from '../../api/types.ts';
+import type { TimeEntry } from '@tokkl/types';
 import { EntryEditor } from '../../components/EntryEditor.tsx';
 import { Icon } from '../../components/Icon.tsx';
 import { LoadError, Loading } from '../../components/PageState.tsx';

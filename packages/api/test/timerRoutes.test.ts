@@ -4,8 +4,8 @@ import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
 import type { TimerState } from '@tokkl/types';
 import { storageFor } from './fixtures/database.ts';
-import { createApplication } from '../src/app.ts';
-import { type TimerStreamOptions } from '../src/services/timerStreams.ts';
+import { composeApp, streamSettings } from './fixtures/app.ts';
+import type { TimerStreamLimits } from '../src/services/timerStreams.ts';
 import {
   CSRF,
   PASSWORD,
@@ -37,9 +37,9 @@ interface EventStream {
   ended: () => Promise<void>;
 }
 
-/** An app over `ctx.db` whose timer streams use `options`, and a request signed in by `ctx.user`'s API token. */
-function streamingApp(ctx: TestContext, options: TimerStreamOptions) {
-  return replaceFixtureApp(ctx, options);
+/** An app over `ctx.db` whose timer streams use `limits`, and a request signed in by `ctx.user`'s API token. */
+function streamingApp(ctx: TestContext, limits: Partial<TimerStreamLimits>) {
+  return replaceFixtureApp(ctx, limits);
 }
 
 function basic(user: { apiToken: string }): Record<string, string> {
@@ -296,11 +296,11 @@ test('opening one stream over the cap closes the oldest', STREAM_TEST, async t =
 
 test('closing every stream lets the server close', STREAM_TEST, async t => {
   const ctx = await setup();
-  const { app, services } = createApplication({
+  const { app, services } = composeApp({
     storage: storageFor(ctx.db),
     config: testConfig(),
     setup: { code: null },
-    timerStreamOptions: { keepAliveMs: SLOW_KEEP_ALIVE_MS },
+    settings: streamSettings({ keepAliveMs: SLOW_KEEP_ALIVE_MS }),
   });
   const streams = services.timerStreams;
   const listening = app.listen(0, '127.0.0.1');
@@ -320,11 +320,11 @@ test(
   STREAM_TEST,
   async t => {
     const ctx = await setup();
-    const { app, services } = createApplication({
+    const { app, services, close } = composeApp({
       storage: storageFor(ctx.db),
       config: testConfig(),
       setup: { code: null },
-      timerStreamOptions: { keepAliveMs: SLOW_KEEP_ALIVE_MS },
+      settings: streamSettings({ keepAliveMs: SLOW_KEEP_ALIVE_MS }),
     });
     const listening = app.listen(0, '127.0.0.1');
     await new Promise(resolve => listening.once('listening', resolve));
@@ -348,7 +348,7 @@ test(
     assert.equal(started.status, 200);
 
     let closed = false;
-    const closing = app.locals.close().then(() => (closed = true));
+    const closing = close().then(() => (closed = true));
     await new Promise(resolve => setTimeout(resolve, 50));
     assert.equal(closed, false, 'shutdown waits for the held delivery');
     release.resolve();

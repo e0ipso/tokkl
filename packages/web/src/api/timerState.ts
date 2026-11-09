@@ -3,7 +3,7 @@ import { ApiError, RequestTimeoutError, UnparsableReplyError } from './client.ts
 import { DecodeError } from './decode.ts';
 import { timerStateReply } from './replies.ts';
 import { clockOffset } from './serverClock.ts';
-import type { TimerState } from './types.ts';
+import type { TimerState } from '@tokkl/types';
 import { t } from '../i18n/messages.ts';
 
 /** What the views show when another device changed the timer before this action reached the server. */

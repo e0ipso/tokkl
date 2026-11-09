@@ -1,7 +1,7 @@
 import { useId, useRef, useState } from 'react';
 import { formatDuration } from '@tokkl/common/duration';
 import { useCreateEntry } from '../api/entries.ts';
-import type { TimeEntry } from '../api/types.ts';
+import type { TimeEntry } from '@tokkl/types';
 import { noTimeDuration } from '../lib/noTimeDuration.ts';
 import { useSettings } from '../api/settings.ts';
 import { entrySeconds } from '../lib/snapping.ts';

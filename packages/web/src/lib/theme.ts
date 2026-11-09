@@ -1,4 +1,4 @@
-import type { Preferences } from '../api/types.ts';
+import type { Preferences } from '@tokkl/types';
 
 // The theme lives in the server preferences, which load only after React mounts. To avoid a
 // light frame for someone who chose dark, the last applied theme is cached here.

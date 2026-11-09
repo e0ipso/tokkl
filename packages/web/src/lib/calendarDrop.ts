@@ -1,5 +1,5 @@
 import { addClockMinutes, addDays, startOfDay } from '@tokkl/common/time';
-import type { TimeEntry } from '../api/types.ts';
+import type { TimeEntry } from '@tokkl/types';
 import { dragStep, fitMoveInDay } from './calendarDay.ts';
 import type { CalendarDrag } from './calendarGesture.ts';
 import { DAY_MINUTES } from './calendarLayout.ts';

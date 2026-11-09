@@ -1,4 +1,4 @@
-import type { TimeEntry } from '../api/types.ts';
+import type { TimeEntry } from '@tokkl/types';
 import { localDay } from './entryTime.ts';
 import { entrySeconds } from './snapping.ts';
 import { t } from '../i18n/messages.ts';

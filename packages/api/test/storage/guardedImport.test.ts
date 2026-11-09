@@ -8,7 +8,7 @@ import { openConnection } from '../../src/storage/connections.ts';
 import { bodyWriter, withExactEntryImport } from '../fixtures/entryBodies.ts';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createTransactionRunner } from '../../src/storage/transactions.ts';
-import { createImportOperations } from '../../src/services/importJson.ts';
+import { importsById } from '../fixtures/imports.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 import { entryTimerFactory, entryAccount } from './support/entry-timer.ts';
 
@@ -16,7 +16,7 @@ test('sqlite: guarded import bounds actual statement growth and stable guard rea
   const fixture = await disposableBackend('sqlite'),
     connection = await initializeDatabase(fixture.config);
   const runner = createTransactionRunner(connection, entryTimerFactory('sqlite'));
-  const imports = createImportOperations(runner, async () => {}),
+  const imports = importsById(runner, async () => {}),
     statements: string[] = [];
   let collecting = false;
   const undo = await connection.db.getExecutor().provideConnection(async driver => {
@@ -112,7 +112,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         publish = async (id: number, state: unknown) => {
           events.push([id, state]);
         };
-      const imports = createImportOperations(runner, publish);
+      const imports = importsById(runner, publish);
       try {
         const user = await runner.transaction(ctx => ctx.users.createAccount(entryAccount('guarded')));
         const wid = user.defaultWorkspaceId;
@@ -264,7 +264,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
             const entered = Promise.withResolvers<void>(),
               release = Promise.withResolvers<void>(),
               attempted = Promise.withResolvers<void>();
-            const heldImports = createImportOperations(
+            const heldImports = importsById(
               {
                 transaction: (work, options) =>
                   runner.transaction(async ctx => {
@@ -280,7 +280,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
               },
               publish,
             );
-            const waitingImports = createImportOperations(
+            const waitingImports = importsById(
               {
                 transaction: (work, options) => {
                   // SQLite waits at BEGIN IMMEDIATE, before domain guard acquisition.

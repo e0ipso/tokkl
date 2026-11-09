@@ -10,7 +10,6 @@ import type { Authentication } from '../../src/domain/credentials.ts';
 import type { User } from '../../src/domain/model.ts';
 import { credentialKey } from '../../src/services/streamCredentials.ts';
 import {
-  RECONNECT_DELAY_MS,
   TimerStreams,
   type EventStreamResponse,
   type StreamCredentialResult,
@@ -303,7 +302,7 @@ test('the first event names a reconnect wait within the bounds, different from s
     const match = /^event: timer\nretry: (\d+)\ndata: \{.*"revision":1.*\}\n\n$/.exec(first!);
     assert.ok(match, `the first event carries retry: ${JSON.stringify(first)}`);
     const wait = Number(match[1]);
-    assert.ok(wait >= RECONNECT_DELAY_MS.min && wait <= RECONNECT_DELAY_MS.max, String(wait));
+    assert.ok(wait >= 5000 && wait <= 15000, String(wait));
     waits.add(wait);
     assert.doesNotMatch(next!, /retry:/, 'later events leave the wait alone');
   }

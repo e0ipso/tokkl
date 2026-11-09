@@ -14,7 +14,7 @@ import {
   timerWrite,
 } from './timerHooks.ts';
 import { TIMER_OFFLINE_MESSAGE, TimerActionError, UnreadableTimerStateError } from './timerState.ts';
-import type { TimeEntry, TimerState } from './types.ts';
+import type { TimeEntry, TimerState } from '@tokkl/types';
 
 const state = (revision: number, running_entry: TimeEntry | null = null): TimerState => ({
   revision,

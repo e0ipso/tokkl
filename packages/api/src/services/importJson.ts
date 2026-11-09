@@ -279,14 +279,15 @@ async function importJsonExport(
   cancelBeforeCommit(ctx, signal);
   return restore.result;
 }
-/** Construct once with the application's shared ordered publication callback. */
+/** `userId`'s imports, publishing through the application's shared ordered publication callback. */
 export function createImportOperations<R extends EntryRepositories>(
   runner: ImportRunner<R>,
+  userId: number,
   publish: TimerPublication,
 ) {
   return {
     /** The file's format is checked before the transaction opens. */
-    async importJsonExport(userId: number, data: unknown, options: ImportOptions) {
+    async importJsonExport(data: unknown, options: ImportOptions) {
       const file = exportFile(data);
       checkCancelled(options.signal);
       return runner.transaction(ctx => importJsonExport(ctx, userId, file, options, publish), {
@@ -297,7 +298,7 @@ export function createImportOperations<R extends EntryRepositories>(
      * The file is parsed before the transaction opens. Not an async function on purpose: only the
      * parse holds `text`, so the file's text is released before the transaction runs.
      */
-    importTogglCsv(userId: number, text: string, options: ImportOptions & { users?: string[] }) {
+    importTogglCsv(text: string, options: ImportOptions & { users?: string[] }) {
       return readTogglCsv(text).then(table => {
         checkCancelled(options.signal);
         return runner.transaction(ctx => importTogglCsv(ctx, userId, table, options, publish), {

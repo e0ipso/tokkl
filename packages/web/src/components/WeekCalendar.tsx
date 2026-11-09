@@ -2,7 +2,7 @@ import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import { addDays, startOfWeek } from '@tokkl/common/time';
 import { useEntries } from '../api/entries.ts';
 import { useSettings } from '../api/settings.ts';
-import type { TimeEntry } from '../api/types.ts';
+import type { TimeEntry } from '@tokkl/types';
 import { DAY_MODE_QUERY, classifySwipe, splitAllDay, stepDay, type SwipeDirection } from '../lib/calendarDay.ts';
 import { HOUR_HEIGHT, dayTotals, layoutBlocks, minuteToPx, rangeTotal } from '../lib/calendarLayout.ts';
 import { useNow } from '../lib/clock.ts';

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { Grouping, Report, ReportGroup } from '../../api/types.ts';
+import type { Grouping, Report, ReportGroup } from '@tokkl/types';
 import { Icon } from '../../components/Icon.tsx';
 import { ProjectDot, projectColorStyle } from '../../components/ProjectLabel.tsx';
 import { duration, formatCount, formatMoney } from '../../lib/format.ts';

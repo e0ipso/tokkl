@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { entryRequests, useRestoreEntry, useTrash, useTrashTotal } from '../api/entries.ts';
 import { stale } from '../api/keys.ts';
-import type { TimeEntry } from '../api/types.ts';
+import type { TimeEntry } from '@tokkl/types';
 import { EmptyState } from '../components/EmptyState.tsx';
 import { Icon } from '../components/Icon.tsx';
 import { LoadError, Loading } from '../components/PageState.tsx';

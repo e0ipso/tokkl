@@ -1,4 +1,4 @@
-import type { Client } from '../../api/types.ts';
+import type { Client } from '@tokkl/types';
 import { Icon } from '../../components/Icon.tsx';
 import { RowMenu, StatusBadge } from './ui.tsx';
 import { t } from '../../i18n/messages.ts';

@@ -54,19 +54,17 @@ export function meRoutes(deps: Pick<Deps, 'readFor' | 'accountsFor' | 'preferenc
     }),
   );
   api.put('/me', async (req, res) => {
-    const { user, credential } = res.locals.auth;
+    const { user } = res.locals.auth;
     const updated = await deps
       .accountsFor(res.locals.auth)
       .updateProfile(
-        user,
-        credential,
         parseProfileUpdate(readJson(req)),
         passwordAttempt(deps.loginLimiter, user.email, clientAddress(req)),
       );
     res.json(serializeUser(updated, { includeToken: true }));
   });
   api.post('/me/reset_token', async (_req, res) => {
-    res.json(await deps.accountsFor(res.locals.auth).rotateApiToken(res.locals.auth.user, res.locals.auth.credential));
+    res.json(await deps.accountsFor(res.locals.auth).rotateApiToken());
   });
   api.get(
     ['/me/preferences', '/me/preferences/:client'],
@@ -74,7 +72,7 @@ export function meRoutes(deps: Pick<Deps, 'readFor' | 'accountsFor' | 'preferenc
   );
   api.post(['/me/preferences', '/me/preferences/:client'], async (req, res) => {
     const changes = parsePreferenceChanges(readJson(req));
-    res.json(await deps.preferencesFor(res.locals.auth).savePreferences(res.locals.auth.user.id, changes));
+    res.json(await deps.preferencesFor(res.locals.auth).savePreferences(changes));
   });
   api.get(
     '/me/workspaces',

@@ -1,5 +1,5 @@
 import { useBulkPatch, useDeleteEntry, useRestoreEntry } from '../api/entries.ts';
-import type { PatchOperation } from '../api/types.ts';
+import type { PatchOperation } from '@tokkl/types';
 import { bulkEditMessage, deleteMessage } from '../lib/entryMessages.ts';
 import { useToast } from './Toast.tsx';
 import { t } from '../i18n/messages.ts';

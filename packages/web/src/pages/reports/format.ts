@@ -1,4 +1,4 @@
-import type { Grouping, Report } from '../../api/types.ts';
+import type { Grouping, Report } from '@tokkl/types';
 import { activeLocale } from '../../i18n/locale.ts';
 import { formatMoney } from '../../lib/format.ts';
 import { t, type MessageKey } from '../../i18n/messages.ts';

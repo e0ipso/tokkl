@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { TimeEntry } from '../api/types.ts';
+import type { TimeEntry } from '@tokkl/types';
 import { dayTotals, layoutBlocks, minuteToPx, pxToMinute, rangeTotal, snapMinute } from './calendarLayout.ts';
 
 function entry(id: number, start: string, stop: string | null): TimeEntry {

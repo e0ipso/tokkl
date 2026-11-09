@@ -6,8 +6,8 @@ import type { ApplicationServices } from '../services/application.ts';
 import type { FailureLimiter } from '../auth/rateLimit.ts';
 
 /**
- * What `createApp` builds once for the routers. Each router names the part it uses with `Pick`,
- * so none of them sees storage, configuration or how an operation publishes.
+ * What `createHttpApp` in `app.ts` builds once for the routers. Each router names the part it uses
+ * with `Pick`, so none of them sees storage, configuration or how an operation publishes.
  */
 export interface Deps extends ApplicationServices {
   /**
@@ -24,7 +24,7 @@ export interface Deps extends ApplicationServices {
 
 declare module 'express-serve-static-core' {
   interface Locals {
-    /** Aborted when the client goes away or the server shuts down; set in createApp. */
+    /** Aborted when the client goes away or the server shuts down; set in `createHttpApp`. */
     workSignal: AbortSignal;
   }
 }

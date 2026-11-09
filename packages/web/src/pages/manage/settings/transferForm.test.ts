@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { ImportResult } from '../../../api/types.ts';
+import type { ImportResult } from '@tokkl/types';
 import { exportFilename, importCounts, restoreErrorId, toggledUsers } from './transferForm.ts';
 
 const result: ImportResult = {

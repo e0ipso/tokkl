@@ -1,4 +1,4 @@
-import type { TimeEntry } from '../api/types.ts';
+import type { TimeEntry } from '@tokkl/types';
 import { clampDayMove } from './calendarDay.ts';
 import { pxToMinute, snapMinute } from './calendarLayout.ts';
 

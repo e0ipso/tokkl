@@ -1,4 +1,4 @@
-import type { TimeEntry, TimerPause, TimerState } from '../api/types.ts';
+import type { TimeEntry, TimerPause, TimerState } from '@tokkl/types';
 import { t } from '../i18n/messages.ts';
 
 /** The timer bar's modes: a running timer, a paused chain, the manual form, or the idle timer. */

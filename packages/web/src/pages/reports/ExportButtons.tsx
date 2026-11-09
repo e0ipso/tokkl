@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { downloadReportCsv, type ReportFilterBody } from '../../api/reports.ts';
-import type { DurationFormat, Grouping } from '../../api/types.ts';
+import type { DurationFormat, Grouping } from '@tokkl/types';
 import { Icon } from '../../components/Icon.tsx';
 import { useToast } from '../../components/Toast.tsx';
 import { reportUnlessCancelled, useCancellable } from '../../components/useUnmountSignal.ts';

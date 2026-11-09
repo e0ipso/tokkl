@@ -1,11 +1,11 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:bbe0c1d2ead1fc9b12f826c2b1e98251785ce025be9c0fa13ddc8b17337626ac'
-node_count: 114
+nodes_hash: 'sha256:ea0579148f9d68315fea77792a89cb7e45e336b412dafe04fcd6c3274a9afea4'
+node_count: 116
 ---
 # kenkeep Graph
 
-Total nodes: 114
+Total nodes: 116
 
 ## map-admin-user-management-api-and-the-last-active-admin-rule
 
@@ -15,6 +15,15 @@ Total nodes: 114
 - **tags:** server, auth, admin
 - **relates_to:** map-users-roles-and-workspace-membership
 - **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:map:7
+
+## map-api-composition-root-services-http-app-and-clock
+
+- **kind:** map
+- **title:** API composition root: services, HTTP app and clock
+- **path:** api-and-data/map-api-composition-root-services-http-app-and-clock.md
+- **tags:** server, architecture, testing
+- **relates_to:** practice-signed-in-operations-bind-the-authenticated-user, map-app-report-endpoints
+- **derived_from:** packages/api/src/index.ts, packages/api/src/app.ts, packages/api/src/services/application.ts, packages/api/test/fixtures/app.ts
 
 ## map-app-report-endpoints
 
@@ -793,6 +802,15 @@ Total nodes: 114
 - **tags:** web, css, navigation, contrast, tokens, calendar
 - **relates_to:** map-app-shell-brand-and-navigation, practice-contrast-tables-and-project-colours, map-shared-list-controls-in-manage-ui, practice-week-calendar-hour-height-agrees-in-three-places
 - **derived_from:** 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:practice:0
+
+## practice-signed-in-operations-bind-the-authenticated-user
+
+- **kind:** practice
+- **title:** Signed-in operations bind the authenticated user at construction
+- **path:** api-and-data/users-and-admin/practice-signed-in-operations-bind-the-authenticated-user.md
+- **tags:** server, auth, architecture
+- **relates_to:** practice-password-checks-go-through-failurelimiter-attempt
+- **derived_from:** packages/api/src/services/application.ts, packages/api/src/routes/README.md
 
 ## practice-stopped-entry-grid-validation
 

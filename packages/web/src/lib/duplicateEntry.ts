@@ -1,4 +1,4 @@
-import type { TimeEntry, TimeEntryInput } from '../api/types.ts';
+import type { TimeEntry, TimeEntryInput } from '@tokkl/types';
 import { localDay } from './entryTime.ts';
 
 /**

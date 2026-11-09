@@ -10,29 +10,30 @@
  * drop a state older than the one they hold (`planTimerUpdate` in the web client,
  * `TimerStateClient::adopt` in the desktop core).
  */
-import type { Storage } from '../domain/ports.ts';
+import type { Clock, Storage, TimerBus } from '../domain/ports.ts';
 import type { Id } from '../domain/model.ts';
-import type { TimerBus } from '../domain/ports.ts';
 import { createTimerOperations } from '../domain/timers.ts';
 import { buildTimerView, type TimerView } from '../domain/timerView.ts';
 import type { Logger } from '../lib/logger.ts';
 import { presentTimerState } from '../presenters/timer.ts';
 import { createTimerPublication, type OrderedTimerPublication } from './timerPublication.ts';
-import { TimerStreams, type TimerStreamOptions } from './timerStreams.ts';
+import { TimerStreams, type TimerStreamLimits } from './timerStreams.ts';
 
 export interface TimerDeliveryOptions {
   storage: Storage;
   bus: TimerBus;
+  /** Where the state a stream opens with reads the time. */
+  clock: Clock;
   logger: Logger;
-  streamOptions?: TimerStreamOptions;
+  streamLimits: Readonly<TimerStreamLimits>;
 }
 
-export function createTimerDelivery({ storage, bus, logger, streamOptions }: TimerDeliveryOptions) {
+export function createTimerDelivery({ storage, bus, clock, logger, streamLimits }: TimerDeliveryOptions) {
   // `publish` is defined below; streams call it only after construction.
   const timerStreams = new TimerStreams(
-    async id => presentTimerState(await createTimerOperations(storage, { id }, publish).getTimerState()),
+    async id => presentTimerState(await createTimerOperations(storage, { id }, publish, clock).getTimerState()),
     {
-      ...streamOptions,
+      ...streamLimits,
       onBehind: (id, revision) => {
         publish.refresh(id, revision).catch(error => logger.error('Timer refresh failed', { error }));
       },
@@ -83,6 +84,9 @@ export function createTimerDelivery({ storage, bus, logger, streamOptions }: Tim
       refresh: (id: Id, hintedRevision: number) => track(ordered.refresh(id, hintedRevision)),
     },
   );
+  bus.receive(signal => {
+    publish.refresh(signal.userId, signal.revision).catch(error => logger.error('Timer refresh failed', { error }));
+  });
   return {
     timerStreams,
     publish,

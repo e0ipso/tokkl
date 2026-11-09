@@ -18,8 +18,18 @@
 _None yet._
 
 ## Components (what exists)
-_None yet._
+- Open [**API composition root: services, HTTP app and clock**](map-api-composition-root-services-http-app-and-clock.md) to learn about: index.ts builds createApplicationServices, then createHttpApp over them, and holds the typed close; tests compose the same two pieces through composeApp and pass a fixed Clock. #server #architecture #testing
 
 ## By topic
 
-_No tags yet._
+### #architecture
+- Open [**Signed-in operations bind the authenticated user at construction**](users-and-admin/practice-signed-in-operations-bind-the-authenticated-user.md) — entriesFor, timersFor, catalogsFor, importsFor, preferencesFor and accountsFor take the Authentication once; routes never pass the user's id or the admin actor again.
+- Open [**API composition root: services, HTTP app and clock**](map-api-composition-root-services-http-app-and-clock.md) — index.ts builds createApplicationServices, then createHttpApp over them, and holds the typed close; tests compose the same two pieces through composeApp and pass a fixed Clock.
+### #server
+- Open [**Admin user management API and the last-active-admin rule**](users-and-admin/map-admin-user-management-api-and-the-last-active-admin-rule.md) — /api/app/admin users: list, role, disable, session revoke, delete; one active admin must remain; disabled accounts are refused at sign-in.
+- Open [**Signed-in operations bind the authenticated user at construction**](users-and-admin/practice-signed-in-operations-bind-the-authenticated-user.md) — entriesFor, timersFor, catalogsFor, importsFor, preferencesFor and accountsFor take the Authentication once; routes never pass the user's id or the admin actor again.
+- Open [**Parse incoming timestamps with parseInstant**](time-handling/practice-parse-api-timestamps-with-parseinstant.md) — Server input instants go through parseInstant: RFC 3339 with seconds and a zone, real dates only. Never new Date(String(x)).
+### #testing
+- Open [**E2E isolation: worker accounts, the reset fixture and the error guard**](../tooling-and-project/testing/e2e-suite/practice-e2e-isolation-worker-accounts-the-reset-fixture-and-the-error-guard.md) — Each worker has its own admin; the data fixture wipes that user's data; runtimeErrors fails tests unless a spec allows the failure.
+- Open [**Writing e2e specs: areas, shared helpers and extra accounts**](../tooling-and-project/testing/e2e-suite/practice-writing-e2e-specs-areas-shared-helpers-and-extra-accounts.md) — Specs live by area with per-area helpers; ReportApi, transfer fixtures, disposable servers, the users fixture and login.
+- Open [**Running the e2e suite: build, Chromium, ports and the data directory**](../tooling-and-project/testing/e2e-suite/practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory.md) — test:e2e builds first; desktop runs in parallel and instance on one worker; E2E_PORT per run; a preset data dir is locked.

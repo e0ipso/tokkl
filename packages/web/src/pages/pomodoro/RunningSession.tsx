@@ -1,6 +1,6 @@
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { useCurrentEntry, useServerNow } from '../../api/timerHooks.ts';
-import type { TimeEntry } from '../../api/types.ts';
+import type { TimeEntry } from '@tokkl/types';
 import { EntryFields, type EntryFieldsHandle } from '../../components/EntryFields.tsx';
 import { Loading } from '../../components/PageState.tsx';
 import { usePomodoroSession } from '../../components/PomodoroSessionProvider.tsx';

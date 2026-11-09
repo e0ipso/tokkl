@@ -3,7 +3,7 @@ import { parseDuration } from '@tokkl/common/duration';
 import { usePreferences, useSavePreferences } from '../api/account.ts';
 import { useSettings } from '../api/settings.ts';
 import { useTimerState } from '../api/timerHooks.ts';
-import type { TimeEntry } from '../api/types.ts';
+import type { TimeEntry } from '@tokkl/types';
 import { EntryEditor } from './EntryEditor.tsx';
 import { EntryFields, type EntryFieldsHandle } from './EntryFields.tsx';
 import { ManualEntryFields, useManualEntry } from './ManualEntryFields.tsx';

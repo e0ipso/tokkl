@@ -48,7 +48,7 @@ import type {
   UserRole,
   WeeklyReport,
   Workspace,
-} from './types.ts';
+} from '@tokkl/types';
 
 /**
  * Decoders for every reply a GET reads and every write reply the app reads: the account and its

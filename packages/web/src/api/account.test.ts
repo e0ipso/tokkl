@@ -4,7 +4,7 @@ import { QueryClient } from '@tanstack/react-query';
 import { savePreferencesOptions } from './account.ts';
 import type { Checked } from './client.ts';
 import { keys } from './keys.ts';
-import type { Preferences } from './types.ts';
+import type { Preferences } from '@tokkl/types';
 
 const base = { theme: 'light', manualMode: false, timerView: 'list' } as unknown as Preferences;
 

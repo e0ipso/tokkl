@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { accountRequests, useWid, type WorkspaceChanges } from '../../../api/account.ts';
 import { stale } from '../../../api/keys.ts';
-import type { Workspace } from '../../../api/types.ts';
+import type { Workspace } from '@tokkl/types';
 import { useFieldErrors } from '../../../components/FieldError.tsx';
 import { useAction } from '../../../components/useAction.ts';
 import { parseOptionalAmount } from '../values.ts';

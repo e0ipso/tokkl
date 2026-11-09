@@ -1,4 +1,4 @@
-import type { Client, Project } from '../../api/types.ts';
+import type { Client, Project } from '@tokkl/types';
 import { t } from '../../i18n/messages.ts';
 import { includesText, matchesStatus, type StatusFilter } from './values.ts';
 

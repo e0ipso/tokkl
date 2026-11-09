@@ -4,9 +4,15 @@
  * `app.ts` builds. Each operation opens its own transaction and binds what it publishes, so a route parses, calls one
  * operation and presents the answer. Framework-free; `app.ts` composes them with the HTTP adapters.
  */
-import type { Repositories, Storage, TimerBus } from '../domain/ports.ts';
-import type { Id, User } from '../domain/model.ts';
-import type { InviteRequest, ProfileUpdate, SettingChanges } from '../domain/accountCommands.ts';
+import type { Clock, Repositories, Storage, TimerBus } from '../domain/ports.ts';
+import type { Id } from '../domain/model.ts';
+import type {
+  AccessChange,
+  InviteRequest,
+  ProfileUpdate,
+  SettingChanges,
+  WorkspaceChanges,
+} from '../domain/accountCommands.ts';
 import {
   createAccountOperations,
   createPreferenceOperations,
@@ -15,18 +21,13 @@ import {
   type AccountPasswordAttempt,
 } from '../domain/accounts.ts';
 import type { AccountSecurityEffects } from '../domain/accountGuards.ts';
-import {
-  authenticatedUser,
-  isActiveAdmin,
-  type AccountCredential,
-  type Authentication,
-} from '../domain/credentials.ts';
+import { authenticatedUser, isActiveAdmin, type Authentication } from '../domain/credentials.ts';
 import { createReadQueries, type ReadQueries } from '../domain/queries.ts';
 import { createAccountEntryEffects } from '../domain/timerEffects.ts';
 import { createTimerOperations } from '../domain/timers.ts';
 import { forbidden } from '../lib/errors.ts';
 import { silentLogger, type Logger } from '../lib/logger.ts';
-import { createImportAdmission, type ImportAdmissionOptions } from './importAdmission.ts';
+import { createImportAdmission } from './importAdmission.ts';
 import { createImportOperations } from './importJson.ts';
 import type { ExportAssemblyJob, ExportEmitter } from './exportJobs.ts';
 import type { ReportExecutor } from './reportRunner.ts';
@@ -36,20 +37,35 @@ import { credentialCheck, credentialKey } from './streamCredentials.ts';
 import { startMaintenance } from './maintenance.ts';
 import { createTimerDelivery } from './timerDelivery.ts';
 import { presentTimerOperations, type PresentedTimerOperations } from './timerReplies.ts';
-import type { EventStreamResponse, TimerStreamOptions, TimerStreams } from './timerStreams.ts';
+import {
+  DEFAULT_TIMER_STREAM_LIMITS,
+  type EventStreamResponse,
+  type TimerStreamLimits,
+  type TimerStreams,
+} from './timerStreams.ts';
+
+/** The limits the services run with. `index.ts` passes `DEFAULT_SERVICE_SETTINGS`. */
+export interface ServiceSettings {
+  /** The keep-alive interval and the bounds of this process's timer streams. */
+  timerStreams: Readonly<TimerStreamLimits>;
+}
+
+export const DEFAULT_SERVICE_SETTINGS: Readonly<ServiceSettings> = Object.freeze({
+  timerStreams: DEFAULT_TIMER_STREAM_LIMITS,
+});
 
 export interface ApplicationServiceOptions {
   storage: Storage;
   /** Runs reports and export assemblies. The services close it when they close. */
   reports: ReportExecutor;
-  streamOptions?: TimerStreamOptions;
-  /** Signals timer revisions to other processes. */
+  settings: Readonly<ServiceSettings>;
+  /** Signals timer revisions to other processes and refreshes streams on their signals. */
   bus: TimerBus;
+  /** Where timer operations and maintenance read the time. */
+  clock: Clock;
   logger?: Logger;
   /** The deployment's session length, used until an admin stores one. */
   sessionDays: number;
-  /** How many imports run at once, in all and per account. */
-  imports?: ImportAdmissionOptions;
 }
 
 const refused = () => forbidden('Incorrect username and/or password');
@@ -101,29 +117,35 @@ function guardedRunner(storage: Storage, authentication: Authentication, adminis
 }
 
 /**
- * The account operations with the deployment's session length and the timer effects of a time
- * zone change or an account deletion bound in, so a caller passes only what the request says.
+ * The account operations a signed-in user reaches, acting as `authentication`'s user. The actor,
+ * the deployment's session length and the timer effects of a time zone change or an account
+ * deletion are bound in, so a caller passes only what the request says.
  */
-function boundAccountOperations(
+function signedInAccountOperations(
   operations: AccountOperations<Repositories>,
+  { user, credential }: Authentication,
   effects: AccountEntryEffects<Repositories>,
   sessionDays: number,
 ) {
+  const actorId = user.id;
   return {
-    ...operations,
-    deleteAccount: (actorId: Id, userId: Id, email: string | undefined) =>
-      operations.deleteAccount(actorId, userId, email, effects),
-    updateProfile: (
-      seen: User,
-      credential: AccountCredential,
-      update: ProfileUpdate,
-      attempt?: AccountPasswordAttempt,
-    ) => operations.updateProfile(seen, credential, update, effects, attempt),
-    createInvite: (actorId: Id, request: InviteRequest) => operations.createInvite(actorId, request, sessionDays),
-    updateSettings: (actorId: Id, changes: SettingChanges) => operations.updateSettings(actorId, changes, sessionDays),
+    setAccess: (userId: Id, change: AccessChange) => operations.setAccess(actorId, userId, change),
+    /** `email` is what the admin typed to confirm; it must name the account being deleted. */
+    deleteAccount: (userId: Id, email: string | undefined) => operations.deleteAccount(actorId, userId, email, effects),
+    revokeSessions: (userId: Id) => operations.revokeSessions(actorId, userId),
+    createPasswordReset: (userId: Id) => operations.createPasswordReset(actorId, userId),
+    createInvite: (request: InviteRequest) => operations.createInvite(actorId, request, sessionDays),
+    revokeInvite: (id: Id) => operations.revokeInvite(actorId, id),
+    updateSettings: (changes: SettingChanges) => operations.updateSettings(actorId, changes, sessionDays),
+    updateWorkspace: (workspaceId: Id, changes: WorkspaceChanges) =>
+      operations.updateWorkspace(actorId, workspaceId, changes),
+    /** A password change also needs the current password, checked through `attempt`. */
+    updateProfile: (update: ProfileUpdate, attempt?: AccountPasswordAttempt) =>
+      operations.updateProfile(user, credential, update, effects, attempt),
+    rotateApiToken: () => operations.rotateApiToken(user, credential),
   };
 }
-export type SignedInAccountOperations = ReturnType<typeof boundAccountOperations>;
+export type SignedInAccountOperations = ReturnType<typeof signedInAccountOperations>;
 
 /** A credential change rechecks the account's open timer streams. */
 const accountSecurity = (timerStreams: Pick<TimerStreams, 'recheck'>): AccountSecurityEffects => ({
@@ -145,17 +167,23 @@ export function createSessionAccountOperations(
 export function createApplicationServices({
   storage,
   reports,
-  streamOptions,
+  settings,
   bus,
+  clock,
   logger = silentLogger,
   sessionDays,
-  imports,
 }: ApplicationServiceOptions) {
-  const { timerStreams, publish, settled } = createTimerDelivery({ storage, bus, logger, streamOptions });
+  const { timerStreams, publish, settled } = createTimerDelivery({
+    storage,
+    bus,
+    clock,
+    logger,
+    streamLimits: settings.timerStreams,
+  });
   const security = accountSecurity(timerStreams);
   const streamCredentials = { check: (authentication: Authentication) => credentialCheck(storage, authentication) };
   const entryEffects = createAccountEntryEffects<Repositories>(publish);
-  const maintenance = startMaintenance(storage, { logger });
+  const maintenance = startMaintenance(storage, { clock, logger });
   /** Runs read queries in one snapshot, after checking the credential in that same snapshot. */
   function readFor<T>(
     authentication: Authentication,
@@ -187,7 +215,7 @@ export function createApplicationServices({
     },
     readFor,
     /** Admits an import before it reads its file, or refuses it with a 503 and `Retry-After`. */
-    importAdmission: createImportAdmission(imports),
+    importAdmission: createImportAdmission(),
     /**
      * Takes a place in the report runner's download lane, then writes the signed-in account's export
      * to `output`, a batch of entries at a time, after checking the credential in the export's own
@@ -205,20 +233,21 @@ export function createApplicationServices({
       );
     },
     accountsFor: (authentication: Authentication): SignedInAccountOperations =>
-      boundAccountOperations(
+      signedInAccountOperations(
         createAccountOperations(guardedRunner(storage, authentication, true), security),
+        authentication,
         entryEffects,
         sessionDays,
       ),
     /** Preferences take only the user's guard, so their credential check runs before and after. */
     preferencesFor: (authentication: Authentication) =>
-      createPreferenceOperations(guardedTransactions(storage, authentication)),
+      createPreferenceOperations(guardedTransactions(storage, authentication), authentication.user.id),
     timersFor: (authentication: Authentication): PresentedTimerOperations =>
       presentTimerOperations(
-        createTimerOperations(guardedRunner(storage, authentication), authentication.user, publish),
+        createTimerOperations(guardedRunner(storage, authentication), authentication.user, publish, clock),
       ),
     importsFor: (authentication: Authentication) =>
-      createImportOperations(guardedTransactions(storage, authentication), publish),
+      createImportOperations(guardedTransactions(storage, authentication), authentication.user.id, publish),
     entriesFor: (authentication: Authentication) =>
       createEntryOperations(guardedTransactions(storage, authentication), authentication.user, publish),
     catalogsFor: (authentication: Authentication) =>

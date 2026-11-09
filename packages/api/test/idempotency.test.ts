@@ -6,6 +6,7 @@ import { storageFor } from './fixtures/database.ts';
 import { corruptRecord, idempotencyKeyCount } from './fixtures/physical.ts';
 import { addUser, setup, type TestContext } from './helpers.ts';
 import { IDEMPOTENCY_RETENTION_MS } from '../src/domain/idempotency.ts';
+import { systemClock } from '../src/lib/clock.ts';
 import { runMaintenance, startMaintenance } from '../src/services/maintenance.ts';
 
 interface Reply {
@@ -221,9 +222,9 @@ test('a create leaves expired keys to the maintenance job, which deletes them al
   assert.equal((await send(ctx, `${ws(ctx)}/time_entries`, body(ctx.wid), 'mine')).status, 200);
   assert.equal(await idempotencyKeyCount(ctx.db), 4, 'the create deleted no other record');
 
-  assert.equal((await runMaintenance(storageFor(ctx.db))).idempotencyKeys, 3);
+  assert.equal((await runMaintenance(storageFor(ctx.db), { clock: systemClock })).idempotencyKeys, 3);
   assert.equal(await idempotencyKeyCount(ctx.db), 1);
-  assert.equal((await runMaintenance(storageFor(ctx.db))).idempotencyKeys, 0);
+  assert.equal((await runMaintenance(storageFor(ctx.db), { clock: systemClock })).idempotencyKeys, 0);
 });
 
 test('the maintenance job runs on its interval until it is closed', async () => {
@@ -235,7 +236,7 @@ test('the maintenance job runs on its interval until it is closed', async () => 
   const body = { description: 'Mine', start: '2026-10-14T09:00:00Z', duration: 600, workspace_id: ctx.wid };
   await send(ctx, `${ws(ctx)}/time_entries`, body, 'first');
   await expire();
-  const maintenance = startMaintenance(storageFor(ctx.db), { intervalMs: 5 });
+  const maintenance = startMaintenance(storageFor(ctx.db), { clock: systemClock, intervalMs: 5 });
   for (let wait = 0; wait < 200 && (await idempotencyKeyCount(ctx.db)) > 0; wait++)
     await new Promise(resolve => setTimeout(resolve, 10));
   assert.equal(await idempotencyKeyCount(ctx.db), 0);

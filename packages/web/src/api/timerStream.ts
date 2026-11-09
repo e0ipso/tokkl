@@ -1,5 +1,5 @@
 import { isTimerState } from './timerState.ts';
-import type { TimerState } from './types.ts';
+import type { TimerState } from '@tokkl/types';
 
 /** The part of `EventSource` the stream uses, so it can be driven without a browser. */
 export interface TimerEventSource {
@@ -80,11 +80,13 @@ export interface TimerStreamOptions {
  *   gives up.
  * - it stays silent for `silenceMs`: no state within that time of opening, or no state or
  *   keep-alive within that time of the last one, such as when a buffering proxy holds the body back.
- *   The source is replaced at once. Keep-alives restart that wait only once a state has arrived, so
- *   a connection that only ever sends keep-alives does not pass for a working one.
+ *   The source is closed and a new one opens after `retryDelay`, so a tab behind such a proxy does
+ *   not open a new server stream every `silenceMs`. Keep-alives restart that wait only once a state
+ *   has arrived, so a connection that only ever sends keep-alives does not pass for a working one.
  *
- * Each failure in a row waits longer before the next source opens (`retryDelay`); a well-formed
- * state starts the count again. The returned function stops it for good.
+ * Each failure in a row, silence included, waits longer before the next source opens
+ * (`retryDelay`); a well-formed state starts the count again. The returned function stops it for
+ * good.
  */
 export function connectTimerStream(
   open: () => TimerEventSource,
@@ -92,7 +94,7 @@ export function connectTimerStream(
   { retry: schedule = DEFAULT_RETRY, silenceMs = DEFAULT_SILENCE_MS }: TimerStreamOptions = {},
 ): () => void {
   let source: TimerEventSource | null = null;
-  // Sources closed for an error or an unreadable event since the last well-formed state.
+  // Sources closed for an error, an unreadable event or silence since the last well-formed state.
   let failures = 0;
   let retry: ReturnType<typeof setTimeout> | null = null;
   let silence: ReturnType<typeof setTimeout> | null = null;
@@ -117,17 +119,6 @@ export function connectTimerStream(
     // Whether this connection has delivered a well-formed state since it last opened.
     let delivered = false;
 
-    // Restarts the wait for the next event on the open source.
-    const watch = () => {
-      quiet();
-      if (stopped) return;
-      silence = setTimeout(() => {
-        silence = null;
-        setUp(false);
-        current.close();
-        connect();
-      }, silenceMs);
-    };
     const down = () => {
       delivered = false;
       quiet();
@@ -138,6 +129,16 @@ export function connectTimerStream(
       if (stopped) return;
       retry = setTimeout(connect, retryDelay(failures, schedule));
       failures += 1;
+    };
+    // Restarts the wait for the next event on the open source.
+    const watch = () => {
+      quiet();
+      if (stopped) return;
+      silence = setTimeout(() => {
+        silence = null;
+        down();
+        reopenLater();
+      }, silenceMs);
     };
 
     current.addEventListener('open', () => {

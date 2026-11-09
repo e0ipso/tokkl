@@ -7,7 +7,7 @@ import type { AddressInfo } from 'node:net';
 import type { Express } from 'express';
 import { storageFor, storageConfigFor, setServices, reopenDatabase } from './fixtures/database.ts';
 import { copySQLiteFile } from './fixtures/physical.ts';
-import { createApplication } from '../src/app.ts';
+import { composeApp, streamSettings } from './fixtures/app.ts';
 import { hashPassword } from '../src/lib/crypto.ts';
 import { FailureLimiter, type AttemptResult, type Keys } from '../src/auth/rateLimit.ts';
 import type { Config } from '../src/config.ts';
@@ -125,14 +125,14 @@ export async function sessionCookie(ctx: TestContext): Promise<string> {
 function serve(db: FixtureDatabase, user: User): TestContext {
   let app = apps.get(db);
   if (!app) {
-    const { app: application, services } = createApplication({
+    const application = composeApp({
       storage: storageFor(db),
       config: testConfig(db),
       setup: { code: null },
     });
-    setServices(db, services);
-    app = testServer(application);
-    after(() => application.locals.close());
+    setServices(db, application.services);
+    app = testServer(application.app);
+    after(() => application.close());
   }
   apps.set(db, app);
   const auth = `Basic ${Buffer.from(`${user.apiToken}:api_token`).toString('base64')}`;
@@ -194,18 +194,19 @@ export function duringPasswordCheck(t: NodeTestContext, during: () => Promise<un
   );
 }
 
+/** Serves `ctx.db` from a new app whose timer streams use `limits`, for the rest of the test file. */
 export function replaceFixtureApp(
   ctx: TestContext,
-  options: import('../src/services/timerStreams.ts').TimerStreamOptions,
+  limits: Partial<import('../src/services/timerStreams.ts').TimerStreamLimits>,
 ) {
-  const { app, services } = createApplication({
+  const { app, services, close } = composeApp({
     storage: storageFor(ctx.db),
     config: testConfig(ctx.db),
     setup: { code: null },
-    timerStreamOptions: options,
+    settings: streamSettings(limits),
   });
   setServices(ctx.db, services);
-  after(() => app.locals.close());
+  after(() => close());
   const server = testServer(app);
   apps.set(ctx.db, server);
   return {

@@ -1,4 +1,4 @@
-import type { ImportResult } from '../../../api/types.ts';
+import type { ImportResult } from '@tokkl/types';
 
 /** The rules behind the Data card: export file names, import counts and the Toggl user choice. */
 

@@ -1,8 +1,10 @@
 import { randomInt } from 'node:crypto';
 import type { Server } from 'node:http';
-import type { Express } from 'express';
-import { createApplication } from './app.ts';
+import { createHttpApp, type HttpApp } from './app.ts';
 import { ConfigurationError, loadConfig, type Config } from './config.ts';
+import { systemClock } from './lib/clock.ts';
+import { createReportRunner } from './reportRunners.ts';
+import { createApplicationServices, DEFAULT_SERVICE_SETTINGS } from './services/application.ts';
 import { initializeDatabase } from './storage/migrations.ts';
 import { createStorage } from './storage/index.ts';
 import { startTimerBus } from './storage/timerBus.ts';
@@ -23,13 +25,13 @@ function setupCode(): string {
 
 interface Running {
   server: Server;
-  app: Express;
+  http: HttpApp;
   timerBus: TimerBus;
   storage: Storage;
 }
 
 /** Stops taking requests, drains the app, then closes the bus and storage, once. */
-function shutdownOnce({ server, app, timerBus, storage }: Running, logger: Logger): () => Promise<void> {
+function shutdownOnce({ server, http, timerBus, storage }: Running, logger: Logger): () => Promise<void> {
   let stopping: Promise<void> | undefined;
   return () =>
     (stopping ??= (async () => {
@@ -37,7 +39,7 @@ function shutdownOnce({ server, app, timerBus, storage }: Running, logger: Logge
       const deadline = setTimeout(() => server.closeAllConnections(), SHUTDOWN_GRACE_MS);
       deadline.unref();
       try {
-        const results = await Promise.allSettled([app.locals.close(), drained]);
+        const results = await Promise.allSettled([http.close(), drained]);
         if (results.some(result => result.status === 'rejected')) throw new Error('HTTP shutdown failed');
       } finally {
         clearTimeout(deadline);
@@ -91,9 +93,18 @@ async function main(): Promise<void> {
     };
     // A process must hear other instances' timer signals before it reports that it is listening.
     timerBus = await startTimerBus(config.storage, logger);
-    const { app } = createApplication({ storage, config, setup, timerBus, logger });
-    const server = app.listen(config.port, config.host);
-    superviseServer({ server, app, timerBus, storage }, config, setup, logger);
+    const services = createApplicationServices({
+      storage,
+      reports: createReportRunner(config.storage, storage, { logger }),
+      settings: DEFAULT_SERVICE_SETTINGS,
+      bus: timerBus,
+      clock: systemClock,
+      logger,
+      sessionDays: config.sessionDays,
+    });
+    const http = createHttpApp(services, { storage, config, setup, logger });
+    const server = http.app.listen(config.port, config.host);
+    superviseServer({ server, http, timerBus, storage }, config, setup, logger);
   } catch (error) {
     await timerBus?.close().catch(() => {});
     await storage.close();

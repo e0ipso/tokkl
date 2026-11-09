@@ -7,7 +7,7 @@
 import { unavailable } from '../lib/errors.ts';
 
 /** A refused import asks for a short wait, like a full report queue. */
-export const IMPORT_BUSY_RETRY_SECONDS = 5;
+const IMPORT_BUSY_RETRY_SECONDS = 5;
 const DEFAULT_MAX_IMPORTS = 4;
 const DEFAULT_MAX_IMPORTS_PER_USER = 1;
 /** Room for one 50 MB file and a few small ones; two large files never run together. */

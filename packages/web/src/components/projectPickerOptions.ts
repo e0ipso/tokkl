@@ -1,4 +1,4 @@
-import type { Project, Task } from '../api/types.ts';
+import type { Project, Task } from '@tokkl/types';
 
 /** The active projects of one client, each with the active tasks that match the search. */
 export interface PickerGroup {

@@ -16,7 +16,7 @@ import { useMe } from '../api/account.ts';
 import { keys } from '../api/keys.ts';
 import { getClockOffset } from '../api/serverClock.ts';
 import { useEndPomodoro, useNextPhase, useStartPomodoro, useTimerState } from '../api/timerHooks.ts';
-import type { PomodoroTransition, TimerPomodoro, TimerPomodoroPhase, TimerState } from '../api/types.ts';
+import type { PomodoroTransition, TimerPomodoro, TimerPomodoroPhase, TimerState } from '@tokkl/types';
 import { useClockSelector } from '../lib/clock.ts';
 import { createPomodoroSessionAlarm, phaseAlarm } from './pomodoroSessionAlarm.ts';
 import { notifySessionPhaseEnd } from './phaseNotification.ts';

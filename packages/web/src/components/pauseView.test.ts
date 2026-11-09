@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { barSeconds, pauseDraft } from './pauseView.ts';
-import type { TimerPause } from '../api/types.ts';
+import type { TimerPause } from '@tokkl/types';
 
 const T0 = Date.parse('2026-10-19T10:00:00Z');
 const minutes = (n: number) => n * 60_000;

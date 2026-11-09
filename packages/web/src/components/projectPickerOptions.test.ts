@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { Project, Task } from '../api/types.ts';
+import type { Project, Task } from '@tokkl/types';
 import { groupPickerProjects, pickerOptions } from './projectPickerOptions.ts';
 
 function project(id: number, name: string, client: string | null, active = true): Project {

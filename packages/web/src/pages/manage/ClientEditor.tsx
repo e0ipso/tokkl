@@ -2,7 +2,7 @@ import { useId, useState, type FormEvent } from 'react';
 import { useWid } from '../../api/account.ts';
 import { clientRequests, type ClientBody } from '../../api/clients.ts';
 import { stale } from '../../api/keys.ts';
-import type { Client } from '../../api/types.ts';
+import type { Client } from '@tokkl/types';
 import { useFieldErrors } from '../../components/FieldError.tsx';
 import { Modal } from '../../components/Overlay.tsx';
 import { useAction } from '../../components/useAction.ts';

@@ -1,5 +1,5 @@
 import { useId, useRef, useState, type KeyboardEvent } from 'react';
-import type { Report } from '../../api/types.ts';
+import type { Report } from '@tokkl/types';
 import { activeLocale } from '../../i18n/locale.ts';
 import { duration } from '../../lib/format.ts';
 import type { Settings } from '../../lib/settings.ts';

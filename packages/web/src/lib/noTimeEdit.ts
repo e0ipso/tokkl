@@ -1,4 +1,4 @@
-import type { TimeEntryInput } from '../api/types.ts';
+import type { TimeEntryInput } from '@tokkl/types';
 
 /**
  * The no-time fields to send when saving the editor in no-time mode. A no-time entry whose day and

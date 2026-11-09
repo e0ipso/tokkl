@@ -1,6 +1,6 @@
 import { formatDuration } from '@tokkl/common/duration';
 import { useServerNow } from '../api/timerHooks.ts';
-import type { TimeEntry, TimerPause } from '../api/types.ts';
+import type { TimeEntry, TimerPause } from '@tokkl/types';
 import { barSeconds } from './pauseView.ts';
 import { t } from '../i18n/messages.ts';
 

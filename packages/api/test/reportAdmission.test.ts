@@ -10,11 +10,12 @@ import { ApplicationError, RequestCancelled } from '../src/lib/errors.ts';
 import { silentLogger } from '../src/lib/logger.ts';
 import { appReportRoutes, reportsV3Routes } from '../src/routes/reports.ts';
 import type { Deps } from '../src/routes/context.ts';
-import { createApplicationServices } from '../src/services/application.ts';
+import { createApplicationServices, DEFAULT_SERVICE_SETTINGS } from '../src/services/application.ts';
 import { createLocalTimerBus } from '../src/storage/timerBus.ts';
+import { systemClock } from '../src/lib/clock.ts';
 import { ReportRunner, type ReportExecutor } from '../src/services/reportRunner.ts';
 import { createReportRunner } from '../src/reportRunners.ts';
-import { createApp } from './fixtures/app.ts';
+import { composeApp } from './fixtures/app.ts';
 import { testConfig, testServer } from './helpers.ts';
 import { runReport, runExport } from './fixtures/reportRunner.ts';
 import { fakeReportWorkers, postedJobs } from './fixtures/fakeReportWorker.ts';
@@ -152,6 +153,8 @@ test('a full download lane refuses an account export before reading it', async t
     storage: counted.storage,
     reports: fullRunner(t),
     bus: createLocalTimerBus(),
+    clock: systemClock,
+    settings: DEFAULT_SERVICE_SETTINGS,
     sessionDays: 30,
   });
   t.after(() => services.close());
@@ -190,6 +193,8 @@ test('a cancelled account export reads nothing', async t => {
     storage: counted.storage,
     reports,
     bus: createLocalTimerBus(),
+    clock: systemClock,
+    settings: DEFAULT_SERVICE_SETTINGS,
     sessionDays: 30,
   });
   t.after(() => services.close());
@@ -532,10 +537,10 @@ test('a report request the client abandons gives back its place, queued or runni
     reserveDownload: (options, work) => runner.reserveDownload(options, work),
     close: () => runner.close(),
   };
-  const app = createApp({ storage: storageFor(db), config: testConfig(), setup: { code: null }, reports });
+  const { app, close } = composeApp({ storage: storageFor(db), config: testConfig(), setup: { code: null }, reports });
   t.after(async () => {
     release();
-    await app.locals.close();
+    await close();
   });
   const server = testServer(app);
   const authorization = `Basic ${Buffer.from(`${user.apiToken}:api_token`).toString('base64')}`;

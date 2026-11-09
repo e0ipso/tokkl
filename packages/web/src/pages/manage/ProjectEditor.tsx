@@ -3,7 +3,7 @@ import { useWid, useWorkspace } from '../../api/account.ts';
 import { clientRequests, useClients } from '../../api/clients.ts';
 import { stale } from '../../api/keys.ts';
 import { projectRequests, useProjects, type ProjectBody } from '../../api/projects.ts';
-import type { Client, Project } from '../../api/types.ts';
+import type { Client, Project } from '@tokkl/types';
 import { useFieldErrors } from '../../components/FieldError.tsx';
 import { Modal } from '../../components/Overlay.tsx';
 import { PROJECT_COLORS } from '@tokkl/common/colors';

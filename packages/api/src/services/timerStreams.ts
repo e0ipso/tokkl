@@ -35,19 +35,34 @@ const KEEP_ALIVE_EVENT = 'event: keep-alive\ndata:\n\n';
  * `retry:` field. Each stream gets its own random wait between them, so clients that lost their
  * streams together, after a restart or a proxy reload, do not all reconnect at once.
  */
-export const RECONNECT_DELAY_MS = Object.freeze({ min: 5000, max: 15000 });
+const RECONNECT_DELAY_MS = Object.freeze({ min: 5000, max: 15000 });
 const reconnectDelay = () =>
   RECONNECT_DELAY_MS.min + Math.floor(Math.random() * (RECONNECT_DELAY_MS.max - RECONNECT_DELAY_MS.min + 1));
-export interface TimerStreamOptions {
-  keepAliveMs?: number;
-  /** How long a stream whose socket stopped taking data may wait for it to drain before it ends. Default 30 s. */
-  drainTimeoutMs?: number;
-  /** Bytes a stream may hold unsent. A write that would pass it ends the stream. Default 64 KiB. */
-  maxBufferedBytes?: number;
-  /** Open and opening streams one user may hold. A new one past it ends the user's oldest. Default 10. */
-  maxPerUser?: number;
-  /** Open and opening streams in this process. A new one past it is refused with a 503. Default 1000. */
-  maxStreams?: number;
+/** The keep-alive interval and the bounds of one process's timer streams. */
+export interface TimerStreamLimits {
+  /** How often each user's ready streams get a keep-alive and a credential check. */
+  keepAliveMs: number;
+  /** How long a stream whose socket stopped taking data may wait for it to drain before it ends. */
+  drainTimeoutMs: number;
+  /** Bytes a stream may hold unsent. A write that would pass it ends the stream. */
+  maxBufferedBytes: number;
+  /** Open and opening streams one user may hold. A new one past it ends the user's oldest. */
+  maxPerUser: number;
+  /** Open and opening streams in this process. A new one past it is refused with a 503. */
+  maxStreams: number;
+}
+
+/** The limits the server runs with. */
+export const DEFAULT_TIMER_STREAM_LIMITS: Readonly<TimerStreamLimits> = Object.freeze({
+  keepAliveMs: 25000,
+  drainTimeoutMs: 30000,
+  maxBufferedBytes: 64 * 1024,
+  maxPerUser: 10,
+  maxStreams: 1000,
+});
+
+/** Limits left out take their `DEFAULT_TIMER_STREAM_LIMITS` value. */
+export interface TimerStreamOptions extends Partial<TimerStreamLimits> {
   /** Called, never awaited, when a keep-alive check reads a revision newer than this process delivered. */
   onBehind?: (id: number, revision: number) => void;
 }
@@ -80,17 +95,18 @@ export class TimerStreams {
   readonly #users = new Map<number, Group>();
   readonly #builds = new Map<number, Promise<TimerState | undefined>>();
   readonly #pending = new Set<Promise<unknown>>();
-  readonly #options: Required<Omit<TimerStreamOptions, 'onBehind'>>;
+  readonly #options: TimerStreamLimits;
   readonly #onBehind: (id: number, revision: number) => void;
   #closed = false;
   constructor(state: (id: number) => Promise<TimerState>, options: TimerStreamOptions = {}) {
     this.#state = state;
+    const defaults = DEFAULT_TIMER_STREAM_LIMITS;
     this.#options = {
-      keepAliveMs: options.keepAliveMs ?? 25000,
-      drainTimeoutMs: options.drainTimeoutMs ?? 30000,
-      maxBufferedBytes: options.maxBufferedBytes ?? 64 * 1024,
-      maxPerUser: options.maxPerUser ?? 10,
-      maxStreams: options.maxStreams ?? 1000,
+      keepAliveMs: options.keepAliveMs ?? defaults.keepAliveMs,
+      drainTimeoutMs: options.drainTimeoutMs ?? defaults.drainTimeoutMs,
+      maxBufferedBytes: options.maxBufferedBytes ?? defaults.maxBufferedBytes,
+      maxPerUser: options.maxPerUser ?? defaults.maxPerUser,
+      maxStreams: options.maxStreams ?? defaults.maxStreams,
     };
     this.#onBehind = options.onBehind ?? (() => {});
   }
