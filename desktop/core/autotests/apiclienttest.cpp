@@ -50,7 +50,13 @@ public:
         return true;
     }
 
+    const Clock *clock() const override
+    {
+        return sessionClock;
+    }
+
     quint64 currentGeneration = 1;
+    const Clock *sessionClock = nullptr;
     std::optional<ApiError> refuse;
     bool endGenerationOnFailure = false;
     mutable QList<ApiAccess> asked;
@@ -259,6 +265,29 @@ private Q_SLOTS:
         transport.respondLast(FakeTransport::failure(HttpResponse::Outcome::Timeout));
         QCOMPARE(received.size(), 2);
         QCOMPARE(transport.requests.size(), 3);
+    }
+
+    // The wait before the second send takes its jitter from the session's
+    // clock: at the largest jitter none of several resends goes out before
+    // retryMinMs and nearly a quarter more.
+    void theResendWaitTakesTheSessionClocksJitter()
+    {
+        FakeTransport transport;
+        FakeClock clock;
+        clock.jitter = retryMinMs;
+        ScriptedSession session;
+        session.sessionClock = &clock;
+        ApiClient client(&transport, session);
+        constexpr int actions = 5;
+        for (int i = 0; i < actions; ++i) {
+            client.keyedAction(testUrl, "{}", ApiClient::newIdempotencyKey(), {});
+            transport.respondLast(FakeTransport::failure(HttpResponse::Outcome::Timeout));
+        }
+        QCOMPARE(retryWaitMs(retryMinMs, &clock), retryMinMs + retryMinMs / retryJitterDivisor - 1);
+        // A timer may fire up to 5 % early.
+        QTest::qWait(retryMinMs + retryMinMs / 8);
+        QCOMPARE(transport.requests.size(), actions);
+        QTRY_COMPARE(transport.requests.size(), 2 * actions);
     }
 
     // An answer, a refusal or a session that refuses the second send ends

@@ -2,6 +2,7 @@
 
 #include "apiclient.h"
 #include "apitypes.h"
+#include "clock.h"
 #include "cooldown.h"
 #include "credentialstore.h"
 #include "instanceurl.h"
@@ -9,6 +10,7 @@
 
 #include <QDateTime>
 #include <QObject>
+#include <QPointer>
 #include <QTimer>
 
 #include <optional>
@@ -92,6 +94,10 @@ public:
     // The client for this session's requests.
     ApiClient &api();
 
+    // The clock whose jitter spreads the session's retry waits; not owned.
+    // Without one the system's randomness does.
+    void setClock(Clock *clock);
+
     // GET /me as an Account call; a valid answer binds the account.
     void fetchMe(ApiClient::Callback<Me> done);
 
@@ -108,6 +114,7 @@ public:
     std::optional<ApiError> refusal(ApiAccess access) const override;
     void answered() override;
     bool absorbFailure(const HttpResponse &response, const ApiError &error, ApiAccess access) override;
+    const Clock *clock() const override;
 
 Q_SIGNALS:
     void instanceTextChanged();
@@ -167,6 +174,7 @@ private:
 
     Cooldown m_cooldown;
     QTimer m_retryTimer;
+    QPointer<Clock> m_clock;
     ApiClient m_api;
 };
 

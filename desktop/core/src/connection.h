@@ -68,6 +68,11 @@ public:
     // clientName goes into the created_with field of the entries it starts.
     Connection(Transport *transport, CredentialStore *store, const QString &clientName, QObject *parent = nullptr);
 
+    // The clock whose jitter spreads the retry waits of the account's
+    // validation and of a start's resend; not owned. Without one the
+    // system's randomness does.
+    void setClock(Clock *clock);
+
     QString instanceUrl() const;
     void setInstanceUrl(const QString &url);
     AuthMode authMode() const;

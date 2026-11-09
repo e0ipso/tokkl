@@ -426,6 +426,7 @@ struct Daemon {
         , configuration(&connectionSettings)
         , service({&timer, timer.coordinator(), &session, &preferences, &sounds, &configuration})
     {
+        connection.setClock(clock);
         connectionSettings.load();
     }
 

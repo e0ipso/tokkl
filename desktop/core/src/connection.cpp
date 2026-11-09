@@ -20,6 +20,11 @@ Connection::Connection(Transport *transport, CredentialStore *store, const QStri
     connect(&m_session, &AuthSession::generationChanged, this, &Connection::generationChanged);
 }
 
+void Connection::setClock(Clock *clock)
+{
+    m_session.setClock(clock);
+}
+
 QString Connection::instanceUrl() const
 {
     return m_session.instanceText();

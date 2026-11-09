@@ -121,6 +121,16 @@ ApiClient &AuthSession::api()
     return m_api;
 }
 
+void AuthSession::setClock(Clock *clock)
+{
+    m_clock = clock;
+}
+
+const Clock *AuthSession::clock() const
+{
+    return m_clock;
+}
+
 // ----- configuration and credentials ---------------------------------------
 
 void AuthSession::settingsChanged()

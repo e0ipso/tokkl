@@ -174,7 +174,7 @@ void ApiClient::keyedAction(const QUrl &url, const QByteArray &body, const QByte
             return;
         }
         // At once it would likely meet the same failure.
-        const int waitMs = retryWaitMs(retryMinMs, nullptr);
+        const int waitMs = retryWaitMs(retryMinMs, m_session.clock());
         qCInfo(lcNet) << "POST" << url.path() << "outcome unknown; sending it once more with its Idempotency-Key in" << waitMs << "ms";
         later(
             [this, url, body, idempotencyKey, done, first] {
