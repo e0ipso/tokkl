@@ -16,7 +16,7 @@ import {
   serializeUser,
   serializeWorkspace,
 } from '../../src/presenters/toggl.ts';
-import { EXPORT_FORMAT, toTogglCsv, type CsvItem } from '../../src/services/exports.ts';
+import { EXPORT_FORMAT, togglCsvHeader, togglCsvLines, type CsvItem } from '../../src/services/exports.ts';
 import type { ExportAssemblyJob } from '../../src/services/exportJobs.ts';
 import { invalidInput } from '../../src/lib/errors.ts';
 
@@ -69,7 +69,7 @@ export function assembleCsvExport(
         allDay: e.allDay,
       });
     }
-  return toTogglCsv(items, data.user, durationFormat);
+  return togglCsvHeader() + togglCsvLines(items, data.user, durationFormat);
 }
 
 /** The response body the export routes sent for `assembly` before exports streamed. */

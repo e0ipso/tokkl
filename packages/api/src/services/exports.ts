@@ -117,9 +117,6 @@ export const togglCsvHeader = (): string => toCsv([[...CSV_COLUMNS]]);
 export function togglCsvLines(items: CsvItem[], user: CsvUser, durationFormat: DurationFormat = 'improved'): string {
   return items.length ? toCsv(items.map(item => togglCsvRow(item, user, durationFormat))) : '';
 }
-export function toTogglCsv(items: CsvItem[], user: CsvUser, durationFormat: DurationFormat = 'improved'): string {
-  return togglCsvHeader() + togglCsvLines(items, user, durationFormat);
-}
 /**
  * The CSV export a piece at a time: `header`, then each batch of entries (oldest first) through
  * `entries`. Only stopped entries that start inside `range`, read as days in the user's time zone,

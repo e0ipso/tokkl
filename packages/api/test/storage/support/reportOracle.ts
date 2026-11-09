@@ -24,11 +24,12 @@ import {
   summaryGroup,
 } from '../../../src/services/reportRows.ts';
 import { resolutionFor, type Group, type GroupKey, type Resolution } from '../../../src/services/reportAggregates.ts';
-import { toTogglCsv } from '../../../src/services/exports.ts';
+import { togglCsvHeader, togglCsvLines } from '../../../src/services/exports.ts';
 import type { DurationFormat } from '@tokkl/types';
 
 const detailedCsv = (entries: ReportEntry[], user: OracleUser, format: DurationFormat) =>
-  toTogglCsv(
+  togglCsvHeader() +
+  togglCsvLines(
     entries.map(entry => ({ ...entry, tags: entry.tags.map(tag => tag.name) })),
     user,
     format,

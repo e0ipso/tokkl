@@ -1,6 +1,6 @@
 import { parseDateKey } from '@tokkl/common/time';
 import { BoundedCache } from '../lib/boundedCache.ts';
-import type { JsonObject, JsonValue, UtcInstant, DateOnly } from '../domain/model.ts';
+import type { JsonObject, JsonValue, UtcInstant } from '../domain/model.ts';
 
 // Errors describe the expected representation, never the stored value.
 export function safeInteger(value: unknown): number {
@@ -81,10 +81,6 @@ export function utcInstant(value: unknown): UtcInstant {
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) throw new Error('Invalid storage instant');
   return date.toISOString();
-}
-export function dateOnly(value: unknown): DateOnly {
-  if (typeof value !== 'string' || !parseDateKey(value)) throw new Error('Invalid storage date');
-  return value;
 }
 
 /** For native SQL timestamp text only, on sessions explicitly configured to UTC by the factory. */
