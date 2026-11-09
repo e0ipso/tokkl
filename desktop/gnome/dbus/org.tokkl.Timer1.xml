@@ -375,7 +375,8 @@
     </method>
     <!-- Play a sound once, for a settings pane. Fails with
          org.freedesktop.DBus.Error.InvalidArgs for a sound id the service
-         does not know. Returns false when the service has no player. -->
+         does not know. Otherwise returns true, and a sound that cannot play
+         shows in AlarmError. -->
     <method name="PreviewSound">
       <arg name="soundId" type="s" direction="in"/>
       <arg name="accepted" type="b" direction="out"/>

@@ -66,6 +66,7 @@ TimerService::TimerService(const Parts &parts, QObject *parent)
     , m_preferences(parts.preferences)
     , m_sounds(parts.sounds)
     , m_configuration(parts.configuration)
+    , m_alarm(parts.alarm)
     , m_bus(QString())
 {
     qDBusRegisterMetaType<QList<QVariantMap>>();
@@ -81,7 +82,7 @@ TimerService::TimerService(const Parts &parts, QObject *parent)
     // so none can miss one: a property's getter may read anything these
     // objects announce. Elapsed time and the countdown are left out:
     // clients count up from LocalStartTime and down to PlannedEnd
-    // themselves. The alarm's signal is watched in setAlarm().
+    // themselves.
     watch(m_timer,
           &TimerModel::connectionChanged,
           &TimerModel::contextChanged,
@@ -105,6 +106,7 @@ TimerService::TimerService(const Parts &parts, QObject *parent)
           &PomodoroSession::messageChanged);
     watch(m_preferences, &PomodoroPreferences::changed, &PomodoroPreferences::stateChanged, &PomodoroPreferences::limitsChanged);
     watch(m_sounds, &SoundChoices::changed);
+    watch(m_alarm, &PomodoroAlarm::failureChanged);
     connect(m_timer, &TimerModel::connectionChanged, this, &TimerService::followStateClient);
     followStateClient();
     connect(m_actions, &TimerCoordinator::writeFinished, this, &TimerService::onWriteFinished);
@@ -146,21 +148,9 @@ bool TimerService::registerOn(QDBusConnection bus)
     return true;
 }
 
-void TimerService::setAlarm(PomodoroAlarm *alarm)
-{
-    if (m_alarm) {
-        disconnect(m_alarm, nullptr, this, nullptr);
-    }
-    m_alarm = alarm;
-    if (m_alarm) {
-        watch(m_alarm.data(), &PomodoroAlarm::failureChanged);
-    }
-    markChanged();
-}
-
 QString TimerService::alarmError() const
 {
-    return m_alarm ? m_alarm->failure() : QString();
+    return m_alarm->failure();
 }
 
 uint TimerService::interfaceVersion() const
@@ -592,10 +582,6 @@ bool TimerService::PreviewSound(const QString &soundId)
         if (calledFromDBus()) {
             sendErrorReply(QDBusError::InvalidArgs, tr("\"%1\" is not a Pomodoro sound.").arg(soundId));
         }
-        return false;
-    }
-    // Accepted only when an alarm plays it.
-    if (!m_alarm) {
         return false;
     }
     m_alarm->preview(soundId);

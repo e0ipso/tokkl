@@ -7,9 +7,8 @@
 // main.cpp, the daemon's composition root, makes the connection, the timer
 // and its state client, the session, the preferences client, the sound
 // choices and the settings file they keep the per-device state in, and the
-// ConfigurationAdapter that answers Configure, then hands them over. The
-// alarm plays through a PomodoroAlarm that main.cpp builds on the same
-// session and sound choices.
+// ConfigurationAdapter that answers Configure, and the PomodoroAlarm on the
+// same session and sound choices, then hands them over.
 
 #include <QDBusConnection>
 #include <QDBusContext>
@@ -17,7 +16,6 @@
 #include <QMap>
 #include <QMetaProperty>
 #include <QObject>
-#include <QPointer>
 #include <QString>
 #include <QVariantMap>
 
@@ -97,8 +95,9 @@ public:
     // User-Agent product too.
     static QString clientName();
 
-    // What the service serves, none of it owned. The session must be built
-    // on the timer's coordinator, and the alarm on the same session and
+    // What the service serves, none of it owned and none of it null. The
+    // session must be built on the timer's coordinator, and the alarm, which
+    // PreviewSound plays on and AlarmError follows, on the same session and
     // sound choices.
     struct Parts {
         TimerModel *timer = nullptr;
@@ -107,6 +106,7 @@ public:
         PomodoroPreferences *preferences = nullptr;
         SoundChoices *sounds = nullptr;
         ConfigurationAdapter *configuration = nullptr;
+        PomodoroAlarm *alarm = nullptr;
     };
 
     explicit TimerService(const Parts &parts, QObject *parent = nullptr);
@@ -116,10 +116,6 @@ public:
     // the bus refuses either, for example because another instance owns the
     // name.
     bool registerOn(QDBusConnection bus);
-
-    // The alarm PreviewSound plays on, which the service does not own.
-    // Without one, PreviewSound is refused. AlarmError follows its failure.
-    void setAlarm(PomodoroAlarm *alarm);
 
     bool running() const;
     // The server's start, which StartTime has always published.
@@ -164,7 +160,7 @@ public:
     QMap<QString, QMap<QString, int>> pomodoroLengthLimits() const;
     QMap<QString, QString> sounds() const;
     QList<QVariantMap> soundCatalogue() const;
-    // PomodoroAlarm::failure(), empty without an alarm.
+    // PomodoroAlarm::failure().
     QString alarmError() const;
     uint interfaceVersion() const;
 
@@ -238,7 +234,7 @@ private:
     PomodoroPreferences *m_preferences;
     SoundChoices *m_sounds;
     ConfigurationAdapter *m_configuration;
-    QPointer<PomodoroAlarm> m_alarm;
+    PomodoroAlarm *m_alarm;
     QDBusConnection m_bus;
     bool m_registered = false;
     QMetaObject::Connection m_offsetWatch;
