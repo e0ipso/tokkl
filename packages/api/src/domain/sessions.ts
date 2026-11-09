@@ -1,7 +1,8 @@
 /**
  * Sign-in sessions and the API token: starting and ending them, and rotating the token. Starting
  * and ending a session guard only the user: a deletion that commits while one waits makes its lock
- * restart the transaction, which then finds the account gone and refuses as before.
+ * restart the transaction, which then finds the account gone and refuses, as it does for an
+ * account deleted before the request started.
  */
 import type { User } from './model.ts';
 import { forbidden } from '../lib/errors.ts';
