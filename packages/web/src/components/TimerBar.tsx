@@ -1,4 +1,4 @@
-import { useImperativeHandle, useRef, useState, type Ref } from 'react';
+import { useEffect, useImperativeHandle, useRef, useState, type Ref, type RefObject } from 'react';
 import { parseDuration } from '@tokkl/common/duration';
 import { usePreferences, useSavePreferences } from '../api/account.ts';
 import { useSettings } from '../api/settings.ts';
@@ -12,7 +12,6 @@ import { ModeSwitch, TimerButtons } from './TimerBarControls.tsx';
 import { descriptionPlaceholder, pauseAnnouncement, timerBarClass, timerBarView } from './timerBarView.ts';
 import { TimerClock } from './TimerClock.tsx';
 import { EMPTY_DRAFT, type EntryDraft } from './useEntryFields.ts';
-import { useHeightProperty } from './useHeightProperty.ts';
 import { useRunningDraft } from './useRunningDraft.ts';
 import { useTimerBarActions } from './useTimerBarActions.ts';
 import { t } from '../i18n/messages.ts';
@@ -162,4 +161,23 @@ export function TimerBar({ recentEntries, ref }: { recentEntries: TimeEntry[]; r
       {editing && current ? <EntryEditor entry={current} onClose={() => setEditing(false)} /> : null}
     </section>
   );
+}
+
+/**
+ * Writes the element's height to a custom property on <html> while it is mounted, such as the
+ * timer bar's --timer-bar-height: the bulk bar is not inside the timer bar, so it reads the height
+ * from there to stick right under it.
+ */
+function useHeightProperty(ref: RefObject<HTMLElement | null>, property: string) {
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    const root = document.documentElement;
+    const observer = new ResizeObserver(() => root.style.setProperty(property, `${element.offsetHeight}px`));
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+      root.style.removeProperty(property);
+    };
+  }, [ref, property]);
 }

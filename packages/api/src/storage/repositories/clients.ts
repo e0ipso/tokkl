@@ -5,7 +5,6 @@ import type { Backend } from '../config.ts';
 import type { PhysicalDatabase } from '../physical.ts';
 import type { Repositories } from '../../domain/ports.ts';
 import { entityId } from '../conversion.ts';
-import { detachedProjectName } from './catalog-names.ts';
 import { bumpCatalogRevision, catalogWrite, containsName, nameKey } from './catalog-sql.ts';
 import { client, insertId, required } from './catalog-queries.ts';
 
@@ -144,4 +143,13 @@ export function createClientRepository(
     },
   };
   return clients;
+}
+
+function clip(value: string, max: number): string {
+  if (value.length <= max) return value;
+  return value.slice(0, /[\uD800-\uDBFF]/.test(value[max - 1] ?? '') ? max - 1 : max);
+}
+function detachedProjectName(name: string, clientName: string, attempt: number): string {
+  const tail = ` (${clip(clientName, 100)})${attempt > 1 ? ` ${attempt}` : ''}`;
+  return clip(name, 255 - tail.length) + tail;
 }

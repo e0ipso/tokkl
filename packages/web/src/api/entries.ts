@@ -3,7 +3,6 @@ import { queryOptions, useMutation, useQuery, useQueryClient, type QueryClient }
 import { useWid } from './account.ts';
 import { api } from './client.ts';
 import { list, object } from './decode.ts';
-import { coversPreviousRange } from './entriesPlaceholder.ts';
 import { postCreate } from './idempotency.ts';
 import { invalidate } from './invalidate.ts';
 import { keys, stale } from './keys.ts';
@@ -270,4 +269,24 @@ export function useSplitEntry() {
       }),
     onSettled,
   });
+}
+
+/**
+ * Whether the rows of the previous entries query may stay on screen while `startDate`..`endDate`
+ * loads. `previousKey` is that query's key, `['entries', start, end]`. Only a range that covers the
+ * previous one keeps its rows, so the list never shows entries from outside the range it is
+ * loading.
+ */
+export function coversPreviousRange(
+  previousKey: readonly unknown[] | undefined,
+  startDate: string,
+  endDate: string,
+): boolean {
+  const [, previousStart, previousEnd] = previousKey ?? [];
+  return (
+    typeof previousStart === 'string' &&
+    typeof previousEnd === 'string' &&
+    startDate <= previousStart &&
+    endDate >= previousEnd
+  );
 }

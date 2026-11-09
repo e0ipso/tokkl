@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from 'react';
+import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from 'react';
 import { usePreferences, useSavePreferences } from '../api/account.ts';
 import { useCreateEntry, useUpdateEntry } from '../api/entries.ts';
 import { useSettings } from '../api/settings.ts';
@@ -17,7 +17,6 @@ import { TagPicker } from './TagPicker.tsx';
 import { useToast } from './Toast.tsx';
 import { draftOf } from './useEntryFields.ts';
 import { useBulkEdit, useDeleteEntries } from './useEntryListActions.ts';
-import { useRowDescription } from './useRowDescription.ts';
 import { t } from '../i18n/messages.ts';
 
 /** One line in the list. With several entries it edits all of them at once through the bulk API. */
@@ -234,4 +233,21 @@ export function EntryLine({
       {editing ? <EntryEditor entry={entry} onClose={() => setEditing(false)} /> : null}
     </div>
   );
+}
+
+/**
+ * The description of a row. It follows the stored description, unless the user is typing a change
+ * of their own: a refresh must not throw that away. Committing it then saves the typed text.
+ */
+function useRowDescription(stored: string) {
+  const [description, setDescription] = useState(stored);
+  const input = useRef<HTMLInputElement>(null);
+  const lastStored = useRef(stored);
+  const follow = useEffectEvent((next: string) => {
+    const typing = document.activeElement === input.current && description !== lastStored.current;
+    lastStored.current = next;
+    if (!typing) setDescription(next);
+  });
+  useEffect(() => follow(stored), [stored]);
+  return { description, setDescription, input };
 }
