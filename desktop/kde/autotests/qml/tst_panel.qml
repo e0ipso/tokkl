@@ -926,6 +926,33 @@ TestCase {
         compare(parts.action, "start");
     }
 
+    // The English words are the ones every panel shows, as the core's shared
+    // fixture lists them; each toolkit translates them on its own.
+    function test_wordsFollowTheSharedFixture() {
+        const english = fixture.statusFixture().words;
+        verify(english !== undefined, "the fixture has words");
+        const words = button.words;
+        compare(Object.keys(english.statuses).length, words.parts.statusKeys.length);
+        for (const key of words.parts.statusKeys) {
+            compare(words.statusWord(key), english.statuses[key], "status " + key);
+        }
+        for (const key of words.parts.actionKeys) {
+            if (english.actions[key] !== null) {
+                compare(words.actionWord(key), english.actions[key], "action " + key);
+            }
+        }
+        for (const phase of Object.keys(english.phases)) {
+            compare(words.phaseName(phase), english.phases[phase], "phase " + phase);
+        }
+        for (const kind of Object.keys(english.projectLabels)) {
+            compare(words.projectLabel({
+                kind: kind
+            }), english.projectLabels[kind], "label " + kind);
+        }
+        compare(words.runText, english.activity.stopped);
+        compare(words.partWords("pomodoroMode", ["Stopped 0:00"]), ["Stopped 0:00 · " + english.pomodoroMode]);
+    }
+
     function test_unconfiguredDisablesEverything() {
         compare(button.timer.status, TokklTimer.Unconfigured);
         compare(button.words.statusText, "Not configured");

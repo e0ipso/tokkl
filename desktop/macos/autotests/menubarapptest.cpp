@@ -746,6 +746,44 @@ private Q_SLOTS:
         QVERIFY(StatusWords::actionName(QStringLiteral("unknown"), session).isEmpty());
     }
 
+    // The English words are the ones every panel shows, as the core's
+    // shared fixture, statuspresentation.json, lists them.
+    void wordsFollowTheSharedFixture()
+    {
+        QFile file(QStringLiteral(TOKKL_STATUS_FIXTURE));
+        QVERIFY(file.open(QIODevice::ReadOnly));
+        const QJsonObject words = QJsonDocument::fromJson(file.readAll()).object().value(QStringLiteral("words")).toObject();
+        Fixture f;
+        const TimerModel &timer = *appPart<TimerController>(f.app);
+        const PomodoroSession &session = *appPart<PomodoroSession>(f.app);
+
+        const QJsonObject statuses = words.value(QStringLiteral("statuses")).toObject();
+        QCOMPARE(statuses.keys().size(), timerStatusKeys().size());
+        for (const QString &status : timerStatusKeys()) {
+            QCOMPARE(StatusWords::statusWord(status), statuses.value(status).toString());
+        }
+        const QJsonObject actions = words.value(QStringLiteral("actions")).toObject();
+        for (const QString &action : primaryActionKeys()) {
+            QVERIFY2(actions.contains(action), qPrintable(action));
+            if (!actions.value(action).isNull()) {
+                QCOMPARE(StatusWords::actionName(action, session), actions.value(action).toString());
+            }
+        }
+        const QJsonObject phases = words.value(QStringLiteral("phases")).toObject();
+        for (auto it = phases.constBegin(); it != phases.constEnd(); ++it) {
+            QCOMPARE(StatusWords::phaseName(it.key()), it.value().toString());
+        }
+        const QJsonObject labels = words.value(QStringLiteral("projectLabels")).toObject();
+        for (const ProjectLabelParts::Kind kind : {ProjectLabelParts::Kind::None, ProjectLabelParts::Kind::Unknown, ProjectLabelParts::Kind::Unavailable}) {
+            ProjectLabelParts parts;
+            parts.kind = kind;
+            QCOMPARE(StatusWords::projectLabel(parts), labels.value(ProjectLabelParts::kindKey(kind)).toString());
+        }
+        QCOMPARE(StatusWords::runText(timer), words.value(QStringLiteral("activity")).toObject().value(QStringLiteral("stopped")).toString());
+        QCOMPARE(StatusWords::withPart(QStringLiteral("pomodoroMode"), QStringList{QStringLiteral("Stopped 0:00")}, timer, session).value_or(QStringList()),
+                 QStringList{QStringLiteral("Stopped 0:00 · ") + words.value(QStringLiteral("pomodoroMode")).toString()});
+    }
+
     void titleShowsElapsedTime()
     {
         Fixture f;

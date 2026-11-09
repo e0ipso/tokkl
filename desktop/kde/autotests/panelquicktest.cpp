@@ -29,8 +29,10 @@
 #include <KLocalizedString>
 
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QJsonDocument>
+#include <QJsonObject>
 #include <QGuiApplication>
 #include <QQmlEngine>
 #include <QQuickItem>
@@ -98,6 +100,17 @@ public:
     int catalogChecks() const
     {
         return int(m_transport.catalogRequests.size());
+    }
+
+    // The core's shared fixture of the panels' words, statuspresentation.json,
+    // as a map: the English words and the elapsed cases among the rest.
+    Q_INVOKABLE QVariantMap statusFixture() const
+    {
+        QFile file(QStringLiteral(TOKKL_STATUS_FIXTURE));
+        if (!file.open(QIODevice::ReadOnly)) {
+            return QVariantMap();
+        }
+        return QJsonDocument::fromJson(file.readAll()).object().toVariantMap();
     }
 
     // The projects changed on the server: the next catalog read answers a

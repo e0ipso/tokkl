@@ -7,12 +7,22 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 import { MARKS, describeTime, partTexts } from '../menumodel.js';
-import { describeStatus, statusWords } from '../timer1.js';
+import {
+    chosenProjectLabel,
+    describeStatus,
+    formatElapsed,
+    phaseName,
+    pomodoroModeLabel,
+    statusWords,
+} from '../timer1.js';
 
 const identity = text => text;
-const { cases, keys } = JSON.parse(
-    readFileSync(new URL('../../../core/autotests/statuspresentation.json', import.meta.url), 'utf8'),
-);
+const {
+    cases,
+    keys,
+    words: english,
+    elapsed,
+} = JSON.parse(readFileSync(new URL('../../../core/autotests/statuspresentation.json', import.meta.url), 'utf8'));
 const session = { phase: 'work', plannedEnd: 2000, pomodoroNumber: 2, longRestEvery: 4 };
 
 function timeOf(input) {
@@ -68,4 +78,34 @@ test('each part has its words, and a part without any is left out', () => {
         status: 'Offline, showing the last known state',
         accessibleName: 'Paused 0:10 · Offline, showing the last known state · No network · Pomodoro mode',
     });
+});
+
+// The English words are the ones every panel shows, as the shared fixture
+// lists them; each toolkit translates them on its own.
+test('the words are the shared English words', () => {
+    assert.deepEqual(Object.keys(english.statuses).sort(), [...keys.statuses].sort());
+    for (const [status, text] of Object.entries(english.statuses))
+        assert.equal(statusWords(status, '', identity).text, text, status);
+    for (const [phase, text] of Object.entries(english.phases)) assert.equal(phaseName(phase, identity), text, phase);
+    for (const [kind, text] of Object.entries(english.projectLabels))
+        assert.equal(chosenProjectLabel({ kind }, identity), text, kind);
+    assert.equal(pomodoroModeLabel(false, identity), english.pomodoroMode);
+
+    const activity = (running, paused) =>
+        partTexts(
+            { ...timeOf({ paused, pomodoroMode: false, showsSession: false }), running },
+            wordsOf({}),
+            '',
+            0,
+            identity,
+        ).activity;
+    assert.equal(activity(false, false), english.activity.stopped);
+    assert.equal(activity(true, false), `${english.activity.running} ${formatElapsed(600)}`);
+    assert.equal(activity(false, true), `${english.activity.paused} ${formatElapsed(600)}`);
+    assert.equal(partTexts(timeOf(cases[0].input), wordsOf({}), '', 0, identity).pomodoroMode, english.pomodoroMode);
+});
+
+test('elapsed time is written as every panel writes it', () => {
+    assert.ok(elapsed.length >= 5);
+    for (const [seconds, text] of elapsed) assert.equal(formatElapsed(seconds), text, String(seconds));
 });

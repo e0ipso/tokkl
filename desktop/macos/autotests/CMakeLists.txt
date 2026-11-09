@@ -11,7 +11,8 @@ target_link_libraries(menubarapptest PRIVATE tokklmacos tokklcorefakes Qt6::Test
 target_compile_definitions(menubarapptest PRIVATE
     TOKKL_RESOURCES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../resources"
     TOKKL_ICONSET_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../resources/${TOKKL_BUNDLE_ICON}.iconset"
-    TOKKL_SOUNDS_DIR="${TOKKL_CORE_DIR}/sounds")
+    TOKKL_SOUNDS_DIR="${TOKKL_CORE_DIR}/sounds"
+    TOKKL_STATUS_FIXTURE="${TOKKL_CORE_DIR}/autotests/statuspresentation.json")
 add_test(NAME menubarapp COMMAND menubarapptest)
 
 set(_tests menubarapp)

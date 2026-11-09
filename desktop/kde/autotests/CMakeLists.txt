@@ -85,7 +85,8 @@ target_compile_definitions(panel PRIVATE
     QUICK_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/qml"
     TOKKL_PLASMOID_ID="${TOKKL_PLASMOID_ID}"
     TOKKL_BACKEND_URI="${TOKKL_BACKEND_URI}"
-    TOKKL_POMODORO_SOUND_FILES="${_sound_files}")
+    TOKKL_POMODORO_SOUND_FILES="${_sound_files}"
+    TOKKL_STATUS_FIXTURE="${TOKKL_CORE_DIR}/autotests/statuspresentation.json")
 set_tests_properties(panel PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software;XDG_DATA_HOME=${_panel_xdg}/data;XDG_CONFIG_HOME=${_panel_xdg}/config;XDG_CACHE_HOME=${_panel_xdg}/cache;XDG_STATE_HOME=${_panel_xdg}/state")
 
