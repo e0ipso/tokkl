@@ -5,6 +5,7 @@
 #include "transport.h"
 
 #include <algorithm>
+#include <cstdlib>
 #include <utility>
 
 namespace Tokkl
@@ -197,13 +198,26 @@ void TimerStateClient::onGenerationChanged()
 
 void TimerStateClient::resumed()
 {
-    refresh();
-    if (!m_connection.isConnected()) {
+    const QDateTime now = m_clock.now();
+    if (m_wokeAt.isValid() && std::abs(m_wokeAt.msecsTo(now)) <= resumeGapMs) {
         return;
     }
-    // A stream from before the sleep may be dead without knowing it yet.
-    closeStream();
-    openStream();
+    wake(now);
+}
+
+void TimerStateClient::wake(const QDateTime &now)
+{
+    m_wokeAt = now;
+    // Gaps count from the wake, so a tick that arrives late after the
+    // platform reported it reports nothing more.
+    m_lastTick = now;
+    refresh();
+    if (m_connection.isConnected()) {
+        // A stream from before the sleep may be dead without knowing it yet.
+        closeStream();
+        openStream();
+    }
+    Q_EMIT woke();
 }
 
 void TimerStateClient::onTick()
@@ -212,7 +226,7 @@ void TimerStateClient::onTick()
     const qint64 gap = m_lastTick.isValid() ? m_lastTick.msecsTo(now) : 0;
     m_lastTick = now;
     if (gap > resumeGapMs || gap < -resumeGapMs) {
-        resumed();
+        wake(now);
         return;
     }
     // A clock set back would otherwise postpone the reconnect or the poll.

@@ -67,11 +67,6 @@ void TimerController::refreshProjects()
     m_coordinator->refreshProjects();
 }
 
-void TimerController::resumed()
-{
-    m_coordinator->resumed();
-}
-
 void TimerController::reconnect()
 {
     m_coordinator->reconnect();

@@ -34,6 +34,9 @@ TimerCoordinator::TimerCoordinator(TimerModel *model, const TimerModelRoles &rol
     }
     connect(&m_client, &TimerStateClient::stateChanged, this, &TimerCoordinator::onStateChanged);
     connect(&m_client, &TimerStateClient::settlingChanged, this, &TimerCoordinator::onSettlingChanged);
+    // The client reads the state again on a wake; the projects have no
+    // stream, so their revision is checked here.
+    connect(&m_client, &TimerStateClient::woke, this, &TimerCoordinator::refreshProjects);
     Connection *connection = m_client.connection();
     connect(connection, &Connection::generationChanged, this, &TimerCoordinator::reset);
     connect(connection, &Connection::stateChanged, this, &TimerCoordinator::onConnectionChanged);
@@ -371,12 +374,6 @@ void TimerCoordinator::refreshState()
     if (m_catalog->readable()) {
         m_client.refresh();
     }
-}
-
-void TimerCoordinator::resumed()
-{
-    m_client.resumed();
-    m_loader->fetchProjects();
 }
 
 void TimerCoordinator::reconnect()

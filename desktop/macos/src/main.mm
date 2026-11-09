@@ -65,8 +65,8 @@ int main(int argc, char *argv[])
     });
     QObject::connect(&tokkl, &Tokkl::MenuBarApp::quitRequested, &app, &QCoreApplication::quit, Qt::QueuedConnection);
 
-    // Read the timer and the Pomodoro session at once after sleep instead of
-    // waiting for a late tick.
+    // Report a wake at once instead of waiting for the late tick that would
+    // report it; the core counts the two as one wake.
     QPointer<Tokkl::MenuBarApp> menuBarApp(&tokkl);
     id wakeObserver = [NSWorkspace.sharedWorkspace.notificationCenter addObserverForName:NSWorkspaceDidWakeNotification
                                                                                   object:nil

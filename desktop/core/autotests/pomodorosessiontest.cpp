@@ -908,6 +908,27 @@ private Q_SLOTS:
         QVERIFY(f.session->endSession());
     }
 
+    // A wake the platform reports past the planned end rings at once,
+    // before the next tick, and the state is read once for it.
+    void ringsOnAWakeBeforeTheNextTick()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f, f.state(work(f.serverNow()))));
+        QCOMPARE(f.session->countdownText(), QStringLiteral("1:00"));
+        const qsizetype reads = f.find("GET", statePath).size();
+
+        f.clock.current = f.clock.current.addSecs(90);
+        f.client.resumed();
+        QVERIFY(f.session->isRinging());
+        QCOMPARE(f.session->countdownText(), QStringLiteral("+0:30"));
+        QCOMPARE(f.find("GET", statePath).size(), reads + 1);
+
+        // The late tick of the same sleep reads nothing more.
+        f.tick(1);
+        QCOMPARE(f.find("GET", statePath).size(), reads + 1);
+        QCOMPARE(f.session->countdownText(), QStringLiteral("+0:31"));
+    }
+
     void keepsCountingWhileOffline()
     {
         Fixture f;

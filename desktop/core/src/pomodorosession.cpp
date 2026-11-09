@@ -17,6 +17,7 @@ PomodoroSession::PomodoroSession(Clock &clock, TimerActions &timer, SessionState
     connect(&m_client, &SessionState::stateChanged, this, &PomodoroSession::onStateChanged);
     connect(&m_client, &SessionState::settlingChanged, this, &PomodoroSession::update);
     connect(&m_client, &SessionState::accountReset, this, &PomodoroSession::onAccountReset);
+    connect(&m_client, &SessionState::woke, this, &PomodoroSession::updateClock);
     connect(&m_timer, &TimerActions::changed, this, &PomodoroSession::update);
     onStateChanged();
 }
@@ -230,11 +231,6 @@ void PomodoroSession::onAccountReset()
 void PomodoroSession::clearMessage()
 {
     setMessage(QString());
-}
-
-void PomodoroSession::resumed()
-{
-    updateClock();
 }
 
 // ----- state, timer and clock ----------------------------------------------

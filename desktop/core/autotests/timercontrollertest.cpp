@@ -586,23 +586,50 @@ private Q_SLOTS:
 
         // Two hours asleep: the next tick arrives late.
         const qsizetype streams = f.transport.streams.size();
+        const qsizetype catalogReads = f.transport.catalogRequests.size();
         f.clock.advance(2 * 3600 * 1000);
         QCOMPARE(f.timer.elapsedSeconds(), 2 * 3600 + 66);
         QCOMPARE(f.timer.elapsedText(), QStringLiteral("2:01"));
-        // The state client reads the state and replaces the stream at once.
+        // The state client reads the state and replaces the stream at once,
+        // and the timer asks whether the projects changed.
         QCOMPARE(f.transport.requests.size(), requests + 1);
         QVERIFY(f.unanswered(f.last("GET", statePath)));
         QCOMPARE(f.transport.streams.size(), streams + 1);
+        QCOMPARE(f.transport.catalogRequests.size(), catalogReads + 1);
+
+        // The platform's wake notice for the same sleep adds nothing.
+        f.state.resumed();
+        QCOMPARE(f.transport.requests.size(), requests + 1);
+        QCOMPARE(f.transport.streams.size(), streams + 1);
+        QCOMPARE(f.transport.catalogRequests.size(), catalogReads + 1);
 
         // The web app stopped the timer meanwhile.
         QVERIFY(f.answerState("null"));
         QVERIFY(!f.timer.isRunning());
         QCOMPARE(f.timer.elapsedText(), QStringLiteral("0:00"));
+    }
 
-        // The explicit hook asks whether the projects changed too.
+    // A wake the platform reports before the late tick reads the state and
+    // checks the projects once; the tick that follows adds nothing.
+    void wakeNoticeBeforeTheLateTickCountsOnce()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f));
+        f.clock.advance(1000);
+        const qsizetype requests = f.transport.requests.size();
+        const qsizetype streams = f.transport.streams.size();
         const qsizetype catalogReads = f.transport.catalogRequests.size();
-        f.timer.resumed();
+
+        f.clock.current = f.clock.current.addSecs(2 * 3600);
+        f.state.resumed();
+        QCOMPARE(f.transport.requests.size(), requests + 1);
         QVERIFY(f.unanswered(f.last("GET", statePath)));
+        QCOMPARE(f.transport.streams.size(), streams + 1);
+        QCOMPARE(f.transport.catalogRequests.size(), catalogReads + 1);
+
+        f.clock.advance(1000);
+        QCOMPARE(f.transport.requests.size(), requests + 1);
+        QCOMPARE(f.transport.streams.size(), streams + 1);
         QCOMPARE(f.transport.catalogRequests.size(), catalogReads + 1);
     }
 
@@ -2036,7 +2063,7 @@ private Q_SLOTS:
         for (int i = 0; i < 31; ++i) {
             f.clock.advance(1000);
         }
-        f.timer.resumed();
+        f.state.resumed();
         QVERIFY(!f.timer.start());
         QCOMPARE(f.transport.requests.size(), requests);
 
@@ -2131,7 +2158,7 @@ private Q_SLOTS:
         for (int i = 0; i < 95; ++i) {
             f.clock.advance(1000);
         }
-        f.timer.resumed();
+        f.state.resumed();
         f.timer.refreshProjects();
         QVERIFY(!f.timer.start());
         QVERIFY(!f.timer.stop());
@@ -2729,7 +2756,7 @@ private Q_SLOTS:
         QSignalSpy changed(&f.timer, &TimerController::projectsChanged);
         f.timer.refreshProjects();
         QTest::qWait(20);
-        f.timer.resumed();
+        f.state.resumed();
         QVERIFY(f.answerState(current));
         QTest::qWait(20);
         QCOMPARE(f.transport.catalogRequests.size(), 3);

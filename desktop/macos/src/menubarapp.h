@@ -86,8 +86,8 @@ public Q_SLOTS:
     // Gives the connection the address, sign-in method and email in the
     // settings.
     void applySettings();
-    // The system woke from sleep: the timer reads the current entry and the
-    // session the clock at once.
+    // The system woke from sleep: the timer's state client handles it as it
+    // would a late tick, at once, and the timer and session follow it.
     void resumed();
 
 Q_SIGNALS:

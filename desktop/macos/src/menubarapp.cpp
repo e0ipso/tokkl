@@ -149,9 +149,7 @@ void MenuBarApp::activate()
 
 void MenuBarApp::resumed()
 {
-    // The timer forwards to the state client, which reads at once.
-    m_timer->resumed();
-    m_session->resumed();
+    m_timer->stateClient()->resumed();
 }
 
 void MenuBarApp::updateItem()

@@ -52,6 +52,9 @@ Q_SIGNALS:
     // none. The state was dropped first, and an action sent before never
     // answers.
     void accountReset();
+    // The machine woke from sleep, or the clock jumped: the state is read
+    // again. Sent once per wake.
+    void woke();
 };
 
 }

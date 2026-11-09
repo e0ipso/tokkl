@@ -43,9 +43,6 @@ public Q_SLOTS:
     // A panel opens its menu: checks whether the projects changed; see
     // TimerCoordinator::refreshProjects().
     void refreshProjects();
-    // The session woke from sleep: the state client reads the state and
-    // replaces its stream, and the projects are read again. Not resume().
-    void resumed();
     // Explicit reconnect: lifts a workspace block and revalidates the account.
     void reconnect();
 

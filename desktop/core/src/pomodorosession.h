@@ -53,7 +53,8 @@ namespace Tokkl
 // from its planned end until a state shows another phase start or no
 // session, also when the app starts or wakes after the planned end, and also
 // while the instance is unreachable, from the last state held. The check
-// runs on every tick, on resumed() and on each new state.
+// runs on every tick, on a wake (SessionState::woke()) and on each new
+// state.
 class PomodoroSession : public QObject
 {
     Q_OBJECT
@@ -146,10 +147,6 @@ public:
     Q_INVOKABLE bool confirmNextPhase();
     Q_INVOKABLE bool endSession();
     Q_INVOKABLE void clearMessage();
-
-public Q_SLOTS:
-    // The session woke from sleep: read the clock again at once.
-    void resumed();
 
 Q_SIGNALS:
     void modeChanged();
