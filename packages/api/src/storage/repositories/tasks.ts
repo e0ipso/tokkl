@@ -1,9 +1,9 @@
 /** Tasks of a project, with their project and client names and tracked total. */
-import { type Kysely } from 'kysely';
+import { sql, type Expression, type ExpressionBuilder, type Kysely, type SqlBool } from 'kysely';
 import type { Backend } from '../config.ts';
 import type { PhysicalDatabase } from '../physical.ts';
-import type { Repositories, TaskInput } from '../../domain/ports.ts';
-import { booleanValue, entityId, utcInstant } from '../conversion.ts';
+import type { Repositories, TaskInput, TaskSearchFilter } from '../../domain/ports.ts';
+import { booleanValue, entityId, safeInteger, utcInstant } from '../conversion.ts';
 import { StorageConflict } from '../../domain/ports.ts';
 import { catalogWrite, containsName, nameKey, taskEstimate } from './catalog-sql.ts';
 import {
@@ -15,6 +15,38 @@ import {
   task,
   taskSummary,
 } from './catalog-queries.ts';
+
+/** Whether a stored name has a character outside ASCII: more bytes than characters. */
+function nonAsciiName(backend: Backend) {
+  const name = sql.ref('t.name');
+  return backend === 'sqlite'
+    ? sql<boolean>`length(${name}) <> length(cast(${name} as blob))`
+    : backend === 'postgres'
+      ? sql<boolean>`octet_length(${name}) <> char_length(${name})`
+      : sql<boolean>`length(${name}) <> char_length(${name})`;
+}
+
+/**
+ * Keeps the tasks of `wid` that `filter` names. A name search keeps an ASCII name only when its
+ * folded key contains the search, which is exactly JavaScript's lower-casing for ASCII, and keeps
+ * every other name for the caller's exact test.
+ */
+function searchScope(backend: Backend, wid: number, filter: TaskSearchFilter & { nameCandidates?: string }) {
+  return (eb: ExpressionBuilder<PhysicalDatabase & { t: PhysicalDatabase['tasks'] }, 't'>) => {
+    const kept: Expression<SqlBool>[] = [eb('t.workspace_id', '=', wid)];
+    if (filter.projectId !== undefined) kept.push(eb('t.project_id', '=', filter.projectId));
+    if (filter.active !== undefined) kept.push(eb('t.active', '=', Number(filter.active)));
+    if (filter.changedSince !== undefined) kept.push(eb('t.updated_at', '>=', filter.changedSince));
+    const needle = filter.nameCandidates;
+    if (needle)
+      kept.push(
+        /^\p{ASCII}*$/u.test(needle)
+          ? eb.or([containsName(backend, 't.name_key', needle), nonAsciiName(backend)])
+          : nonAsciiName(backend),
+      );
+    return eb.and(kept);
+  };
+}
 
 export function createTaskRepository(
   db: Kysely<PhysicalDatabase>,
@@ -44,15 +76,35 @@ export function createTaskRepository(
       return (await q.orderBy('t.name_key').orderBy('t.id').execute()).map(taskSummary);
     },
     async listSortKeys(wid, filter) {
-      let q = db.selectFrom('tasks').select(['id', 'name', 'created_at', 'updated_at']).where('workspace_id', '=', wid);
-      if (filter.projectId !== undefined) q = q.where('project_id', '=', filter.projectId);
-      if (filter.active !== undefined) q = q.where('active', '=', Number(filter.active));
-      return (await q.orderBy('id').execute()).map(r => ({
+      const q = db
+        .selectFrom('tasks as t')
+        .select(['t.id', 't.name', 't.created_at', 't.updated_at'])
+        .where(searchScope(backend, wid, filter));
+      return (await q.orderBy('t.id').execute()).map(r => ({
         id: entityId(r.id),
         name: r.name,
         createdAt: utcInstant(r.created_at),
         updatedAt: utcInstant(r.updated_at),
       }));
+    },
+    async count(wid, filter) {
+      const row = await db
+        .selectFrom('tasks as t')
+        .select(eb => eb.fn.countAll().as('n'))
+        .where(searchScope(backend, wid, filter))
+        .executeTakeFirstOrThrow();
+      return safeInteger(row.n);
+    },
+    async listByCreation(wid, filter, order, range) {
+      const direction = order === 'ASC' ? 'asc' : 'desc';
+      // Stored instants share one fixed-width form, so their byte order is their time order.
+      const q = catalogTaskQuery(db, backend)
+        .where(searchScope(backend, wid, filter))
+        .orderBy('t.created_at', direction)
+        .orderBy('t.id', direction)
+        .limit(range.limit)
+        .offset(range.offset);
+      return (await q.execute()).map(taskSummary);
     },
     async listForMember(userId, filter, range) {
       let q = catalogTaskQuery(db, backend)

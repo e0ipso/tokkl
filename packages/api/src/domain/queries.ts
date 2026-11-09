@@ -52,7 +52,7 @@ export interface CatalogReadRepositories {
   workspaces: Pick<WorkspacesReader, 'listForUser' | 'catalogRevision'>;
   clients: Pick<ClientsReader, 'list' | 'get'>;
   projects: Pick<ProjectsReader, 'list' | 'get'>;
-  tasks: Pick<TasksReader, 'list' | 'get' | 'listSortKeys' | 'listForMember'>;
+  tasks: Pick<TasksReader, 'list' | 'get' | 'listSortKeys' | 'count' | 'listByCreation' | 'listForMember'>;
   tags: Pick<TagsReader, 'list'>;
 }
 /** Reads of one user's time entries. */
@@ -200,16 +200,23 @@ export function createCatalogQueries(r: CatalogReadRepositories) {
     },
     workspaceProject: (ws: Workspace, id: Id): Promise<ProjectSummary> => getProject(r, ws.id, id),
     /**
-     * One page of the workspace's tasks. The search and the order fold case and compare names as
-     * JavaScript does, which SQL cannot repeat, so they run on names and times read without the
-     * tracked totals; only the page's tasks are read in full.
+     * One page of the workspace's tasks. SQL applies the project, state and `since` filters. With
+     * no search, a creation-time order is SQL's too, with its count and page. The name order folds
+     * case and compares as `localeCompare` does, which no engine repeats, and the search folds case
+     * as JavaScript does; those run on the names and times of the matching tasks only, and only the
+     * page's tasks are read in full.
      */
     async searchTasks(ws: Workspace, search: TaskSearch, window: PageWindow): Promise<TaskSearchPage> {
-      let keys = changedAfter(
-        await r.tasks.listSortKeys(ws.id, { projectId: search.projectId, active: search.active }),
-        search.changedSince,
-      );
+      const filter = { projectId: search.projectId, active: search.active, changedSince: search.changedSince };
       const needle = search.search?.toLowerCase();
+      if (!needle && search.sortField === 'created_at') {
+        const range = pageRange(window);
+        return {
+          tasks: range ? await r.tasks.listByCreation(ws.id, filter, search.sortOrder, range) : [],
+          totalCount: await r.tasks.count(ws.id, filter),
+        };
+      }
+      let keys = await r.tasks.listSortKeys(ws.id, needle ? { ...filter, nameCandidates: needle } : filter);
       if (needle) keys = keys.filter(task => task.name.toLowerCase().includes(needle));
       const page = slicePage(keys.sort(compareTasks(search.sortField, search.sortOrder)), window);
       const read = page.length ? await r.tasks.list(ws.id, { ids: page.map(task => task.id) }) : [];

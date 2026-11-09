@@ -242,6 +242,13 @@ export interface ProjectsRepository extends ProjectsReader {
 export type TaskInput = Omit<Task, 'id' | 'createdAt' | 'updatedAt'>;
 /** What the workspace task search filters and sorts on, read without the tracked totals. */
 export type TaskSortKey = Pick<Task, 'id' | 'name' | 'createdAt' | 'updatedAt'>;
+/** The workspace task search's filters that SQL applies exactly. */
+export interface TaskSearchFilter {
+  projectId?: Id;
+  active?: boolean;
+  /** Keeps tasks updated at or after this instant. */
+  changedSince?: UtcInstant;
+}
 export interface TasksReader {
   getMetadata(workspaceId: Id, id: Id): Promise<Task | undefined>;
   /** Ordered by folded name, then id. `ids` keeps only those tasks. */
@@ -249,7 +256,25 @@ export interface TasksReader {
     workspaceId: Id,
     filter?: { projectId?: Id; active?: boolean; name?: string; ids?: readonly Id[] },
   ): Promise<TaskSummary[]>;
-  listSortKeys(workspaceId: Id, filter: { projectId?: Id; active?: boolean }): Promise<TaskSortKey[]>;
+  /**
+   * The sort keys of the tasks `filter` keeps, in id order. With `nameCandidates`, a lower-cased
+   * search, it also drops every task whose JavaScript-lower-cased name cannot contain it: an ASCII
+   * name is kept only when it does, and a name with other characters is always kept, for the caller
+   * to test.
+   */
+  listSortKeys(workspaceId: Id, filter: TaskSearchFilter & { nameCandidates?: string }): Promise<TaskSortKey[]>;
+  /** How many tasks `filter` keeps. */
+  count(workspaceId: Id, filter: TaskSearchFilter): Promise<number>;
+  /**
+   * The `range` rows of the tasks `filter` keeps, ordered by creation instant, then id, both
+   * ascending or both descending.
+   */
+  listByCreation(
+    workspaceId: Id,
+    filter: TaskSearchFilter,
+    order: 'ASC' | 'DESC',
+    range: RowRange,
+  ): Promise<TaskSummary[]>;
   /**
    * The tasks of every workspace the user belongs to, ordered by workspace id, folded name, then
    * id. A `range` keeps only those rows of that order.

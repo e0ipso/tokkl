@@ -13,6 +13,10 @@ import {
 } from '../../src/storage/repositories/catalog-queries.ts';
 import { createCatalogRepositories } from '../../src/storage/repositories/catalogs.ts';
 import { createStorage } from '../fixtures/storageShortcuts.ts';
+import * as catalog from '../fixtures/catalogBodies.ts';
+import { NAMES, oracle, SEARCHES } from '../fixtures/taskSearchOracle.ts';
+import { createCatalogQueries } from '../../src/domain/queries.ts';
+import { serializeTask } from '../../src/presenters/toggl.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 
 for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
@@ -459,6 +463,59 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       assert.equal(await read(ws.id), 4);
       assert.equal(await read(other.id), 0);
       assert.equal(await read(999_999), 0);
+    } finally {
+      await storage.close();
+      await fixture.cleanup();
+    }
+  });
+}
+
+for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
+  test(`${backend}: the workspace task search answers what the in-memory search answered`, async () => {
+    const fixture = await disposableBackend(backend);
+    const connection = await initializeDatabase(fixture.config);
+    const storage = createStorage(connection);
+    try {
+      const ws = await storage.transaction(ctx => ctx.workspaces.create('Search'));
+      const projects: number[] = [];
+      for (const name of ['One', 'Two', 'Three'])
+        projects.push((await storage.transaction(ctx => catalog.createProject(ctx, ws.id, { name }))).id);
+      for (const [index, name] of NAMES.entries()) {
+        const task = await storage.transaction(ctx =>
+          catalog.createTask(ctx, ws.id, projects[index % 3]!, { name, active: index % 3 !== 0 }),
+        );
+        // Creation instants with ties, and update instants either side of the `since` below.
+        await connection.db
+          .updateTable('tasks')
+          .set({
+            created_at: `2026-10-0${(index % 4) + 1}T09:00:00.000Z`,
+            updated_at: `2026-10-${10 + (index % 5)}T09:00:00.000Z`,
+          })
+          .where('id', '=', task.id)
+          .execute();
+      }
+      const read = <T>(work: (queries: ReturnType<typeof createCatalogQueries>) => Promise<T>) =>
+        storage.readSnapshot(r => work(createCatalogQueries(r)));
+      const all = await read(queries => queries.workspaceTasks(ws));
+      const body = (tasks: Parameters<typeof serializeTask>[0][]) => JSON.stringify(tasks.map(serializeTask));
+      for (const sortField of ['name', 'created_at'] as const)
+        for (const sortOrder of ['ASC', 'DESC'] as const)
+          for (const search of SEARCHES)
+            for (const [active, projectId, changedSince] of [
+              [undefined, undefined, undefined],
+              [true, projects[1], '2026-10-12T09:00:00.000Z'],
+            ] as const)
+              for (const window of [
+                { page: 1, perPage: 200 },
+                { page: 2, perPage: 3 },
+              ]) {
+                const query = { projectId, active, changedSince, search, sortField, sortOrder };
+                const expected = oracle(all, query, window);
+                const actual = await read(queries => queries.searchTasks(ws, query, window));
+                const label = JSON.stringify({ query, window });
+                assert.equal(actual.totalCount, expected.totalCount, label);
+                assert.equal(body(actual.tasks), body(expected.tasks), label);
+              }
     } finally {
       await storage.close();
       await fixture.cleanup();
