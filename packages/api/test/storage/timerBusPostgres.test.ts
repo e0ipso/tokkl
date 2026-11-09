@@ -11,7 +11,10 @@ import type { TimerBus, TimerSignal } from '../../src/storage/timerBus.ts';
 import { parseStorageConfig } from '../../src/storage/config.ts';
 import { postgresOptions } from '../../src/storage/connections.ts';
 import { startTimerBus, TIMER_BUS_APPLICATION, TIMER_BUS_CHANNEL } from '../../src/storage/timerBus.ts';
-import { silentLogger } from '../../src/lib/logger.ts';
+import { createLogger } from '../../src/lib/logger.ts';
+
+// A real logger, as the server uses: the tests read what it prints and check it leaks no credentials.
+const logger = createLogger();
 import { disposableBackend } from './support/disposableBackend.ts';
 import { until } from '../helpers.ts';
 
@@ -52,7 +55,7 @@ test('a server bus that cannot reach its database rejects within the connect tim
   );
   const output = captureConsole(t);
   const started = performance.now();
-  await assert.rejects(startTimerBus(config, silentLogger), (error: unknown) => {
+  await assert.rejects(startTimerBus(config, logger), (error: unknown) => {
     assert.ok(error instanceof Error);
     assert.doesNotMatch(
       `${error.message} ${error.stack} ${JSON.stringify(error)}`,
@@ -64,7 +67,7 @@ test('a server bus that cannot reach its database rejects within the connect tim
   await until(() => sockets.size === 0, 'the abandoned connection to close', 3000);
   assert.doesNotMatch(output(), /bus-user|bus-secret|bus_db|127\.0\.0\.1/);
 
-  const local = await startTimerBus(parseStorageConfig({}, dir), silentLogger);
+  const local = await startTimerBus(parseStorageConfig({}, dir), logger);
   const received: TimerSignal[] = [];
   local.receive(signal => received.push(signal));
   local.send({ userId: 1, revision: 1 });
@@ -119,7 +122,7 @@ test('closing a bus whose server stopped answering destroys the listener socket 
     dir,
   );
   const ends = t.mock.method(pg.Client.prototype, 'end');
-  const bus = await startTimerBus(config, silentLogger);
+  const bus = await startTimerBus(config, logger);
   assert.equal(peer.connections(), 1);
   const started = performance.now();
   await bus.close();
@@ -155,11 +158,11 @@ test(
     const notify = (payload: string) => admin.query('SELECT pg_notify($1, $2)', [TIMER_BUS_CHANNEL, payload]);
 
     const output = captureConsole(t);
-    const a = await startTimerBus(config, silentLogger);
+    const a = await startTimerBus(config, logger);
     buses.push(a);
     const [aPid] = await listeners();
     assert.ok(aPid);
-    const b = await startTimerBus(config, silentLogger);
+    const b = await startTimerBus(config, logger);
     buses.push(b);
     const bPid = (await listeners()).find(pid => pid !== aPid);
     assert.ok(bPid, 'each bus holds its own listener connection');
