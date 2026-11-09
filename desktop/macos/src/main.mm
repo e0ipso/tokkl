@@ -1,5 +1,6 @@
 // Tokkl for the macOS menu bar: the platform parts handed to MenuBarApp.
 
+#include "clock.h"
 #include "keychaincredentialstore.h"
 #include "macalarmplayer.h"
 #include "macloginitem.h"
@@ -54,8 +55,9 @@ int main(int argc, char *argv[])
     Tokkl::MacLoginItem loginItem;
     Tokkl::MacAlarmPlayer alarmPlayer;
     QSettings settings;
+    Tokkl::SystemClock clock;
 
-    Tokkl::MenuBarApp tokkl(transport.get(), &store, &statusItem, &loginItem, &alarmPlayer, &settings);
+    Tokkl::MenuBarApp tokkl(transport.get(), &store, &statusItem, &loginItem, &alarmPlayer, settings, clock);
     QObject::connect(&tokkl, &Tokkl::MenuBarApp::settingsShown, &tokkl, &bringToFront);
     // The configured base URL only: it never holds credentials.
     QObject::connect(&tokkl, &Tokkl::MenuBarApp::openUrlRequested, &tokkl, [](const QUrl &url) {
