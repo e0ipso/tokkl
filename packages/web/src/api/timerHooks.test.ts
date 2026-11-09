@@ -14,6 +14,7 @@ import {
 } from './timerHooks.ts';
 import { TIMER_OFFLINE_MESSAGE, TimerActionError, UnreadableTimerStateError } from './timerState.ts';
 import type { TimeEntry, TimerState } from '@tokkl/types';
+import { timeEntry } from '../testFixtures.ts';
 
 const state = (revision: number, running_entry: TimeEntry | null = null): TimerState => ({
   revision,
@@ -24,22 +25,8 @@ const state = (revision: number, running_entry: TimeEntry | null = null): TimerS
   discarded_pomodoro: null,
 });
 
-const running = (id: number): TimeEntry => ({
-  id,
-  workspace_id: 1,
-  project_id: null,
-  task_id: null,
-  billable: false,
-  start: '2026-10-27T09:00:00.000Z',
-  stop: null,
-  duration: -1,
-  description: `Entry ${id}`,
-  tags: [],
-  tag_ids: [],
-  at: '2026-10-27T09:00:00.000Z',
-  server_deleted_at: null,
-  all_day: false,
-});
+const running = (id: number) =>
+  timeEntry({ id, start: '2026-10-27T09:00:00.000Z', at: '2026-10-27T09:00:00.000Z', description: `Entry ${id}` });
 
 const derived: QueryKey[] = [keys.entries, keys.report, keys.trash, keys.projects, keys.tasks, keys.tags];
 const projectTasks: QueryKey = [...keys.tasks, 'project', 4];

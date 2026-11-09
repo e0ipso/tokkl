@@ -11,28 +11,11 @@ import {
   totalSeconds,
   type StoppedEntry,
 } from './entryRows.ts';
+import { STOPPED, timeEntry } from '../testFixtures.ts';
 
 let nextId = 1;
 
-function entry(extra: Partial<TimeEntry> = {}): TimeEntry {
-  return {
-    id: nextId++,
-    workspace_id: 1,
-    project_id: null,
-    task_id: null,
-    billable: false,
-    start: '2026-10-20T09:00:00Z',
-    stop: '2026-10-20T10:00:00Z',
-    duration: 3600,
-    description: 'Write',
-    tags: [],
-    tag_ids: [],
-    all_day: false,
-    at: '2026-10-20T10:00:00Z',
-    server_deleted_at: null,
-    ...extra,
-  };
-}
+const entry = (extra: Partial<TimeEntry> = {}) => timeEntry({ id: nextId++, ...STOPPED, ...extra });
 
 const stopped = (extra: Partial<TimeEntry> = {}) => entry(extra) as StoppedEntry;
 

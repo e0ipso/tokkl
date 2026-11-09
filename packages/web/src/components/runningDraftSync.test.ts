@@ -3,28 +3,12 @@ import assert from 'node:assert/strict';
 import type { TimeEntry } from '@tokkl/types';
 import { followRunningEntry, type RunningDraftState } from './runningDraftSync.ts';
 import { EMPTY_DRAFT } from './useEntryFields.ts';
+import { timeEntry } from '../testFixtures.ts';
 
 const START = '2026-10-27T10:00:00.000Z';
 
-function running(id: number, overrides: Partial<TimeEntry> = {}): TimeEntry {
-  return {
-    id,
-    workspace_id: 1,
-    project_id: null,
-    task_id: null,
-    billable: false,
-    start: START,
-    stop: null,
-    duration: -1,
-    description: 'Server text',
-    tags: [],
-    tag_ids: [],
-    at: START,
-    server_deleted_at: null,
-    all_day: false,
-    ...overrides,
-  };
-}
+const running = (id: number, overrides: Partial<TimeEntry> = {}) =>
+  timeEntry({ id, start: START, at: START, description: 'Server text', ...overrides });
 
 const idle: RunningDraftState = {
   current: null,

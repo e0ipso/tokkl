@@ -13,23 +13,10 @@ import {
   settleOtherWrites,
 } from './timerState.ts';
 import type { TimeEntry, TimerState } from '@tokkl/types';
+import { timeEntry } from '../testFixtures.ts';
 
-const entry = (id: number, description: string): TimeEntry => ({
-  id,
-  workspace_id: 1,
-  project_id: null,
-  task_id: null,
-  billable: false,
-  start: '2026-10-27T09:00:00.000Z',
-  stop: null,
-  duration: -1,
-  description,
-  tags: [],
-  tag_ids: [],
-  at: '2026-10-27T09:00:00.000Z',
-  server_deleted_at: null,
-  all_day: false,
-});
+const entry = (id: number, description: string) =>
+  timeEntry({ id, description, start: '2026-10-27T09:00:00.000Z', at: '2026-10-27T09:00:00.000Z' });
 
 const state = (revision: number, running_entry: TimeEntry | null): TimerState => ({
   revision,
