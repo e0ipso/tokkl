@@ -1,55 +1,15 @@
 import { insertAccount } from './fixtures/domain.ts';
 import { removeWorkspaceMember, completedMigrations } from './fixtures/physical.ts';
 import { memberships } from './fixtures/observations.ts';
-import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
 import { storageFor } from './fixtures/database.ts';
 import { createApp } from './fixtures/app.ts';
 import { listWorkspacesForUser } from './fixtures/domain.ts';
 import { openDatabase } from './fixtures/database.ts';
-import { MIGRATIONS } from './fixtures/legacyMigrations.ts';
 import { createFirstAdmin, getUser } from './fixtures/domain.ts';
 import { addWorkspaceMember, createWorkspace, isWorkspaceMember } from './fixtures/domain.ts';
 import { addUser, CSRF, PASSWORD, sessionCookie, setup, testConfig, testServer, type TestContext } from './helpers.ts';
-
-test('SQLite legacy schema version 2 is refused without modifying its data', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'tokkl-refusal-'));
-  const path = join(dir, 'legacy.sqlite');
-  try {
-    const old = new DatabaseSync(path);
-    old.function('canonical_time_zone', { deterministic: true }, value => value);
-    for (const migration of MIGRATIONS.slice(0, 2)) old.exec(migration);
-    old.exec('PRAGMA user_version=2');
-    old.close();
-    const before = readFileSync(path);
-    await assert.rejects(openDatabase(path), /unsupported-schema/);
-    assert.deepEqual(readFileSync(path), before);
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
-});
-
-test('SQLite legacy schema version 2 is refused without modifying its data', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'tokkl-refusal-'));
-  const path = join(dir, 'legacy.sqlite');
-  try {
-    const old = new DatabaseSync(path);
-    old.function('canonical_time_zone', { deterministic: true }, value => value);
-    for (const migration of MIGRATIONS.slice(0, 2)) old.exec(migration);
-    old.exec('PRAGMA user_version=2');
-    old.close();
-    const before = readFileSync(path);
-    await assert.rejects(openDatabase(path), /unsupported-schema/);
-    assert.deepEqual(readFileSync(path), before);
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
-});
 
 test('a fresh database has no memberships until setup creates the first admin, who owns its workspace', async () => {
   const db = await openDatabase();

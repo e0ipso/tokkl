@@ -491,39 +491,23 @@ test('SQLite physical live-entry indexes exist', async () => {
   assert.ok(indexes.includes('time_entries_task_live'));
 });
 
-test('SQLite legacy schema version 1 is refused without modifying its data', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'tokkl-refusal-'));
-  const path = join(dir, 'legacy.sqlite');
-  try {
-    const old = new DatabaseSync(path);
-    old.function('canonical_time_zone', { deterministic: true }, value => value);
-    for (const migration of MIGRATIONS.slice(0, 1)) old.exec(migration);
-    old.exec('PRAGMA user_version=1');
-    old.close();
-    const before = readFileSync(path);
-    await assert.rejects(openDatabase(path), /unsupported-schema/);
-    assert.deepEqual(readFileSync(path), before);
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
-});
-
-test('SQLite legacy schema version 6 is refused without modifying its data', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'tokkl-refusal-'));
-  const path = join(dir, 'legacy.sqlite');
-  try {
-    const old = new DatabaseSync(path);
-    old.function('canonical_time_zone', { deterministic: true }, value => value);
-    for (const migration of MIGRATIONS.slice(0, 6)) old.exec(migration);
-    old.exec('PRAGMA user_version=6');
-    old.close();
-    const before = readFileSync(path);
-    await assert.rejects(openDatabase(path), /unsupported-schema/);
-    assert.deepEqual(readFileSync(path), before);
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
-});
+for (const version of [1, 2, 5, 6])
+  test(`SQLite legacy schema version ${version} is refused without modifying its data`, async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tokkl-refusal-'));
+    const path = join(dir, 'legacy.sqlite');
+    try {
+      const old = new DatabaseSync(path);
+      old.function('canonical_time_zone', { deterministic: true }, value => value);
+      for (const migration of MIGRATIONS.slice(0, version)) old.exec(migration);
+      old.exec(`PRAGMA user_version=${version}`);
+      old.close();
+      const before = readFileSync(path);
+      await assert.rejects(openDatabase(path), /unsupported-schema/);
+      assert.deepEqual(readFileSync(path), before);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 
 // Deleting a client renames colliding projects instead of failing or merging them.
 test('deleting a client renames projects whose names collide with unassigned ones', async () => {
