@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import type { Page, Route } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
 import { chooseCsv, openSettings, recentDate, transferFixture } from './transfer-tests-helpers.ts';
@@ -79,22 +79,30 @@ test('a failed request fails the scenario even with a rule for another one', asy
   runtimeErrors.issues.splice(0);
 });
 
+/** Marks the canary's own request, so the app's requests to the same path (it polls /api/app/status) pass. */
+const CANARY_HEADER = 'x-guard-canary';
+
 /** Sends a request from the page that `page.route` fails with `error`, and waits until it has failed. */
 async function failFromPage(page: Page, method: 'GET' | 'POST', path: string, error: 'aborted' | 'connectionrefused') {
-  await page.route(path, route => (route.request().method() === method ? route.abort(error) : route.continue()), {
-    times: 1,
-  });
-  const failed = page.waitForEvent('requestfailed', request => new URL(request.url()).pathname === path);
+  const isCanary = (request: { method(): string; headers(): Record<string, string> }) =>
+    request.method() === method && CANARY_HEADER in request.headers();
+  const handler = (route: Route) => (isCanary(route.request()) ? route.abort(error) : route.fallback());
+  await page.route(path, handler);
+  const failed = page.waitForEvent(
+    'requestfailed',
+    request => new URL(request.url()).pathname === path && isCanary(request),
+  );
   await page.evaluate(
-    ({ method, path }) =>
+    ({ method, path, header }) =>
       fetch(path, {
         method,
-        headers: { 'X-Tokkl-CSRF': '1', 'Content-Type': 'application/json' },
+        headers: { 'X-Tokkl-CSRF': '1', 'Content-Type': 'application/json', [header]: '1' },
         body: method === 'GET' ? undefined : '{}',
       }).catch(() => null),
-    { method, path },
+    { method, path, header: CANARY_HEADER },
   );
   await failed;
+  await page.unroute(path, handler);
 }
 
 test('a cancelled read passes, but an aborted write fails the scenario', async ({ page, runtimeErrors }, testInfo) => {
