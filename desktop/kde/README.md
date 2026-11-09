@@ -359,10 +359,10 @@ never the only sign.
   that happens before the project list has arrived waits for the list and
   then checks the project against it. When the timer connects, or you choose
   Reconnect, with nothing running, it reads
-  `GET /api/v9/me/time_entries?meta=true` and takes the newest entry's
-  project. Only an active project of the workspace counts; an archived or
-  deleted project, or none, gives No project. The API lists only the last 9
-  days, so after a longer break the default is No project. A choice made
+  `GET /api/app/time_entries/latest` and takes the newest entry's
+  project, however long ago it started. Only an active project of the
+  workspace counts; an archived or deleted project, or none, gives No
+  project. A choice made
   while stopped (a project or Billable) wins until the next start, and
   Reconnect replaces only an automatic default, never a choice you made. A
   choice made before a stop does not carry over it.
@@ -438,7 +438,7 @@ pause chain and the session all come from it.
   no clear answer (no response, timeout, 5xx or an unreadable body)
   the timer stays busy until a read shows what the server did. Start and
   Start session carry an `Idempotency-Key`, a new one per click, and go out
-  once more at once with the same body and key, so a server that acted on
+  once more about a second later with the same body and key, so a server that acted on
   the first answers with what it did then. Nothing else is sent again. A 409 on a timer action adopts the state the server sent
   and shows "The timer changed on another device first."; any other refusal
   reads the state again.
@@ -897,7 +897,7 @@ Prepare:
 
 - Two accounts, A and B, on the instance. Account A has a billable project,
   a nonbillable project, an archived project that has a stopped entry, and
-  one entry from the last 9 days. B has one project with a different name.
+  a stopped entry. B has one project with a different name.
 - Both accounts' API tokens, and A's email and password.
 - `echo $XDG_SESSION_TYPE` prints `wayland`, and KWalletManager shows the
   network wallet. Note the Plasma, KDE Frameworks and Qt versions.
@@ -1023,8 +1023,8 @@ Menu:
       pick stays. Pick nothing, change the newest entry's project in the web
       app, then choose Reconnect: the preselected project follows it.
 - [ ] Log out and in with nothing running: the preselected project is the
-      newest entry's from the last 9 days. With no entry in 9 days it is No
-      project.
+      newest entry's, also when that entry is weeks old. An account without
+      entries gets No project.
 - [ ] Start an entry on the archived project in the web app, then open the
       menu: the project is shown checked and disabled, and is not offered
       for a new start.

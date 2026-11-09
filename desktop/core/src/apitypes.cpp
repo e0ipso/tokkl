@@ -98,6 +98,8 @@ QStringList ServerFloor::capabilities()
         QStringLiteral("pomodoro-revision"),
         QStringLiteral("timer-edit-entry"),
         QStringLiteral("idempotency-keys"),
+        QStringLiteral("catalog-revision"),
+        QStringLiteral("latest-entry"),
     };
 }
 
@@ -213,9 +215,6 @@ std::optional<Project> decodeProject(const QJsonValue &value)
         || !optionalBool(object.value(QLatin1String("billable")), project.billable, false)) {
         return std::nullopt;
     }
-    // Only a delta read needs it; without it the catalog reads the whole
-    // list each time.
-    project.at = timestamp(object.value(QLatin1String("at"))).value_or(QDateTime());
     return project;
 }
 
@@ -233,6 +232,15 @@ std::optional<QList<Project>> decodeProjects(const QJsonValue &value)
         projects.append(std::move(*project));
     }
     return projects;
+}
+
+std::optional<qint64> decodeCatalogRevision(const QJsonValue &value)
+{
+    const std::optional<qint64> revision = integer(value.toObject().value(QLatin1String("revision")));
+    if (!revision || *revision < 0) {
+        return std::nullopt;
+    }
+    return revision;
 }
 
 std::optional<TimeEntry> decodeTimeEntry(const QJsonValue &value)
@@ -308,24 +316,20 @@ std::optional<std::optional<TimeEntry>> decodeCurrentEntry(const QJsonValue &val
     return entry;
 }
 
-std::optional<QList<ListedEntry>> decodeListedEntries(const QJsonValue &value)
+std::optional<std::optional<ListedEntry>> decodeLatestEntry(const QJsonValue &value)
 {
-    if (!value.isArray()) {
+    if (value.isNull()) {
+        return std::optional<ListedEntry>();
+    }
+    ListedEntry listed;
+    std::optional<TimeEntry> entry = decodeTimeEntry(value);
+    const QJsonObject object = value.toObject();
+    if (!entry || !optionalBool(object.value(QLatin1String("project_active")), listed.projectActive, false)
+        || !optionalBool(object.value(QLatin1String("project_billable")), listed.projectBillable, false)) {
         return std::nullopt;
     }
-    QList<ListedEntry> entries;
-    for (const QJsonValue &item : value.toArray()) {
-        ListedEntry listed;
-        std::optional<TimeEntry> entry = decodeTimeEntry(item);
-        const QJsonObject object = item.toObject();
-        if (!entry || !optionalBool(object.value(QLatin1String("project_active")), listed.projectActive, false)
-            || !optionalBool(object.value(QLatin1String("project_billable")), listed.projectBillable, false)) {
-            return std::nullopt;
-        }
-        listed.entry = std::move(*entry);
-        entries.append(std::move(listed));
-    }
-    return entries;
+    listed.entry = std::move(*entry);
+    return std::optional<ListedEntry>(std::move(listed));
 }
 
 namespace

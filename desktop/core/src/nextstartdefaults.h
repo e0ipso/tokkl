@@ -11,8 +11,8 @@ namespace Tokkl
 // When an automatic default may set the project of the next start.
 //
 // Two defaults exist: the project of the entry that just stopped, and, when
-// a context starts with nothing running, the project of the newest entry
-// the API lists. A pick by the user wins over both until the next start or
+// a context starts with nothing running, the project of the account's
+// newest entry. A pick by the user wins over both until the next start or
 // stop. A stop seen before the project list is known keeps its project
 // here until the list can tell whether it is still active. A last-entry
 // read applies only while it is the newest one and nothing replaced its
@@ -89,12 +89,6 @@ public:
     {
         m_lastEntryRead = ++m_lastEntryReads;
         return m_lastEntryRead;
-    }
-
-    // The read numbered number is the one that may set the default.
-    bool lastEntryReadIs(quint64 number) const
-    {
-        return m_lastEntryRead == number;
     }
 
     // The read numbered number may still set the default. Once asked, it

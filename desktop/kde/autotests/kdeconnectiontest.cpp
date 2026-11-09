@@ -322,7 +322,9 @@ private:
                                                  QStringLiteral("pomodoro-revision"),
                                                  QStringLiteral("pause-revision"),
                                                  QStringLiteral("timer-edit-entry"),
-                                                 QStringLiteral("idempotency-keys")}},
+                                                 QStringLiteral("idempotency-keys"),
+                                                 QStringLiteral("catalog-revision"),
+                                                 QStringLiteral("latest-entry")}},
                                      {QStringLiteral("pomodoro_limits"), pomodoroLimits()},
                                  })
                        .toJson(QJsonDocument::Compact);

@@ -105,19 +105,17 @@ public:
     // maxProjectPages. A workspace beyond that still succeeds with the
     // projects read, and the list says it is cut short.
     void fetchProjects(Callback<ProjectList> done = {});
-    // The workspace's projects the server changed at or after since,
-    // archived ones included, newest change or not, in one page of up to
-    // projectPageSize. A full page may have more. The server deletes a
-    // project without a trace, so a deletion never shows here.
-    void fetchProjectChanges(const QDateTime &since, Callback<QList<Project>> done = {});
+    // The number GET /api/app/workspaces/{wid}/catalog answers, which the
+    // server changes with every write that changes what fetchProjects()
+    // answers.
+    void fetchCatalogRevision(Callback<qint64> done = {});
     // One project of the workspace, archived or not.
     void fetchProject(qint64 projectId, Callback<Project> done = {});
-    // The account's entries of the last 9 days in every workspace, newest
-    // first, with project metadata (GET /me/time_entries?meta=true).
-    void fetchRecentEntries(Callback<QList<ListedEntry>> done = {});
-    // As fetchRecentEntries(), for the entries that started from from up to
-    // before to.
-    void fetchEntriesStarted(const QDateTime &from, const QDateTime &to, Callback<QList<ListedEntry>> done = {});
+    // The account's newest entry by start, running or stopped, in any
+    // workspace, with project metadata: GET /api/app/time_entries/latest,
+    // the first entry GET /me/time_entries?meta=true lists. None for an
+    // account without entries.
+    void fetchLatestEntry(Callback<std::optional<ListedEntry>> done = {});
     // The Pomodoro lengths of the account preferences, through
     // /api/app/me/preferences, whose refusals name the refused key in
     // Tokkl-Error-Field. A length outside the server's pomodoro_limits reads
@@ -136,7 +134,8 @@ public:
     // outcome. Pause, resume, discard, next phase, end and a Pomodoro start
     // apply only to the state at revision, the one the user saw. A Pomodoro
     // start carries an Idempotency-Key of its own, and one whose outcome is
-    // unknown goes out once more with it (ApiClient::keyedAction()).
+    // unknown goes out once more with it after a short wait
+    // (ApiClient::keyedAction()).
     void pauseTimer(qint64 revision, ActionCallback done = {});
     void resumeTimer(qint64 revision, ActionCallback done = {});
     void discardPause(qint64 revision, ActionCallback done = {});

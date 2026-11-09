@@ -1,6 +1,6 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:94f2c94811163907343a929f5762f7ffa44ceaa83fffc2af9ee0f5889a3a23ca'
+nodes_hash: 'sha256:01c863e0bacbf256cc5a86da7d3d596f2070c2ad5eede4dae6ae7c3800dcf6ef'
 node_count: 114
 ---
 # kenkeep Graph
@@ -638,7 +638,7 @@ Total nodes: 114
 - **title:** KDE timer controller: server-derived time, one mutation, no replayed starts
 - **path:** tooling-and-project/kde-companion/practice-kde-timer-controller-rules.md
 - **tags:** kde, desktop
-- **relates_to:** map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types, map-kde-panel-button-menu-and-project-indicator, practice-kde-companion-requests-basic-auth-access-kinds-and-stale-replies, practice-kde-companion-credential-stores-kwallet-only-message-and-reportwrite, practice-kde-configure-page-cfg-instanceurl-and-the-wallet-save-timing, map-users-roles-and-workspace-membership, map-timer-state-service-settlement-revision-and-discarded-pomodoro, map-desktop-timer-state-client-stream-poll-settling-and-revisions
+- **relates_to:** map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types, map-kde-panel-button-menu-and-project-indicator, practice-kde-companion-requests-basic-auth-access-kinds-and-stale-replies, practice-kde-companion-credential-stores-kwallet-only-message-and-reportwrite, practice-kde-configure-page-cfg-instanceurl-and-the-wallet-save-timing, map-users-roles-and-workspace-membership, map-timer-state-service-settlement-revision-and-discarded-pomodoro, map-desktop-timer-state-client-stream-poll-settling-and-revisions, map-catalog-revision-and-latest-entry-endpoints
 - **derived_from:** .ai/kenkeep/nodes/.redirects.json
 
 ## practice-keep-sift-ticket-ids-and-strikethroo-plans-out-of-code-and-public-docs

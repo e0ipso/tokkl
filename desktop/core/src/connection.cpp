@@ -1,7 +1,5 @@
 #include "connection.h"
 
-#include "apijson.h"
-
 #include <QSet>
 
 #include <utility>
@@ -224,26 +222,14 @@ void Connection::fetchProjectPage(const std::shared_ptr<ProjectPages> &pages)
         });
 }
 
-void Connection::fetchProjectChanges(const QDateTime &since, Callback<QList<Project>> done)
+void Connection::fetchCatalogRevision(Callback<qint64> done)
 {
-    const qint64 workspace = workspaceId();
-    // Without active, the server answers archived projects too, so an
-    // archival shows as a change.
-    m_session.api().call<QList<Project>>(
-        "GET",
-        api(QStringLiteral("/workspaces/%1/projects?since=%2&page=1&per_page=%3").arg(workspace).arg(since.toSecsSinceEpoch()).arg(projectPageSize)),
-        QByteArray(),
-        ApiAccess::Read,
-        [workspace](const QJsonValue &value) -> std::optional<QList<Project>> {
-            std::optional<QList<Project>> projects = decodeProjects(value);
-            if (projects) {
-                projects->removeIf([workspace](const Project &project) {
-                    return project.workspaceId != workspace;
-                });
-            }
-            return projects;
-        },
-        std::move(done));
+    m_session.api().call<qint64>("GET",
+                                 app(QStringLiteral("/workspaces/%1/catalog").arg(workspaceId())),
+                                 QByteArray(),
+                                 ApiAccess::Read,
+                                 &decodeCatalogRevision,
+                                 std::move(done));
 }
 
 void Connection::fetchProject(qint64 projectId, Callback<Project> done)
@@ -264,20 +250,14 @@ void Connection::fetchProject(qint64 projectId, Callback<Project> done)
         std::move(done));
 }
 
-void Connection::fetchRecentEntries(Callback<QList<ListedEntry>> done)
+void Connection::fetchLatestEntry(Callback<std::optional<ListedEntry>> done)
 {
-    // Without dates the API answers with the entries started in the last 9
-    // days.
-    m_session.api().call<QList<ListedEntry>>("GET", api(QStringLiteral("/me/time_entries?meta=true")), QByteArray(), ApiAccess::Read, &decodeListedEntries, std::move(done));
-}
-
-void Connection::fetchEntriesStarted(const QDateTime &from, const QDateTime &to, Callback<QList<ListedEntry>> done)
-{
-    // RFC 3339 instants in UTC; the API takes them as the bounds of the
-    // entries' starts.
-    const QString path =
-        QStringLiteral("/me/time_entries?meta=true&start_date=%1&end_date=%2").arg(Json::utcTimestamp(from), Json::utcTimestamp(to));
-    m_session.api().call<QList<ListedEntry>>("GET", api(path), QByteArray(), ApiAccess::Read, &decodeListedEntries, std::move(done));
+    m_session.api().call<std::optional<ListedEntry>>("GET",
+                                                     app(QStringLiteral("/time_entries/latest")),
+                                                     QByteArray(),
+                                                     ApiAccess::Read,
+                                                     &decodeLatestEntry,
+                                                     std::move(done));
 }
 
 void Connection::fetchPreferences(Callback<PomodoroConfig> done)

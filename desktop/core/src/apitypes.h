@@ -133,6 +133,8 @@ struct ServerApi {
 //   "timer-edit-entry": POST /api/app/timer/edit names the running entry.
 //   "idempotency-keys": the timer and Pomodoro starts take an
 //   Idempotency-Key.
+//   "catalog-revision": GET /api/app/workspaces/{wid}/catalog.
+//   "latest-entry": GET /api/app/time_entries/latest.
 // The same status also carries pomodoro_limits, which the client needs too.
 // Against an older server no account binds, and the connection says the
 // server needs an update.
@@ -167,9 +169,6 @@ struct Project {
     QString color;
     bool active = true;
     bool billable = false;
-    // When the server last changed it (the v9 at field); invalid when the
-    // answer has none. ProjectCatalog reads the changes since the newest.
-    QDateTime at;
 
     QVariantMap toVariantMap() const;
     bool operator==(const Project &other) const = default;
@@ -205,8 +204,9 @@ struct TimeEntry {
     bool operator==(const TimeEntry &other) const = default;
 };
 
-// An entry of GET /me/time_entries?meta=true with the project flags the meta
-// parameter adds. Both are false for an entry without a project.
+// An entry with the project flags GET /me/time_entries?meta=true adds, as
+// GET /api/app/time_entries/latest answers it. Both are false for an entry
+// without a project.
 struct ListedEntry {
     TimeEntry entry;
     bool projectActive = false;
@@ -412,11 +412,14 @@ std::optional<Me> decodeMe(const QJsonValue &value);
 ServerApi decodeServerApi(const QJsonObject &status);
 std::optional<Project> decodeProject(const QJsonValue &value);
 std::optional<QList<Project>> decodeProjects(const QJsonValue &value);
+// The revision of GET /api/app/workspaces/{wid}/catalog, from 0 up.
+std::optional<qint64> decodeCatalogRevision(const QJsonValue &value);
 std::optional<TimeEntry> decodeTimeEntry(const QJsonValue &value);
 std::optional<QList<TimeEntry>> decodeTimeEntries(const QJsonValue &value);
 // null for no running entry.
 std::optional<std::optional<TimeEntry>> decodeCurrentEntry(const QJsonValue &value);
-std::optional<QList<ListedEntry>> decodeListedEntries(const QJsonValue &value);
+// The answer of GET /api/app/time_entries/latest: null for none.
+std::optional<std::optional<ListedEntry>> decodeLatestEntry(const QJsonValue &value);
 // The Pomodoro lengths in a preferences object. As on the server, a value
 // that is missing, not an integer or outside its range in limits reads as
 // its default there, one key at a time. nullopt only for a value that is not

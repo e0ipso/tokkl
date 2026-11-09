@@ -277,7 +277,7 @@ void TimerStateClient::scheduleReconnect()
         return;
     }
     const int baseMs = std::max(m_backoffMs, m_retryFloorMs);
-    const int waitMs = baseMs + m_clock->jitterMs(baseMs / reconnectJitterDivisor);
+    const int waitMs = retryWaitMs(baseMs, m_clock);
     m_reconnectAt = m_clock->now().addMSecs(waitMs);
     qCDebug(lcNet) << "Event stream reconnects in" << waitMs << "ms";
     m_backoffMs = std::min(m_backoffMs * 2, reconnectMaxMs);

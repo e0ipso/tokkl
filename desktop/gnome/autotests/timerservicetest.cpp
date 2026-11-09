@@ -154,13 +154,14 @@ IntMap lengthsMap(const PomodoroConfig &config)
     };
 }
 
-// The newest entry the account has: stopped, on Alpha.
-QByteArray recentBody()
+// GET /api/app/time_entries/latest: the newest entry the account has,
+// stopped, on Alpha.
+QByteArray latestBody()
 {
     QJsonObject entry = entryObject(4, 11, false, true);
     entry.insert(QStringLiteral("project_active"), true);
     entry.insert(QStringLiteral("project_billable"), true);
-    return json(QJsonArray{entry});
+    return json(entry);
 }
 
 QString iso(const QDateTime &time)
@@ -652,8 +653,8 @@ class TimerServiceTest : public QObject
                         body = state();
                     } else if (path.endsWith("/projects")) {
                         body = projectsBody;
-                    } else if (path.endsWith("/me/time_entries")) {
-                        body = recentBody();
+                    } else if (path.endsWith("/app/time_entries/latest")) {
+                        body = latestBody();
                     } else if (path.endsWith("/me/preferences")) {
                         body = preferencesBody(lengths);
                     } else {
@@ -1077,7 +1078,9 @@ private Q_SLOTS:
         QVERIFY(f.connect());
         QCOMPARE(f.get(QStringLiteral("ProjectsIncomplete")).toBool(), false);
 
-        // Every page up to the limit is full and new.
+        // The projects changed, and every page up to the limit is full and
+        // new.
+        f.transport.catalog = FakeTransport::catalogAt(2);
         f.daemon->timer.refresh();
         for (int number = 1; number <= Connection::maxProjectPages; ++number) {
             QJsonArray shifted;
@@ -1086,6 +1089,10 @@ private Q_SLOTS:
                 project.insert(QStringLiteral("id"), project.value(QStringLiteral("id")).toInteger() + (number - 1) * Connection::projectPageSize);
                 shifted.append(project);
             }
+            QVERIFY(QTest::qWaitFor([&f] {
+                const QList<qsizetype> reads = f.find("GET", "/projects");
+                return !reads.isEmpty() && !f.answered.contains(reads.last());
+            }));
             QVERIFY(f.answer("GET", "/projects", json(shifted)));
         }
         QTRY_COMPARE(f.get(QStringLiteral("ProjectsIncomplete")).toBool(), true);

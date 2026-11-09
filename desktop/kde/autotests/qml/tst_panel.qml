@@ -628,7 +628,7 @@ TestCase {
 
     function test_initialChoicesAndBillingDefaults() {
         connectAccount(instanceA, 3, 7);
-        answer("GET", "/me/time_entries", 200, []);
+        answer("GET", "/time_entries/latest", 200, null);
         const menu = button.menu;
         verify(menu.noProjectItem.checked, "No project at first");
         verify(!menu.billableItem.checked, "nonbillable at first");
@@ -662,8 +662,7 @@ TestCase {
         compare(fixture.pending("POST", "/timer/edit"), -1, "no edit while stopped");
     }
 
-    // A stopped entry of the last 9 days, as GET /me/time_entries?meta=true
-    // lists it.
+    // A stopped entry, as GET /api/app/time_entries/latest answers it.
     function listedEntry(id, projectId, active, billable) {
         return entry(id, 7, projectId, billable, {
             stop: fixture.clockIso(-3600),
@@ -674,12 +673,12 @@ TestCase {
     }
 
     function test_nextStartDefaultsToTheLastEntry() {
-        // Nothing runs at connect: the newest listed entry's project.
+        // Nothing runs at connect: the newest entry's project.
         connectAccount(instanceA, 3, 7);
-        const list = waitFor("GET", "/me/time_entries");
-        compare(fixture.request(list).query.meta, "true");
-        compare(Object.keys(fixture.request(list).query).sort(), ["end_date", "meta", "start_date"], "the last two days first");
-        fixture.respond(list, 200, JSON.stringify([listedEntry(8, 11, true, true), listedEntry(6, 12, true, false)]));
+        const latest = waitFor("GET", "/time_entries/latest");
+        verify(fixture.request(latest).path.endsWith("/api/app/time_entries/latest"), fixture.request(latest).path);
+        compare(Object.keys(fixture.request(latest).query).length, 0, "no query");
+        fixture.respond(latest, 200, JSON.stringify(listedEntry(8, 11, true, true)));
         tryCompare(button.timer, "chosenProjectId", 11);
         const menu = button.menu;
         compare(menu.projectMenu.title, "Project: Alpha");
@@ -695,7 +694,7 @@ TestCase {
 
     function test_stopFromThePanelKeepsItsProject() {
         connectAccount(instanceA, 3, 7, entry(5, 7, 12, false));
-        compare(fixture.pending("GET", "/me/time_entries"), -1, "nothing to ask while an entry runs");
+        compare(fixture.pending("GET", "/time_entries/latest"), -1, "nothing to ask while an entry runs");
 
         // Stop in the menu ends the entry; a click would pause it.
         verify(button.timer.stop());
@@ -708,7 +707,7 @@ TestCase {
         compare(menu.projectMenu.title, "Project: Beta");
         verify(projectItem("Beta").checked);
         verify(!menu.billableItem.checked, "Beta is nonbillable");
-        compare(fixture.pending("GET", "/me/time_entries"), -1, "a stop needs no list");
+        compare(fixture.pending("GET", "/time_entries/latest"), -1, "a stop needs no read");
 
         mouseClick(button, 5, 5, Qt.LeftButton);
         const start = waitFor("POST", "/timer/start");
@@ -1011,7 +1010,7 @@ TestCase {
 
     function test_monochromeLogoFollowsPanelForeground() {
         connectAccount(instanceA, 3, 7);
-        answer("GET", "/me/time_entries", 200, []);
+        answer("GET", "/time_entries/latest", 200, null);
         verify(button.timer.chooseProject(11));
         const logo = findChild(button, "logoIcon");
         compare(logo.isMask, false);
@@ -1079,7 +1078,7 @@ TestCase {
 
     function test_stoppedProjectIsAStillSquare() {
         connectAccount(instanceA, 3, 7);
-        answer("GET", "/me/time_entries", 200, []);
+        answer("GET", "/time_entries/latest", 200, null);
         verify(button.timer.chooseProject(11));
         const ind = indicator();
         verify(ind.filled);
@@ -1099,7 +1098,7 @@ TestCase {
 
     function test_noProjectIsADashedOutline() {
         connectAccount(instanceA, 3, 7);
-        answer("GET", "/me/time_entries", 200, []);
+        answer("GET", "/time_entries/latest", 200, null);
         const ind = indicator();
         verify(ind.dashed, "a dashed square while stopped");
         verify(!ind.filled);
@@ -1161,7 +1160,7 @@ TestCase {
 
     function test_invalidColourFallsBackToTheTextColour() {
         connectAccount(instanceA, 3, 7, undefined, [colored(11, "Alpha", "blue"), colored(12, "Beta", "#06aaf")]);
-        answer("GET", "/me/time_entries", 200, []);
+        answer("GET", "/time_entries/latest", 200, null);
         const ind = indicator();
         for (const id of [11, 12]) {
             verify(button.timer.chooseProject(id));
@@ -1399,7 +1398,7 @@ TestCase {
 
     function test_pomodoroModeWithoutASession() {
         connectAccount(instanceA, 3, 7);
-        answer("GET", "/me/time_entries", 200, []);
+        answer("GET", "/time_entries/latest", 200, null);
         verify(button.timer.chooseProject(11));
         const menu = button.menu;
         const logo = findChild(button, "logoIcon");
@@ -1557,7 +1556,7 @@ TestCase {
 
     function test_sessionCountsDownAndOpensTheMenu() {
         connectAccount(instanceA, 3, 7);
-        answer("GET", "/me/time_entries", 200, []);
+        answer("GET", "/time_entries/latest", 200, null);
         verify(fixture.session.setPomodoroMode(true));
         verify(button.timer.chooseProject(11));
         const menu = button.menu;
@@ -1643,7 +1642,7 @@ TestCase {
 
     function test_ringingPhaseConfirmsOnClick() {
         connectAccount(instanceA, 3, 7);
-        answer("GET", "/me/time_entries", 200, []);
+        answer("GET", "/time_entries/latest", 200, null);
         verify(fixture.session.setPomodoroMode(true));
         const label = findChild(button, "elapsedLabel");
         startSession(2);
@@ -1713,7 +1712,7 @@ TestCase {
 
     function test_aSessionFromAnotherDeviceShowsInTimerMode() {
         connectAccount(instanceA, 3, 7);
-        answer("GET", "/me/time_entries", 200, []);
+        answer("GET", "/time_entries/latest", 200, null);
         const session = fixture.session;
         const menu = button.menu;
         const label = findChild(button, "elapsedLabel");
@@ -1899,7 +1898,7 @@ TestCase {
         verify(!fixture.session.startSession());
         compare(fixture.pending("POST", "/pomodoro"), -1);
         answerState(null);
-        answer("GET", "/me/time_entries", 200, []);
+        answer("GET", "/time_entries/latest", 200, null);
         tryCompare(fixture.session, "canStartSession", true);
 
         // While the start waits for its answer, a second one is refused.
@@ -1913,7 +1912,7 @@ TestCase {
 
     function test_runningTimerInPomodoroModeKeepsItsControls() {
         connectAccount(instanceA, 3, 7);
-        answer("GET", "/me/time_entries", 200, []);
+        answer("GET", "/time_entries/latest", 200, null);
         verify(fixture.session.setPomodoroMode(true));
 
         // Another client starts a timer; the next poll shows it.

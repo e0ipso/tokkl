@@ -1,6 +1,6 @@
 // NextStartSelection and NextStartDefaults on their own: which project and
 // billable flag the next start gets, from a pick, a stop or the account's
-// recent entries. timercontrollertest covers them through the controller.
+// newest entry. timercontrollertest covers them through the controller.
 
 #include "connection.h"
 #include "fakes.h"
@@ -42,10 +42,10 @@ ListedEntry listed(std::optional<qint64> projectId, bool active, bool billable, 
 const QByteArray meBody = R"({"id":3,"email":"bea@example.test","fullname":"Bea","timezone":"UTC","default_workspace_id":7,"beginning_of_week":1})";
 const QByteArray projectsBody =
     R"([{"id":11,"workspace_id":7,"client_id":null,"client_name":null,"name":"Alpha","color":"#06aaf5","active":true,"billable":true}])";
-// The newest recent entry, of project 11, which is active and billable.
-const QByteArray recentBody =
-    R"([{"id":8,"workspace_id":7,"project_id":11,"billable":false,"start":"2026-10-15T08:00:00Z","stop":"2026-10-15T08:01:00Z",)"
-    R"("duration":60,"description":"","tags":[],"project_active":true,"project_billable":true}])";
+// The newest entry, of project 11, which is active and billable.
+const QByteArray latestBody =
+    R"({"id":8,"workspace_id":7,"project_id":11,"billable":false,"start":"2026-10-15T08:00:00Z","stop":"2026-10-15T08:01:00Z",)"
+    R"("duration":60,"description":"","tags":[],"project_active":true,"project_billable":true})";
 
 // A connection bound to account 3 and workspace 7, with a catalog and a
 // selection on it.
@@ -73,10 +73,18 @@ struct Fixture {
         return connection.isConnected();
     }
 
-    void loadProjects()
+    // True once the list read that follows the catalog revision answered.
+    bool loadProjects()
     {
-        catalog.fetch(&connection, QDateTime(), ProjectCatalog::ListRead::Full);
+        const qsizetype before = transport.requests.size();
+        catalog.fetch(&connection);
+        if (!QTest::qWaitFor([&] {
+                return transport.requests.size() > before;
+            })) {
+            return false;
+        }
         transport.respondLast(FakeTransport::answer(200, projectsBody));
+        return catalog.listKnown();
     }
 };
 }
@@ -109,13 +117,15 @@ private Q_SLOTS:
         QCOMPARE(NextStartSelection::afterStop(std::nullopt, projects), Choice());
     }
 
-    void theNewestRecentEntryOfTheWorkspaceGivesTheDefault()
+    void theNewestEntryOfTheWorkspaceGivesTheDefault()
     {
-        QCOMPARE(NextStartSelection::fromRecentEntries({listed(11, true, true), listed(12, true, false)}, workspace), (Choice{11, true}));
-        QCOMPARE(NextStartSelection::fromRecentEntries({listed(11, false, true), listed(12, true, false)}, workspace), Choice());
-        QCOMPARE(NextStartSelection::fromRecentEntries({listed(std::nullopt, false, false), listed(12, true, false)}, workspace), Choice());
-        QCOMPARE(NextStartSelection::fromRecentEntries({listed(11, true, true, workspace + 1)}, workspace), Choice());
-        QCOMPARE(NextStartSelection::fromRecentEntries({}, workspace), Choice());
+        QCOMPARE(NextStartSelection::fromLatestEntry(listed(11, true, true), workspace), (Choice{11, true}));
+        QCOMPARE(NextStartSelection::fromLatestEntry(listed(12, true, false), workspace), (Choice{12, false}));
+        // Archived or deleted, no project, another workspace, no entry.
+        QCOMPARE(NextStartSelection::fromLatestEntry(listed(11, false, true), workspace), Choice());
+        QCOMPARE(NextStartSelection::fromLatestEntry(listed(std::nullopt, false, false), workspace), Choice());
+        QCOMPARE(NextStartSelection::fromLatestEntry(listed(11, true, true, workspace + 1), workspace), Choice());
+        QCOMPARE(NextStartSelection::fromLatestEntry(std::nullopt, workspace), Choice());
     }
 
     void aPickWinsUntilAStop()
@@ -189,69 +199,34 @@ private Q_SLOTS:
         QSignalSpy changed(&f.selection, &NextStartSelection::changed);
         f.selection.readLastEntry([] {
             return true;
-        }, QDateTime());
+        });
+        // One read, of the newest entry alone.
         const HttpRequest &request = f.transport.requests.last();
-        QCOMPARE(request.url.path(), QStringLiteral("/api/v9/me/time_entries"));
-        QCOMPARE(request.url.query(), QStringLiteral("meta=true"));
-        f.transport.respondLast(FakeTransport::answer(200, recentBody));
+        QCOMPARE(request.url.path(), QStringLiteral("/api/app/time_entries/latest"));
+        QVERIFY(request.url.query().isEmpty());
+        const qsizetype requests = f.transport.requests.size();
+        f.transport.respondLast(FakeTransport::answer(200, latestBody));
         QCOMPARE(f.selection.projectId(), 11);
         QVERIFY(f.selection.billable());
         QVERIFY(changed.count() > 0);
+        QCOMPARE(f.transport.requests.size(), requests);
     }
 
-    void theLastEntryIsLookedForInTheLastDaysFirst()
+    // An account without entries gets no project.
+    void noEntryGivesNoProject()
     {
         Fixture f;
         QVERIFY(f.connect());
-        const QDateTime now(QDate(2026, 10, 16), QTime(9, 0), QTimeZone::UTC);
+        f.selection.pickBillable(true);
+        f.selection.started();
         f.selection.readLastEntry([] {
             return true;
-        }, now);
-        const qsizetype first = f.transport.requests.size() - 1;
-        QCOMPARE(f.transport.requests.at(first).url.path(), QStringLiteral("/api/v9/me/time_entries"));
-        QCOMPARE(f.transport.requests.at(first).url.query(),
-                 QStringLiteral("meta=true&start_date=2026-10-14T09:00:00Z&end_date=2026-10-17T09:00:00Z"));
-        f.transport.respond(first, FakeTransport::answer(200, recentBody));
-        QCOMPARE(f.selection.projectId(), 11);
-        // An entry in those days ends the search.
-        QCOMPARE(f.transport.requests.size(), first + 1);
-    }
-
-    void noEntryInTheLastDaysWidensToTheNineDays_data()
-    {
-        QTest::addColumn<QString>("action");
-        QTest::newRow("none") << QString();
-        QTest::newRow("pick") << QStringLiteral("pick");
-        QTest::newRow("no longer wanted") << QStringLiteral("unwanted");
-    }
-
-    void noEntryInTheLastDaysWidensToTheNineDays()
-    {
-        QFETCH(QString, action);
-        Fixture f;
-        QVERIFY(f.connect());
-        bool wanted = true;
-        f.selection.readLastEntry([&wanted] {
-            return wanted;
-        }, QDateTime(QDate(2026, 10, 16), QTime(9, 0), QTimeZone::UTC));
-        const qsizetype first = f.transport.requests.size() - 1;
-        if (action == QLatin1String("pick")) {
-            f.selection.pick(Choice());
-        } else if (action == QLatin1String("unwanted")) {
-            wanted = false;
-        }
-        f.transport.respond(first, FakeTransport::answer(200, "[]"));
-        if (!action.isEmpty()) {
-            // Nothing more to look for.
-            QCOMPARE(f.transport.requests.size(), first + 1);
-            QVERIFY(!f.selection.projectId());
-            return;
-        }
-        QCOMPARE(f.transport.requests.size(), first + 2);
-        QCOMPARE(f.transport.requests.last().url.query(), QStringLiteral("meta=true"));
-        f.transport.respondLast(FakeTransport::answer(200, recentBody));
-        QCOMPARE(f.selection.projectId(), 11);
-        QVERIFY(f.selection.billable());
+        });
+        const qsizetype requests = f.transport.requests.size();
+        f.transport.respondLast(FakeTransport::answer(200, "null"));
+        QVERIFY(!f.selection.projectId());
+        QVERIFY(!f.selection.billable());
+        QCOMPARE(f.transport.requests.size(), requests);
     }
 
     void aPickOrAStartBeforeTheAnswerKeepsItsChoice_data()
@@ -272,7 +247,7 @@ private Q_SLOTS:
         bool wanted = true;
         f.selection.readLastEntry([&wanted] {
             return wanted;
-        }, QDateTime());
+        });
         const qsizetype read = f.transport.requests.size() - 1;
         if (action == QLatin1String("pick")) {
             f.selection.pick(Choice());
@@ -285,7 +260,7 @@ private Q_SLOTS:
         } else {
             wanted = false;
         }
-        f.transport.respond(read, FakeTransport::answer(200, recentBody));
+        f.transport.respond(read, FakeTransport::answer(200, latestBody));
         QVERIFY(!f.selection.projectId());
         QVERIFY(!f.selection.billable());
     }
@@ -298,7 +273,7 @@ private Q_SLOTS:
         const qsizetype before = f.transport.requests.size();
         f.selection.readLastEntry([] {
             return true;
-        }, QDateTime());
+        });
         QCOMPARE(f.transport.requests.size(), before);
     }
 
@@ -309,7 +284,7 @@ private Q_SLOTS:
         QVERIFY(f.selection.takeLastEntryWanted());
         f.selection.readLastEntry([] {
             return true;
-        }, QDateTime());
+        });
         f.transport.respondLast(FakeTransport::answer(500, "{}"));
         QVERIFY(f.selection.takeLastEntryWanted());
     }
@@ -320,7 +295,7 @@ private Q_SLOTS:
         QVERIFY(f.connect());
         f.selection.stopped(11);
         QVERIFY(!f.selection.projectId());
-        f.loadProjects();
+        QVERIFY(f.loadProjects());
         f.selection.listLoaded();
         QCOMPARE(f.selection.projectId(), 11);
         QVERIFY(f.selection.billable());
@@ -332,7 +307,7 @@ private Q_SLOTS:
         QVERIFY(f.connect());
         f.selection.stopped(11);
         f.selection.pickBillable(false);
-        f.loadProjects();
+        QVERIFY(f.loadProjects());
         f.selection.listLoaded();
         QVERIFY(!f.selection.projectId());
     }
@@ -341,7 +316,7 @@ private Q_SLOTS:
     {
         Fixture f;
         QVERIFY(f.connect());
-        f.loadProjects();
+        QVERIFY(f.loadProjects());
         f.selection.pick(Choice{11, true});
         f.selection.stopped(12);
         QVERIFY(!f.selection.projectId());
@@ -354,7 +329,7 @@ private Q_SLOTS:
     {
         Fixture f;
         QVERIFY(f.connect());
-        f.loadProjects();
+        QVERIFY(f.loadProjects());
         f.selection.pick(Choice{11, true});
         f.selection.forget();
         QVERIFY(!f.selection.projectId());

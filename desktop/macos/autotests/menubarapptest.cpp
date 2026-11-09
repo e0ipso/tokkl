@@ -276,12 +276,12 @@ QByteArray projectsBody()
         R"({"id":12,"workspace_id":7,"client_id":4,"client_name":"Acme","name":"Beta","color":"#c7af14","active":true,"billable":false}])");
 }
 
-// GET /me/time_entries?meta=true with one stopped entry on the project.
-QByteArray recentBody(qint64 project)
+// GET /api/app/time_entries/latest: a stopped entry on the project.
+QByteArray latestBody(qint64 project)
 {
     return QStringLiteral(
-               R"([{"id":4,"workspace_id":7,"project_id":%1,"billable":false,"start":"2026-10-15T08:00:00Z","stop":"2026-10-15T08:01:00Z",)"
-               R"("duration":60,"description":"","tags":[],"project_active":true,"project_billable":false}])")
+               R"({"id":4,"workspace_id":7,"project_id":%1,"billable":false,"start":"2026-10-15T08:00:00Z","stop":"2026-10-15T08:01:00Z",)"
+               R"("duration":60,"description":"","tags":[],"project_active":true,"project_billable":false})")
         .arg(project)
         .toUtf8();
 }
@@ -625,10 +625,10 @@ class MenuBarAppTest : public QObject
             respond(last("GET", "/projects"), 200, projectsBody());
             respond(last("GET", "/me/preferences"), 200, preferencesBody());
             if (recentProject) {
-                if (!waitFor("GET", "/me/time_entries")) {
+                if (!waitFor("GET", "/app/time_entries/latest")) {
                     return false;
                 }
-                respond(last("GET", "/me/time_entries"), 200, recentBody(*recentProject));
+                respond(last("GET", "/app/time_entries/latest"), 200, latestBody(*recentProject));
             }
             return QTest::qWaitFor([&] {
                 return appPart<TimerController>(app)->canWrite();

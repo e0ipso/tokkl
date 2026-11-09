@@ -22,8 +22,8 @@ class ProjectCatalog;
 // another account, and a new connection clear it.
 //
 // After a stop the next start uses the stopped entry's project; when a
-// context starts with nothing running it uses the project of the newest
-// entry the API lists. Only an active project of the workspace counts, and
+// context starts with nothing running it uses the project of the account's
+// newest entry. Only an active project of the workspace counts, and
 // any other gives no project. A pick by the user wins over both until the
 // next start or stop. NextStartDefaults decides when a default may still
 // apply.
@@ -45,8 +45,8 @@ public:
     static std::optional<Choice> forProject(const QVariant &projectId, const QList<Project> &projects);
     // The default after an entry of projectId stopped.
     static Choice afterStop(std::optional<qint64> projectId, const QList<Project> &projects);
-    // The default from the account's recent entries, newest first.
-    static Choice fromRecentEntries(const QList<ListedEntry> &entries, qint64 workspaceId);
+    // The default from the account's newest entry, or none.
+    static Choice fromLatestEntry(const std::optional<ListedEntry> &latest, qint64 workspaceId);
 
     // The catalog is not owned and must outlive the selection.
     explicit NextStartSelection(const ProjectCatalog *catalog, QObject *parent = nullptr);
@@ -86,27 +86,17 @@ public:
     void wantLastEntry();
     // True once after wantLastEntry() or reset().
     bool takeLastEntryWanted();
-    // Reads the account's recent entries for the default, unless the user
-    // picked: the entries that started in the lastEntryFirstDays before now
-    // (the server's clock), and only when there are none the API's last 9
-    // days. Without a valid now, the 9 days at once. The answer applies only
-    // while it is the newest read, nothing was chosen since, and
-    // stillWanted() is true. A failed read asks again after the next state.
-    void readLastEntry(std::function<bool()> stillWanted, const QDateTime &now);
-
-    // The days the first read for the last entry covers. A busy account's
-    // 9 days of entries can be large, and the last entry is nearly always
-    // this recent.
-    static constexpr int lastEntryFirstDays = 2;
+    // Reads the account's newest entry for the default, unless the user
+    // picked. The answer applies only while it is the newest read, nothing
+    // was chosen since, and stillWanted() is true. A failed read asks again
+    // after the next state.
+    void readLastEntry(std::function<bool()> stillWanted);
 
 Q_SIGNALS:
     // The project or the billable flag changed.
     void changed();
 
 private:
-    // One read for the last entry numbered number: from now's window when
-    // now is valid, else the 9 days.
-    void readEntries(quint64 number, const QDateTime &now, std::function<bool()> stillWanted);
     void apply(const Choice &choice);
     void set(const Choice &choice);
 

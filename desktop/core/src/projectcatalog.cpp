@@ -28,7 +28,7 @@ bool ProjectCatalog::incomplete() const
 
 bool ProjectCatalog::listKnown() const
 {
-    return m_listKnown;
+    return m_revision.has_value();
 }
 
 std::optional<Project> ProjectCatalog::activeProject(qint64 id) const
@@ -87,32 +87,34 @@ ProjectCatalog::Indicator ProjectCatalog::indicatorFor(std::optional<qint64> id)
     return indicator;
 }
 
-void ProjectCatalog::fetch(Connection *connection, const QDateTime &now, ListRead read)
+void ProjectCatalog::fetch(Connection *connection)
 {
-    if (!connection) {
+    if (!connection || m_listPending) {
         return;
     }
-    if (m_listPending) {
-        m_fullWanted = m_fullWanted || read == ListRead::Full;
-        return;
-    }
-    // A clock that went back counts as an old read.
-    const bool recent = now.isValid() && m_fullReadAt.isValid() && m_fullReadAt <= now && m_fullReadAt.msecsTo(now) < fullListMaxAgeMs;
-    if (read == ListRead::Changes && m_listKnown && !m_incomplete && recent && m_newestChange) {
-        fetchChanges(connection, now);
-    } else {
-        fetchAll(connection, now);
-    }
+    m_listPending = true;
+    // The reply arrives only within this generation, while the connection
+    // still exists.
+    connection->fetchCatalogRevision(m_epoch.guard(this, [this, connection](const ApiResult<qint64> &result) {
+        m_listPending = false;
+        if (!m_accepting()) {
+            return;
+        }
+        if (!result.ok()) {
+            Q_EMIT readFailed(result.error);
+            return;
+        }
+        if (m_revision != *result.value) {
+            fetchList(connection, *result.value);
+        }
+    }));
 }
 
-void ProjectCatalog::fetchAll(Connection *connection, const QDateTime &now)
+void ProjectCatalog::fetchList(Connection *connection, qint64 revision)
 {
     m_listPending = true;
-    m_fullWanted = false;
-    connection->fetchProjects(m_epoch.guard(this, [this, now](const ApiResult<ProjectList> &result) {
+    connection->fetchProjects(m_epoch.guard(this, [this, revision](const ApiResult<ProjectList> &result) {
         m_listPending = false;
-        // This read is the whole list a Full read asked for meanwhile.
-        m_fullWanted = false;
         if (!m_accepting()) {
             return;
         }
@@ -122,89 +124,12 @@ void ProjectCatalog::fetchAll(Connection *connection, const QDateTime &now)
         }
         m_projects = result.value->projects;
         m_incomplete = result.value->incomplete;
-        m_fullReadAt = now;
-        m_newestChange = newestChange(m_projects);
-        loaded();
+        m_revision = revision;
+        m_lookedUpStale = m_lookedUp.has_value();
+        ++m_listsRead;
+        Q_EMIT listChanged();
+        Q_EMIT listLoaded();
     }));
-}
-
-void ProjectCatalog::fetchChanges(Connection *connection, const QDateTime &now)
-{
-    m_listPending = true;
-    const QDateTime since = m_newestChange->addMSecs(-changesMarginMs);
-    // The reply arrives only within this generation, while the connection
-    // still exists.
-    connection->fetchProjectChanges(since, m_epoch.guard(this, [this, connection, now](const ApiResult<QList<Project>> &result) {
-        m_listPending = false;
-        if (!m_accepting()) {
-            return;
-        }
-        if (!result.ok()) {
-            Q_EMIT readFailed(result.error);
-            return;
-        }
-        const QList<Project> &changes = *result.value;
-        if (m_fullWanted || changes.size() >= Connection::projectPageSize || !merge(changes)) {
-            fetchAll(connection, now);
-            return;
-        }
-        if (!changes.isEmpty()) {
-            const std::optional<QDateTime> newest = newestChange(changes);
-            m_newestChange = newest ? std::max(*m_newestChange, *newest) : newest;
-        }
-        loaded();
-    }));
-}
-
-void ProjectCatalog::loaded()
-{
-    m_listKnown = true;
-    m_lookedUpStale = m_lookedUp.has_value();
-    ++m_listRevision;
-    Q_EMIT listChanged();
-    Q_EMIT listLoaded();
-}
-
-std::optional<QDateTime> ProjectCatalog::newestChange(const QList<Project> &projects)
-{
-    std::optional<QDateTime> newest;
-    for (const Project &project : projects) {
-        if (!project.at.isValid()) {
-            return std::nullopt;
-        }
-        if (!newest || project.at > *newest) {
-            newest = project.at;
-        }
-    }
-    return newest;
-}
-
-bool ProjectCatalog::merge(const QList<Project> &changes)
-{
-    QList<Project> merged = m_projects;
-    for (const Project &change : changes) {
-        const auto found = std::find_if(merged.begin(), merged.end(), [&change](const Project &project) {
-            return project.id == change.id;
-        });
-        if (found == merged.end()) {
-            // A new or unarchived project goes where the server's order puts
-            // it, which only the whole list tells; an archived one stays out.
-            if (change.active) {
-                return false;
-            }
-            continue;
-        }
-        if (!change.active) {
-            merged.erase(found);
-        } else if (found->name != change.name) {
-            // A new name may move it.
-            return false;
-        } else {
-            *found = change;
-        }
-    }
-    m_projects = merged;
-    return true;
 }
 
 bool ProjectCatalog::needsLookUp(qint64 id) const
@@ -215,7 +140,7 @@ bool ProjectCatalog::needsLookUp(qint64 id) const
         return project.id == id;
     });
     const bool stale = m_lookedUpStale && m_lookedUp && m_lookedUp->id == id;
-    return !listed && (!knownProject(id) || stale) && m_listKnown && !m_lookupsPending.contains(id);
+    return !listed && (!knownProject(id) || stale) && m_revision && !m_lookupsPending.contains(id);
 }
 
 void ProjectCatalog::lookUp(Connection *connection, qint64 id, qint64 workspace, std::function<bool(qint64)> stillWanted)
@@ -224,15 +149,15 @@ void ProjectCatalog::lookUp(Connection *connection, qint64 id, qint64 workspace,
         return;
     }
     m_lookupsPending.insert(id);
-    const quint64 revision = m_listRevision;
-    connection->fetchProject(id, m_epoch.guard(this, [this, id, workspace, revision, stillWanted](const ApiResult<Project> &result) {
+    const quint64 listsRead = m_listsRead;
+    connection->fetchProject(id, m_epoch.guard(this, [this, id, workspace, listsRead, stillWanted](const ApiResult<Project> &result) {
         m_lookupsPending.remove(id);
         if (!m_accepting() || !stillWanted(id)) {
             return;
         }
         // Asked before the latest list: show the answer for now and read the
         // project once more.
-        const bool stale = revision != m_listRevision;
+        const bool stale = listsRead != m_listsRead;
         if (result.ok()) {
             m_lookedUp = *result.value;
             m_lookedUpGone = false;
@@ -261,13 +186,12 @@ void ProjectCatalog::forget()
     m_lookedUpGone = false;
     m_lookedUpStale = false;
     m_lookupsPending.clear();
-    m_listKnown = false;
-    m_fullReadAt = QDateTime();
-    m_newestChange.reset();
+    m_revision.reset();
 }
 
 void ProjectCatalog::clearList()
 {
+    m_revision.reset();
     if (m_projects.isEmpty() && !m_incomplete) {
         return;
     }
@@ -280,7 +204,6 @@ void ProjectCatalog::reset()
 {
     m_epoch.advance();
     m_listPending = false;
-    m_fullWanted = false;
     forget();
 }
 

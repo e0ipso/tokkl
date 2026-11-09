@@ -445,9 +445,9 @@ void TimerModel::wantLastEntry()
     m_next->wantLastEntry();
 }
 
-void TimerModel::readProjects(ProjectCatalog::ListRead read)
+void TimerModel::readProjects()
 {
-    m_catalog->fetch(m_connection, m_clock ? m_clock->now() : QDateTime(), read);
+    m_catalog->fetch(m_connection);
 }
 
 void TimerModel::lookUpProject(qint64 id, std::function<bool(qint64)> stillWanted)
@@ -464,7 +464,7 @@ bool TimerModel::takeLastEntryWanted()
 
 void TimerModel::readLastEntry(std::function<bool()> stillWanted)
 {
-    m_next->readLastEntry(std::move(stillWanted), m_state ? m_state->serverNow() : QDateTime());
+    m_next->readLastEntry(std::move(stillWanted));
 }
 
 void TimerModel::onProjectsAnswered(QObject *context, std::function<void()> answered)

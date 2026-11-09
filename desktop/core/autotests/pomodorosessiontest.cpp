@@ -355,10 +355,13 @@ class PomodoroSessionTest : public QObject
         }
         f.transport.respond(before, FakeTransport::answer(200, meBody()));
         const qsizetype read = f.last("GET", statePath);
-        const qsizetype projects = f.last("GET", "/projects");
-        if (read < 0 || projects < 0 || !f.transport.lastStream()) {
+        // The list read follows the catalog revision's answer.
+        if (read < 0 || !f.transport.lastStream() || !QTest::qWaitFor([&] {
+                return f.last("GET", "/projects") > before;
+            })) {
             return false;
         }
+        const qsizetype projects = f.last("GET", "/projects");
         f.respond(read, state.isEmpty() ? f.state(std::nullopt) : state);
         f.respond(projects, projectsBody());
         return f.timer.isConnected() && f.client.state().has_value();

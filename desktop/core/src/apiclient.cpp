@@ -1,7 +1,9 @@
 #include "apiclient.h"
 
+#include "clock.h"
 #include "logging.h"
 
+#include <QTimer>
 #include <QUuid>
 
 #include <utility>
@@ -66,17 +68,19 @@ void ApiClient::abortAll()
     }
 }
 
-void ApiClient::later(std::function<void()> f)
+void ApiClient::later(std::function<void()> f, int delayMs)
 {
     const quint64 generation = m_session.generation();
-    QMetaObject::invokeMethod(
-        this,
-        [this, generation, f = std::move(f)] {
-            if (generation == m_session.generation()) {
-                f();
-            }
-        },
-        Qt::QueuedConnection);
+    auto run = [this, generation, f = std::move(f)] {
+        if (generation == m_session.generation()) {
+            f();
+        }
+    };
+    if (delayMs > 0) {
+        QTimer::singleShot(delayMs, this, std::move(run));
+    } else {
+        QMetaObject::invokeMethod(this, std::move(run), Qt::QueuedConnection);
+    }
 }
 
 void ApiClient::send(const QByteArray &method, const QUrl &url, const QByteArray &body, ResponseHandler handler, const QByteArray &idempotencyKey)
@@ -169,8 +173,20 @@ void ApiClient::keyedAction(const QUrl &url, const QByteArray &body, const QByte
             }
             return;
         }
-        qCInfo(lcNet) << "POST" << url.path() << "outcome unknown; sending it once more with its Idempotency-Key";
-        sendAction(url, body, idempotencyKey, done);
+        // At once it would likely meet the same failure.
+        const int waitMs = retryWaitMs(retryMinMs, nullptr);
+        qCInfo(lcNet) << "POST" << url.path() << "outcome unknown; sending it once more with its Idempotency-Key in" << waitMs << "ms";
+        later(
+            [this, url, body, idempotencyKey, done, first] {
+                if (m_session.refusal(ApiAccess::Write)) {
+                    if (done) {
+                        done(first);
+                    }
+                    return;
+                }
+                sendAction(url, body, idempotencyKey, done);
+            },
+            waitMs);
     });
 }
 
