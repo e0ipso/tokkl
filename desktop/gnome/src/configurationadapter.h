@@ -6,8 +6,6 @@
 #include <QPointer>
 #include <QString>
 
-#include <optional>
-
 namespace Tokkl
 {
 
@@ -41,10 +39,8 @@ public:
     // The settings are not owned.
     explicit ConfigurationAdapter(ServiceSettings *settings, QObject *parent = nullptr);
 
-    // Saves the settings and answers call, when there is one, with the
-    // outcome. Without a call, as when the method is run directly, nothing is
-    // answered.
-    void configure(const QString &instanceUrl, const QString &authMode, const QString &email, const QString &secret, const std::optional<Call> &call);
+    // Saves the settings and answers call with the outcome.
+    void configure(const QString &instanceUrl, const QString &authMode, const QString &email, const QString &secret, const Call &call);
 
 private:
     QPointer<ServiceSettings> m_settings;

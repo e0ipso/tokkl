@@ -4,6 +4,7 @@
 #include "connection.h"
 #include "connectionsettings.h"
 #include "connectionsetup.h"
+#include "cooldown.h"
 #include "fakes.h"
 
 #include <QDir>
@@ -82,7 +83,8 @@ class ConnectionTest : public QObject
     struct Fixture {
         FakeTransport transport;
         FakeCredentialStore store;
-        Connection connection{&transport, &store, testClientName()};
+        FakeClock clock;
+        Connection connection{&transport, &store, clock, testClientName()};
     };
 
     static QString tokenKey(const QString &url = instance)
@@ -918,7 +920,7 @@ private Q_SLOTS:
         QVERIFY(f.connection.isConnected());
         QVERIFY(!f.connection.canWrite());
         const qint64 wait = QDateTime::currentDateTimeUtc().msecsTo(f.connection.rateLimitedUntil());
-        QVERIFY2(wait > Connection::defaultCooldownMs - 5000 && wait <= Connection::defaultCooldownMs, qPrintable(QString::number(wait)));
+        QVERIFY2(wait > Cooldown::defaultMs - 5000 && wait <= Cooldown::defaultMs, qPrintable(QString::number(wait)));
 
         const qsizetype sent = f.transport.requests.size();
         std::optional<ApiResult<TimerState>> refused;
@@ -1276,17 +1278,17 @@ private Q_SLOTS:
     {
         FakeClock clock;
         RetryBackoff retry(AuthSession::retryBaseMs, AuthSession::retryMaxMs);
-        QCOMPARE(retry.next(&clock), 30000);
-        QCOMPARE(retry.next(&clock), 60000);
-        QCOMPARE(retry.next(&clock), 120000);
-        QCOMPARE(retry.next(&clock), 120000);
+        QCOMPARE(retry.next(clock), 30000);
+        QCOMPARE(retry.next(clock), 60000);
+        QCOMPARE(retry.next(clock), 120000);
+        QCOMPARE(retry.next(clock), 120000);
         // Up to a quarter of the wait more.
         clock.jitter = 40000;
-        QCOMPARE(retry.next(&clock), 120000 + 29999);
+        QCOMPARE(retry.next(clock), 120000 + 29999);
         retry.reset();
-        QCOMPARE(retry.next(&clock), 30000 + 7499);
+        QCOMPARE(retry.next(clock), 30000 + 7499);
         clock.jitter = 1000;
-        QCOMPARE(retry.next(&clock), 61000);
+        QCOMPARE(retry.next(clock), 61000);
     }
 
     // A status read that found no network: the retry asks for the status

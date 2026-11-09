@@ -56,6 +56,16 @@ void NextStartSelection::setConnection(Connection *connection)
     set(Choice());
 }
 
+std::optional<NextStartSelection::Choice> NextStartSelection::choiceFor(const QVariant &projectId) const
+{
+    return forProject(projectId, m_catalog->projects());
+}
+
+NextStartSelection::Choice NextStartSelection::choice() const
+{
+    return m_choice;
+}
+
 std::optional<qint64> NextStartSelection::projectId() const
 {
     return m_choice.projectId;

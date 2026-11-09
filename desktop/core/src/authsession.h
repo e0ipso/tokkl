@@ -10,7 +10,6 @@
 
 #include <QDateTime>
 #include <QObject>
-#include <QPointer>
 #include <QTimer>
 
 #include <optional>
@@ -70,8 +69,10 @@ public:
     static constexpr int retryBaseMs = 30000;
     static constexpr int retryMaxMs = 120000;
 
-    // Uses the given transport and store; the session does not own them.
-    AuthSession(Transport *transport, CredentialStore *store, QObject *parent = nullptr);
+    // Uses the given transport, store and clock, which the session does not
+    // own and which must outlive it. The clock's jitter spreads the retry
+    // waits.
+    AuthSession(Transport *transport, CredentialStore *store, const Clock &clock, QObject *parent = nullptr);
 
     QString instanceText() const;
     void setInstanceText(const QString &text);
@@ -97,10 +98,6 @@ public:
     // The client for this session's requests.
     ApiClient &api();
 
-    // The clock whose jitter spreads the session's retry waits; not owned.
-    // Without one the system's randomness does.
-    void setClock(Clock *clock);
-
     // GET /me as an Account call; a valid answer binds the account.
     void fetchMe(ApiClient::Callback<Me> done);
 
@@ -117,7 +114,7 @@ public:
     std::optional<ApiError> refusal(ApiAccess access) const override;
     void answered() override;
     bool absorbFailure(const HttpResponse &response, const ApiError &error, ApiAccess access) override;
-    const Clock *clock() const override;
+    const Clock &clock() const override;
 
 Q_SIGNALS:
     void instanceTextChanged();
@@ -178,7 +175,7 @@ private:
     Cooldown m_cooldown;
     QTimer m_retryTimer;
     RetryBackoff m_retry{retryBaseMs, retryMaxMs};
-    QPointer<Clock> m_clock;
+    const Clock &m_clock;
     ApiClient m_api;
 };
 

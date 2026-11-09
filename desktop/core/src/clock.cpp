@@ -15,10 +15,9 @@ int randomBelow(int boundMs)
 }
 }
 
-int retryWaitMs(int baseMs, const Clock *clock)
+int retryWaitMs(int baseMs, const Clock &clock)
 {
-    const int boundMs = baseMs / retryJitterDivisor;
-    return baseMs + (clock ? clock->jitterMs(boundMs) : randomBelow(boundMs));
+    return baseMs + clock.jitterMs(baseMs / retryJitterDivisor);
 }
 
 RetryBackoff::RetryBackoff(int baseMs, int capMs)
@@ -28,7 +27,7 @@ RetryBackoff::RetryBackoff(int baseMs, int capMs)
 {
 }
 
-int RetryBackoff::next(const Clock *clock)
+int RetryBackoff::next(const Clock &clock)
 {
     const int waitMs = retryWaitMs(m_nextMs, clock);
     m_nextMs = std::min(m_nextMs * 2, m_capMs);

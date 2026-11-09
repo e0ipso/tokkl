@@ -1,34 +1,33 @@
 #include "kdeconnection.h"
 
+#include "clock.h"
 #include "kwalletcredentialstore.h"
 #include "transport.h"
 
 namespace Tokkl
 {
 
-namespace
-{
-// The User-Agent product and the created_with value of the KDE widget.
-QString clientName()
+QString kdeClientName()
 {
     return QStringLiteral("tokkl-kde");
 }
-}
 
 KdeConnection::KdeConnection(QObject *parent)
-    : KdeConnection(new NetworkTransport(clientName()), parent)
+    : KdeConnection(new NetworkTransport(kdeClientName()), new SystemClock, parent)
 {
 }
 
-// The connection owns the transport it is given here.
-KdeConnection::KdeConnection(NetworkTransport *transport, QObject *parent)
-    : Connection(transport, KWalletCredentialStore::shared(), clientName(), parent)
+// The connection owns the transport and the clock it is given here. As
+// children they go after the session that uses them.
+KdeConnection::KdeConnection(NetworkTransport *transport, SystemClock *clock, QObject *parent)
+    : Connection(transport, KWalletCredentialStore::shared(), *clock, kdeClientName(), parent)
 {
     transport->setParent(this);
+    clock->setParent(this);
 }
 
 KdeConnectionSetup::KdeConnectionSetup(QObject *parent)
-    : KdeConnectionSetup(new NetworkTransport(clientName()), parent)
+    : KdeConnectionSetup(new NetworkTransport(kdeClientName()), parent)
 {
 }
 

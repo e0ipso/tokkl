@@ -3,7 +3,6 @@
 #include "apiclient.h"
 #include "apitypes.h"
 #include "authsession.h"
-#include "cooldown.h"
 #include "credentialstore.h"
 #include "transport.h"
 
@@ -64,14 +63,11 @@ public:
     using Callback = ApiClient::Callback<T>;
     using ActionCallback = ApiClient::ActionCallback;
 
-    // Uses the given transport and store; the connection does not own them.
-    // clientName goes into the created_with field of the entries it starts.
-    Connection(Transport *transport, CredentialStore *store, const QString &clientName, QObject *parent = nullptr);
-
-    // The clock whose jitter spreads the retry waits of the account's
-    // validation and of a start's resend; not owned. Without one the
-    // system's randomness does.
-    void setClock(Clock *clock);
+    // Uses the given transport, store and clock, which the connection does
+    // not own and which must outlive it. The clock's jitter spreads the retry
+    // waits of the account's validation and of a start's resend. clientName
+    // goes into the created_with field of the entries it starts.
+    Connection(Transport *transport, CredentialStore *store, const Clock &clock, const QString &clientName, QObject *parent = nullptr);
 
     QString instanceUrl() const;
     void setInstanceUrl(const QString &url);
@@ -167,8 +163,6 @@ public:
     // failure or another status changes nothing here.
     PendingStream *openTimerEvents();
 
-    // The cooldown after a 429 without Retry-After.
-    static constexpr int defaultCooldownMs = Cooldown::defaultMs;
     // Projects per page, the server's maximum, and the most pages read.
     static constexpr int projectPageSize = 200;
     static constexpr int maxProjectPages = 100;

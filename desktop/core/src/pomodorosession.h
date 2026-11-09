@@ -23,8 +23,9 @@ namespace Tokkl
 // device adds only the mode and the alarm.
 //
 // The mode is stored per device. It decides what a click starts when nothing
-// runs, and it cannot change while a timer runs or is paused, or while a
-// session is active.
+// runs, and the user cannot change it while a timer runs or is paused, or
+// while a session is active. When the store reads another place
+// (PomodoroStore::sourceChanged()), the session takes the mode stored there.
 //
 // activate() is the panel's left-click. With a session active, a click
 // confirms Next phase while the alarm rings and otherwise asks the platform to
@@ -184,6 +185,9 @@ private:
     SessionState::ActionCallback finishing();
     void onStateChanged();
     void onAccountReset();
+    // The store reads another place: takes the mode stored there, also
+    // while the mode is locked.
+    void reloadMode();
     // Recomputes the derived values and emits what changed.
     void update();
     void updateClock();

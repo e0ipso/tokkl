@@ -100,8 +100,7 @@ class TimerCoordinator : public TimerActions, public TimerActivity
 
 public:
     // Reads model and changes it through roles, the same model's; it must
-    // outlive the coordinator. A null clock follows the clock of the state
-    // client it is given.
+    // outlive the coordinator. The clock is not owned.
     TimerCoordinator(TimerModel *model, const TimerModelRoles &roles, Clock *clock, QObject *parent = nullptr);
     ~TimerCoordinator() override;
 
@@ -184,12 +183,10 @@ private:
 
     TimerModel *m_model;
     TimerStateUpdates *m_state;
-    TimerSelectionUpdates *m_selection;
+    NextStartSelection *m_selection;
     TimerCatalogUpdates *m_catalog;
     ProjectLoader *m_loader;
-    // The clock given, or the state client's when none was.
-    QPointer<Clock> m_fixedClock;
-    bool m_clientClock;
+    QPointer<Clock> m_clock;
 
     // Advanced by reset(); callbacks from an earlier epoch do nothing.
     Epoch m_epoch;

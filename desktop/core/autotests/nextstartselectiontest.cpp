@@ -52,7 +52,8 @@ const QByteArray latestBody =
 struct Fixture {
     FakeTransport transport;
     FakeCredentialStore store;
-    Connection connection{&transport, &store, testClientName()};
+    FakeClock clock;
+    Connection connection{&transport, &store, clock, testClientName()};
     ProjectCatalog catalog{[] {
         return true;
     }};

@@ -227,6 +227,32 @@ private:
     const Clock *m_clock;
 };
 
+// A store whose mode the test sets, as if it now read another place.
+class SwitchingStore : public PomodoroStore
+{
+    Q_OBJECT
+
+public:
+    bool loadPomodoroMode() override
+    {
+        return stored;
+    }
+
+    bool savePomodoroMode(bool pomodoro) override
+    {
+        stored = pomodoro;
+        return true;
+    }
+
+    void switchTo(bool pomodoro)
+    {
+        stored = pomodoro;
+        Q_EMIT sourceChanged();
+    }
+
+    bool stored = false;
+};
+
 class PomodoroSessionTest : public QObject
 {
     Q_OBJECT
@@ -238,7 +264,7 @@ class PomodoroSessionTest : public QObject
         FakeCredentialStore credentials;
         FakeClock clock;
         SettingsPomodoroStore store{&settings};
-        Connection connection{&transport, &credentials, testClientName()};
+        Connection connection{&transport, &credentials, clock, testClientName()};
         TimerStateClient client{&connection, &clock};
         TimerController timer{&clock};
         // Absent for a test that creates it later, as after a restart.
@@ -368,6 +394,26 @@ class PomodoroSessionTest : public QObject
     }
 
 private Q_SLOTS:
+    // A store that reads another place now, as the KDE widget's does once
+    // QML hands it the applet, brings the mode stored there.
+    void takesTheModeOfTheStoresNewSource()
+    {
+        Fixture f(false);
+        SwitchingStore store;
+        PomodoroSession session(&f.clock, f.timer.coordinator(), &f.client, &store);
+        QSignalSpy changed(&session, &PomodoroSession::modeChanged);
+        QVERIFY(!session.pomodoroMode());
+
+        store.switchTo(true);
+        QVERIFY(session.pomodoroMode());
+        QCOMPARE(changed.size(), 1);
+        // The same mode again changes nothing.
+        store.switchTo(true);
+        QCOMPARE(changed.size(), 1);
+        QVERIFY(session.setPomodoroMode(false));
+        QVERIFY(!store.stored);
+    }
+
     // The menus' actions come from one set of rules; the policies say where
     // the panels differ: GNOME waits for Ready, and only KDE holds Project
     // and Billable during a session.

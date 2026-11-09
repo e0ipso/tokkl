@@ -219,11 +219,19 @@ private Q_SLOTS:
         QCOMPARE(object->property("version").toString(), version);
         QVERIFY2(qmlProblems.isEmpty(), qPrintable(qmlProblems.join(QLatin1Char('\n'))));
 
-        // The timer controller is a QML type; without a connection it is idle.
+        // The widget's timer is a QML type that QML configures through its
+        // connection's grouped properties. Without an instance URL the
+        // timer is idle, and neither KDE Wallet nor a host is reached.
         QQmlComponent timerComponent(&engine);
-        timerComponent.setData(QStringLiteral("import %1\nTokklTimer {}").arg(backendUri).toUtf8(), QUrl());
-        std::unique_ptr<QObject> timer(timerComponent.create());
-        QVERIFY2(timer, qPrintable(timerComponent.errorString()));
+        timerComponent.setData(QStringLiteral("import %1\nTokklTimerState { connection.email: \"bea@example.test\" }").arg(backendUri).toUtf8(), QUrl());
+        std::unique_ptr<QObject> timerState(timerComponent.create());
+        QVERIFY2(timerState, qPrintable(timerComponent.errorString()));
+        auto *connection = timerState->property("connection").value<QObject *>();
+        QVERIFY(connection);
+        QCOMPARE(connection->property("email").toString(), QStringLiteral("bea@example.test"));
+        QVERIFY(timerState->property("session").value<QObject *>());
+        auto *timer = timerState->property("timer").value<QObject *>();
+        QVERIFY(timer);
         QCOMPARE(timer->property("elapsedText").toString(), QStringLiteral("0:00"));
         QCOMPARE(timer->property("running").toBool(), false);
         QCOMPARE(timer->property("connected").toBool(), false);

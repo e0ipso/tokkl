@@ -3,14 +3,14 @@
 // QML names for the backend classes. The core classes live in the tokklcore
 // library, which the tests link without QML. QML creates the KDE types from
 // the tokklkde library, which inject KDE Wallet, the network and the
-// widget's configuration; the core classes they extend have no QML name.
+// widget's configuration. The core objects QML only reads, such as the
+// connection, the timer and the session that TokklTimerState builds, have
+// names it cannot create.
 
 #include "alarmplayer.h"
-#include "appletpomodorostore.h"
 #include "connection.h"
 #include "connectionsetup.h"
 #include "kdeconnection.h"
-#include "kdepomodoro.h"
 #include "kdetimerstate.h"
 #include "menuactions.h"
 #include "pomodorolengthsclient.h"
@@ -18,17 +18,10 @@
 #include "pomodoropreferences.h"
 #include "pomodorosession.h"
 #include "pomodorosoundcatalogue.h"
-#include "pomodorostore.h"
 #include "statuspresentation.h"
 #include "timercontroller.h"
 
 #include <QtQml/qqmlregistration.h>
-
-struct TokklCoreConnectionForeign {
-    Q_GADGET
-    QML_FOREIGN(Tokkl::Connection)
-    QML_ANONYMOUS
-};
 
 struct TokklCoreConnectionSetupForeign {
     Q_GADGET
@@ -36,10 +29,13 @@ struct TokklCoreConnectionSetupForeign {
     QML_ANONYMOUS
 };
 
+// The account connection of TokklTimerState, which QML configures through
+// it.
 struct TokklConnectionForeign {
     Q_GADGET
-    QML_FOREIGN(Tokkl::KdeConnection)
+    QML_FOREIGN(Tokkl::Connection)
     QML_NAMED_ELEMENT(TokklConnection)
+    QML_UNCREATABLE("Created by TokklTimerState")
 };
 
 struct TokklConnectionSetupForeign {
@@ -48,14 +44,16 @@ struct TokklConnectionSetupForeign {
     QML_NAMED_ELEMENT(TokklConnectionSetup)
 };
 
-// The timer state client the timer and the Pomodoro session share. Only
-// TokklTimerState creates it; the timer takes it as a property.
+// The timer state client the timer and the Pomodoro session share, which
+// TokklTimerState builds.
 struct TokklTimerStateClientForeign {
     Q_GADGET
     QML_FOREIGN(Tokkl::TimerStateClient)
     QML_ANONYMOUS
 };
 
+// The widget's timer: the connection, the timer, the Pomodoro session and
+// its preferences client, built together on one clock.
 struct TokklTimerStateForeign {
     Q_GADGET
     QML_FOREIGN(Tokkl::KdeTimerState)
@@ -74,6 +72,7 @@ struct TokklTimerForeign {
     Q_GADGET
     QML_FOREIGN(Tokkl::TimerController)
     QML_NAMED_ELEMENT(TokklTimer)
+    QML_UNCREATABLE("Created by TokklTimerState")
 };
 
 // Which of the menu's timer and session actions show and can be chosen, from
@@ -92,41 +91,22 @@ struct TokklStatusPartsForeign {
     QML_NAMED_ELEMENT(TokklStatusParts)
 };
 
-// Pomodoro mode. TokklPomodoro builds the session and the preferences
-// client from its timer and store, and TokklPomodoroLengths
-// builds another preferences client for the Configure page; the two have
-// QML names so the panel and the page can declare properties of their type,
-// but only those types create them.
-struct TokklPomodoroStoreForeign {
-    Q_GADGET
-    QML_FOREIGN(Tokkl::PomodoroStore)
-    QML_ANONYMOUS
-};
-
-struct TokklAppletPomodoroStoreForeign {
-    Q_GADGET
-    QML_FOREIGN(Tokkl::AppletPomodoroStore)
-    QML_NAMED_ELEMENT(TokklPomodoroStore)
-};
-
-struct TokklPomodoroForeign {
-    Q_GADGET
-    QML_FOREIGN(Tokkl::KdePomodoro)
-    QML_NAMED_ELEMENT(TokklPomodoro)
-};
-
+// Pomodoro mode. TokklTimerState builds the session and a preferences
+// client, and TokklPomodoroLengths builds another preferences client for the
+// Configure page; the two have QML names so the panel and the page can
+// declare properties of their type, but only those types create them.
 struct TokklPomodoroSessionForeign {
     Q_GADGET
     QML_FOREIGN(Tokkl::PomodoroSession)
     QML_NAMED_ELEMENT(TokklPomodoroSession)
-    QML_UNCREATABLE("Created by TokklPomodoro")
+    QML_UNCREATABLE("Created by TokklTimerState")
 };
 
 struct TokklPomodoroPreferencesForeign {
     Q_GADGET
     QML_FOREIGN(Tokkl::PomodoroPreferences)
     QML_NAMED_ELEMENT(TokklPomodoroPreferences)
-    QML_UNCREATABLE("Created by TokklPomodoro and TokklPomodoroLengths")
+    QML_UNCREATABLE("Created by TokklTimerState and TokklPomodoroLengths")
 };
 
 // The Configure page's own connection and preferences client for the

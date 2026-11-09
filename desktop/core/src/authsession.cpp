@@ -24,9 +24,10 @@ bool refusesCredentials(const ApiError &error)
 
 }
 
-AuthSession::AuthSession(Transport *transport, CredentialStore *store, QObject *parent)
+AuthSession::AuthSession(Transport *transport, CredentialStore *store, const Clock &clock, QObject *parent)
     : QObject(parent)
     , m_credentials(store)
+    , m_clock(clock)
     , m_api(transport, *this)
 {
     connect(&m_credentials, &SessionCredentials::instanceTextChanged, this, &AuthSession::instanceTextChanged);
@@ -119,12 +120,7 @@ ApiClient &AuthSession::api()
     return m_api;
 }
 
-void AuthSession::setClock(Clock *clock)
-{
-    m_clock = clock;
-}
-
-const Clock *AuthSession::clock() const
+const Clock &AuthSession::clock() const
 {
     return m_clock;
 }

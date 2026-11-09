@@ -26,7 +26,8 @@ const QByteArray archivedBody = R"({"id":33,"workspace_id":7,"client_id":null,"c
 struct Fixture {
     FakeTransport transport;
     FakeCredentialStore store;
-    Connection connection{&transport, &store, testClientName()};
+    FakeClock clock;
+    Connection connection{&transport, &store, clock, testClientName()};
     ProjectCatalog catalog{[] {
         return true;
     }};

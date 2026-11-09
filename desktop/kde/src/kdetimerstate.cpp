@@ -1,39 +1,49 @@
 #include "kdetimerstate.h"
 
+#include "kdeconnection.h"
+#include "kwalletcredentialstore.h"
+
 namespace Tokkl
 {
 
 KdeTimerState::KdeTimerState(QObject *parent)
     : QObject(parent)
+    , m_transport(kdeClientName())
+    , m_stack(&m_transport, KWalletCredentialStore::shared(), &m_pomodoroStore, m_clock, kdeClientName())
 {
+    connect(&m_pomodoroStore, &AppletPomodoroStore::appletChanged, this, &KdeTimerState::appletChanged);
 }
 
 KdeTimerState::~KdeTimerState() = default;
 
-Connection *KdeTimerState::connection() const
+QObject *KdeTimerState::applet() const
 {
-    return m_connection;
+    return m_pomodoroStore.applet();
 }
 
-void KdeTimerState::setConnection(Connection *connection)
+void KdeTimerState::setApplet(QObject *applet)
 {
-    if (connection == m_connection) {
-        return;
-    }
-    m_connection = connection;
-    // The new client is in place before the old one goes, so a listener of
-    // clientChanged() never sees a client that is being deleted.
-    std::unique_ptr<TimerStateClient> previous = std::move(m_client);
-    if (connection) {
-        m_client = std::make_unique<TimerStateClient>(connection, &m_clock);
-    }
-    Q_EMIT connectionChanged();
-    Q_EMIT clientChanged();
+    m_pomodoroStore.setApplet(applet);
 }
 
-TimerStateClient *KdeTimerState::client() const
+Connection *KdeTimerState::connection()
 {
-    return m_client.get();
+    return m_stack.connection();
+}
+
+TimerController *KdeTimerState::timer()
+{
+    return m_stack.timer();
+}
+
+PomodoroSession *KdeTimerState::session()
+{
+    return m_stack.session();
+}
+
+PomodoroPreferences *KdeTimerState::preferences()
+{
+    return m_stack.preferences();
 }
 
 }

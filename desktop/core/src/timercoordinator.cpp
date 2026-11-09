@@ -3,7 +3,6 @@
 #include "logging.h"
 #include "projectloader.h"
 
-#include <QCoreApplication>
 
 #include <utility>
 
@@ -13,13 +12,6 @@ namespace Tokkl
 namespace
 {
 using Outcome = TimerActionResult::Outcome;
-
-// The messages keep the context they had when the controller held them, so
-// a catalog made for it still applies.
-QString tr(const char *text)
-{
-    return QCoreApplication::translate("Tokkl::TimerController", text);
-}
 }
 
 TimerCoordinator::TimerCoordinator(TimerModel *model, const TimerModelRoles &roles, Clock *clock, QObject *parent)
@@ -29,11 +21,10 @@ TimerCoordinator::TimerCoordinator(TimerModel *model, const TimerModelRoles &rol
     , m_selection(roles.selection)
     , m_catalog(roles.catalog)
     , m_loader(new ProjectLoader(model, roles.catalog, this))
-    , m_fixedClock(clock)
-    , m_clientClock(clock == nullptr)
+    , m_clock(clock)
 {
     connect(m_model, &TimerModel::workspaceRefused, this, &TimerCoordinator::loseWorkspace);
-    m_state->bind(nullptr, m_fixedClock);
+    m_state->bind(nullptr, m_clock);
     for (auto signal : {&TimerModel::contextChanged,
                         &TimerModel::statusChanged,
                         &TimerModel::currentEntryChanged,
@@ -104,7 +95,7 @@ void TimerCoordinator::setStateClient(TimerStateClient *client)
         return;
     }
     detach();
-    m_state->bind(client, m_clientClock ? (client ? client->clock() : nullptr) : m_fixedClock.data());
+    m_state->bind(client, m_clock);
     Connection *connection = m_model->connection();
     if (client) {
         connect(client, &TimerStateClient::stateChanged, this, &TimerCoordinator::onStateChanged);
@@ -136,8 +127,7 @@ void TimerCoordinator::detach()
     if (Connection *connection = m_model->connection()) {
         disconnect(connection, nullptr, this, nullptr);
     }
-    // The clock stays until another client brings its own.
-    m_state->bind(nullptr, m_state->clock());
+    m_state->bind(nullptr, m_clock);
 }
 
 void TimerCoordinator::onConnectionChanged()
@@ -178,8 +168,8 @@ bool TimerCoordinator::start()
     if (!m_model->canStartNew()) {
         return false;
     }
-    m_selection->startSent();
-    const NextStartSelection::Choice choice = m_selection->nextStart();
+    m_selection->started();
+    const NextStartSelection::Choice choice = m_selection->choice();
     StartEntry entry;
     entry.start = m_state->clock()->now().toUTC();
     entry.projectId = choice.projectId;
@@ -236,7 +226,7 @@ bool TimerCoordinator::resume()
     if (!m_model->canWrite() || m_model->isRunning() || !m_model->isPaused()) {
         return false;
     }
-    m_selection->startSent();
+    m_selection->started();
     beginMutation();
 
     m_model->stateClient()->resume(m_epoch.guard(this, [this](const TimerActionResult &result) {

@@ -26,7 +26,8 @@ class ProjectCatalog;
 // newest entry. Only an active project of the workspace counts, and
 // any other gives no project. A pick by the user wins over both until the
 // next start or stop. NextStartDefaults decides when a default may still
-// apply.
+// apply. A TimerModel owns the selection and reads it; its TimerCoordinator
+// picks and starts through it (TimerModelRoles::selection).
 class NextStartSelection : public QObject
 {
     Q_OBJECT
@@ -55,9 +56,13 @@ public:
     // is cleared.
     void setConnection(Connection *connection);
 
+    // The project and billable flag a start sends.
+    Choice choice() const;
     std::optional<qint64> projectId() const;
     QVariant projectIdVariant() const;
     bool billable() const;
+    // forProject() against the catalog's projects.
+    std::optional<Choice> choiceFor(const QVariant &projectId) const;
 
     // A pick by the user, which no default replaces until the next start or
     // stop.

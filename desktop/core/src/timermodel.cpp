@@ -18,6 +18,7 @@ TimerModel::TimerModel(QObject *parent)
           this))
     , m_chosen(new ChosenProject(m_catalog, this))
     , m_next(new NextStartSelection(m_catalog, this))
+    , m_catalogRole(this, m_catalog, m_next, m_chosen)
 {
     connect(m_next, &NextStartSelection::changed, this, &TimerModel::selectionChanged);
     connect(m_catalog, &ProjectCatalog::listChanged, this, &TimerModel::projectsChanged);
@@ -335,18 +336,13 @@ QString TimerModel::formatElapsed(qint64 seconds)
 
 TimerModelRoles TimerModel::roles()
 {
-    return {this, this, this};
+    return {this, m_next, &m_catalogRole};
 }
 
 const std::optional<TimerState> &TimerModel::heldState() const
 {
     static const std::optional<TimerState> none;
     return m_state ? m_state->state() : none;
-}
-
-bool TimerModel::readable() const
-{
-    return m_connection && m_connection->isConnected() && !workspaceAccessLost() && !m_connection->rateLimitedUntil().isValid();
 }
 
 void TimerModel::connectionReplaced()
@@ -382,7 +378,7 @@ void TimerModel::resetContext()
     applyDefaults(change);
     publish(change);
     m_catalog->clearList();
-    showChosenProject();
+    m_catalogRole.showChosenProject();
     contextUpdated();
 }
 
@@ -394,73 +390,8 @@ void TimerModel::forgetWorkspace()
     publish(change);
     m_catalog->clearList();
     m_next->forget();
-    showChosenProject();
+    m_catalogRole.showChosenProject();
     Q_EMIT statusChanged();
-}
-
-NextStartSelection::Choice TimerModel::nextStart() const
-{
-    return {m_next->projectId(), m_next->billable()};
-}
-
-void TimerModel::startSent()
-{
-    m_next->started();
-}
-
-std::optional<NextStartSelection::Choice> TimerModel::choiceFor(const QVariant &projectId) const
-{
-    return NextStartSelection::forProject(projectId, m_catalog->projects());
-}
-
-void TimerModel::pick(const NextStartSelection::Choice &choice)
-{
-    m_next->pick(choice);
-}
-
-void TimerModel::pickBillable(bool billable)
-{
-    m_next->pickBillable(billable);
-}
-
-void TimerModel::wantLastEntry()
-{
-    m_next->wantLastEntry();
-}
-
-void TimerModel::readProjects()
-{
-    m_catalog->fetch(m_connection);
-}
-
-void TimerModel::lookUpProject(qint64 id, std::function<bool(qint64)> stillWanted)
-{
-    if (m_connection && m_catalog->needsLookUp(id)) {
-        m_catalog->lookUp(m_connection, id, workspaceId(), std::move(stillWanted));
-    }
-}
-
-bool TimerModel::takeLastEntryWanted()
-{
-    return m_next->takeLastEntryWanted();
-}
-
-void TimerModel::readLastEntry(std::function<bool()> stillWanted)
-{
-    m_next->readLastEntry(std::move(stillWanted));
-}
-
-void TimerModel::onProjectsAnswered(QObject *context, std::function<void()> answered)
-{
-    // After the model's own handlers of the same signals, connected when it
-    // was built, which apply a next-start default that waited for the list.
-    connect(m_catalog, &ProjectCatalog::listLoaded, context, answered);
-    connect(m_catalog, &ProjectCatalog::projectResolved, context, answered);
-}
-
-void TimerModel::showChosenProject()
-{
-    m_chosen->show(chosenProject(), isRunning() || isPaused());
 }
 
 void TimerModel::onProjectReadFailed(const ApiError &error)

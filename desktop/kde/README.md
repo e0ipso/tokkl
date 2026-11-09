@@ -148,12 +148,11 @@ come from `desktop/core`.
 - `timer`: the timer controller (`TokklTimer`) against a fake clock, transport
   and credential store: ticking, sleep gaps, polling, start and stop requests,
   repeated clicks, conflicts, late replies, failures and account switches.
-- `kdetimerstate`: the timer state client the widget creates from QML
-  (`TokklTimerState`): built once the connection is set, reading through that
-  connection, replaced when the connection changes.
-- `kdepomodoro`: the Pomodoro wiring (`TokklPomodoro`): the session acts
-  through the state client the timer reads, and is built again when the timer
-  gets another client.
+- `kdetimerstate`: the widget's timer as QML creates it (`TokklTimerState`):
+  the connection, the timer, the Pomodoro session and its preferences client
+  exist from the start, the timer and the session share one state client,
+  and the session takes the Pomodoro mode from the applet's configuration
+  once the applet is set.
 - `appletpomodorostore`: the Pomodoro mode in the configuration of an applet
   that a test corona hosts, and that records an earlier version kept there are
   neither read nor removed.
@@ -168,12 +167,13 @@ come from `desktop/core`.
   messages and its end.
 - `networktransport`: the real HTTP transport against an in-process server on
   127.0.0.1: headers, no cookies, redirects not followed, timeouts.
-- `kdeconnection`: the connection and Configure page types the widget creates
-  (`TokklConnection`, `TokklConnectionSetup`) with the real KDE Wallet client
+- `kdeconnection`: the widget's connections (`KdeConnection`, which the
+  Pomodoro settings page uses, `TokklConnectionSetup` and the connection of
+  `TokklTimerState`) with the real KDE Wallet client
   and transport. A fake kwalletd answers on a private `dbus-daemon` the test
   starts, and an in-process server on 127.0.0.1 plays Tokkl, so neither your
   wallet nor your session bus is touched. It checks the KDE Wallet message for
-  each wallet status, that both types share one wallet store, that each owns
+  each wallet status, that they share one wallet store, that each owns
   its transport, and the `tokkl-kde` client name in `created_with` and the
   User-Agent.
 - `kdewallet-disabled`: the same types with KDE Wallet turned off in a
@@ -383,10 +383,13 @@ hand; the tests run offscreen.
 
 ## Timer
 
-`TokklTimer` (`desktop/core/src/timercontroller.h`) drives the timer for the widget. QML
-sets its `stateClient` to the `client` of a `TokklTimerState`, which the widget
-builds on its `TokklConnection`. The timer and the Pomodoro session share that
-one client, which reads `GET /api/app/timer`, follows the event stream of
+`TokklTimer` (`desktop/core/src/timercontroller.h`) drives the timer for the widget.
+`TokklTimerState` (`src/kdetimerstate.h`) builds it with the rest of the core's
+`TimerStack` (`desktop/core/src/timerstack.h`): the connection
+(`TokklConnection`, which `main.qml` configures through grouped properties such
+as `connection.instanceUrl`), one timer state client, the Pomodoro session and
+its preferences client, all on one clock. The timer and the Pomodoro session
+share that one client, which reads `GET /api/app/timer`, follows the event stream of
 `GET /api/app/timer/events` and keeps the newest state; the running entry, the
 pause chain and the session all come from it.
 
@@ -809,7 +812,8 @@ server's or refuse a server of another version.
 ### Real-server test
 
 `tests/realserver.test.ts` runs the companion's `Connection`,
-`TimerStateClient`, `TimerController` and `PomodoroSession`, with the real
+`TimerStateClient`, `TimerController` and `PomodoroSession`, built as the
+widget builds them through `TimerStack`, with the real
 HTTP transport, against two Tokkl instances started with the API's multi-user
 test fixtures (`packages/api/test/helpers.ts`) on 127.0.0.1. The instances'
 time resolution is 1 minute, and the ids on the two collide by construction.

@@ -4,10 +4,10 @@
 # tokklkde library adds KDE Wallet and the types QML creates; qmltypes.h
 # gives the classes their QML names.
 
-# The KDE side: the KDE Wallet store, the connection types the widget
-# creates from QML, which inject it, the Pomodoro store in the widget's own
-# configuration, the timer state client and Pomodoro session wiring and the
-# alarm player. Qt Multimedia is linked here only; the core never sees it.
+# The KDE side: the KDE Wallet store, the connection types the Configure
+# pages create, which inject it, the Pomodoro store in the widget's own
+# configuration, the widget's timer on the core's TimerStack and the alarm
+# player. Qt Multimedia is linked here only; the core never sees it.
 add_library(tokklkde STATIC
     alarmplayer.cpp
     alarmplayer.h
@@ -15,8 +15,6 @@ add_library(tokklkde STATIC
     appletpomodorostore.h
     kdeconnection.cpp
     kdeconnection.h
-    kdepomodoro.cpp
-    kdepomodoro.h
     kdetimerstate.cpp
     kdetimerstate.h
     kwalletcredentialstore.cpp
@@ -33,13 +31,11 @@ set_target_properties(tokklkde PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_compile_definitions(tokklkde PRIVATE
     TOKKL_PLASMOID_ID="${TOKKL_PLASMOID_ID}"
 )
-# Multimedia and Qml are public: the headers of the alarm player and the
-# Pomodoro wiring include theirs.
+# Multimedia is public: the alarm player's header includes its headers.
 target_link_libraries(tokklkde
     PUBLIC
         tokklcore
         Qt6::Multimedia
-        Qt6::Qml
     PRIVATE
         KF6::Wallet
         Plasma::Plasma

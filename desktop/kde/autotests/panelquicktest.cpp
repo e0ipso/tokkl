@@ -1,9 +1,8 @@
 // Runs the QML tests in autotests/qml against the widget's panel components
 // and its Configure page. The backend types are registered from tokklcore
-// under the backend URI, and a PanelFixture wires them to the scripted
-// transport, credential store and clock from fakes.h, with a timer and a
-// Pomodoro session that share one timer state client and keep the mode in a
-// temporary QSettings file.
+// under the backend URI, and a PanelFixture builds them as a TimerStack on
+// the scripted transport, credential store and clock from fakes.h, with the
+// Pomodoro mode in a temporary QSettings file.
 // The Configure pages' TokklConnectionSetup and TokklPomodoroLengths use
 // another such transport and store, which a WalletFixture controls, and
 // their TokklAlarm plays the core's copies of the sounds. Nothing reaches a
@@ -22,7 +21,7 @@
 #include "pomodorosoundcatalogue.h"
 #include "pomodorostore.h"
 #include "timercontroller.h"
-#include "timerstateclient.h"
+#include "timerstack.h"
 
 #include <Kirigami/Platform/Units>
 #include <KLocalizedQmlContext>
@@ -64,30 +63,24 @@ public:
         m_transport.status = FakeTransport::currentStatus();
     }
 
-    TimerCoordinator *bound()
-    {
-        m_timer.setStateClient(&m_client);
-        return m_timer.coordinator();
-    }
-
     TimerController *timer()
     {
-        return &m_timer;
+        return m_stack.timer();
     }
 
     Connection *connection()
     {
-        return &m_connection;
+        return m_stack.connection();
     }
 
     PomodoroSession *session()
     {
-        return &m_session;
+        return m_stack.session();
     }
 
     PomodoroPreferences *preferences()
     {
-        return &m_preferences;
+        return m_stack.preferences();
     }
 
     int requestCount() const
@@ -143,7 +136,7 @@ public:
     Q_INVOKABLE void configure(const QString &url, const QString &token)
     {
         m_store.secrets.insert(credentialKey(parseInstanceUrl(url), AuthMode::Token, QString()), token);
-        m_connection.setInstanceUrl(url);
+        m_stack.connection()->setInstanceUrl(url);
     }
 
     // The newest unanswered request with this method whose API path, after
@@ -240,22 +233,18 @@ private:
     qsizetype m_heldCatalogFrom = 0;
     FakeCredentialStore m_store;
     FakeClock m_clock;
-    Connection m_connection{&m_transport, &m_store, testClientName()};
-    TimerStateClient m_client{&m_connection, &m_clock};
-    TimerController m_timer{&m_clock};
     QTemporaryDir m_dir;
     QSettings m_settings{m_dir.filePath(QStringLiteral("pomodoro.ini")), QSettings::IniFormat};
     SettingsPomodoroStore m_pomodoroStore{&m_settings};
-    PomodoroPreferences m_preferences{&m_connection};
-    // Last, so it goes first: it still reads the others while it ends. It
-    // reads and acts through the timer's state client, so the timer gets
-    // the client first.
-    PomodoroSession m_session{&m_clock, bound(), &m_client, &m_pomodoroStore};
+    // The connection, the timer and the session as every companion builds
+    // them. After the fakes, so it goes first.
+    TimerStack m_stack{&m_transport, &m_store, &m_pomodoroStore, m_clock, testClientName()};
     QSet<qsizetype> m_answered;
 };
 
 // The transport and store behind every TokklConnectionSetup the Configure
-// page makes. They live as long as the process.
+// page makes, and the clock of the Pomodoro page's connection. They live as
+// long as the process.
 FakeTransport *setupTransport()
 {
     static auto *transport = [] {
@@ -270,6 +259,12 @@ FakeCredentialStore *setupStore()
 {
     static auto *store = new FakeCredentialStore;
     return store;
+}
+
+FakeClock *setupClock()
+{
+    static auto *clock = new FakeClock;
+    return clock;
 }
 
 // The page's TokklConnectionSetup, created from QML as the widget's is.
@@ -298,7 +293,7 @@ class FakePomodoroLengths : public PomodoroLengthsClient
 
 public:
     explicit FakePomodoroLengths(QObject *parent = nullptr)
-        : PomodoroLengthsClient(new Connection(setupTransport(), setupStore(), testClientName()), parent)
+        : PomodoroLengthsClient(new Connection(setupTransport(), setupStore(), *setupClock(), testClientName()), parent)
     {
     }
 };

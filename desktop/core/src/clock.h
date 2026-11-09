@@ -37,9 +37,8 @@ inline constexpr int retryJitterDivisor = 4;
 
 // The wait of a retry: baseMs plus up to a quarter of it more, at random, so
 // that devices that lost the server at the same moment do not all come back
-// at the same moment. The random part is the clock's jitter, or the
-// system's without a clock.
-int retryWaitMs(int baseMs, const Clock *clock);
+// at the same moment. The random part is the clock's jitter.
+int retryWaitMs(int baseMs, const Clock &clock);
 
 // The waits of one retry loop: the first is baseMs, each later one twice
 // the one before up to capMs, and each takes retryWaitMs()'s jitter from the
@@ -50,7 +49,7 @@ public:
     RetryBackoff(int baseMs, int capMs);
 
     // The wait before the next retry.
-    int next(const Clock *clock);
+    int next(const Clock &clock);
     void reset();
 
 private:

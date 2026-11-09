@@ -14,6 +14,7 @@ PomodoroSession::PomodoroSession(Clock *clock, TimerActions *timer, SessionState
 {
     if (m_store) {
         m_pomodoroMode = m_store->loadPomodoroMode();
+        connect(m_store, &PomodoroStore::sourceChanged, this, &PomodoroSession::reloadMode);
     }
     if (m_clock) {
         connect(m_clock, &Clock::ticked, this, &PomodoroSession::updateClock);
@@ -49,6 +50,17 @@ bool PomodoroSession::setPomodoroMode(bool pomodoro)
     Q_EMIT modeChanged();
     update();
     return true;
+}
+
+void PomodoroSession::reloadMode()
+{
+    const bool stored = m_store->loadPomodoroMode();
+    if (stored == m_pomodoroMode) {
+        return;
+    }
+    m_pomodoroMode = stored;
+    Q_EMIT modeChanged();
+    update();
 }
 
 bool PomodoroSession::modeLocked() const

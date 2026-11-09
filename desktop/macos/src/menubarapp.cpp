@@ -2,11 +2,8 @@
 
 #include "alarmplayer.h"
 #include "clock.h"
-#include "connection.h"
 #include "connectionsettings.h"
 #include "pomodoroalarm.h"
-#include "pomodoropreferences.h"
-#include "pomodorosession.h"
 #include "pomodorostore.h"
 #include "settingssave.h"
 #include "settingswindow.h"
@@ -14,8 +11,7 @@
 #include "statusitem.h"
 #include "statusmenu.h"
 #include "statuswords.h"
-#include "timercontroller.h"
-#include "timerstateclient.h"
+#include "timerstack.h"
 #include "transport.h"
 
 #include <QCoreApplication>
@@ -52,18 +48,13 @@ MenuBarApp::MenuBarApp(Transport *transport,
     , m_settings(settings)
     , m_ownClock(clock ? nullptr : std::make_unique<SystemClock>())
     , m_clock(clock ? clock : m_ownClock.get())
-    , m_connection(new Connection(transport, store, clientName(), this))
     , m_pomodoroStore(settings ? new SettingsPomodoroStore(settings, this) : nullptr)
-    , m_stateClient(new TimerStateClient(m_connection, m_clock, this))
-    , m_timer(new TimerController(m_clock, this))
+    , m_stack(new TimerStack(transport, store, m_pomodoroStore, *m_clock, clientName(), this))
+    , m_connection(m_stack->connection())
+    , m_timer(m_stack->timer())
+    , m_preferences(m_stack->preferences())
+    , m_session(m_stack->session())
 {
-    m_connection->setClock(m_clock);
-    // The timer and the session read the same state client, so they agree
-    // on the server's timer and session.
-    m_timer->setStateClient(m_stateClient);
-    m_preferences = new PomodoroPreferences(m_connection, this);
-    // The session reads and acts through the timer's state client.
-    m_session = new PomodoroSession(m_clock, m_timer->coordinator(), m_stateClient, m_pomodoroStore, this);
     m_sounds = new SoundChoices(settings, &MenuBarApp::soundKey, this);
     // The bundle's Contents/Resources/sounds, which the build fills from
     // TOKKL_POMODORO_SOUND_FILES.
@@ -103,8 +94,8 @@ MenuBarApp::MenuBarApp(Transport *transport,
 }
 
 // The menu, the window and the alarm go before the session, timer and
-// connection they show, and the session before the parts it uses. The
-// children would otherwise go in the order they were made, the reverse.
+// connection they show, and the stack before the store its session uses.
+// The children would otherwise go in the order they were made.
 MenuBarApp::~MenuBarApp()
 {
     if (m_statusItem) {
@@ -114,11 +105,8 @@ MenuBarApp::~MenuBarApp()
     delete m_menu;
     delete m_alarm;
     delete m_sounds;
-    delete m_session;
-    delete m_preferences;
-    delete m_timer;
-    delete m_stateClient;
-    delete m_connection;
+    delete m_stack;
+    delete m_pomodoroStore;
 }
 
 void MenuBarApp::start()

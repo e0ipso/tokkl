@@ -71,7 +71,8 @@ class PomodoroPreferencesTest : public QObject
     struct Fixture {
         FakeTransport transport;
         FakeCredentialStore credentials;
-        Connection connection{&transport, &credentials, testClientName()};
+        FakeClock clock;
+        Connection connection{&transport, &credentials, clock, testClientName()};
         PomodoroPreferences preferences{&connection};
 
         Fixture()

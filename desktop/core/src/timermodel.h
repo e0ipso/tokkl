@@ -5,6 +5,7 @@
 #include "connection.h"
 #include "nextstartselection.h"
 #include "projectcatalog.h"
+#include "projectcatalogadapter.h"
 #include "projectchoices.h"
 #include "timeractions.h"
 #include "timerstateclient.h"
@@ -14,7 +15,6 @@
 #include <QPointer>
 #include <QVariant>
 
-#include <functional>
 #include <optional>
 
 namespace Tokkl
@@ -40,11 +40,13 @@ public:
 };
 
 // How TimerCoordinator changes what a TimerModel shows, apart from what the
-// panels read, in three roles. Each change is one operation that sends
-// every notification it causes; the coordinator emits none of the model's
-// signals. The model implements all three for its subclass,
-// TimerController, which hands them to the coordinator, so a panel holding
-// a TimerModel can only read. Each consumer takes only the roles it uses:
+// panels read, in three roles (TimerModelRoles). Each change is one
+// operation whose notifications the model sends; the coordinator emits none
+// of the model's signals. The model implements the state role itself and
+// hands out its NextStartSelection as the selection role and a
+// ProjectCatalogAdapter as the catalog role. Only its subclass,
+// TimerController, hands them to the coordinator, so a panel holding a
+// TimerModel can only read. Each consumer takes only the roles it uses:
 // ProjectLoader takes the catalog alone.
 
 // The state shown: the client and clock it is read from, and the changes of
@@ -84,64 +86,12 @@ public:
     virtual void forgetWorkspace() = 0;
 };
 
-// The project and billable flag of the next start, as the user picks them
-// and a start uses them.
-class TimerSelectionUpdates
-{
-public:
-    virtual ~TimerSelectionUpdates() = default;
-
-    // The project and billable flag of the next start.
-    virtual NextStartSelection::Choice nextStart() const = 0;
-    // A start or resume is on its way: a default that answers later no
-    // longer replaces the next start's choice, and a pick lasts only until
-    // it.
-    virtual void startSent() = 0;
-    // The choice for a project the menu offers, or none for anything else;
-    // see NextStartSelection::forProject().
-    virtual std::optional<NextStartSelection::Choice> choiceFor(const QVariant &projectId) const = 0;
-    // A pick by the user, which no default replaces until the next start or
-    // stop.
-    virtual void pick(const NextStartSelection::Choice &choice) = 0;
-    virtual void pickBillable(bool billable) = 0;
-    // Asks for the last entry's project after the next state.
-    virtual void wantLastEntry() = 0;
-};
-
-// The reads ProjectLoader may start, each landing in the model, which
-// tells the panels of what changed: the workspace's projects, a project
-// read on its own, and the last entry's project for the next start. The
-// loader decides when; it never holds the catalog or the selection.
-class TimerCatalogUpdates
-{
-public:
-    virtual ~TimerCatalogUpdates() = default;
-
-    // The connection may read the workspace now.
-    virtual bool readable() const = 0;
-    // Reads the workspace's projects through the connection, unless a read
-    // is on its way; see ProjectCatalog::fetch().
-    virtual void readProjects() = 0;
-    // Reads project id of the workspace on its own when the list, once
-    // known, lacks it and its own read is missing, out of date and not on
-    // its way. The answer counts while stillWanted(id) is true.
-    virtual void lookUpProject(qint64 id, std::function<bool(qint64)> stillWanted) = 0;
-    // True once after the last entry's project was asked for.
-    virtual bool takeLastEntryWanted() = 0;
-    // Reads the account's newest entry for the next start's default; see
-    // NextStartSelection::readLastEntry().
-    virtual void readLastEntry(std::function<bool()> stillWanted) = 0;
-    // Calls answered, with context, after each project list and each
-    // single-project answer the model has taken in.
-    virtual void onProjectsAnswered(QObject *context, std::function<void()> answered) = 0;
-    // Shows the chosen project and the indicator as the catalog knows them.
-    virtual void showChosenProject() = 0;
-};
-
 // The three roles of one model, as TimerController hands them over.
+// The selection is the project and billable flag of the next start, as the
+// user picks them and a start uses them.
 struct TimerModelRoles {
     TimerStateUpdates *state = nullptr;
-    TimerSelectionUpdates *selection = nullptr;
+    NextStartSelection *selection = nullptr;
     TimerCatalogUpdates *catalog = nullptr;
 };
 
@@ -149,9 +99,8 @@ struct TimerModelRoles {
 // validated account and workspace, its elapsed time, the pause chain, the
 // projects, the project and billable flag chosen for the next start, and a
 // status. Its public interface only reads. TimerCoordinator binds it to a
-// TimerStateClient and changes it through its roles (TimerStateUpdates,
-// TimerSelectionUpdates, TimerCatalogUpdates); the panels act through the
-// coordinator.
+// TimerStateClient and changes it through its roles (TimerModelRoles); the
+// panels act through the coordinator.
 //
 // What it shows is derived from one timer state, the one the client
 // accepted, and from nothing else. Elapsed time is recomputed on every clock
@@ -168,7 +117,7 @@ struct TimerModelRoles {
 // a chosen project the list lacks and the last entry into them.
 // NextStartSelection holds the next start's choice, and the model applies
 // its defaults as the states it shows ask for them.
-class TimerModel : public QObject, protected TimerStateUpdates, protected TimerSelectionUpdates, protected TimerCatalogUpdates
+class TimerModel : public QObject, protected TimerStateUpdates
 {
     Q_OBJECT
 
@@ -364,23 +313,6 @@ protected:
     void resetContext() override;
     void forgetWorkspace() override;
 
-    // TimerSelectionUpdates.
-    NextStartSelection::Choice nextStart() const override;
-    void startSent() override;
-    std::optional<NextStartSelection::Choice> choiceFor(const QVariant &projectId) const override;
-    void pick(const NextStartSelection::Choice &choice) override;
-    void pickBillable(bool billable) override;
-    void wantLastEntry() override;
-
-    // TimerCatalogUpdates.
-    bool readable() const override;
-    void readProjects() override;
-    void lookUpProject(qint64 id, std::function<bool(qint64)> stillWanted) override;
-    bool takeLastEntryWanted() override;
-    void readLastEntry(std::function<bool()> stillWanted) override;
-    void onProjectsAnswered(QObject *context, std::function<void()> answered) override;
-    void showChosenProject() override;
-
 private:
     // What a new state changed in the view, between stage() and publish().
     struct Change {
@@ -417,6 +349,8 @@ private:
     ProjectCatalog *m_catalog;
     ChosenProject *m_chosen;
     NextStartSelection *m_next;
+    // The catalog role over the three above.
+    ProjectCatalogAdapter m_catalogRole;
     qint64 m_elapsed = 0;
     // What projectChoices last announced.
     QVariantList m_projectChoices;

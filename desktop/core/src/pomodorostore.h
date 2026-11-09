@@ -24,6 +24,11 @@ public:
     virtual bool loadPomodoroMode() = 0;
     // Returns false when the choice may not be stored.
     virtual bool savePomodoroMode(bool pomodoro) = 0;
+
+Q_SIGNALS:
+    // The store reads another place now, so loadPomodoroMode() may answer
+    // differently from before.
+    void sourceChanged();
 };
 
 // Keeps the mode in a group of QSettings. A save returns true only once
