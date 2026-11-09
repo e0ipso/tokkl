@@ -1528,14 +1528,6 @@ private Q_SLOTS:
         QCoreApplication::processEvents();
         QVERIFY(results.isEmpty());
         QCOMPARE(setup.walletError(), QString());
-
-        // No credential store: false at once.
-        ConnectionSetup storeless(&transport, nullptr);
-        storeless.setAccount(instance, QStringLiteral("token"), QString());
-        storeless.editSecret(token);
-        storeless.saveSecret(this, record);
-        QCOMPARE(results, QList<bool>{false});
-        QVERIFY(!storeless.walletError().isEmpty());
     }
 
     // A secret read from the wallet for one account is never tested against

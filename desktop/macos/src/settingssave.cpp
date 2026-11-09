@@ -34,16 +34,14 @@ bool sameAccount(const ConnectionSettings &a, const ConnectionSettings &b)
 
 const QString SettingsSave::monochromeIconKey = QStringLiteral("monochromeIcon");
 
-SettingsSave::SettingsSave(ConnectionSetup *setup, QSettings *settings, PomodoroPreferences *preferences, SoundChoices *sounds, QObject *parent)
+SettingsSave::SettingsSave(ConnectionSetup *setup, QSettings &settings, PomodoroPreferences &preferences, SoundChoices &sounds, QObject *parent)
     : QObject(parent)
     , m_setup(setup)
     , m_settings(settings)
     , m_preferences(preferences)
     , m_sounds(sounds)
 {
-    if (m_preferences) {
-        connect(m_preferences, &PomodoroPreferences::stateChanged, this, &SettingsSave::onPreferencesChanged);
-    }
+    connect(&m_preferences, &PomodoroPreferences::stateChanged, this, &SettingsSave::onPreferencesChanged);
 }
 
 bool SettingsSave::isRunning() const
@@ -58,11 +56,11 @@ QString SettingsSave::errorString() const
 
 bool SettingsSave::lengthsForThisAccount(const Values &values) const
 {
-    if (!m_preferences || values.lengthsOwner.isEmpty() || m_preferences->owner() != values.lengthsOwner) {
+    if (values.lengthsOwner.isEmpty() || m_preferences.owner() != values.lengthsOwner) {
         return false;
     }
     // The connection follows the settings file, which this save rewrites.
-    return !m_settings || sameAccount(ConnectionSettings::read(*m_settings), values.connection);
+    return sameAccount(ConnectionSettings::read(m_settings), values.connection);
 }
 
 bool SettingsSave::start(const Values &values)
@@ -78,7 +76,7 @@ bool SettingsSave::start(const Values &values)
     // neither waits for them nor depends on them.
     const PomodoroConfig &lengths = values.lengths;
     const bool posted =
-        lengthsForThisAccount(values) && m_preferences->save(lengths.workMinutes, lengths.shortRestMinutes, lengths.longRestMinutes, lengths.longRestEvery);
+        lengthsForThisAccount(values) && m_preferences.save(lengths.workMinutes, lengths.shortRestMinutes, lengths.longRestMinutes, lengths.longRestEvery);
     m_lengths = posted ? Lengths::Pending : Lengths::None;
     // A Keychain write can wait for the user to allow access, and it can
     // fail. Nothing else is stored until it is done.
@@ -108,9 +106,9 @@ void SettingsSave::onSecretSaved(quint64 serial, const Values &values, bool save
         Q_EMIT finished(false);
         return;
     }
-    if (m_settings && !store(values)) {
+    if (!store(values)) {
         // The window stays open with what was typed, and says why.
-        m_error = tr("Tokkl could not save its settings to %1.").arg(m_settings->fileName());
+        m_error = tr("Tokkl could not save its settings to %1.").arg(m_settings.fileName());
         m_running = false;
         Q_EMIT finished(false);
         return;
@@ -123,25 +121,23 @@ void SettingsSave::onSecretSaved(quint64 serial, const Values &values, bool save
 bool SettingsSave::store(const Values &values)
 {
     QList<std::pair<QString, QVariant>> written{{monochromeIconKey, values.monochromeIcon}};
-    if (m_sounds) {
-        for (const TransitionKind kind : transitions) {
-            written.append({m_sounds->key(kind), values.sounds.at(std::size_t(kind))});
-        }
+    for (const TransitionKind kind : transitions) {
+        written.append({m_sounds.key(kind), values.sounds.at(std::size_t(kind))});
     }
     QList<std::pair<QString, QVariant>> before;
     for (const auto &[key, value] : std::as_const(written)) {
-        before.append({key, m_settings->value(key)});
-        m_settings->setValue(key, value);
+        before.append({key, m_settings.value(key)});
+        m_settings.setValue(key, value);
     }
     // Syncs the keys above with its own, and puts its own back on a failure.
-    if (values.connection.write(*m_settings)) {
+    if (values.connection.write(m_settings)) {
         return true;
     }
     for (const auto &[key, value] : std::as_const(before)) {
         if (value.isValid()) {
-            m_settings->setValue(key, value);
+            m_settings.setValue(key, value);
         } else {
-            m_settings->remove(key);
+            m_settings.remove(key);
         }
     }
     return false;
@@ -149,7 +145,7 @@ bool SettingsSave::store(const Values &values)
 
 void SettingsSave::onPreferencesChanged()
 {
-    if (m_lengths == Lengths::Pending && !(m_preferences && m_preferences->isSaving())) {
+    if (m_lengths == Lengths::Pending && !m_preferences.isSaving()) {
         m_lengths = lengthsRefused() ? Lengths::Failed : Lengths::None;
         settle();
     }
@@ -157,17 +153,14 @@ void SettingsSave::onPreferencesChanged()
 
 bool SettingsSave::lengthsRefused() const
 {
-    if (!m_preferences) {
-        return false;
-    }
     for (const PomodoroField field : lengthFields) {
-        if (!m_preferences->fieldError(field).isEmpty()) {
+        if (!m_preferences.fieldError(field).isEmpty()) {
             return true;
         }
     }
     // Without an account the window's note says why; a failure for lack of
     // one does not count.
-    return m_preferences->isEditable() && !m_preferences->errorString().isEmpty();
+    return m_preferences.isEditable() && !m_preferences.errorString().isEmpty();
 }
 
 void SettingsSave::settle()

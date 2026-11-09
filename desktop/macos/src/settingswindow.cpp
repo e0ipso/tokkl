@@ -130,11 +130,11 @@ int lengthOf(const PomodoroConfig &config, PomodoroField field)
 
 SettingsWindow::SettingsWindow(Transport *transport,
                                CredentialStore *store,
-                               QSettings *settings,
-                               LoginItem *loginItem,
-                               PomodoroPreferences *preferences,
-                               SoundChoices *soundChoices,
-                               PomodoroAlarm *alarm,
+                               QSettings &settings,
+                               LoginItem &loginItem,
+                               PomodoroPreferences &preferences,
+                               SoundChoices &soundChoices,
+                               PomodoroAlarm &alarm,
                                QWidget *parent)
     : QWidget(parent, Qt::Window)
     , m_settings(settings)
@@ -297,15 +297,13 @@ void SettingsWindow::buildSoundRows(QFormLayout *form)
     m_soundError = noteLabel();
     m_soundError->hide();
     form->addRow(QString(), m_soundError);
-    if (m_alarm) {
-        const auto showFailure = [this] {
-            const QString failure = m_alarm ? m_alarm->failure() : QString();
-            m_soundError->setText(failure);
-            m_soundError->setVisible(!failure.isEmpty());
-        };
-        connect(m_alarm, &PomodoroAlarm::failureChanged, this, showFailure);
-        showFailure();
-    }
+    const auto showFailure = [this] {
+        const QString failure = m_alarm.failure();
+        m_soundError->setText(failure);
+        m_soundError->setVisible(!failure.isEmpty());
+    };
+    connect(&m_alarm, &PomodoroAlarm::failureChanged, this, showFailure);
+    showFailure();
 }
 
 void SettingsWindow::nameFields()
@@ -372,13 +370,11 @@ void SettingsWindow::connectFields(QDialogButtonBox *buttons)
 
     connect(m_loginToggle, &QCheckBox::toggled, this, &SettingsWindow::onLoginToggled);
 
-    if (m_preferences) {
-        connect(m_preferences, &PomodoroPreferences::limitsChanged, this, &SettingsWindow::applyLimits);
-        connect(m_preferences, &PomodoroPreferences::changed, this, [this] {
-            loadLengths(true);
-        });
-        connect(m_preferences, &PomodoroPreferences::stateChanged, this, &SettingsWindow::updatePomodoro);
-    }
+    connect(&m_preferences, &PomodoroPreferences::limitsChanged, this, &SettingsWindow::applyLimits);
+    connect(&m_preferences, &PomodoroPreferences::changed, this, [this] {
+        loadLengths(true);
+    });
+    connect(&m_preferences, &PomodoroPreferences::stateChanged, this, &SettingsWindow::updatePomodoro);
 
     connect(m_save, &SettingsSave::stored, this, &SettingsWindow::saved);
     connect(m_save, &SettingsSave::finished, this, &SettingsWindow::onSaveFinished);
@@ -390,13 +386,11 @@ SettingsWindow::~SettingsWindow() = default;
 
 void SettingsWindow::load()
 {
-    if (m_settings) {
-        const ConnectionSettings connection = ConnectionSettings::read(*m_settings);
-        m_urlField->setText(connection.instanceUrl);
-        (connection.authMode == passwordMode ? m_passwordButton : m_tokenButton)->setChecked(true);
-        m_emailField->setText(connection.email);
-        m_monochromeToggle->setChecked(m_settings->value(SettingsSave::monochromeIconKey, false).toBool());
-    }
+    const ConnectionSettings connection = ConnectionSettings::read(m_settings);
+    m_urlField->setText(connection.instanceUrl);
+    (connection.authMode == passwordMode ? m_passwordButton : m_tokenButton)->setChecked(true);
+    m_emailField->setText(connection.email);
+    m_monochromeToggle->setChecked(m_settings.value(SettingsSave::monochromeIconKey, false).toBool());
     m_testResult->clear();
     m_save->cancel();
     m_saveButton->setEnabled(true);
@@ -408,9 +402,7 @@ void SettingsWindow::load()
     updateLoginItem();
     loadLengths(false);
     loadSounds();
-    if (m_preferences) {
-        m_preferences->refresh();
-    }
+    m_preferences.refresh();
     updatePomodoro();
 }
 
@@ -506,8 +498,7 @@ void SettingsWindow::updateTest()
 
 void SettingsWindow::updateLoginItem()
 {
-    const LoginItem::State state = m_loginItem ? m_loginItem->state() : LoginItem::State::Unavailable;
-    m_loginToggle->setVisible(m_loginItem != nullptr);
+    const LoginItem::State state = m_loginItem.state();
     m_loginToggle->setEnabled(state != LoginItem::State::Unavailable);
     {
         const QSignalBlocker blocker(m_loginToggle);
@@ -518,7 +509,7 @@ void SettingsWindow::updateLoginItem()
         m_loginNote->setText(tr("Allow Tokkl in System Settings → General → Login Items to open it at login."));
         break;
     case LoginItem::State::Unavailable:
-        m_loginNote->setText(m_loginItem ? tr("This copy of Tokkl cannot open at login. Move it to the Applications folder.") : QString());
+        m_loginNote->setText(tr("This copy of Tokkl cannot open at login. Move it to the Applications folder."));
         break;
     case LoginItem::State::Disabled:
     case LoginItem::State::Enabled:
@@ -530,10 +521,7 @@ void SettingsWindow::updateLoginItem()
 
 void SettingsWindow::onLoginToggled(bool enabled)
 {
-    if (!m_loginItem) {
-        return;
-    }
-    const QString error = m_loginItem->setEnabled(enabled);
+    const QString error = m_loginItem.setEnabled(enabled);
     updateLoginItem();
     if (!error.isEmpty()) {
         m_loginNote->setText(error);
@@ -543,7 +531,7 @@ void SettingsWindow::onLoginToggled(bool enabled)
 
 void SettingsWindow::applyLimits()
 {
-    const PomodoroLimits limits = m_preferences ? m_preferences->pomodoroLimits() : PomodoroLimits::placeholder();
+    const PomodoroLimits limits = m_preferences.pomodoroLimits();
     for (const PomodoroField field : lengthFields) {
         const PomodoroRange range = limits.range(field);
         m_lengthBoxes.at(index(field))->setRange(range.min, range.max);
@@ -552,8 +540,8 @@ void SettingsWindow::applyLimits()
 
 void SettingsWindow::loadLengths(bool keepEdits)
 {
-    const PomodoroConfig config = m_preferences ? m_preferences->config() : PomodoroConfig{};
-    const QString owner = m_preferences ? m_preferences->owner() : QString();
+    const PomodoroConfig config = m_preferences.config();
+    const QString owner = m_preferences.owner();
     // An edit is meant for the account it was made on.
     keepEdits = keepEdits && owner == m_lengthsOwner;
     m_lengthsOwner = owner;
@@ -574,19 +562,19 @@ void SettingsWindow::updatePomodoro()
 {
     // Another account whose lengths equal the ones shown announces no new
     // lengths, but the edits still belonged to the one before.
-    if (m_preferences && m_preferences->owner() != m_lengthsOwner) {
+    if (m_preferences.owner() != m_lengthsOwner) {
         loadLengths(true);
     }
-    const bool editable = m_preferences && m_preferences->isEditable();
+    const bool editable = m_preferences.isEditable();
     for (const PomodoroField field : lengthFields) {
-        const QString error = m_preferences ? m_preferences->fieldError(field) : QString();
+        const QString error = m_preferences.fieldError(field);
         m_lengthBoxes.at(index(field))->setReadOnly(!editable);
         m_lengthErrors.at(index(field))->setText(error);
         m_lengthErrors.at(index(field))->setVisible(!error.isEmpty());
     }
     // Without an account the note says why; a read that failed for lack of
     // one would only repeat it.
-    const QString general = editable ? m_preferences->errorString() : QString();
+    const QString general = editable ? m_preferences.errorString() : QString();
     m_pomodoroError->setText(general);
     m_pomodoroError->setVisible(!general.isEmpty());
     m_lengthsNote->setVisible(!editable);
@@ -596,15 +584,13 @@ void SettingsWindow::loadSounds()
 {
     for (const TransitionKind kind : transitions) {
         QComboBox *box = m_soundBoxes.at(index(kind));
-        box->setCurrentIndex(box->findData(m_sounds ? m_sounds->chosen(kind) : defaultSound(kind)));
+        box->setCurrentIndex(box->findData(m_sounds.chosen(kind)));
     }
 }
 
 void SettingsWindow::preview(TransitionKind kind)
 {
-    if (m_alarm) {
-        m_alarm->preview(m_soundBoxes.at(index(kind))->currentData().toString());
-    }
+    m_alarm.preview(m_soundBoxes.at(index(kind))->currentData().toString());
 }
 
 }

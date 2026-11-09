@@ -530,7 +530,7 @@ class MenuBarAppTest : public QObject
         // The settings windows of earlier fixtures, so this one's is told
         // apart.
         const QList<SettingsWindow *> earlierWindows = settingsWindows();
-        MenuBarApp app{&transport, &store, &item, &login, &player, settings, clock};
+        MenuBarApp app{&transport, &store, item, login, player, settings, clock};
         // The app's settings window, a top-level widget of its own.
         SettingsWindow *settingsWindow = newSettingsWindow(earlierWindows);
 

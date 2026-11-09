@@ -1,7 +1,6 @@
 #pragma once
 
 #include <QObject>
-#include <QPointer>
 #include <QString>
 
 namespace Tokkl
@@ -26,9 +25,9 @@ class PomodoroAlarm : public QObject
     Q_OBJECT
 
 public:
-    // Owns none of them; the output must outlive the alarm. A null output
-    // plays nothing. An alarm already ringing starts at once.
-    PomodoroAlarm(PomodoroSession *session, AlarmOutput *output, SoundChoices *choices, const QString &soundsDirectory, QObject *parent = nullptr);
+    // Owns none of them; all must outlive the alarm. An alarm already
+    // ringing starts at once.
+    PomodoroAlarm(PomodoroSession &session, AlarmOutput &output, SoundChoices &choices, const QString &soundsDirectory, QObject *parent = nullptr);
     ~PomodoroAlarm() override;
 
     QString soundsDirectory() const;
@@ -37,8 +36,8 @@ public:
     // in the catalogue or the file is not there.
     QString locate(const QString &soundId) const;
 
-    // Plays the sound once. False, and nothing plays, without an output or
-    // for an id or file that is not there.
+    // Plays the sound once. False, and nothing plays, for an id or file
+    // that is not there.
     bool preview(const QString &soundId);
 
     // Why the last sound the alarm tried did not play, in words for the
@@ -57,9 +56,9 @@ private:
     // not there.
     QString soundToPlay(const QString &soundId);
 
-    QPointer<PomodoroSession> m_session;
-    AlarmOutput *m_output;
-    QPointer<SoundChoices> m_choices;
+    PomodoroSession &m_session;
+    AlarmOutput &m_output;
+    SoundChoices &m_choices;
     QString m_directory;
     // The file that loops; empty while nothing rings.
     QString m_looping;

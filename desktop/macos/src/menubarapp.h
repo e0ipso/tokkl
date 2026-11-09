@@ -3,7 +3,6 @@
 #include "apitypes.h"
 
 #include <QObject>
-#include <QPointer>
 #include <QUrl>
 
 #include <memory>
@@ -61,14 +60,13 @@ public:
     // "tokkl-macos/<Tokkl version>". The caller owns it.
     static Transport *createTransport(QObject *parent = nullptr);
 
-    // Uses the given parts; the app owns none of them. A null login item
-    // hides the toggle; a null alarm player keeps the alarm silent. The
-    // settings keep the connection, the Pomodoro mode and the alarm sounds.
+    // Uses the given parts; the app owns none of them. The settings keep
+    // the connection, the Pomodoro mode and the alarm sounds.
     MenuBarApp(Transport *transport,
                CredentialStore *store,
-               StatusItem *statusItem,
-               LoginItem *loginItem,
-               AlarmPlayer *alarmPlayer,
+               StatusItem &statusItem,
+               LoginItem &loginItem,
+               AlarmPlayer &alarmPlayer,
                QSettings &settings,
                Clock &clock,
                QObject *parent = nullptr);
@@ -77,7 +75,6 @@ public:
     // Applies the saved settings and, when no instance is set, opens the
     // settings window.
     void start();
-
 
 public Q_SLOTS:
     void showSettings();
@@ -99,7 +96,7 @@ private:
     void activate();
     void updateItem();
 
-    QPointer<StatusItem> m_statusItem;
+    StatusItem &m_statusItem;
     QSettings &m_settings;
     // The app's parts are its children; the destructor deletes the ones
     // that use others first. The settings window is a top-level widget, so

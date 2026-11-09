@@ -431,7 +431,7 @@ struct Daemon {
         , session(*stack.session())
         , sounds(&settings, &TimerService::soundKey)
         , connectionSettings(&settings, &connection, store)
-        , alarm(&session, &output, &sounds, bundledSoundsDir())
+        , alarm(session, output, sounds, bundledSoundsDir())
         , service({&timer, &session, stack.preferences(), &sounds, &connectionSettings, &alarm})
     {
         connectionSettings.load();
@@ -2111,7 +2111,7 @@ private Q_SLOTS:
         QVERIFY(backend.calls.isEmpty());
         // A second player hears the alarm that already rings.
         FakeAlarmOutput late;
-        PomodoroAlarm latePlayer(&f.daemon->session, &late, &f.daemon->sounds, bundledSoundsDir());
+        PomodoroAlarm latePlayer(f.daemon->session, late, f.daemon->sounds, bundledSoundsDir());
         QCOMPARE(late.calls, QStringList{QStringLiteral("loop ") + bundled(QStringLiteral("work-to-long-rest"))});
 
         QCOMPARE(f.result(QStringLiteral("NextPhase")).toBool(), true);

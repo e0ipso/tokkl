@@ -4,7 +4,6 @@
 #include "projectchoices.h"
 
 #include <QObject>
-#include <QPointer>
 #include <QUrl>
 
 #include <QVariant>
@@ -59,9 +58,9 @@ class StatusMenu : public QObject
     Q_OBJECT
 
 public:
-    // Shows and acts through timer; none of them is owned. The alarm, when
-    // there is one, gives the message of a sound that did not play.
-    StatusMenu(TimerController *timer, PomodoroSession *session, PomodoroAlarm *alarm = nullptr, QObject *parent = nullptr);
+    // Shows and acts through timer; none of them is owned. The alarm gives
+    // the message of a sound that did not play.
+    StatusMenu(TimerController &timer, PomodoroSession &session, PomodoroAlarm &alarm, QObject *parent = nullptr);
     ~StatusMenu() override;
 
     // The menu. Its items have object names: state, message, startStop,
@@ -88,9 +87,9 @@ private:
     MenuActionStates actions() const;
     static void show(QAction *action, const ActionState &state);
 
-    QPointer<TimerController> m_timer;
-    QPointer<PomodoroSession> m_session;
-    QPointer<PomodoroAlarm> m_alarm;
+    TimerController &m_timer;
+    PomodoroSession &m_session;
+    PomodoroAlarm &m_alarm;
     std::unique_ptr<QMenu> m_menu;
     QMenu *m_projectMenu = nullptr;
     QAction *m_stateAction = nullptr;

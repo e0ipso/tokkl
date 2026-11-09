@@ -40,7 +40,8 @@ public:
     };
     Q_ENUM(TestResult)
 
-    // Uses the given transport and store; the page does not own them.
+    // Uses the given transport and store; the page owns neither, and the
+    // store must outlive it.
     ConnectionSetup(Transport *transport, CredentialStore *store, QObject *parent = nullptr);
     ~ConnectionSetup() override;
 
@@ -99,11 +100,10 @@ private:
     void setBusy(int delta);
     void setSecret(const QString &secret, const QString &owner);
     void setWalletError(const QString &message);
-    QString credentialMessage(const CredentialResult &result) const;
     void finishTest(TestResult result, const QString &message);
 
     QPointer<Transport> m_transport;
-    QPointer<CredentialStore> m_store;
+    CredentialStore *m_store;
     int m_busy = 0;
 
     QString m_url;

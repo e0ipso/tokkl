@@ -13,7 +13,7 @@
 namespace Tokkl
 {
 
-StatusMenu::StatusMenu(TimerController *timer, PomodoroSession *session, PomodoroAlarm *alarm, QObject *parent)
+StatusMenu::StatusMenu(TimerController &timer, PomodoroSession &session, PomodoroAlarm &alarm, QObject *parent)
     : QObject(parent)
     , m_timer(timer)
     , m_session(session)
@@ -22,11 +22,7 @@ StatusMenu::StatusMenu(TimerController *timer, PomodoroSession *session, Pomodor
 {
     // The projects have no stream: each opening asks the core to check
     // them, so a project renamed or deleted elsewhere does not stay listed.
-    connect(m_menu.get(), &QMenu::aboutToShow, this, [this] {
-        if (m_timer) {
-            m_timer->refreshProjects();
-        }
-    });
+    connect(m_menu.get(), &QMenu::aboutToShow, &m_timer, &TimerController::refreshProjects);
 
     m_stateAction = m_menu->addAction(QString());
     m_stateAction->setEnabled(false);
@@ -38,43 +34,26 @@ StatusMenu::StatusMenu(TimerController *timer, PomodoroSession *session, Pomodor
 
     m_startStopAction = m_menu->addAction(QString());
     connect(m_startStopAction, &QAction::triggered, this, [this] {
-        if (!m_timer) {
-            return;
-        }
-        if (m_timer->isRunning() || m_timer->isPaused()) {
-            m_timer->stop();
+        if (m_timer.isRunning() || m_timer.isPaused()) {
+            m_timer.stop();
         } else {
-            m_timer->start();
+            m_timer.start();
         }
     });
 
     m_startSessionAction = m_menu->addAction(tr("Start session"));
-    connect(m_startSessionAction, &QAction::triggered, this, [this] {
-        if (m_session) {
-            m_session->startSession();
-        }
-    });
+    connect(m_startSessionAction, &QAction::triggered, &m_session, &PomodoroSession::startSession);
 
     m_nextPhaseAction = m_menu->addAction(QString());
-    connect(m_nextPhaseAction, &QAction::triggered, this, [this] {
-        if (m_session) {
-            m_session->confirmNextPhase();
-        }
-    });
+    connect(m_nextPhaseAction, &QAction::triggered, &m_session, &PomodoroSession::confirmNextPhase);
 
     m_endSessionAction = m_menu->addAction(tr("End session"));
-    connect(m_endSessionAction, &QAction::triggered, this, [this] {
-        if (m_session) {
-            m_session->endSession();
-        }
-    });
+    connect(m_endSessionAction, &QAction::triggered, &m_session, &PomodoroSession::endSession);
 
     m_pomodoroModeAction = m_menu->addAction(QString());
     m_pomodoroModeAction->setCheckable(true);
     connect(m_pomodoroModeAction, &QAction::triggered, this, [this] {
-        if (m_session) {
-            m_session->setPomodoroMode(!m_session->pomodoroMode());
-        }
+        m_session.setPomodoroMode(!m_session.pomodoroMode());
         refresh();
     });
 
@@ -85,26 +64,20 @@ StatusMenu::StatusMenu(TimerController *timer, PomodoroSession *session, Pomodor
     m_billableAction = m_menu->addAction(tr("Billable"));
     m_billableAction->setCheckable(true);
     connect(m_billableAction, &QAction::triggered, this, [this] {
-        if (m_timer) {
-            m_timer->chooseBillable(!m_timer->chosenBillable());
-        }
+        m_timer.chooseBillable(!m_timer.chosenBillable());
         refresh();
     });
 
     m_menu->addSeparator();
 
     m_reconnectAction = m_menu->addAction(tr("Reconnect"));
-    connect(m_reconnectAction, &QAction::triggered, this, [this] {
-        if (m_timer) {
-            m_timer->reconnect();
-        }
-    });
+    connect(m_reconnectAction, &QAction::triggered, &m_timer, &TimerController::reconnect);
 
     m_openAction = m_menu->addAction(tr("Open Tokkl"));
     connect(m_openAction, &QAction::triggered, this, [this] {
         // The configured base URL only: it never holds credentials.
-        if (m_timer && m_timer->connection()->webUrl().isValid()) {
-            Q_EMIT openRequested(m_timer->connection()->webUrl());
+        if (m_timer.connection()->webUrl().isValid()) {
+            Q_EMIT openRequested(m_timer.connection()->webUrl());
         }
     });
 
@@ -138,33 +111,27 @@ StatusMenu::StatusMenu(TimerController *timer, PomodoroSession *session, Pomodor
         action->setObjectName(name);
     }
 
-    if (m_timer) {
-        connect(m_timer, &TimerModel::elapsedChanged, this, &StatusMenu::refreshState);
-        for (auto signal : {&TimerModel::statusChanged,
-                            &TimerModel::currentEntryChanged,
-                            &TimerModel::chainChanged,
-                            &TimerModel::sessionActiveChanged,
-                            &TimerModel::projectsChanged,
-                            &TimerModel::selectionChanged,
-                            &TimerModel::choiceChanged,
-                            &TimerModel::entryProjectChanged}) {
-            connect(m_timer, signal, this, &StatusMenu::refresh);
-        }
-        connect(m_timer->connection(), &Connection::generationChanged, this, &StatusMenu::onGenerationChanged);
+    connect(&m_timer, &TimerModel::elapsedChanged, this, &StatusMenu::refreshState);
+    for (auto signal : {&TimerModel::statusChanged,
+                        &TimerModel::currentEntryChanged,
+                        &TimerModel::chainChanged,
+                        &TimerModel::sessionActiveChanged,
+                        &TimerModel::projectsChanged,
+                        &TimerModel::selectionChanged,
+                        &TimerModel::choiceChanged,
+                        &TimerModel::entryProjectChanged}) {
+        connect(&m_timer, signal, this, &StatusMenu::refresh);
     }
-    if (m_session) {
-        connect(m_session, &PomodoroSession::countdownChanged, this, &StatusMenu::refreshState);
-        for (auto signal : {&PomodoroSession::modeChanged,
-                            &PomodoroSession::modeLockedChanged,
-                            &PomodoroSession::sessionChanged,
-                            &PomodoroSession::canStartSessionChanged,
-                            &PomodoroSession::messageChanged}) {
-            connect(m_session, signal, this, &StatusMenu::refresh);
-        }
+    connect(m_timer.connection(), &Connection::generationChanged, this, &StatusMenu::onGenerationChanged);
+    connect(&m_session, &PomodoroSession::countdownChanged, this, &StatusMenu::refreshState);
+    for (auto signal : {&PomodoroSession::modeChanged,
+                        &PomodoroSession::modeLockedChanged,
+                        &PomodoroSession::sessionChanged,
+                        &PomodoroSession::canStartSessionChanged,
+                        &PomodoroSession::messageChanged}) {
+        connect(&m_session, signal, this, &StatusMenu::refresh);
     }
-    if (m_alarm) {
-        connect(m_alarm, &PomodoroAlarm::failureChanged, this, &StatusMenu::refresh);
-    }
+    connect(&m_alarm, &PomodoroAlarm::failureChanged, this, &StatusMenu::refresh);
     refresh();
 }
 
@@ -185,20 +152,13 @@ void StatusMenu::onGenerationChanged()
 
 MenuActionStates StatusMenu::actions() const
 {
-    return MenuActionStates::of(*m_timer, m_session);
+    return MenuActionStates::of(m_timer, &m_session);
 }
 
 void StatusMenu::refreshState()
 {
-    if (!m_timer) {
-        return;
-    }
-    if (m_session) {
-        m_stateAction->setText(StatusWords::menuLine(*m_timer, *m_session));
-    } else {
-        m_stateAction->setText(tr("%1 %2 · %3").arg(StatusWords::runText(*m_timer), m_timer->elapsedText(), StatusWords::statusText(m_timer->status())));
-    }
-    m_stateAction->setToolTip(StatusWords::detailText(*m_timer));
+    m_stateAction->setText(StatusWords::menuLine(m_timer, m_session));
+    m_stateAction->setToolTip(StatusWords::detailText(m_timer));
 }
 
 void StatusMenu::refreshSession(const MenuActionStates &actions)
@@ -210,11 +170,11 @@ void StatusMenu::refreshSession(const MenuActionStates &actions)
 
     m_pomodoroModeAction->setText(actions.mode.label == QLatin1String("pomodoroModeLocked") ? tr("Pomodoro mode (locked while running)") : tr("Pomodoro mode"));
     m_pomodoroModeAction->setEnabled(actions.mode.enabled);
-    m_pomodoroModeAction->setChecked(m_session && m_session->pomodoroMode());
+    m_pomodoroModeAction->setChecked(m_session.pomodoroMode());
 
-    QString message = m_session ? m_session->message() : QString();
-    if (message.isEmpty() && m_alarm) {
-        message = m_alarm->failure();
+    QString message = m_session.message();
+    if (message.isEmpty()) {
+        message = m_alarm.failure();
     }
     m_messageAction->setText(message);
     m_messageAction->setVisible(!message.isEmpty());
@@ -228,9 +188,6 @@ void StatusMenu::show(QAction *action, const ActionState &state)
 
 void StatusMenu::refresh()
 {
-    if (!m_timer) {
-        return;
-    }
     refreshState();
 
     const MenuActionStates actions = this->actions();
@@ -239,19 +196,18 @@ void StatusMenu::refresh()
     refreshSession(actions);
 
     m_billableAction->setEnabled(actions.billable.enabled);
-    m_billableAction->setChecked(m_timer->chosenBillable());
+    m_billableAction->setChecked(m_timer.chosenBillable());
 
-    m_reconnectAction->setEnabled(m_timer->status() != TimerModel::Unconfigured);
-    const Connection *connection = m_timer->connection();
-    m_openAction->setEnabled(connection && !connection->webUrl().isEmpty());
+    m_reconnectAction->setEnabled(m_timer.status() != TimerModel::Unconfigured);
+    m_openAction->setEnabled(!m_timer.connection()->webUrl().isEmpty());
 
     rebuildProjects(actions);
 }
 
 void StatusMenu::rebuildProjects(const MenuActionStates &actions)
 {
-    const ProjectChoices choices = m_timer->projectChoices();
-    m_projectMenu->setTitle(tr("Project: %1").arg(StatusWords::projectText(*m_timer)));
+    const ProjectChoices choices = m_timer.projectChoices();
+    m_projectMenu->setTitle(tr("Project: %1").arg(StatusWords::projectText(m_timer)));
     m_projectMenu->menuAction()->setEnabled(actions.project.enabled);
     if (m_projectItems == choices) {
         return;
@@ -303,9 +259,7 @@ QAction *StatusMenu::addProjectChoice(const QString &label, const QVariant &proj
     action->setChecked(checked);
     action->setEnabled(enabled);
     connect(action, &QAction::triggered, this, [this, projectId] {
-        if (m_timer) {
-            m_timer->chooseProject(projectId);
-        }
+        m_timer.chooseProject(projectId);
         // The action checked itself; a refused choice must not leave it so.
         m_projectItems.reset();
         refresh();
