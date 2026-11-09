@@ -9,7 +9,7 @@ export type FailureKind =
  * Why input was refused, for clients that act on it. Codes and field names are stable; the human
  * message may change wording at any time.
  */
-export type ValidationCode =
+type ValidationCode =
   /** Any refused input without a more specific code. */
   | 'invalid_input'
   /** A known preference with a value the apps cannot use; `field` is the preference key. */

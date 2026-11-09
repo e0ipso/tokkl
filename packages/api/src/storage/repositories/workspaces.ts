@@ -1,9 +1,10 @@
 /** Workspaces and their members. */
+import { now } from '../../lib/clock.ts';
 import { sql, type Kysely } from 'kysely';
 import type { Backend } from '../config.ts';
 import type { PhysicalDatabase } from '../physical.ts';
 import { entityId, safeInteger } from '../conversion.ts';
-import { generatedId, getWorkspace, membershipRole, now, workspace, type AccountRepositories } from './account-rows.ts';
+import { generatedId, getWorkspace, membershipRole, workspace, type AccountRepositories } from './account-rows.ts';
 
 export function createWorkspaceRepository(
   db: Kysely<PhysicalDatabase>,

@@ -42,12 +42,12 @@ export interface ReportSource {
   readSnapshot<T>(work: (repositories: ReportRepositories) => Promise<T>): Promise<T>;
 }
 export type ReportUser = Pick<User, 'id' | 'fullName' | 'email' | 'timezone' | 'beginningOfWeek'>;
-export type ReportWorkspace = Pick<Workspace, 'id' | 'defaultCurrency' | 'defaultHourlyRate'>;
+type ReportWorkspace = Pick<Workspace, 'id' | 'defaultCurrency' | 'defaultHourlyRate'>;
 
 /** Entries a report formats at a time, and the most ids one entry read names. */
 export const REPORT_BATCH_SIZE = 500;
 /** A detailed report's order. Ties go to the entry id, in the same direction. */
-export interface DetailedOrder {
+interface DetailedOrder {
   orderBy: OrderBy;
   direction: SortDirection;
 }
@@ -67,7 +67,7 @@ export interface ReportReader {
   /** Every entry by start, then id, one batch at a time. */
   each(visit: (batch: ReportEntry[]) => void): Promise<void>;
 }
-export interface ReportReadOptions {
+interface ReportReadOptions {
   authentication?: Authentication;
 }
 

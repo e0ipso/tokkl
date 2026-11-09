@@ -20,7 +20,7 @@ export function totalSeconds(entries: readonly StoppedEntry[]): number {
   return entries.reduce((sum, entry) => sum + stoppedSeconds(entry), 0);
 }
 
-export interface EntryDay {
+interface EntryDay {
   day: string;
   entries: StoppedEntry[];
 }

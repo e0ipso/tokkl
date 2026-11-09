@@ -13,7 +13,7 @@ const DEFAULT_MAX_IMPORTS_PER_USER = 1;
 /** Room for one 50 MB file and a few small ones; two large files never run together. */
 const DEFAULT_MAX_IMPORT_BYTES = 64 * 1024 * 1024;
 
-export interface ImportAdmissionOptions {
+interface ImportAdmissionOptions {
   /** Imports running at once on this instance. Default 4. */
   maxImports?: number;
   /** Imports one account may run at once. Default 1; at most `maxImports`. */
@@ -38,7 +38,7 @@ export interface ImportPlace {
   release(): void;
 }
 
-export interface ImportAdmission {
+interface ImportAdmission {
   /**
    * Takes a place for `userId`'s import of a file of `bytes`, or throws a 503 with `Retry-After`
    * when none is free or the file does not fit beside the running ones.

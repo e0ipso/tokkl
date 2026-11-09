@@ -9,7 +9,7 @@ import { createTimerRepositories } from './repositories/timers.ts';
 import { createTransferRepositories } from './repositories/transfers.ts';
 import { createReportRepositories } from './repositories/reports.ts';
 
-export type StorageOptions = TransactionRunnerOptions;
+type StorageOptions = TransactionRunnerOptions;
 
 /** Takes ownership of an initialized connection. Every operation binds all repositories together. */
 export function createStorage(connection: StorageConnection<PhysicalDatabase>, options: StorageOptions = {}): Storage {

@@ -4,7 +4,7 @@ import { canStep, stepValue, stepperStatus, type StepperRange } from './lengthSt
 import { t } from '../i18n/messages.ts';
 
 /** Props a form passes to the value field, such as the ones useFieldErrors().field returns. */
-export interface StepperInputProps {
+interface StepperInputProps {
   id?: string;
   ref?: Ref<HTMLInputElement>;
   'aria-invalid'?: boolean;

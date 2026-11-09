@@ -10,10 +10,7 @@ import { createTransferRepositories } from './transfers.ts';
 export const reportRunsInline = (config: StorageConfig): boolean =>
   config.backend === 'sqlite' && config.filename === ':memory:';
 /** The accounts, reports and exports a report worker's read-only snapshot hands out. */
-export type ReportReaderRepositories = Pick<
-  Repositories,
-  'users' | 'workspaces' | 'sessions' | 'reports' | 'transfers'
->;
+type ReportReaderRepositories = Pick<Repositories, 'users' | 'workspaces' | 'sessions' | 'reports' | 'transfers'>;
 export interface ReportReader {
   readSnapshot<T>(work: (repositories: ReportReaderRepositories) => Promise<T>): Promise<T>;
   close(): Promise<void>;

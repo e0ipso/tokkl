@@ -1,4 +1,5 @@
 /** Row mappers and queries the catalog repositories and the transfer reads share. */
+import { now } from '../../lib/clock.ts';
 import { type Kysely, type Selectable, type Insertable } from 'kysely';
 import type { Backend } from '../config.ts';
 import type { PhysicalDatabase, ClientsRow, ProjectsRow, TasksRow, TagsRow } from '../physical.ts';
@@ -57,7 +58,6 @@ export function task(r: Omit<Selectable<TasksRow>, 'name_key'>): Task {
 export function tag(r: Selectable<TagsRow>): Tag {
   return { id: entityId(r.id), workspaceId: entityId(r.workspace_id), name: r.name, ...times(r) };
 }
-export const now = () => new Date().toISOString();
 export function required<T>(value: T | undefined): T {
   if (value === undefined) throw new Error('Catalog record not found');
   return value;

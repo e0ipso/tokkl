@@ -9,7 +9,7 @@ import type { ReportRepositories } from './reports.ts';
 /** A job that streams its body. */
 export type DownloadWork = ExportJobWork | CsvDownloadWork;
 
-export interface DownloadSource {
+interface DownloadSource {
   readSnapshot<T>(work: (repositories: ReportRepositories & ExportRepositories) => Promise<T>): Promise<T>;
 }
 

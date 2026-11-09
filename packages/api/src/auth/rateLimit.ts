@@ -4,7 +4,7 @@ import { normalizeEmail } from '../domain/accountValues.ts';
 import type { PasswordAttemptResult as AttemptResult } from '../domain/accounts.ts';
 
 /** One failure count an attempt is charged to, with its own limit. */
-export interface Counter {
+interface Counter {
   key: string;
   limit: number;
 }
@@ -54,7 +54,7 @@ export function passwordCounters(email: string, address: string): Counter[] {
 }
 
 /** Which limiter a counter belongs to. It is part of the stored key, so equal keys never collide. */
-export type LimiterNamespace = 'password' | 'setup-code';
+type LimiterNamespace = 'password' | 'setup-code';
 
 export type { AttemptResult };
 

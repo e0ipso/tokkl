@@ -24,7 +24,7 @@ export const IDEMPOTENCY_RETENTION_MS = 24 * 60 * 60 * 1000;
 export const idempotencyCutoff = (now: Date) => new Date(now.getTime() - IDEMPOTENCY_RETENTION_MS).toISOString();
 
 /** How one kind of create runs, names its result, and answers again for a recorded one. */
-export interface IdempotentCreate<T> {
+interface IdempotentCreate<T> {
   create(): Promise<T>;
   /** The id `replay` reads the result back by. */
   reference(result: T): Id;

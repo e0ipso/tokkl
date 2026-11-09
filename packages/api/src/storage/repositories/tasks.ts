@@ -1,4 +1,5 @@
 /** Tasks of a project, with their project and client names and tracked total. */
+import { now } from '../../lib/clock.ts';
 import { sql, type Expression, type ExpressionBuilder, type Kysely, type SqlBool } from 'kysely';
 import type { Backend } from '../config.ts';
 import type { PhysicalDatabase } from '../physical.ts';
@@ -6,15 +7,7 @@ import type { Repositories, TaskInput, TaskSearchFilter } from '../../domain/por
 import { booleanValue, entityId, safeInteger, utcInstant } from '../conversion.ts';
 import { StorageConflict } from '../../domain/ports.ts';
 import { catalogWrite, containsName, nameKey, taskEstimate } from './catalog-sql.ts';
-import {
-  catalogTaskQuery,
-  catalogTaskRefQuery,
-  insertId,
-  now,
-  required,
-  task,
-  taskSummary,
-} from './catalog-queries.ts';
+import { catalogTaskQuery, catalogTaskRefQuery, insertId, required, task, taskSummary } from './catalog-queries.ts';
 
 /** Whether a stored name has a character outside ASCII: more bytes than characters. */
 function nonAsciiName(backend: Backend) {

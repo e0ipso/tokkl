@@ -5,14 +5,14 @@ export type Id = number;
 /** Canonical UTC ISO 8601 with millisecond precision. Never a driver-local timestamp. */
 export type UtcInstant = string;
 /** Valid YYYY-MM-DD calendar key, separate from an instant. */
-export type DateOnly = string;
+type DateOnly = string;
 export type JsonValue = null | boolean | number | string | JsonValue[] | JsonObject;
 export interface JsonObject {
   [key: string]: JsonValue;
 }
 export type UserRole = 'admin' | 'user';
 export type MembershipRole = 'owner' | 'member';
-export interface AuditTimes {
+interface AuditTimes {
   createdAt: UtcInstant;
   updatedAt: UtcInstant;
 }
@@ -168,7 +168,7 @@ export interface PauseChain {
   seconds: number;
   cloneEntryId: Id | null;
 }
-export interface PomodoroPhase {
+interface PomodoroPhase {
   kind: SessionPhaseKind;
   startedAt: UtcInstant;
   completed: number;

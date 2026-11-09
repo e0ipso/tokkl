@@ -90,7 +90,7 @@ export function createTimerPublication(
   };
 }
 
-export interface TimerDeliveryOptions {
+interface TimerDeliveryOptions {
   storage: Storage;
   bus: TimerBus;
   /** Where the state a stream opens with reads the time. */

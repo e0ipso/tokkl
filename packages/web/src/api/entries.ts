@@ -110,7 +110,7 @@ export function useCreateEntry() {
 }
 
 /** An edit of one entry: its id and the fields that change. */
-export type EntryUpdate = TimeEntryInput & { id: number };
+type EntryUpdate = TimeEntryInput & { id: number };
 
 /**
  * The mutation scope of writes to entry `id`. TanStack sends the writes in one scope one at a time,
@@ -145,7 +145,7 @@ export function updateEntry(qc: QueryClient, wid: number, { id, ...input }: Entr
 }
 
 /** An edit of the running entry: its id, which picks the scope, and the fields that change. */
-export type RunningEntryUpdate = RunningEntryChanges & { id: number };
+type RunningEntryUpdate = RunningEntryChanges & { id: number };
 
 /**
  * Sends an edit of the running entry through the timer (`editRunningEntry` in timerHooks.ts),
@@ -157,7 +157,7 @@ export function updateRunningEntry(qc: QueryClient, { id, ...changes }: RunningE
 }
 
 /** What the entry edit hooks return: `mutate` reports a failure to `onError` only. */
-export interface EntryUpdater<Update = EntryUpdate, Reply = void> {
+interface EntryUpdater<Update = EntryUpdate, Reply = void> {
   mutate(update: Update, options?: { onError?: (error: Error) => void }): void;
   mutateAsync(update: Update): Promise<Reply>;
 }
@@ -186,7 +186,7 @@ export function useUpdateRunningEntry(): EntryUpdater<RunningEntryUpdate, TimerS
 }
 
 /** A finished entry typed into the idle timer bar: the draft's fields and the span it covers. */
-export type TypedEntryInput = TimeEntryInput & { start: string; stop: string };
+type TypedEntryInput = TimeEntryInput & { start: string; stop: string };
 
 /**
  * Saves the finished entry typed into the idle timer bar as a duration, as a timer write
@@ -248,7 +248,7 @@ export function useBulkPatch() {
 }
 
 /** Where a stopped entry splits: the stored halves, as `snappedSplit` gives them. */
-export interface SplitSpans {
+interface SplitSpans {
   first: { start: Date; stop: Date };
   second: { start: Date; stop: Date };
 }

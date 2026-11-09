@@ -13,7 +13,7 @@ import type { DetailedReportPage, Report, ReportQuery, WeeklyReport } from '@tok
  */
 
 /** Rows per page in the detailed report. */
-export const PAGE_SIZE = 100;
+const PAGE_SIZE = 100;
 
 /** Filter fields shared by the report endpoints and the CSV exports. */
 export type ReportFilterBody = Pick<
@@ -47,7 +47,7 @@ export function useReport(query: ReportQuery | null) {
   return useQuery(reportOptions(query));
 }
 
-export type DetailedSort = { sort: 'date' | 'duration' | 'description'; dir: 'asc' | 'desc' };
+type DetailedSort = { sort: 'date' | 'duration' | 'description'; dir: 'asc' | 'desc' };
 
 /** One sorted page of every matching entry. */
 export function detailedEntriesOptions(filters: ReportFilterBody, order: DetailedSort, page: number) {

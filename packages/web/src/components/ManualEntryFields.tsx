@@ -104,7 +104,7 @@ export function useManualEntry(settings: Settings, { onAdded }: { onAdded: () =>
   };
 }
 
-export type ManualEntry = ReturnType<typeof useManualEntry>;
+type ManualEntry = ReturnType<typeof useManualEntry>;
 
 /** The manual form's fields inside the timer bar's controls row. */
 export function ManualEntryFields({

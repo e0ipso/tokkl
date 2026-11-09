@@ -20,7 +20,7 @@ export const LEGACY_EXPORT_FORMAT = 'timetrack-export';
 const EXPORT_FORMAT_VERSION = 1;
 type ExportUser = Omit<User, 'passwordHash' | 'apiToken'>;
 /** An account export without its entries: the part read in one go before the entries stream. */
-export type ExportHead = Omit<AccountExportProjection, 'entries'>;
+type ExportHead = Omit<AccountExportProjection, 'entries'>;
 
 /**
  * The JSON export a piece at a time: `opening`, then each batch of entries (newest first) through

@@ -108,7 +108,7 @@ async function currentRevision(qc: QueryClient): Promise<number> {
  * acted on a state that is gone; `adopt` only takes the new state, for an edit that names the
  * entry it changes, which the server refuses itself once that entry stopped.
  */
-export type TimerWriteGuard = 'refuse' | 'adopt';
+type TimerWriteGuard = 'refuse' | 'adopt';
 
 /**
  * Brings the timer state up to date after a timer write whose outcome is unknown, before the next
@@ -253,7 +253,7 @@ export function editRunningEntry(qc: QueryClient, id: number, changes: RunningEn
 }
 
 /** Fields of a timer start: the new entry's fields and when it starts (now if left out). */
-export interface StartTimerInput extends Pick<TimeEntryInput, 'description' | 'project_id' | 'task_id' | 'billable'> {
+interface StartTimerInput extends Pick<TimeEntryInput, 'description' | 'project_id' | 'task_id' | 'billable'> {
   tags?: string[];
   tag_ids?: number[];
   workspace_id?: number;
@@ -302,7 +302,7 @@ export function useStopTimer() {
 }
 
 /** Fields of a Pomodoro start: the entry's fields and the session lengths, in minutes, for this session only. */
-export interface StartPomodoroInput extends Pick<
+interface StartPomodoroInput extends Pick<
   TimeEntryInput,
   'description' | 'project_id' | 'task_id' | 'billable' | 'tag_ids'
 > {

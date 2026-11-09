@@ -28,7 +28,7 @@ import {
   type ImportRunner,
 } from './importGuards.ts';
 import { importTogglCsv, readTogglCsv } from './importCsv.ts';
-export interface JsonImportResult {
+interface JsonImportResult {
   dry_run: boolean;
   clients: number;
   projects: number;

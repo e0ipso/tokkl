@@ -19,13 +19,13 @@ import { t } from '../../../i18n/messages.ts';
 const SAMPLE_SECONDS = 47 * 60 + 6;
 
 /** What every group of preference fields reads and writes. */
-export interface PreferenceFieldsProps {
+interface PreferenceFieldsProps {
   draft: Draft;
   set: <K extends keyof Draft>(key: K, value: Draft[K]) => void;
 }
 
 /** The number fields' error state, from `useFieldErrors`. */
-export type NumberFieldErrors = ReturnType<typeof useFieldErrors<NumberKey>>;
+type NumberFieldErrors = ReturnType<typeof useFieldErrors<NumberKey>>;
 
 /** Theme, date, time and duration formats, and the list and shortcut switches. */
 export function DisplayFields({

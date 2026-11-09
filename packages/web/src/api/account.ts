@@ -42,7 +42,7 @@ function savesOf(qc: QueryClient): PreferenceSaves {
 }
 
 /** Sends preference changes. The reply replaces the cached preferences. */
-export type SendPreferences = (changes: Partial<Preferences>) => Promise<Preferences>;
+type SendPreferences = (changes: Partial<Preferences>) => Promise<Preferences>;
 
 const sendPreferences: SendPreferences = changes =>
   api.post<Preferences>(`${V9}/me/preferences`, changes, { decode: object });

@@ -1,11 +1,12 @@
 /** Tags of a workspace; names are unique by their case-folded key. */
+import { now } from '../../lib/clock.ts';
 import { type Kysely } from 'kysely';
 import type { Backend } from '../config.ts';
 import type { PhysicalDatabase } from '../physical.ts';
 import type { Repositories } from '../../domain/ports.ts';
 import type { Tag } from '../../domain/model.ts';
 import { catalogWrite, containsName, nameKey } from './catalog-sql.ts';
-import { insertId, now, required, tag } from './catalog-queries.ts';
+import { insertId, required, tag } from './catalog-queries.ts';
 
 export function createTagRepository(db: Kysely<PhysicalDatabase>, backend: Backend): Repositories['tags'] {
   const tags: Repositories['tags'] = {

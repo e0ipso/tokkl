@@ -36,7 +36,7 @@ import type { RowRange } from '../lib/pagination.ts';
 /** The most trashed entries one trash read returns, so the read stays bounded. */
 export const TRASH_READ_LIMIT = 1000;
 
-export type StorageConflictKind = 'unique' | 'foreign-key' | 'serialization' | 'deadlock' | 'busy';
+type StorageConflictKind = 'unique' | 'foreign-key' | 'serialization' | 'deadlock' | 'busy';
 /**
  * What a repository throws when the database refuses a write for a conflict, which the domain maps
  * to its own errors. No SQL, constraint names or driver cause.
@@ -68,7 +68,7 @@ export interface AccountChanges {
   defaultWorkspaceId?: Id;
 }
 /** Revision 0 stands for a user without stored timer state. */
-export interface UserTimerRevision {
+interface UserTimerRevision {
   user: User;
   timerRevision: number;
 }
@@ -334,7 +334,7 @@ export interface EntriesRepository {
   purgeDeleted(userId: Id, scope: { workspaceIds: Id[]; id?: Id }): Promise<number>;
 }
 /** A create a client named with an idempotency key. */
-export interface IdempotencyRecord {
+interface IdempotencyRecord {
   /** Hash of the user and the client's key. */
   keyHash: string;
   userId: Id;
@@ -410,7 +410,7 @@ export interface ReportCursor {
   start: UtcInstant;
   id: Id;
 }
-export interface ReportCounts {
+interface ReportCounts {
   entries: number;
   billable: number;
   /** Billable entries whose project has its own hourly rate. */
@@ -420,7 +420,7 @@ export interface ReportCounts {
  * Stopped, live entries of one user in one workspace that match a selection. Every read is bounded
  * by its ids, window or batch size, so no call loads the whole selection's projections.
  */
-export interface ReportsRepository {
+interface ReportsRepository {
   count(userId: Id, workspaceId: Id, selection: ReportSelection): Promise<ReportCounts>;
   /** The selected ids in `order`; all of them without a window. */
   ids(
@@ -453,7 +453,7 @@ export interface ReportsRepository {
   ): Promise<ReportEntryProjection[]>;
 }
 /** An account export's entry order: newest first (start, then id, descending) or oldest first. */
-export type ExportEntryOrder = 'newest' | 'oldest';
+type ExportEntryOrder = 'newest' | 'oldest';
 export interface TransfersRepository {
   /** All related projections are collected in one consistent read snapshot. */
   exportAccount(userId: Id): Promise<AccountExportProjection>;

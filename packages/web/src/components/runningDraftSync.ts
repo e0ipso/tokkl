@@ -21,7 +21,7 @@ export interface RunningDraftState {
 }
 
 /** How the draft follows the running entry. */
-export type RunningDraftStep =
+type RunningDraftStep =
   /** No entry runs and none was shown: nothing to do. */
   | { kind: 'idle' }
   /** The shown entry stopped: the draft goes back to empty. */

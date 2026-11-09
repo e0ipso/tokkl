@@ -1,7 +1,7 @@
 import pg from 'pg';
 import type { ServerConfig, StorageConfig } from './config.ts';
 import { postgresOptions } from './connections.ts';
-import { createLogger, type Logger } from '../lib/logger.ts';
+import type { Logger } from '../lib/logger.ts';
 import type { TimerBus, TimerSignal } from '../domain/ports.ts';
 
 export type { TimerBus, TimerSignal };
@@ -42,7 +42,7 @@ function parseSignal(payload: string | undefined): TimerSignal | undefined {
 }
 
 /** PostgreSQL carries signals between processes. The other engines run one process's local bus. */
-export function startTimerBus(config: StorageConfig, logger: Logger = createLogger()): Promise<TimerBus> {
+export function startTimerBus(config: StorageConfig, logger: Logger): Promise<TimerBus> {
   return config.backend === 'postgres' ? startPostgresTimerBus(config, logger) : Promise.resolve(createLocalTimerBus());
 }
 

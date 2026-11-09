@@ -35,13 +35,7 @@ import { disposableBackend } from './support/disposableBackend.ts';
 import { trackedWorkers } from './support/reportWorkers.ts';
 import type { Backend } from '../../src/storage/config.ts';
 import { createLogger } from '../../src/lib/logger.ts';
-
-/** A logger that keeps each line as parsed JSON. */
-function recordedLog() {
-  const lines: Array<Record<string, unknown>> = [];
-  const logger = createLogger({ level: 'debug', sink: line => lines.push(JSON.parse(line)) });
-  return { logger, lines };
-}
+import { recordLogs } from '../helpers.ts';
 
 /** The body `runner` streams for `userId`'s export. */
 async function streamedExport(runner: ReportRunner, userId: number, assembly: ExportAssemblyJob): Promise<string> {
@@ -294,32 +288,32 @@ test('memory SQLite stays inline; reader startup never creates or migrates a fil
   const dir = mkdtempSync(join(tmpdir(), 'tokkl-report-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const filename = join(dir, 'missing', 'db.sqlite');
-  const startupLog = recordedLog();
-  const missing = createReportRunner({ ...config, filename }, operations, { logger: startupLog.logger });
+  const lines = recordLogs(t);
+  const logger = createLogger({ level: 'debug' });
+  const missing = createReportRunner({ ...config, filename }, operations, { logger });
   t.after(() => missing.close());
   await assert.rejects(runReport(missing, user.id, user.defaultWorkspaceId, job), /Report worker stopped/);
   assert.equal(existsSync(join(dir, 'missing')), false);
   // The startup failure is logged with its stack frames, never its message or the database path.
-  const [started] = startupLog.lines;
+  const [started] = lines;
   assert.equal(started?.msg, 'Report worker failed to start');
   assert.equal(started?.level, 'error');
   assert.ok((started?.diagnostic as { frames: string[] }).frames.length > 0);
-  assert.equal(JSON.stringify(startupLog.lines).includes(dir), false);
+  assert.equal(JSON.stringify(lines).includes(dir), false);
   const empty = join(dir, 'empty.sqlite');
   writeFileSync(empty, '');
   const before = readFileSync(empty);
-  const jobLog = recordedLog();
-  const unmigrated = createReportRunner({ ...config, filename: empty }, operations, { logger: jobLog.logger });
+  const unmigrated = createReportRunner({ ...config, filename: empty }, operations, { logger });
   t.after(() => unmigrated.close());
   await assert.rejects(runReport(unmigrated, user.id, user.defaultWorkspaceId, job), /Report failed/);
   await unmigrated.close();
   assert.deepEqual(readFileSync(empty), before);
   // The job's failure names the job, not the SQL error's message.
-  const failed = jobLog.lines.find(line => line.msg === 'Report failed');
+  const failed = lines.find(line => line.msg === 'Report failed');
   assert.equal(failed?.jobKind, 'app-report');
   assert.equal(typeof failed?.jobId, 'number');
   assert.ok((failed?.diagnostic as { frames: string[] }).frames.length > 0);
-  assert.doesNotMatch(JSON.stringify(jobLog.lines), /no such table/i);
+  assert.doesNotMatch(JSON.stringify(lines), /no such table/i);
 });
 
 test('an idle storage report worker lets its parent process exit', async () => {

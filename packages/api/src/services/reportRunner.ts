@@ -20,7 +20,7 @@ const REPORT_DEFAULTS = { maxQueue: 16, concurrency: 2 };
 const DOWNLOAD_DEFAULTS = { maxQueue: 8, concurrency: 3, deadlineMs: 15 * 60_000 };
 
 /** The limits of one lane. `maxQueue` counts reserved, queued and running places. */
-export interface LaneLimits {
+interface LaneLimits {
   maxQueue?: number;
   /** Places one account may hold at once. Default a quarter of `maxQueue`, at least 1. */
   maxPerUser?: number;

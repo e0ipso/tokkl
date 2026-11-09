@@ -260,7 +260,7 @@ export function createTableDDL(backend: Backend, table: string, columns: Record<
       parts.push(`FOREIGN KEY (${q(n)}) REFERENCES ${q(c.references[0])} (${q('id')}) ON DELETE ${c.references[1]}`);
   return `CREATE TABLE ${q(table)} (${parts.join(', ')})${serverDDL(backend) ? ' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin' : ''}`;
 }
-export interface SchemaIndex {
+interface SchemaIndex {
   name: string;
   table: string;
   columns: string[];

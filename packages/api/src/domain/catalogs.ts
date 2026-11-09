@@ -29,7 +29,7 @@ import {
   type TaskChanges,
 } from './catalogCommands.ts';
 
-export type CatalogRepositories = Pick<Repositories, 'clients' | 'projects' | 'tasks' | 'tags'>;
+type CatalogRepositories = Pick<Repositories, 'clients' | 'projects' | 'tasks' | 'tags'>;
 export type CatalogContext = OperationContext<CatalogRepositories>;
 /** Required for metadata mutations. Prepare discovers/locks affected users before changes.
  * Keep the original baseline on repeated preparation in the same context. Settlement uses

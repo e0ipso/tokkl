@@ -69,7 +69,7 @@ export function serializeUser(user: User, options: { includeToken: boolean }) {
   };
 }
 
-export interface TogglWorkspace extends WorkspaceDto {
+interface TogglWorkspace extends WorkspaceDto {
   organization_id: number;
   admin: boolean;
   role: 'admin' | 'user';
@@ -175,7 +175,7 @@ export function serializeSettings(settings: InstanceSettings): InstanceSettingsD
   };
 }
 
-export interface TogglClient extends ClientDto {
+interface TogglClient extends ClientDto {
   at: string;
   creator_id: null;
   integration_provider: null;
@@ -203,7 +203,7 @@ function projectStatus(row: ProjectSummary, today: string): string {
   return 'active';
 }
 
-export interface TogglProject extends ProjectDto {
+interface TogglProject extends ProjectDto {
   [field: string]: unknown;
 }
 
@@ -249,7 +249,7 @@ export function serializeProject(row: ProjectSummary, defaultCurrency: string): 
   };
 }
 
-export interface TogglTask extends TaskDto {
+interface TogglTask extends TaskDto {
   [field: string]: unknown;
 }
 
@@ -279,7 +279,7 @@ export function serializeTask(row: TaskSummary): TogglTask {
   };
 }
 
-export interface TogglTag extends TagDto {
+interface TogglTag extends TagDto {
   at: string;
   deleted_at: null;
   creator_id: null;
@@ -300,7 +300,7 @@ export function serializeTag(row: Tag): TogglTag {
   };
 }
 
-export interface TogglTimeEntry extends TimeEntryDto {
+interface TogglTimeEntry extends TimeEntryDto {
   duronly: true;
   user_id: number;
   uid: number;

@@ -5,7 +5,7 @@ import { LoadError, Loading } from '../components/PageState.tsx';
 import { t } from '../i18n/messages.ts';
 
 /** The answer to checking a one-time link, such as an invite or a password reset link. */
-export type LinkCheck<T> =
+type LinkCheck<T> =
   { state: 'loading' } | { state: 'valid'; data: T } | { state: 'error'; message: string; invalid: boolean };
 
 /**

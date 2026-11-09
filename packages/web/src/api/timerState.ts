@@ -145,7 +145,7 @@ export function timerStateOf(value: unknown): TimerState {
 }
 
 /** What to write into the caches for an arriving state. */
-export interface TimerUpdate {
+interface TimerUpdate {
   state: TimerState;
   /** The clock offset taken at arrival, or null if the state's server time is unreadable. */
   offset: number | null;

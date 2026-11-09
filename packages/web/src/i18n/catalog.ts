@@ -18,7 +18,7 @@ export type MessageGroup = Readonly<Record<string, Message>>;
 export type MessageValue = string | number;
 
 /** The placeholder names in a message's text, such as "name" in "Deleted {name}". */
-export type Placeholders<Text extends string> = Text extends `${string}{${infer Name}}${infer Rest}`
+type Placeholders<Text extends string> = Text extends `${string}{${infer Name}}${infer Rest}`
   ? Name | Placeholders<Rest>
   : never;
 

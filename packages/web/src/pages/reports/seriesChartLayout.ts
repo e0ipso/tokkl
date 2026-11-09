@@ -9,7 +9,7 @@ import { t } from '../../i18n/messages.ts';
 export type Point = Report['series'][number];
 export type Resolution = Report['resolution'];
 
-export interface Margin {
+interface Margin {
   top: number;
   right: number;
   bottom: number;
@@ -66,7 +66,7 @@ export function niceStep(maxHours: number): number {
 }
 
 /** The plot area, the hour scale and the column bands for `series` drawn `width` pixels wide. */
-export interface ChartLayout {
+interface ChartLayout {
   plotWidth: number;
   plotHeight: number;
   /** Gridline values in hours, from 0 to the top of the scale. */
@@ -101,7 +101,7 @@ export function chartLayout(series: readonly Point[], width: number, geometry: G
 }
 
 /** Where one column's two segments go: billable on the baseline, the rest above it past a gap. */
-export interface ColumnShape {
+interface ColumnShape {
   x: number;
   base: number;
   totalY: number;

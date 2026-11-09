@@ -26,7 +26,7 @@ export function useDeleteEntries(): (ids: number[]) => Promise<void> {
   };
 }
 
-export interface BulkEditOptions {
+interface BulkEditOptions {
   /** The toast after a bulk-bar edit; see `bulkEditMessage`. */
   success?: string;
   /** Runs once the server answered, whatever it answered. */

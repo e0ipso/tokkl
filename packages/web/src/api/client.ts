@@ -7,7 +7,7 @@
 import type { Decoder } from './decode.ts';
 import { t } from '../i18n/messages.ts';
 
-export type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 /** A failed request: the reply's status, its decoded body and the request it answered. */
 export class ApiError extends Error {
@@ -87,10 +87,10 @@ export const DEADLINE_MS = { read: 20_000, write: 30_000, transfer: 300_000 } as
  */
 export const DOWNLOAD_START_MS = DEADLINE_MS.transfer;
 
-export type RequestKind = keyof typeof DEADLINE_MS;
+type RequestKind = keyof typeof DEADLINE_MS;
 
 /** A body sent as it is, with its own content type, such as an uploaded CSV or JSON file. */
-export interface RawBody {
+interface RawBody {
   readonly raw: string;
   readonly contentType: string;
 }
@@ -211,7 +211,7 @@ export async function request<T = void>(method: Method, path: string, options: R
  * A download request. `signal` cancels it, reply body included, such as when the view that started
  * it goes away; the download then fails with the signal's reason.
  */
-export interface DownloadRequest {
+interface DownloadRequest {
   method?: 'GET' | 'POST';
   body?: unknown;
   signal?: AbortSignal;

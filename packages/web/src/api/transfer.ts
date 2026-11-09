@@ -6,7 +6,7 @@ import type { ImportResult, JsonRestoreResult } from '@tokkl/types';
 /** Exports, the Toggl CSV import and the Tokkl JSON restore. Pass `stale.imported` after a real import. */
 
 /** The query string for a CSV import request: preview or not, and the chosen Toggl users. */
-export function importQuery(dryRun: boolean, users: readonly string[]): string {
+function importQuery(dryRun: boolean, users: readonly string[]): string {
   const params = new URLSearchParams();
   if (dryRun) params.set('dry_run', 'true');
   for (const key of users) params.append('user', key);

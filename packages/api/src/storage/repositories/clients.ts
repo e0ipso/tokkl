@@ -1,4 +1,5 @@
 /** Clients of a workspace. Deleting one detaches its projects under unique names. */
+import { now } from '../../lib/clock.ts';
 import { type Kysely } from 'kysely';
 import type { Backend } from '../config.ts';
 import type { PhysicalDatabase } from '../physical.ts';
@@ -6,7 +7,7 @@ import type { Repositories } from '../../domain/ports.ts';
 import { entityId } from '../conversion.ts';
 import { detachedProjectName } from './catalog-names.ts';
 import { bumpCatalogRevision, catalogWrite, containsName, nameKey } from './catalog-sql.ts';
-import { client, insertId, now, required } from './catalog-queries.ts';
+import { client, insertId, required } from './catalog-queries.ts';
 
 export function createClientRepository(
   db: Kysely<PhysicalDatabase>,

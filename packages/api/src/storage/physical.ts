@@ -34,7 +34,7 @@ export interface WorkspacesRow {
   catalog_revision: DefaultInt;
 }
 
-export interface SessionsRow {
+interface SessionsRow {
   token_hash: string;
   user_id: Int;
   created_at: string;
@@ -115,18 +115,18 @@ export interface TimeEntriesRow {
   running_user_id?: GeneratedAlways<number | string | null>;
 }
 
-export interface TimeEntryTagsRow {
+interface TimeEntryTagsRow {
   time_entry_id: Int;
   tag_id: Int;
 }
 
-export interface WorkspaceUsersRow {
+interface WorkspaceUsersRow {
   workspace_id: Int;
   user_id: Int;
   role: string;
 }
 
-export interface InstanceSettingsRow {
+interface InstanceSettingsRow {
   key: string;
   value: string;
   updated_at: string;
@@ -146,7 +146,7 @@ export interface AccountTokensRow {
   used_at: string | null;
 }
 
-export interface PomodoroSessionsRow {
+interface PomodoroSessionsRow {
   user_id: Int;
   entry_id: Int;
   work_minutes: Int;
@@ -158,7 +158,7 @@ export interface PomodoroSessionsRow {
   completed: Int;
 }
 
-export interface PauseChainsRow {
+interface PauseChainsRow {
   user_id: Int;
   workspace_id: Int;
   project_id: Int | null;
@@ -170,7 +170,7 @@ export interface PauseChainsRow {
   clone_entry_id: Int | null;
 }
 
-export interface TimerStatesRow {
+interface TimerStatesRow {
   user_id: Int;
   revision: Int;
   fingerprint: string;
@@ -180,7 +180,7 @@ export interface TimerStatesRow {
   session_entry_id: Int | null;
 }
 
-export interface IdempotencyKeysRow {
+interface IdempotencyKeysRow {
   key_hash: string;
   user_id: Int;
   fingerprint: string;
@@ -188,13 +188,13 @@ export interface IdempotencyKeysRow {
   created_at: string;
 }
 
-export interface RateLimitCountersRow {
+interface RateLimitCountersRow {
   key_hash: string;
   reset_at: string;
   failures: Int;
 }
 
-export interface RateLimitReservationsRow {
+interface RateLimitReservationsRow {
   id: string;
   key_hash: string;
   expires_at: string;

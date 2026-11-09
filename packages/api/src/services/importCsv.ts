@@ -136,7 +136,7 @@ function skippedReason(found: ImportUser): string {
 type Cell = (row: string[], key: string) => string;
 
 /** A parsed Toggl detailed CSV: its rows without the header, and `cell` to read one trimmed value. */
-export interface TogglCsvTable {
+interface TogglCsvTable {
   rows: string[][];
   cell: Cell;
   hasUsers: boolean;

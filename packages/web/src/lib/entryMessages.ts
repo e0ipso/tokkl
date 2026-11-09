@@ -3,7 +3,7 @@ import { t } from '../i18n/messages.ts';
 
 /** Toast texts for edits and deletes of several entries at once. */
 
-export interface ToastText {
+interface ToastText {
   text: string;
   kind: 'info' | 'error';
 }

@@ -2,10 +2,10 @@
 import type { Response } from 'express';
 
 /** How long a download may wait for the client to take more before the response is dropped. */
-export const DOWNLOAD_STALL_MS = 30_000;
+const DOWNLOAD_STALL_MS = 30_000;
 
 /** Takes one piece of the body; resolves once the client took what was written before. */
-export type DownloadOutput = (chunk: string) => Promise<void>;
+type DownloadOutput = (chunk: string) => Promise<void>;
 
 /** Writes `chunk`, then waits for the socket to drain when it asked for a pause. */
 function written(res: Response, chunk: string): Promise<void> {

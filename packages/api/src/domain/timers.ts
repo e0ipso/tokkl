@@ -71,7 +71,7 @@ export type EditTimer = EditPrecondition & {
  * an entry id refuses it only once that entry no longer runs, so an unrelated change, such as a
  * catalog rename the running entry shows, does not send the client round a 409 loop.
  */
-export type EditPrecondition =
+type EditPrecondition =
   | {
       /** The timer revision the client saw. */ revision: number;
       /** The entry the client saw running. */ entryId?: Id;

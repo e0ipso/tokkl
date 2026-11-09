@@ -1,4 +1,5 @@
 /** Invite and password reset links: single-use tokens an admin hands out, stored as hashes. */
+import { now } from '../lib/clock.ts';
 import type { TokensRepository, UsersRepository } from './ports.ts';
 import type { Id, User } from './model.ts';
 import { invalidInput, notFound } from '../lib/errors.ts';
@@ -8,7 +9,6 @@ import {
   accountRecord,
   emailConflict,
   lockExistingUser,
-  now,
   requireAdmin,
   type AccountRepositories,
   type AccountRunner,

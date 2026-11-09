@@ -10,8 +10,8 @@ declare module 'express-serve-static-core' {
 }
 
 /** The response headers that carry a refusal's `ValidationDetail`. */
-export const ERROR_CODE_HEADER = 'Tokkl-Error-Code';
-export const ERROR_FIELD_HEADER = 'Tokkl-Error-Field';
+const ERROR_CODE_HEADER = 'Tokkl-Error-Code';
+const ERROR_FIELD_HEADER = 'Tokkl-Error-Field';
 
 const STATUS: Readonly<Record<FailureKind, number>> = {
   invalid: 400,
@@ -24,13 +24,13 @@ const STATUS: Readonly<Record<FailureKind, number>> = {
 };
 
 /** What the client receives for a failure: a status, extra headers and a JSON body. */
-export interface ErrorReply {
+interface ErrorReply {
   status: number;
   headers: Readonly<Record<string, string>>;
   body: unknown;
 }
 
-export interface ErrorReplyOptions {
+interface ErrorReplyOptions {
   /** Adds the validation code and field headers. The body stays the same either way. */
   validationHeaders?: boolean;
 }

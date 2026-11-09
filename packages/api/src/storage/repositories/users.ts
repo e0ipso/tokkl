@@ -1,10 +1,11 @@
 /** User accounts: credentials, access, profile and preferences. */
+import { now } from '../../lib/clock.ts';
 import type { Kysely } from 'kysely';
 import type { Backend } from '../config.ts';
 import type { AccountChanges, NewAccount } from '../../domain/ports.ts';
 import type { PhysicalDatabase } from '../physical.ts';
 import { entityId, jsonObject, safeInteger } from '../conversion.ts';
-import { generatedId, getUser, now, user, type AccountRepositories } from './account-rows.ts';
+import { generatedId, getUser, user, type AccountRepositories } from './account-rows.ts';
 
 /** A new account gets its own workspace, so the user repository writes through `workspaces`. */
 export function createUserRepository(

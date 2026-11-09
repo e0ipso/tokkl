@@ -3,7 +3,7 @@ import { invalidate } from '../api/invalidate.ts';
 import { MOVES_TIMER } from '../api/timerState.ts';
 import { useToast } from './Toast.tsx';
 
-export interface ActionOptions<TVars, TResult> {
+interface ActionOptions<TVars, TResult> {
   mutationFn: (vars: TVars) => Promise<TResult>;
   /** Query keys to refresh after success, usually one of the `stale` lists in api/keys.ts. */
   invalidate?: readonly QueryKey[];

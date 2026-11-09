@@ -8,8 +8,8 @@ import type { Id, TagLabel, TimerSnapshot } from './model.ts';
 import { encodeTimerFingerprint, IDLE_TIMER_FINGERPRINT } from './timerFingerprint.ts';
 import { buildTimerView, type TimerView } from './timerView.ts';
 
-export type SettlementRepositories = Pick<Repositories, 'users' | 'entries' | 'timers' | 'tags'>;
-export type SettlementContext = OperationContext<SettlementRepositories>;
+type SettlementRepositories = Pick<Repositories, 'users' | 'entries' | 'timers' | 'tags'>;
+type SettlementContext = OperationContext<SettlementRepositories>;
 
 /** One local application instance owns this callback. No connection or database identity is exposed.
  * `incarnation` is the user row's `createdAt`. It tells apart accounts that reuse a deleted id. */

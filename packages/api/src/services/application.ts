@@ -57,7 +57,7 @@ export const DEFAULT_SERVICE_SETTINGS: Readonly<ServiceSettings> = Object.freeze
   timerStreams: DEFAULT_TIMER_STREAM_LIMITS,
 });
 
-export interface ApplicationServiceOptions {
+interface ApplicationServiceOptions {
   storage: Storage;
   /** Runs reports and export assemblies. The services close it when they close. */
   reports: ReportExecutor;

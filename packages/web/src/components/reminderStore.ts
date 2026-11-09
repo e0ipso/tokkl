@@ -4,14 +4,14 @@
  * in memory when storage is blocked. Plain TypeScript with no React, so node:test can load it.
  */
 
-export interface Reminder {
+interface Reminder {
   /** The timer it is about: the entry id and start time, so correcting the start resets it. */
   timer: string;
   notified: boolean;
   confirmed: boolean;
 }
 
-export function isReminder(value: unknown): value is Reminder {
+function isReminder(value: unknown): value is Reminder {
   return (
     typeof value === 'object' &&
     value !== null &&
@@ -28,7 +28,7 @@ export function reminderKey(accountId: number): string {
   return `tokkl.longTimerReminder.${accountId}`;
 }
 
-export interface ReminderStore {
+interface ReminderStore {
   /** The stored reminder. The same object comes back until the stored text changes. */
   read(key: string): Reminder | null;
   write(key: string, value: Reminder): void;

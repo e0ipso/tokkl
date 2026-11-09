@@ -2,7 +2,7 @@ import { Fragment, createElement, type ReactNode } from 'react';
 import { template, type MessageKey, type MessageParams } from './messages.ts';
 
 /** `tx`'s parameters: the same names as `t`'s, each any React node, such as a `<code>` element. */
-export type RichParams<Key extends MessageKey> = { readonly [Name in keyof MessageParams<Key>]: ReactNode };
+type RichParams<Key extends MessageKey> = { readonly [Name in keyof MessageParams<Key>]: ReactNode };
 
 /**
  * The message for `key` with its placeholders filled by React nodes, for a sentence that holds

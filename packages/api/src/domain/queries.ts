@@ -40,7 +40,7 @@ import { getTimeEntry } from './entryAccess.ts';
 import { offsetRange, pageRange, slicePage, type PageWindow, type RowRange } from '../lib/pagination.ts';
 
 /** Reads about accounts, the instance and workspace membership. No repository here can write. */
-export interface AccountReadRepositories {
+interface AccountReadRepositories {
   users: Pick<UsersRepository, 'list'>;
   workspaces: Pick<WorkspacesRepository, 'forMember' | 'listForUser' | 'getRole' | 'countMembers' | 'listMembers'>;
   settings: SettingsRepository;
@@ -48,7 +48,7 @@ export interface AccountReadRepositories {
   transfers: TransfersRepository;
 }
 /** Reads of the clients, projects, tasks and tags in the workspaces a user belongs to. */
-export interface CatalogReadRepositories {
+interface CatalogReadRepositories {
   workspaces: Pick<WorkspacesRepository, 'listForUser' | 'catalogRevision'>;
   clients: Pick<ClientsRepository, 'list' | 'get'>;
   projects: Pick<ProjectsRepository, 'list' | 'get'>;
@@ -56,13 +56,13 @@ export interface CatalogReadRepositories {
   tags: Pick<TagsRepository, 'list'>;
 }
 /** Reads of one user's time entries. */
-export interface EntryReadRepositories {
+interface EntryReadRepositories {
   entries: Pick<EntriesRepository, 'list' | 'get' | 'running' | 'bounds' | 'listDeleted' | 'countDeleted'>;
 }
-export type ReadQueryRepositories = AccountReadRepositories & CatalogReadRepositories & EntryReadRepositories;
+type ReadQueryRepositories = AccountReadRepositories & CatalogReadRepositories & EntryReadRepositories;
 
 /** A workspace with the caller's membership role in it. */
-export interface MemberWorkspace {
+interface MemberWorkspace {
   workspace: Workspace;
   role: MembershipRole | undefined;
 }
@@ -71,7 +71,7 @@ export interface WorkspaceProject {
   /** The workspace's currency, which Toggl repeats on every project. */
   defaultCurrency: string;
 }
-export interface Organization {
+interface Organization {
   workspace: Workspace;
   owner: boolean;
   memberCount: number;
@@ -96,12 +96,12 @@ export interface TaskSearch {
   sortOrder: SortOrder;
 }
 /** One page of a task search and how many tasks match it in all. */
-export interface TaskSearchPage {
+interface TaskSearchPage {
   tasks: TaskSummary[];
   totalCount: number;
 }
 
-export interface MemberTaskFilter {
+interface MemberTaskFilter {
   includeInactive: boolean;
   changedSince?: string;
 }
@@ -135,7 +135,7 @@ async function acrossWorkspaces<T>(
   return (await Promise.all((await r.workspaces.listForUser(userId)).map(read))).flat();
 }
 
-export function createAccountQueries(r: AccountReadRepositories, deploymentSessionDays: number) {
+function createAccountQueries(r: AccountReadRepositories, deploymentSessionDays: number) {
   const withRole = async (userId: Id, workspace: Workspace): Promise<MemberWorkspace> => ({
     workspace,
     role: await r.workspaces.getRole(userId, workspace.id),
@@ -239,7 +239,7 @@ export function createCatalogQueries(r: CatalogReadRepositories) {
   };
 }
 
-export function createEntryQueries(r: EntryReadRepositories) {
+function createEntryQueries(r: EntryReadRepositories) {
   return {
     timeEntries: (userId: Id, filter: EntryFilter): Promise<EntryDetails[]> => r.entries.list(userId, filter),
     runningEntry: (userId: Id): Promise<EntryDetails | undefined> => r.entries.running(userId),

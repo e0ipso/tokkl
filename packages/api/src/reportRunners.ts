@@ -9,13 +9,13 @@ import type { JobSource } from './services/reportExecution.ts';
 import { ReportRunner, type ReportRunnerOptions } from './services/reportRunner.ts';
 
 /** Starts a report worker thread, which opens its own reader for `config`. */
-export type ReportWorkerStarter = (config: StorageConfig) => Worker;
+type ReportWorkerStarter = (config: StorageConfig) => Worker;
 
 /** The worker every report runner starts unless it is given another starter. */
 export const startReportWorker: ReportWorkerStarter = config =>
   new Worker(new URL('./reportWorker.ts', import.meta.url), { workerData: config });
 
-export interface StorageReportRunnerOptions extends ReportRunnerOptions {
+interface StorageReportRunnerOptions extends ReportRunnerOptions {
   /** How the runner starts its worker threads. Defaults to `startReportWorker`. */
   startWorker?: ReportWorkerStarter;
 }

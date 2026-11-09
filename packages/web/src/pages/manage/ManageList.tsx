@@ -4,7 +4,7 @@ import { Icon, type IconName } from '../../components/Icon.tsx';
 import { LoadError, Loading } from '../../components/PageState.tsx';
 import { t } from '../../i18n/messages.ts';
 
-export interface ManageListQuery<T> {
+interface ManageListQuery<T> {
   data: readonly T[] | undefined;
   isLoading: boolean;
   error: Error | null;

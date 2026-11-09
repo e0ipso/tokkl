@@ -107,7 +107,7 @@ export function SearchBox({
   );
 }
 
-export interface MenuItem {
+interface MenuItem {
   label: string;
   icon?: IconName;
   onSelect: () => void;

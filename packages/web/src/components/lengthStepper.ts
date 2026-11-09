@@ -5,7 +5,7 @@ export interface StepperRange {
 }
 
 /** Whether the typed text is a whole number in the range, and which limit it breaks if not. */
-export type StepperStatus = 'valid' | 'empty' | 'notWhole' | 'belowMin' | 'aboveMax';
+type StepperStatus = 'valid' | 'empty' | 'notWhole' | 'belowMin' | 'aboveMax';
 
 export function stepperStatus(text: string, { min, max }: StepperRange): StepperStatus {
   const trimmed = text.trim();

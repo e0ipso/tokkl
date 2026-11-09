@@ -27,6 +27,15 @@ export interface TestContext {
 }
 
 export const PASSWORD = 'correct horse battery';
+
+/** Records the JSON lines loggers write to the console until the test ends. */
+export function recordLogs(t: NodeTestContext): Array<Record<string, unknown>> {
+  const lines: Array<Record<string, unknown>> = [];
+  const keep = (line: unknown) => void lines.push(JSON.parse(String(line)));
+  t.mock.method(console, 'log', keep);
+  t.mock.method(console, 'error', keep);
+  return lines;
+}
 /** The header the web client sends on every request; session-starting and cookie-authenticated writes need it. */
 export const CSRF = { 'x-tokkl-csrf': '1' };
 

@@ -4,7 +4,7 @@ import { useOverlayStack } from './overlayStack.tsx';
 import { t, type MessageKey } from '../i18n/messages.ts';
 
 /** Each key as printed on the keyboard, with the catalog key of what it does. */
-export const SHORTCUTS: Array<[string, MessageKey]> = [
+const SHORTCUTS: Array<[string, MessageKey]> = [
   ['N', 'timer.shortcutNew'],
   ['S', 'timer.shortcutStop'],
   ['C', 'timer.shortcutContinue'],

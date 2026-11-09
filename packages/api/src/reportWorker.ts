@@ -12,7 +12,7 @@ import { runReportJob } from './services/reportJobs.ts';
 import { ApplicationError } from './lib/errors.ts';
 import { redactedDiagnostic } from './lib/logger.ts';
 
-export interface ReportRequest {
+interface ReportRequest {
   id: number;
   work: ReportWork;
 }

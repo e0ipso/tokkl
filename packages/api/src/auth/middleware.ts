@@ -29,7 +29,7 @@ declare module 'express-serve-static-core' {
     auth: Authentication;
   }
 }
-export type AuthHandler = RequestHandler<Record<string, string>, unknown, unknown, Request['query'], AuthLocals>;
+type AuthHandler = RequestHandler<Record<string, string>, unknown, unknown, Request['query'], AuthLocals>;
 
 export function hasCsrfHeader(req: Request): boolean {
   return req.headers[CSRF_HEADER] === '1' || req.headers[LEGACY_CSRF_HEADER] === '1';

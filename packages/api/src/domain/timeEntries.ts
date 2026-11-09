@@ -61,7 +61,7 @@ export async function reanchorNoTimeEntries(
 }
 
 /** Stops `entry` at `at` on the resolution grid. One too short to keep is discarded: false. */
-export async function stopEntryAt(
+async function stopEntryAt(
   ctx: { settings: Pick<SettingsRepository, 'read'>; entries: Pick<EntriesRepository, 'update'> },
   user: User,
   entry: TimeEntry,
@@ -241,7 +241,7 @@ async function applyEntryUpdate(
 }
 
 /** The two entries a split leaves: the original, cut short, and the new one after it. */
-export interface SplitEntries {
+interface SplitEntries {
   first: EntryDetails;
   second: EntryDetails;
 }

@@ -11,6 +11,7 @@ import type { TimerBus, TimerSignal } from '../../src/storage/timerBus.ts';
 import { parseStorageConfig } from '../../src/storage/config.ts';
 import { postgresOptions } from '../../src/storage/connections.ts';
 import { startTimerBus, TIMER_BUS_APPLICATION, TIMER_BUS_CHANNEL } from '../../src/storage/timerBus.ts';
+import { silentLogger } from '../../src/lib/logger.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 
 async function until(condition: () => boolean | Promise<boolean>, what: string, ms = 10000): Promise<void> {
@@ -58,7 +59,7 @@ test('a server bus that cannot reach its database rejects within the connect tim
   );
   const output = captureConsole(t);
   const started = performance.now();
-  await assert.rejects(startTimerBus(config), (error: unknown) => {
+  await assert.rejects(startTimerBus(config, silentLogger), (error: unknown) => {
     assert.ok(error instanceof Error);
     assert.doesNotMatch(
       `${error.message} ${error.stack} ${JSON.stringify(error)}`,
@@ -70,7 +71,7 @@ test('a server bus that cannot reach its database rejects within the connect tim
   await until(() => sockets.size === 0, 'the abandoned connection to close', 3000);
   assert.doesNotMatch(output(), /bus-user|bus-secret|bus_db|127\.0\.0\.1/);
 
-  const local = await startTimerBus(parseStorageConfig({}, dir));
+  const local = await startTimerBus(parseStorageConfig({}, dir), silentLogger);
   const received: TimerSignal[] = [];
   local.receive(signal => received.push(signal));
   local.send({ userId: 1, revision: 1 });
@@ -125,7 +126,7 @@ test('closing a bus whose server stopped answering destroys the listener socket 
     dir,
   );
   const ends = t.mock.method(pg.Client.prototype, 'end');
-  const bus = await startTimerBus(config);
+  const bus = await startTimerBus(config, silentLogger);
   assert.equal(peer.connections(), 1);
   const started = performance.now();
   await bus.close();
@@ -161,11 +162,11 @@ test(
     const notify = (payload: string) => admin.query('SELECT pg_notify($1, $2)', [TIMER_BUS_CHANNEL, payload]);
 
     const output = captureConsole(t);
-    const a = await startTimerBus(config);
+    const a = await startTimerBus(config, silentLogger);
     buses.push(a);
     const [aPid] = await listeners();
     assert.ok(aPid);
-    const b = await startTimerBus(config);
+    const b = await startTimerBus(config, silentLogger);
     buses.push(b);
     const bPid = (await listeners()).find(pid => pid !== aPid);
     assert.ok(bPid, 'each bus holds its own listener connection');

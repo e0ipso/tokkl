@@ -12,7 +12,7 @@ import {
 import type { TagsRepository, TimersRepository } from './ports.ts';
 import type { DiscardedPomodoro, EntryDetails, Id, PauseChain, TagLabel, TimerSnapshot, User } from './model.ts';
 
-export interface PomodoroView {
+interface PomodoroView {
   config: PomodoroSessionConfig;
   phase: SessionPhase;
   plannedEnd: Date;
