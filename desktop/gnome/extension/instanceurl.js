@@ -3,6 +3,12 @@
 // use: a usable http:// address whose host is neither localhost nor a
 // loopback address. desktop/core/autotests/insecureurls.json holds the cases
 // both follow. Nothing here imports from GNOME, so Node runs its tests.
+//
+// The rule is copied here instead of asked of tokkl-timerd because the
+// preferences window warns while the address is typed, also when the service
+// is stopped or older than the extension supports. A call to a stopped
+// service would start it through D-Bus activation, which the extension never
+// does on its own.
 
 // scheme://authority/path, with no query or fragment.
 const URL_PATTERN = /^([A-Za-z][A-Za-z0-9+.-]*):\/\/([^/?#]*)([^?#]*)$/;
