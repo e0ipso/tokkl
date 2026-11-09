@@ -27,7 +27,7 @@ import { createAccountEntryEffects } from '../domain/timerEffects.ts';
 import { createTimerOperations } from '../domain/timers.ts';
 import { forbidden } from '../lib/errors.ts';
 import { silentLogger, type Logger } from '../lib/logger.ts';
-import { createImportAdmission, type ImportAdmissionOptions } from './importAdmission.ts';
+import { createImportAdmission } from './importAdmission.ts';
 import { createImportOperations } from './importJson.ts';
 import type { ExportAssemblyJob, ExportEmitter } from './exportJobs.ts';
 import type { ReportExecutor } from './reportRunner.ts';
@@ -37,13 +37,28 @@ import { credentialCheck, credentialKey } from './streamCredentials.ts';
 import { startMaintenance } from './maintenance.ts';
 import { createTimerDelivery } from './timerDelivery.ts';
 import { presentTimerOperations, type PresentedTimerOperations } from './timerReplies.ts';
-import type { EventStreamResponse, TimerStreamOptions, TimerStreams } from './timerStreams.ts';
+import {
+  DEFAULT_TIMER_STREAM_LIMITS,
+  type EventStreamResponse,
+  type TimerStreamLimits,
+  type TimerStreams,
+} from './timerStreams.ts';
+
+/** The limits the services run with. `index.ts` passes `DEFAULT_SERVICE_SETTINGS`. */
+export interface ServiceSettings {
+  /** The keep-alive interval and the bounds of this process's timer streams. */
+  timerStreams: Readonly<TimerStreamLimits>;
+}
+
+export const DEFAULT_SERVICE_SETTINGS: Readonly<ServiceSettings> = Object.freeze({
+  timerStreams: DEFAULT_TIMER_STREAM_LIMITS,
+});
 
 export interface ApplicationServiceOptions {
   storage: Storage;
   /** Runs reports and export assemblies. The services close it when they close. */
   reports: ReportExecutor;
-  streamOptions?: TimerStreamOptions;
+  settings: Readonly<ServiceSettings>;
   /** Signals timer revisions to other processes and refreshes streams on their signals. */
   bus: TimerBus;
   /** Where timer operations and maintenance read the time. */
@@ -51,8 +66,6 @@ export interface ApplicationServiceOptions {
   logger?: Logger;
   /** The deployment's session length, used until an admin stores one. */
   sessionDays: number;
-  /** How many imports run at once, in all and per account. */
-  imports?: ImportAdmissionOptions;
 }
 
 const refused = () => forbidden('Incorrect username and/or password');
@@ -154,14 +167,19 @@ export function createSessionAccountOperations(
 export function createApplicationServices({
   storage,
   reports,
-  streamOptions,
+  settings,
   bus,
   clock,
   logger = silentLogger,
   sessionDays,
-  imports,
 }: ApplicationServiceOptions) {
-  const { timerStreams, publish, settled } = createTimerDelivery({ storage, bus, clock, logger, streamOptions });
+  const { timerStreams, publish, settled } = createTimerDelivery({
+    storage,
+    bus,
+    clock,
+    logger,
+    streamLimits: settings.timerStreams,
+  });
   const security = accountSecurity(timerStreams);
   const streamCredentials = { check: (authentication: Authentication) => credentialCheck(storage, authentication) };
   const entryEffects = createAccountEntryEffects<Repositories>(publish);
@@ -197,7 +215,7 @@ export function createApplicationServices({
     },
     readFor,
     /** Admits an import before it reads its file, or refuses it with a 503 and `Retry-After`. */
-    importAdmission: createImportAdmission(imports),
+    importAdmission: createImportAdmission(),
     /**
      * Takes a place in the report runner's download lane, then writes the signed-in account's export
      * to `output`, a batch of entries at a time, after checking the credential in the export's own

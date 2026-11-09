@@ -4,8 +4,8 @@ import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
 import type { TimerState } from '@tokkl/types';
 import { storageFor } from './fixtures/database.ts';
-import { composeApp } from './fixtures/app.ts';
-import { type TimerStreamOptions } from '../src/services/timerStreams.ts';
+import { composeApp, streamSettings } from './fixtures/app.ts';
+import type { TimerStreamLimits } from '../src/services/timerStreams.ts';
 import {
   CSRF,
   PASSWORD,
@@ -37,9 +37,9 @@ interface EventStream {
   ended: () => Promise<void>;
 }
 
-/** An app over `ctx.db` whose timer streams use `options`, and a request signed in by `ctx.user`'s API token. */
-function streamingApp(ctx: TestContext, options: TimerStreamOptions) {
-  return replaceFixtureApp(ctx, options);
+/** An app over `ctx.db` whose timer streams use `limits`, and a request signed in by `ctx.user`'s API token. */
+function streamingApp(ctx: TestContext, limits: Partial<TimerStreamLimits>) {
+  return replaceFixtureApp(ctx, limits);
 }
 
 function basic(user: { apiToken: string }): Record<string, string> {
@@ -300,7 +300,7 @@ test('closing every stream lets the server close', STREAM_TEST, async t => {
     storage: storageFor(ctx.db),
     config: testConfig(),
     setup: { code: null },
-    timerStreamOptions: { keepAliveMs: SLOW_KEEP_ALIVE_MS },
+    settings: streamSettings({ keepAliveMs: SLOW_KEEP_ALIVE_MS }),
   });
   const streams = services.timerStreams;
   const listening = app.listen(0, '127.0.0.1');
@@ -324,7 +324,7 @@ test(
       storage: storageFor(ctx.db),
       config: testConfig(),
       setup: { code: null },
-      timerStreamOptions: { keepAliveMs: SLOW_KEEP_ALIVE_MS },
+      settings: streamSettings({ keepAliveMs: SLOW_KEEP_ALIVE_MS }),
     });
     const listening = app.listen(0, '127.0.0.1');
     await new Promise(resolve => listening.once('listening', resolve));

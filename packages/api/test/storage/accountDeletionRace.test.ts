@@ -6,7 +6,7 @@ import type { AccountEntryEffects } from '../../src/domain/accounts.ts';
 import { createAccountOperations } from '../../src/domain/accounts.ts';
 import { errorReply } from '../../src/http/errors.ts';
 import { generateApiToken, hashPassword, sha256 } from '../../src/lib/crypto.ts';
-import { createApplicationServices } from '../../src/services/application.ts';
+import { createApplicationServices, DEFAULT_SERVICE_SETTINGS } from '../../src/services/application.ts';
 import { createLocalTimerBus } from '../../src/storage/timerBus.ts';
 import { systemClock } from '../../src/lib/clock.ts';
 import { createReportRunner } from '../../src/reportRunners.ts';
@@ -82,6 +82,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         reports: createReportRunner(fixture.config, storage),
         bus: createLocalTimerBus(),
         clock: systemClock,
+        settings: DEFAULT_SERVICE_SETTINGS,
         sessionDays: 30,
       });
       t.after(async () => {

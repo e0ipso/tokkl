@@ -9,7 +9,7 @@ import { createStorage } from '../fixtures/storageShortcuts.ts';
 import { openConnection } from '../../src/storage/connections.ts';
 import type { PhysicalDatabase } from '../../src/storage/physical.ts';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
-import { composeApp } from '../fixtures/app.ts';
+import { composeApp, streamSettings } from '../fixtures/app.ts';
 import type { TimerBus, TimerSignal } from '../../src/storage/timerBus.ts';
 import { createTimerPublication } from '../../src/services/timerPublication.ts';
 import { testConfig } from '../helpers.ts';
@@ -115,7 +115,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       timerBus,
       config: { ...testConfig(), storage: config },
       setup: { code: null },
-      timerStreamOptions: { keepAliveMs: 600000 },
+      settings: streamSettings({ keepAliveMs: 600000 }),
     });
     const apps = [composeApp(options(stores[0]!, buses[0]!.bus)), composeApp(options(remote.storage, buses[1]!.bus))];
     const servers = await Promise.all(apps.map(application => serveInvariant(application)));

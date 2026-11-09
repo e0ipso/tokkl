@@ -7,7 +7,7 @@ import type { AddressInfo } from 'node:net';
 import type { Express } from 'express';
 import { storageFor, storageConfigFor, setServices, reopenDatabase } from './fixtures/database.ts';
 import { copySQLiteFile } from './fixtures/physical.ts';
-import { composeApp } from './fixtures/app.ts';
+import { composeApp, streamSettings } from './fixtures/app.ts';
 import { hashPassword } from '../src/lib/crypto.ts';
 import { FailureLimiter, type AttemptResult, type Keys } from '../src/auth/rateLimit.ts';
 import type { Config } from '../src/config.ts';
@@ -194,15 +194,16 @@ export function duringPasswordCheck(t: NodeTestContext, during: () => Promise<un
   );
 }
 
+/** Serves `ctx.db` from a new app whose timer streams use `limits`, for the rest of the test file. */
 export function replaceFixtureApp(
   ctx: TestContext,
-  options: import('../src/services/timerStreams.ts').TimerStreamOptions,
+  limits: Partial<import('../src/services/timerStreams.ts').TimerStreamLimits>,
 ) {
   const { app, services, close } = composeApp({
     storage: storageFor(ctx.db),
     config: testConfig(ctx.db),
     setup: { code: null },
-    timerStreamOptions: options,
+    settings: streamSettings(limits),
   });
   setServices(ctx.db, services);
   after(() => close());

@@ -4,7 +4,7 @@ import { createHttpApp, type HttpApp } from './app.ts';
 import { ConfigurationError, loadConfig, type Config } from './config.ts';
 import { systemClock } from './lib/clock.ts';
 import { createReportRunner } from './reportRunners.ts';
-import { createApplicationServices } from './services/application.ts';
+import { createApplicationServices, DEFAULT_SERVICE_SETTINGS } from './services/application.ts';
 import { initializeDatabase } from './storage/migrations.ts';
 import { createStorage } from './storage/index.ts';
 import { startTimerBus } from './storage/timerBus.ts';
@@ -96,6 +96,7 @@ async function main(): Promise<void> {
     const services = createApplicationServices({
       storage,
       reports: createReportRunner(config.storage, storage, { logger }),
+      settings: DEFAULT_SERVICE_SETTINGS,
       bus: timerBus,
       clock: systemClock,
       logger,

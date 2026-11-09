@@ -10,7 +10,7 @@ import { ApplicationError, RequestCancelled } from '../src/lib/errors.ts';
 import { silentLogger } from '../src/lib/logger.ts';
 import { appReportRoutes, reportsV3Routes } from '../src/routes/reports.ts';
 import type { Deps } from '../src/routes/context.ts';
-import { createApplicationServices } from '../src/services/application.ts';
+import { createApplicationServices, DEFAULT_SERVICE_SETTINGS } from '../src/services/application.ts';
 import { createLocalTimerBus } from '../src/storage/timerBus.ts';
 import { systemClock } from '../src/lib/clock.ts';
 import { ReportRunner, type ReportExecutor } from '../src/services/reportRunner.ts';
@@ -154,6 +154,7 @@ test('a full download lane refuses an account export before reading it', async t
     reports: fullRunner(t),
     bus: createLocalTimerBus(),
     clock: systemClock,
+    settings: DEFAULT_SERVICE_SETTINGS,
     sessionDays: 30,
   });
   t.after(() => services.close());
@@ -193,6 +194,7 @@ test('a cancelled account export reads nothing', async t => {
     reports,
     bus: createLocalTimerBus(),
     clock: systemClock,
+    settings: DEFAULT_SERVICE_SETTINGS,
     sessionDays: 30,
   });
   t.after(() => services.close());

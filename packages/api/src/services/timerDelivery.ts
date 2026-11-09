@@ -17,7 +17,7 @@ import { buildTimerView, type TimerView } from '../domain/timerView.ts';
 import type { Logger } from '../lib/logger.ts';
 import { presentTimerState } from '../presenters/timer.ts';
 import { createTimerPublication, type OrderedTimerPublication } from './timerPublication.ts';
-import { TimerStreams, type TimerStreamOptions } from './timerStreams.ts';
+import { TimerStreams, type TimerStreamLimits } from './timerStreams.ts';
 
 export interface TimerDeliveryOptions {
   storage: Storage;
@@ -25,15 +25,15 @@ export interface TimerDeliveryOptions {
   /** Where the state a stream opens with reads the time. */
   clock: Clock;
   logger: Logger;
-  streamOptions?: TimerStreamOptions;
+  streamLimits: Readonly<TimerStreamLimits>;
 }
 
-export function createTimerDelivery({ storage, bus, clock, logger, streamOptions }: TimerDeliveryOptions) {
+export function createTimerDelivery({ storage, bus, clock, logger, streamLimits }: TimerDeliveryOptions) {
   // `publish` is defined below; streams call it only after construction.
   const timerStreams = new TimerStreams(
     async id => presentTimerState(await createTimerOperations(storage, { id }, publish, clock).getTimerState()),
     {
-      ...streamOptions,
+      ...streamLimits,
       onBehind: (id, revision) => {
         publish.refresh(id, revision).catch(error => logger.error('Timer refresh failed', { error }));
       },

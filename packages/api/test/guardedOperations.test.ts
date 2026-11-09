@@ -5,7 +5,7 @@ import { insertAccount } from './fixtures/domain.ts';
 import type { Authentication } from '../src/domain/credentials.ts';
 import { parseStartTimer } from '../src/commands/timers.ts';
 import { ApplicationError } from '../src/lib/errors.ts';
-import { createApplicationServices } from '../src/services/application.ts';
+import { createApplicationServices, DEFAULT_SERVICE_SETTINGS } from '../src/services/application.ts';
 import { createLocalTimerBus } from '../src/storage/timerBus.ts';
 import { systemClock } from '../src/lib/clock.ts';
 import { createReportRunner } from '../src/reportRunners.ts';
@@ -25,6 +25,7 @@ async function signedIn(t: TestContext) {
     reports,
     bus: createLocalTimerBus(),
     clock: systemClock,
+    settings: DEFAULT_SERVICE_SETTINGS,
     sessionDays: 30,
   });
   t.after(() => services.close());
