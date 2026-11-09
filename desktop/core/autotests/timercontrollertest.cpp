@@ -241,14 +241,13 @@ class TimerControllerTest : public QObject
         FakeClock clock;
         Connection connection{&transport, &store, clock, testClientName()};
         TimerStateClient state{connection, clock};
-        TimerController timer{clock};
+        TimerController timer{state};
         QSet<qsizetype> answered;
         qint64 revision = 0; // of the last state built
 
         Fixture()
         {
             transport.status = FakeTransport::currentStatus();
-            timer.setStateClient(&state);
         }
 
         // Requests whose path ends with the given text.
@@ -2804,40 +2803,6 @@ private Q_SLOTS:
         f.timer.refreshProjects();
         QVERIFY(f.answerList(projectsBody(7)));
         QCOMPARE(f.find("GET", "/projects").size(), 3);
-    }
-
-    void stateClientCanBeReplaced()
-    {
-        Fixture f;
-        QVERIFY(connectAccount(f, instanceA, 3, 7, "null"));
-        poll(f);
-        const qsizetype poll = f.last("GET", statePath);
-        QVERIFY(f.unanswered(poll));
-
-        FakeTransport otherTransport;
-        FakeCredentialStore otherStore;
-        Connection other(&otherTransport, &otherStore, f.clock, testClientName());
-        TimerStateClient otherState(other, f.clock);
-        f.timer.setStateClient(&otherState);
-        QCOMPARE(f.timer.stateClient(), &otherState);
-        QCOMPARE(f.timer.connection(), &other);
-        QVERIFY(!f.timer.isRunning());
-        QVERIFY(!f.timer.isConnected());
-        // Replies to the first client no longer reach the controller.
-        f.respond(poll, f.stateAnswer(entryBody(5, 7, startedAt)));
-        QVERIFY(!f.timer.isRunning());
-        QVERIFY(otherTransport.requests.isEmpty());
-
-        // A client that goes away takes its connection with it.
-        {
-            TimerStateClient scoped(f.connection, f.clock);
-            f.timer.setStateClient(&scoped);
-            QCOMPARE(f.timer.connection(), &f.connection);
-        }
-        QVERIFY(!f.timer.stateClient());
-        QVERIFY(!f.timer.connection());
-        QVERIFY(!f.timer.canWrite());
-        QVERIFY(!f.timer.start());
     }
 };
 

@@ -3,9 +3,9 @@
 namespace Tokkl
 {
 
-TimerController::TimerController(Clock &clock, QObject *parent)
-    : TimerModel(parent)
-    , m_coordinator(new TimerCoordinator(this, roles(), clock, this))
+TimerController::TimerController(TimerStateClient &client, QObject *parent)
+    : TimerModel(client, parent)
+    , m_coordinator(new TimerCoordinator(this, roles(), client, this))
 {
     setActivity(m_coordinator);
 }
@@ -25,11 +25,6 @@ TimerModel *TimerController::model()
 TimerCoordinator *TimerController::coordinator() const
 {
     return m_coordinator;
-}
-
-void TimerController::setStateClient(TimerStateClient *client)
-{
-    m_coordinator->setStateClient(client);
 }
 
 bool TimerController::start()

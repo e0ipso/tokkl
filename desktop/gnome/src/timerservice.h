@@ -208,9 +208,6 @@ private:
     {
         (connect(sender, signals, this, &TimerService::markChanged), ...);
     }
-    // Follows the offset of the timer's state client, which LocalStartTime
-    // reads and no model signal announces.
-    void followStateClient();
     // Every property's value, as the adaptor reads it.
     QVariantMap read() const;
     // Something a property reads may have changed: publishes the changes
@@ -237,7 +234,6 @@ private:
     PomodoroAlarm *m_alarm;
     QDBusConnection m_bus;
     bool m_registered = false;
-    QMetaObject::Connection m_offsetWatch;
     // The property values the bus last saw.
     QVariantMap m_published;
     // Something changed since the last publish.

@@ -10,7 +10,6 @@
 #include "timerstateclient.h"
 
 #include <QObject>
-#include <QPointer>
 #include <QVariant>
 
 #include <optional>
@@ -100,14 +99,12 @@ class TimerCoordinator : public TimerActions, public TimerActivity
 
 public:
     // Reads model and changes it through roles, the same model's; it must
-    // outlive the coordinator. The clock is not owned.
-    TimerCoordinator(TimerModel *model, const TimerModelRoles &roles, Clock &clock, QObject *parent = nullptr);
+    // outlive the coordinator. Acts through client, the one the model reads,
+    // on its connection and clock; the client is not owned.
+    TimerCoordinator(TimerModel *model, const TimerModelRoles &roles, TimerStateClient &client, QObject *parent = nullptr);
     ~TimerCoordinator() override;
 
     TimerModel *model() const;
-
-    // Not owned. Null leaves the timer without a connection.
-    void setStateClient(TimerStateClient *client);
     TimerStateClient *stateClient() const;
 
     bool holdsEntry() const override;
@@ -167,7 +164,6 @@ private:
     void onConnectionChanged();
     void onStateChanged();
     void onSettlingChanged();
-    void detach();
     void reset();
     void beginMutation();
     void refreshState();
@@ -186,7 +182,7 @@ private:
     NextStartSelection *m_selection;
     TimerCatalogUpdates *m_catalog;
     ProjectLoader *m_loader;
-    Clock &m_clock;
+    TimerStateClient &m_client;
 
     // Advanced by reset(); callbacks from an earlier epoch do nothing.
     Epoch m_epoch;

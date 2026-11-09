@@ -9,8 +9,10 @@
 namespace Tokkl
 {
 
-TimerModel::TimerModel(QObject *parent)
+TimerModel::TimerModel(TimerStateClient &client, QObject *parent)
     : QObject(parent)
+    , m_state(client)
+    , m_connection(*client.connection())
     , m_catalog(new ProjectCatalog(
           [this] {
               return !workspaceAccessLost();
@@ -20,6 +22,8 @@ TimerModel::TimerModel(QObject *parent)
     , m_next(new NextStartSelection(m_catalog, this))
     , m_catalogRole(this, m_catalog, m_next, m_chosen)
 {
+    m_next->setConnection(&m_connection);
+    connect(&client.clock(), &Clock::ticked, this, &TimerModel::updateElapsed);
     connect(m_next, &NextStartSelection::changed, this, &TimerModel::selectionChanged);
     connect(m_catalog, &ProjectCatalog::listChanged, this, &TimerModel::projectsChanged);
     connect(m_catalog, &ProjectCatalog::listLoaded, m_next, &NextStartSelection::listLoaded);
@@ -44,61 +48,39 @@ void TimerModel::setActivity(const TimerActivity *activity)
     m_activity = activity;
 }
 
-void TimerModel::bind(TimerStateClient *client, Clock *clock)
-{
-    m_state = client;
-    m_connection = client ? client->connection() : nullptr;
-    m_next->setConnection(m_connection);
-    if (clock == m_clock) {
-        return;
-    }
-    if (m_clock) {
-        disconnect(m_clock, &Clock::ticked, this, &TimerModel::updateElapsed);
-    }
-    m_clock = clock;
-    if (m_clock) {
-        connect(m_clock, &Clock::ticked, this, &TimerModel::updateElapsed);
-    }
-}
-
-Clock *TimerModel::clock() const
-{
-    return m_clock;
-}
-
 TimerStateClient *TimerModel::stateClient() const
 {
-    return m_state;
+    return &m_state;
 }
 
 Connection *TimerModel::connection() const
 {
-    return m_connection;
+    return &m_connection;
 }
 
 bool TimerModel::isConnected() const
 {
-    return m_connection && m_connection->isConnected();
+    return m_connection.isConnected();
 }
 
 QVariantMap TimerModel::account() const
 {
-    return m_connection ? m_connection->accountMap() : QVariantMap();
+    return m_connection.accountMap();
 }
 
 qint64 TimerModel::workspaceId() const
 {
-    return m_connection ? m_connection->workspaceId() : 0;
+    return m_connection.workspaceId();
 }
 
 Connection::State TimerModel::connectionState() const
 {
-    return m_connection ? m_connection->state() : Connection::Unconfigured;
+    return m_connection.state();
 }
 
 bool TimerModel::isStale() const
 {
-    return m_connection && m_connection->isStale();
+    return m_connection.isStale();
 }
 
 bool TimerModel::workspaceAccessLost() const
@@ -108,12 +90,12 @@ bool TimerModel::workspaceAccessLost() const
 
 bool TimerModel::isBusy() const
 {
-    return (m_activity && m_activity->writing()) || (m_state && m_state->settling());
+    return (m_activity && m_activity->writing()) || m_state.settling();
 }
 
 bool TimerModel::canWrite() const
 {
-    return m_connection && m_connection->canWrite() && m_clock && m_state && !workspaceAccessLost() && heldState() && !isBusy();
+    return m_connection.canWrite() && !workspaceAccessLost() && heldState() && !isBusy();
 }
 
 bool TimerModel::canStartNew() const
@@ -145,18 +127,15 @@ QString TimerModel::errorString() const
     if (!message.isEmpty()) {
         return message;
     }
-    if (m_connection && m_connection->state() != Connection::Connected) {
-        return m_connection->errorString();
+    if (m_connection.state() != Connection::Connected) {
+        return m_connection.errorString();
     }
     return QString();
 }
 
 TimerModel::Status TimerModel::status() const
 {
-    if (!m_connection) {
-        return Unconfigured;
-    }
-    switch (m_connection->state()) {
+    switch (m_connection.state()) {
     case Connection::Unconfigured:
     case Connection::CredentialsMissing:
         return Unconfigured;
@@ -341,14 +320,7 @@ TimerModelRoles TimerModel::roles()
 
 const std::optional<TimerState> &TimerModel::heldState() const
 {
-    static const std::optional<TimerState> none;
-    return m_state ? m_state->state() : none;
-}
-
-void TimerModel::connectionReplaced()
-{
-    Q_EMIT connectionChanged();
-    Q_EMIT selectionChanged();
+    return m_state.state();
 }
 
 void TimerModel::contextUpdated()
@@ -450,9 +422,9 @@ void TimerModel::updateElapsed()
     qint64 elapsed = 0;
     if (isPaused()) {
         elapsed = m_shown.chain->seconds;
-    } else if (m_shown.entry && m_state) {
+    } else if (m_shown.entry) {
         // The chain is shown only with this entry as its clone.
-        elapsed = std::max<qint64>(0, m_shown.entry->start.secsTo(m_state->serverNow())) + chainSeconds();
+        elapsed = std::max<qint64>(0, m_shown.entry->start.secsTo(m_state.serverNow())) + chainSeconds();
     }
     if (elapsed != m_elapsed) {
         m_elapsed = elapsed;

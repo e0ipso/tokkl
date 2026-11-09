@@ -85,7 +85,6 @@ private:
     void refreshState();
     void refreshSession(const MenuActionStates &actions);
     void onGenerationChanged();
-    void watchConnection();
     // The core's rules for which actions show and can be chosen, with the
     // macOS policy.
     MenuActionStates actions() const;
@@ -109,7 +108,6 @@ private:
     QAction *m_openAction = nullptr;
     QAction *m_settingsAction = nullptr;
     QAction *m_quitAction = nullptr;
-    QMetaObject::Connection m_generationWatch;
     // What the project items show. They are rebuilt only when it changes,
     // not on every refresh.
     std::optional<ProjectChoices> m_projectItems;

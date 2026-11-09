@@ -105,7 +105,7 @@ StatusMenu::StatusMenu(TimerModel *timer, TimerCoordinator *actions, PomodoroSes
     m_openAction = m_menu->addAction(tr("Open Tokkl"));
     connect(m_openAction, &QAction::triggered, this, [this] {
         // The configured base URL only: it never holds credentials.
-        if (m_timer && m_timer->connection() && m_timer->connection()->webUrl().isValid()) {
+        if (m_timer && m_timer->connection()->webUrl().isValid()) {
             Q_EMIT openRequested(m_timer->connection()->webUrl());
         }
     });
@@ -152,8 +152,7 @@ StatusMenu::StatusMenu(TimerModel *timer, TimerCoordinator *actions, PomodoroSes
                             &TimerModel::entryProjectChanged}) {
             connect(m_timer, signal, this, &StatusMenu::refresh);
         }
-        connect(m_timer, &TimerModel::connectionChanged, this, &StatusMenu::watchConnection);
-        watchConnection();
+        connect(m_timer->connection(), &Connection::generationChanged, this, &StatusMenu::onGenerationChanged);
     }
     if (m_session) {
         connect(m_session, &PomodoroSession::countdownChanged, this, &StatusMenu::refreshState);
@@ -176,15 +175,6 @@ StatusMenu::~StatusMenu() = default;
 QMenu *StatusMenu::menu() const
 {
     return m_menu.get();
-}
-
-void StatusMenu::watchConnection()
-{
-    disconnect(m_generationWatch);
-    if (m_timer && m_timer->connection()) {
-        m_generationWatch = connect(m_timer->connection(), &Connection::generationChanged, this, &StatusMenu::onGenerationChanged);
-    }
-    refresh();
 }
 
 // Another instance, account or secret: close, so no choice made for the

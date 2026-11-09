@@ -266,7 +266,7 @@ class PomodoroSessionTest : public QObject
         SettingsPomodoroStore store{&settings};
         Connection connection{&transport, &credentials, clock, testClientName()};
         TimerStateClient client{connection, clock};
-        TimerController timer{clock};
+        TimerController timer{client};
         // Absent for a test that creates it later, as after a restart.
         std::unique_ptr<PomodoroSession> session;
         qint64 revision = 0; // of the last state built
@@ -277,7 +277,6 @@ class PomodoroSessionTest : public QObject
         explicit Fixture(bool withSession = true)
         {
             transport.status = FakeTransport::currentStatus();
-            timer.setStateClient(&client);
             if (withSession) {
                 createSession();
             }

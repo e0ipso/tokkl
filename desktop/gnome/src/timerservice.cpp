@@ -84,7 +84,6 @@ TimerService::TimerService(const Parts &parts, QObject *parent)
     // clients count up from LocalStartTime and down to PlannedEnd
     // themselves.
     watch(m_timer,
-          &TimerModel::connectionChanged,
           &TimerModel::contextChanged,
           &TimerModel::statusChanged,
           &TimerModel::currentEntryChanged,
@@ -107,21 +106,13 @@ TimerService::TimerService(const Parts &parts, QObject *parent)
     watch(m_preferences, &PomodoroPreferences::changed, &PomodoroPreferences::stateChanged, &PomodoroPreferences::limitsChanged);
     watch(m_sounds, &SoundChoices::changed);
     watch(m_alarm, &PomodoroAlarm::failureChanged);
-    connect(m_timer, &TimerModel::connectionChanged, this, &TimerService::followStateClient);
-    followStateClient();
+    // LocalStartTime reads the state client's offset, which no model
+    // signal announces.
+    watch(m_timer->stateClient(), &TimerStateClient::offsetChanged);
     connect(m_actions, &TimerCoordinator::writeFinished, this, &TimerService::onWriteFinished);
 
     m_published = read();
     m_dirty = false;
-}
-
-void TimerService::followStateClient()
-{
-    disconnect(m_offsetWatch);
-    if (TimerStateClient *client = m_timer->stateClient()) {
-        m_offsetWatch = connect(client, &TimerStateClient::offsetChanged, this, &TimerService::markChanged);
-    }
-    markChanged();
 }
 
 TimerService::~TimerService()
@@ -177,8 +168,7 @@ qint64 TimerService::localStartTime() const
     }
     // serverNow() is this machine's clock plus the offset, so the start on
     // this clock is the server's start minus it.
-    const TimerStateClient *client = m_timer->stateClient();
-    return entry->start.addMSecs(client ? -client->serverOffsetMs() : 0).toSecsSinceEpoch();
+    return entry->start.addMSecs(-m_timer->stateClient()->serverOffsetMs()).toSecsSinceEpoch();
 }
 
 bool TimerService::paused() const

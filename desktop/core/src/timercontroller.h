@@ -18,19 +18,16 @@ class TimerController : public TimerModel
     Q_OBJECT
 
     // Not owned. The connection is the client's.
-    Q_PROPERTY(Tokkl::TimerStateClient *stateClient READ stateClient NOTIFY connectionChanged)
+    Q_PROPERTY(Tokkl::TimerStateClient *stateClient READ stateClient CONSTANT)
 
 public:
-    // Uses the given clock, which the controller does not own.
-    explicit TimerController(Clock &clock, QObject *parent = nullptr);
+    // Reads and acts through the given client, and runs on its clock. The
+    // client is not owned and must outlive the controller.
+    explicit TimerController(TimerStateClient &client, QObject *parent = nullptr);
     ~TimerController() override;
 
     TimerModel *model();
     TimerCoordinator *coordinator() const;
-
-    // The controller does not own the client. Null leaves it without a
-    // connection.
-    void setStateClient(TimerStateClient *client);
 
     // See TimerCoordinator. The actions return true when a request was
     // sent.
