@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { setup } from './helpers.ts';
-import { openDatabase } from './fixtures/database.ts';
+import { openDatabase, storageFor } from './fixtures/database.ts';
 import { MIGRATIONS } from './fixtures/legacyMigrations.ts';
 import { lenientNumber, pageWindow } from '../src/http/params.ts';
 import { offsetRange, pageRange, slicePage } from '../src/lib/pagination.ts';
@@ -188,6 +188,25 @@ test('preferences merge and /me with related data', async () => {
   });
   assert.equal(ws.body.name, 'Home');
   assert.equal(ws.body.default_currency, 'USD');
+});
+
+test('a workspace update answers as its owner without reading the role again', async t => {
+  const ctx = await setup();
+  const path = `/api/v9/workspaces/${ctx.wid}`;
+  const reads = t.mock.method(storageFor(ctx.db), 'readSnapshot');
+  const before = await ctx.json('GET', path);
+  const readsForGet = reads.mock.callCount();
+  const updated = await ctx.json('PUT', path, { name: 'Renamed' });
+  assert.equal(reads.mock.callCount() - readsForGet, readsForGet);
+  const withoutStamps = (body: Record<string, unknown>) => {
+    const copy = { ...body };
+    delete copy.at;
+    delete copy.last_modified;
+    return copy;
+  };
+  assert.deepEqual(withoutStamps(updated.body), { ...withoutStamps(before.body), name: 'Renamed' });
+  assert.deepEqual([updated.body.admin, updated.body.role], [true, 'admin']);
+  assert.deepEqual(updated.body, (await ctx.json('GET', path)).body);
 });
 
 test('task listings follow Toggl shapes: workspace envelope, project array, paging', async () => {

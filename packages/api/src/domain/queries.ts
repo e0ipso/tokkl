@@ -162,8 +162,6 @@ export function createAccountQueries(r: AccountReadRepositories, deploymentSessi
         })),
       );
     },
-    workspaceRole: (userId: Id, workspaceId: Id): Promise<MembershipRole | undefined> =>
-      r.workspaces.getRole(userId, workspaceId),
     workspaceMembers: async (userId: Id, workspaceId: Id): Promise<WorkspaceMember[]> =>
       r.workspaces.listMembers((await memberWorkspace(r, userId, workspaceId)).id),
     accounts: (): Promise<User[]> => r.users.list(),
