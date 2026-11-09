@@ -4,7 +4,7 @@
  * `app.ts` builds. Each operation opens its own transaction and binds what it publishes, so a route parses, calls one
  * operation and presents the answer. Framework-free; `app.ts` composes them with the HTTP adapters.
  */
-import type { Repositories, Storage, TimerBus } from '../domain/ports.ts';
+import type { Clock, Repositories, Storage, TimerBus } from '../domain/ports.ts';
 import type { Id } from '../domain/model.ts';
 import type {
   AccessChange,
@@ -44,8 +44,10 @@ export interface ApplicationServiceOptions {
   /** Runs reports and export assemblies. The services close it when they close. */
   reports: ReportExecutor;
   streamOptions?: TimerStreamOptions;
-  /** Signals timer revisions to other processes. */
+  /** Signals timer revisions to other processes and refreshes streams on their signals. */
   bus: TimerBus;
+  /** Where timer operations and maintenance read the time. */
+  clock: Clock;
   logger?: Logger;
   /** The deployment's session length, used until an admin stores one. */
   sessionDays: number;
@@ -154,15 +156,16 @@ export function createApplicationServices({
   reports,
   streamOptions,
   bus,
+  clock,
   logger = silentLogger,
   sessionDays,
   imports,
 }: ApplicationServiceOptions) {
-  const { timerStreams, publish, settled } = createTimerDelivery({ storage, bus, logger, streamOptions });
+  const { timerStreams, publish, settled } = createTimerDelivery({ storage, bus, clock, logger, streamOptions });
   const security = accountSecurity(timerStreams);
   const streamCredentials = { check: (authentication: Authentication) => credentialCheck(storage, authentication) };
   const entryEffects = createAccountEntryEffects<Repositories>(publish);
-  const maintenance = startMaintenance(storage, { logger });
+  const maintenance = startMaintenance(storage, { clock, logger });
   /** Runs read queries in one snapshot, after checking the credential in that same snapshot. */
   function readFor<T>(
     authentication: Authentication,
@@ -223,7 +226,7 @@ export function createApplicationServices({
       createPreferenceOperations(guardedTransactions(storage, authentication), authentication.user.id),
     timersFor: (authentication: Authentication): PresentedTimerOperations =>
       presentTimerOperations(
-        createTimerOperations(guardedRunner(storage, authentication), authentication.user, publish),
+        createTimerOperations(guardedRunner(storage, authentication), authentication.user, publish, clock),
       ),
     importsFor: (authentication: Authentication) =>
       createImportOperations(guardedTransactions(storage, authentication), authentication.user.id, publish),

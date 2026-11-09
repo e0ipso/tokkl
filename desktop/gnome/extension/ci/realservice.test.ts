@@ -20,7 +20,7 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { createApp } from '../../../../packages/api/test/fixtures/app.ts';
+import { composeApp } from '../../../../packages/api/test/fixtures/app.ts';
 import { addUser, setup, testConfig, type TestContext } from '../../../../packages/api/test/helpers.ts';
 
 const RUN_TIMEOUT_MS = 20 * 60 * 1000;
@@ -74,7 +74,7 @@ test('the GNOME Shell extension against tokkl-timerd and a real Tokkl server', a
     await ok(user, 'POST', `/api/v9/workspaces/${user.wid}/projects`, { name: 'Other project', active: true });
     const before = await snapshot(admin);
 
-    const app = createApp({
+    const { app, close } = composeApp({
         storage: storageFor(admin.db),
         config: { ...testConfig(), storage: storageConfigFor(admin.db) },
         setup: { code: null },
@@ -105,7 +105,7 @@ test('the GNOME Shell extension against tokkl-timerd and a real Tokkl server', a
     } finally {
         server.closeAllConnections();
         server.close();
-        await app.locals.close();
+        await close();
     }
 
     await t.test(

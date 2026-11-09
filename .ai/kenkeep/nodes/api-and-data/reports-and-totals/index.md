@@ -17,15 +17,15 @@ _None._
 - Open [**Validate hourly rates with optionalRate and MAX_HOURLY_RATE**](practice-hourly-rates-go-through-optionalrate.md) to learn about: Workspace and project rates share optionalRate, capped at MAX_HOURLY_RATE (1e9); a finite check alone lets reports overflow. #server #validation #reports #money
 
 ## Components (what exists)
-- Open [**Catalog revision and latest entry endpoints for caching clients**](map-catalog-revision-and-latest-entry-endpoints.md) to learn about: GET /api/app/workspaces/{wid}/catalog counts project-list writes in workspaces.catalog_revision; GET /api/app/time_entries/latest answers the newest entry by start. #server #projects #clients #desktop
 - Open [**Web app report endpoints under /api/app/report**](map-app-report-endpoints.md) to learn about: Web app reports are built server-side by /api/app/report/* with workspace rounding; only the summary tab fetches groupings. #server #reports #api #web
+- Open [**Catalog revision and latest entry endpoints for caching clients**](map-catalog-revision-and-latest-entry-endpoints.md) to learn about: GET /api/app/workspaces/{wid}/catalog counts project-list writes in workspaces.catalog_revision; GET /api/app/time_entries/latest answers the newest entry by start. #server #projects #clients #desktop
 
 ## By topic
 
 ### #server
 - Open [**Admin user management API and the last-active-admin rule**](../users-and-admin/map-admin-user-management-api-and-the-last-active-admin-rule.md) — /api/app/admin users: list, role, disable, session revoke, delete; one active admin must remain; disabled accounts are refused at sign-in.
+- Open [**Signed-in operations bind the authenticated user at construction**](../users-and-admin/practice-signed-in-operations-bind-the-authenticated-user.md) — entriesFor, timersFor, catalogsFor, importsFor, preferencesFor and accountsFor take the Authentication once; routes never pass the user's id or the admin actor again.
 - Open [**Parse incoming timestamps with parseInstant**](../time-handling/practice-parse-api-timestamps-with-parseinstant.md) — Server input instants go through parseInstant: RFC 3339 with seconds and a zone, real dates only. Never new Date(String(x)).
-- Open [**Cookie writes and session-starting routes need the CSRF header**](../password-and-csrf-rules/practice-cookie-writes-and-session-starting-routes-need-the-csrf-header.md) — Cookie writes, login, setup, invite accept and password reset need X-Tokkl-CSRF: 1 before any lookup; callers and tests must send it.
 ### #clients
 - Open [**Catalog revision and latest entry endpoints for caching clients**](map-catalog-revision-and-latest-entry-endpoints.md) — GET /api/app/workspaces/{wid}/catalog counts project-list writes in workspaces.catalog_revision; GET /api/app/time_entries/latest answers the newest entry by start.
 - Open [**Deleting a client detaches its projects and never merges them**](practice-client-deletion-keeps-projects.md) — deleteClient runs in one transaction; projects lose the client and colliding names become "Name (Client)", then "Name (Client) N".

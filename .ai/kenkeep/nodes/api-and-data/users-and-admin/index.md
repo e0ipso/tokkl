@@ -23,8 +23,8 @@ _None._
 
 ### #server
 - Open [**Admin user management API and the last-active-admin rule**](map-admin-user-management-api-and-the-last-active-admin-rule.md) — /api/app/admin users: list, role, disable, session revoke, delete; one active admin must remain; disabled accounts are refused at sign-in.
+- Open [**Signed-in operations bind the authenticated user at construction**](practice-signed-in-operations-bind-the-authenticated-user.md) — entriesFor, timersFor, catalogsFor, importsFor, preferencesFor and accountsFor take the Authentication once; routes never pass the user's id or the admin actor again.
 - Open [**Parse incoming timestamps with parseInstant**](../time-handling/practice-parse-api-timestamps-with-parseinstant.md) — Server input instants go through parseInstant: RFC 3339 with seconds and a zone, real dates only. Never new Date(String(x)).
-- Open [**Cookie writes and session-starting routes need the CSRF header**](../password-and-csrf-rules/practice-cookie-writes-and-session-starting-routes-need-the-csrf-header.md) — Cookie writes, login, setup, invite accept and password reset need X-Tokkl-CSRF: 1 before any lookup; callers and tests must send it.
 ### #auth
 - Open [**Admin user management API and the last-active-admin rule**](map-admin-user-management-api-and-the-last-active-admin-rule.md) — /api/app/admin users: list, role, disable, session revoke, delete; one active admin must remain; disabled accounts are refused at sign-in.
 - Open [**Signed-in operations bind the authenticated user at construction**](practice-signed-in-operations-bind-the-authenticated-user.md) — entriesFor, timersFor, catalogsFor, importsFor, preferencesFor and accountsFor take the Authentication once; routes never pass the user's id or the admin actor again.
@@ -35,6 +35,7 @@ _None._
 - Open [**Instance settings: /api/app/admin/settings and SETTING_RULES**](map-instance-settings-api-app-admin-settings-and-setting-rules.md) — session_days, invite_days and time_resolution_minutes live in instance_settings, validated by SETTING_RULES; v9 /me exposes the resolution.
 ### #architecture
 - Open [**Signed-in operations bind the authenticated user at construction**](practice-signed-in-operations-bind-the-authenticated-user.md) — entriesFor, timersFor, catalogsFor, importsFor, preferencesFor and accountsFor take the Authentication once; routes never pass the user's id or the admin actor again.
+- Open [**API composition root: services, HTTP app and clock**](../map-api-composition-root-services-http-app-and-clock.md) — index.ts builds createApplicationServices, then createHttpApp over them, and holds the typed close; tests compose the same two pieces through composeApp and pass a fixed Clock.
 ### #database
 - Open [**Project and task totals rely on the live-entry partial indexes**](../reports-and-totals/practice-live-entry-indexes-back-project-and-task-totals.md) — Migration 2 adds time_entries_project_live and time_entries_task_live; totals SQL must keep using them.
 - Open [**Users, roles and workspace membership**](map-users-roles-and-workspace-membership.md) — Account roles, scoped membership contracts, protected writes and neutral multi-user fixtures.

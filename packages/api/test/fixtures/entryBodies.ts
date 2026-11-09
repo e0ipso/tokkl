@@ -10,6 +10,10 @@ import type { ExactEntryImport } from '../../src/domain/entryImport.ts';
 import type { TimerPublication } from '../../src/domain/timerSettlement.ts';
 import type { PresentedTimerOperations } from '../../src/services/timerReplies.ts';
 import type { User } from '../../src/domain/model.ts';
+import type { Clock } from '../../src/domain/ports.ts';
+import type { EditTimer, StartPomodoro, StartTimer } from '../../src/domain/timers.ts';
+import { systemClock } from '../../src/lib/clock.ts';
+import { fixedClock } from './clock.ts';
 
 export * from '../../src/domain/timeEntries.ts';
 export { getTimeEntry, protectEntryOperation } from '../../src/domain/entryAccess.ts';
@@ -61,35 +65,43 @@ export const bodyWriter = (writer: ExactEntryImport) => ({
 });
 
 type Timers = PresentedTimerOperations;
-/** One user's timer operations with that user's id as the first argument of each. */
-export type TimersById = {
-  [Name in keyof Timers]: (userId: number, ...args: Parameters<Timers[Name]>) => ReturnType<Timers[Name]>;
-};
+/** Builds one user's timer operations on `clock`. */
+type TimersFor = (userId: number, clock: Clock) => Timers;
 
-/** Timer operations that take the user's id first and build `forUser(userId)` for each call. */
-export function timersById(forUser: (userId: number) => Timers): TimersById {
-  const names = Object.keys(forUser(0)) as (keyof Timers)[];
-  return Object.fromEntries(
-    names.map(name => [
-      name,
-      (userId: number, ...args: unknown[]) => (forUser(userId)[name] as (...rest: unknown[]) => unknown)(...args),
-    ]),
-  ) as TimersById;
+/**
+ * Timer operations that take the user's id first and an optional time last. Each call builds
+ * `forUser(userId, clock)` on a clock fixed at that time, or on the system clock without one.
+ */
+export function timersById(forUser: TimersFor) {
+  const at = (userId: number, now: Date | undefined) => forUser(userId, now ? fixedClock(now) : systemClock);
+  return {
+    getTimerState: (userId: number, now?: Date) => at(userId, now).getTimerState(),
+    startTimer: (userId: number, start: StartTimer, now?: Date) => at(userId, now).startTimer(start),
+    stopTimer: (userId: number, revision: number, stop?: Date, now?: Date) => at(userId, now).stopTimer(revision, stop),
+    editTimer: (userId: number, edit: EditTimer, now?: Date) => at(userId, now).editTimer(edit),
+    startPomodoro: (userId: number, start: StartPomodoro, now?: Date) => at(userId, now).startPomodoro(start),
+    nextPomodoroPhase: (userId: number, revision: number, now?: Date) => at(userId, now).nextPomodoroPhase(revision),
+    endPomodoro: (userId: number, revision: number, now?: Date) => at(userId, now).endPomodoro(revision),
+    pauseTimer: (userId: number, revision: number | undefined, now?: Date) => at(userId, now).pauseTimer(revision),
+    resumeTimer: (userId: number, revision: number, now?: Date) => at(userId, now).resumeTimer(revision),
+    discardPause: (userId: number, revision: number, now?: Date) => at(userId, now).discardPause(revision),
+  };
 }
 
-/** Timer operations by user id that take a raw Pomodoro body and an unchecked revision. */
-export function bodyTimers(forUser: (userId: number) => Timers) {
+/** `timersById` that takes a raw Pomodoro body and an unchecked revision. */
+export function bodyTimers(forUser: TimersFor) {
+  const timers = timersById(forUser);
   return {
-    ...timersById(forUser),
+    ...timers,
     startPomodoro: async (userId: number, body: Body, now?: Date) =>
-      forUser(userId).startPomodoro(parseStartPomodoro(body), now),
+      timers.startPomodoro(userId, parseStartPomodoro(body), now),
     nextPomodoroPhase: async (userId: number, revision: unknown, now?: Date) =>
-      forUser(userId).nextPomodoroPhase(parseRevision(revision), now),
+      timers.nextPomodoroPhase(userId, parseRevision(revision), now),
     endPomodoro: async (userId: number, revision: unknown, now?: Date) =>
-      forUser(userId).endPomodoro(parseRevision(revision), now),
+      timers.endPomodoro(userId, parseRevision(revision), now),
     resumeTimer: async (userId: number, revision: unknown, now?: Date) =>
-      forUser(userId).resumeTimer(parseRevision(revision), now),
+      timers.resumeTimer(userId, parseRevision(revision), now),
     discardPause: async (userId: number, revision: unknown, now?: Date) =>
-      forUser(userId).discardPause(parseRevision(revision), now),
+      timers.discardPause(userId, parseRevision(revision), now),
   };
 }

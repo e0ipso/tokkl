@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { storageFor } from './fixtures/database.ts';
-import { createApp } from './fixtures/app.ts';
+import { composeApp } from './fixtures/app.ts';
 import { createReportRunner } from '../src/reportRunners.ts';
 import { runReport } from './fixtures/reportRunner.ts';
 import type { JobSource } from '../src/services/reportExecution.ts';
@@ -44,11 +44,11 @@ test('detailed CSV reports stream in the download lane while the report queue is
     filter: { startDate: '2026-10-05', endDate: '2026-10-11' },
     weekStart: '2026-10-05',
   }).catch(() => {});
-  const app = createApp({ storage, config: testConfig(ctx.db), setup: { code: null }, reports });
+  const { app, close } = composeApp({ storage, config: testConfig(ctx.db), setup: { code: null }, reports });
   t.after(async () => {
     release();
     await holding;
-    await app.locals.close();
+    await close();
   });
   const server = testServer(app);
   const auth = { authorization: `Basic ${Buffer.from(`${ctx.user.apiToken}:api_token`).toString('base64')}` };

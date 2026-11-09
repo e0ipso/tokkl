@@ -8,6 +8,7 @@ import { errorReply } from '../../src/http/errors.ts';
 import { generateApiToken, hashPassword, sha256 } from '../../src/lib/crypto.ts';
 import { createApplicationServices } from '../../src/services/application.ts';
 import { createLocalTimerBus } from '../../src/storage/timerBus.ts';
+import { systemClock } from '../../src/lib/clock.ts';
 import { createReportRunner } from '../../src/reportRunners.ts';
 import { openConnection } from '../../src/storage/connections.ts';
 import type { Repositories, Storage } from '../../src/domain/ports.ts';
@@ -80,6 +81,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         storage,
         reports: createReportRunner(fixture.config, storage),
         bus: createLocalTimerBus(),
+        clock: systemClock,
         sessionDays: 30,
       });
       t.after(async () => {

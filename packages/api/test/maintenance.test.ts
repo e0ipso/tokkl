@@ -5,7 +5,9 @@ import { storageFor } from './fixtures/database.ts';
 import { corruptRecord, rateLimitRowCounts, sessionCount, tokenRows } from './fixtures/physical.ts';
 import { addUser, CSRF, sessionCookie, setup, type TestContext } from './helpers.ts';
 import { sha256 } from '../src/lib/crypto.ts';
+import { systemClock } from '../src/lib/clock.ts';
 import { runMaintenance } from '../src/services/maintenance.ts';
+import { fixedClock } from './fixtures/clock.ts';
 
 const PAST = '2000-01-01T00:00:00.000Z';
 const WINDOW = 15 * 60 * 1000;
@@ -26,7 +28,7 @@ test('signing in leaves expired sessions to the maintenance job, and they never 
   await sessionCookie(admin);
   assert.equal(await sessionCount(admin.db, bob.user.id), 2, "a sign-in deletes no other user's session");
 
-  const report = await runMaintenance(storageFor(admin.db));
+  const report = await runMaintenance(storageFor(admin.db), { clock: systemClock });
   assert.equal(report.sessions, 1);
   assert.equal(await sessionCount(admin.db, bob.user.id), 1);
   assert.equal((await withCookie(bob, live)).status, 200, 'a live session stays');
@@ -55,7 +57,7 @@ test('the maintenance job deletes expired sessions a batch at a time until none 
         return deleted;
       }),
   };
-  const report = await runMaintenance(counted);
+  const report = await runMaintenance(counted, { clock: systemClock });
   assert.equal(report.sessions, 250);
   assert.ok(batches.length >= 3 && batches.every(size => size <= 100), `batches: ${batches.join(',')}`);
   assert.equal(await sessionCount(ctx.db), 0);
@@ -82,7 +84,7 @@ test('stale rate-limit rows change no answer and only the maintenance job delete
   const rows = await rateLimitRowCounts(ctx.db);
   assert.equal(rows.reservations, 1, 'the expired lease is still stored');
 
-  const report = await runMaintenance(storageFor(ctx.db), { now: new Date(t0 + 4 * WINDOW) });
+  const report = await runMaintenance(storageFor(ctx.db), { clock: fixedClock(new Date(t0 + 4 * WINDOW)) });
   assert.equal(report.rateLimits, rows.reservations + rows.counters);
   assert.deepEqual(await rateLimitRowCounts(ctx.db), { reservations: 0, counters: 0 });
 });
@@ -109,7 +111,7 @@ test('the maintenance job deletes used and expired account links and keeps pendi
   assert.equal(reset.status, 200);
   assert.equal((await tokenRows(admin.db)).length, 4);
 
-  const report = await runMaintenance(storageFor(admin.db));
+  const report = await runMaintenance(storageFor(admin.db), { clock: systemClock });
   assert.equal(report.accountTokens, 2);
   assert.deepEqual(
     (await tokenRows(admin.db)).map(row => row.kind),

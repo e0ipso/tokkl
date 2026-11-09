@@ -570,3 +570,11 @@ export interface TimerBus {
   receive(handler: (signal: TimerSignal) => void): void;
   close(): Promise<void>;
 }
+
+/**
+ * The current time, for operations that act "now". The composition root passes `systemClock`
+ * (`lib/clock.ts`); a fixed clock makes those operations repeatable.
+ */
+export interface Clock {
+  now(): Date;
+}

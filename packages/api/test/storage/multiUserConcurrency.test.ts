@@ -7,7 +7,7 @@ import { createStorage } from '../fixtures/storageShortcuts.ts';
 import { openConnection } from '../../src/storage/connections.ts';
 import type { PhysicalDatabase } from '../../src/storage/physical.ts';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
-import { createApp } from '../fixtures/app.ts';
+import { composeApp } from '../fixtures/app.ts';
 import { testConfig } from '../helpers.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 import { readTimerStream, serveInvariant, transactionBarrier } from './support/invariantHttp.ts';
@@ -78,7 +78,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       // results, which must be the same whether the writes ran side by side or in a queue.
       const barrier = transactionBarrier();
       const apps = stores.map(storage =>
-        createApp({
+        composeApp({
           storage: barrier.wrap(storage),
           config: { ...testConfig(), storage: config },
           setup: { code: null },
@@ -493,7 +493,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           const streamConfig = fixture.config.backend === 'sqlite' ? fixture.config : { ...fixture.config, poolMax: 2 };
           const storage = createStorage(await openConnection<PhysicalDatabase>(streamConfig));
           const server = await serveInvariant(
-            createApp({
+            composeApp({
               storage: barrier.wrap(storage),
               config: { ...testConfig(), storage: streamConfig },
               setup: { code: null },

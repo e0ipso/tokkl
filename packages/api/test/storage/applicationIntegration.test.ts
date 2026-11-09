@@ -3,8 +3,8 @@ import { test } from 'node:test';
 import { createStorage } from '../fixtures/storageShortcuts.ts';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createAccountOperations } from '../fixtures/accountBodies.ts';
-import { createApplication } from '../../src/app.ts';
-import { createApp } from '../fixtures/app.ts';
+
+import { composeApp } from '../fixtures/app.ts';
 import { testConfig, testServer, setup, addUser } from '../helpers.ts';
 import { addWorkspaceMember } from '../fixtures/domain.ts';
 function gate() {
@@ -28,7 +28,7 @@ test('credentials revoked after HTTP authentication cannot authorize an entry wr
   const entered = gate(),
     release = gate();
   let intercept = true;
-  const app = createApp({
+  const { app, close } = composeApp({
     storage: {
       ...storage,
       transaction: async (work, options) => {
@@ -45,7 +45,7 @@ test('credentials revoked after HTTP authentication cannot authorize an entry wr
   });
   t.after(async () => {
     release.resolve();
-    await app.locals.close();
+    await close();
     await storage.close();
   });
   const server = testServer(app);
@@ -104,12 +104,12 @@ for (const backend of ['postgres', 'mysql', 'mariadb'] as const)
           );
         return out;
       });
-      const { app, services } = createApplication({
+      const { app, services, close } = composeApp({
         storage,
         config: { ...testConfig(), storage: fixture.config },
         setup: { code: null },
       });
-      t.after(() => app.locals.close());
+      t.after(() => close());
       const { createTimeEntry } = await import('../fixtures/entryBodies.ts');
       const entered = gate(),
         release = gate();

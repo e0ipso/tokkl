@@ -2,10 +2,7 @@ import express, { type Express } from 'express';
 import type { Config } from './config.ts';
 import type { Storage } from './domain/ports.ts';
 import { standaloneRateLimits } from './storage/index.ts';
-import { createApplicationServices, createSessionAccountOperations } from './services/application.ts';
-import type { ReportExecutor } from './services/reportRunner.ts';
-import { createReportRunner } from './reportRunners.ts';
-import { createLocalTimerBus, type TimerBus } from './storage/timerBus.ts';
+import { createSessionAccountOperations, type ApplicationServices } from './services/application.ts';
 import type { Deps } from './routes/context.ts';
 import { ADDRESS_LIMIT, FailureLimiter, PASSWORD_WINDOW_MS, SETUP_CODE_LIMIT } from './auth/rateLimit.ts';
 import { createAuthMiddleware } from './auth/middleware.ts';
@@ -15,7 +12,7 @@ import { requestLog } from './http/requestLog.ts';
 import { noStore, securityHeaders } from './http/security.ts';
 import { textBody } from './http/request.ts';
 import { webRootRoutes } from './http/webRoot.ts';
-import { createLogger, type Logger } from './lib/logger.ts';
+import type { Logger } from './lib/logger.ts';
 import { adminRoutes } from './routes/admin.ts';
 import { appRoutes } from './routes/app.ts';
 import { importRoutes } from './routes/imports.ts';
@@ -23,48 +20,36 @@ import { appReportRoutes, reportsV3Routes } from './routes/reports.ts';
 import { timerRoutes } from './routes/timer.ts';
 import { togglV9Routes } from './routes/toggl/index.ts';
 
-export interface AppOptions {
+export interface HttpAppOptions {
+  /** What the sign-in, rate limit and health check adapters read and write directly. */
   storage: Storage;
   config: Config;
   setup: SetupState;
-  timerStreamOptions?: import('./services/timerStreams.ts').TimerStreamOptions;
-  /** Signals timer revisions to other API processes. Defaults to the single-process bus. The
-   * caller owns its lifetime; the app never closes it. */
-  timerBus?: TimerBus;
-  /** Where request failures and background errors are logged. Defaults to JSON lines on stdout/stderr. */
-  logger?: Logger;
-  /** Runs reports and exports. Defaults to a runner on `config.storage`. The app closes it. */
-  reports?: ReportExecutor;
+  /** Where request lines and request failures are logged. */
+  logger: Logger;
 }
 
-/** The composed HTTP application and the services its routers share. */
-export interface Application {
-  /** Shut it down with `app.locals.close()`: new requests get a 503, running ones are aborted, then the services close. */
+/** The HTTP application over a set of application services. */
+export interface HttpApp {
   app: Express;
-  services: Deps;
+  /**
+   * New requests get a 503 and running ones are aborted, then the services close. The caller still
+   * stops its server and closes the timer bus and storage.
+   */
+  close(): Promise<void>;
 }
 
-export function createApplication({
-  storage,
-  config,
-  setup,
-  timerStreamOptions,
-  timerBus = createLocalTimerBus(),
-  logger = createLogger({ level: config.logLevel }),
-  reports,
-}: AppOptions): Application {
+/**
+ * Composes the HTTP adapters (authentication, sessions, rate limits, routers) around `services`.
+ * `index.ts` builds the services with `createApplicationServices` and passes them in.
+ */
+export function createHttpApp(
+  services: ApplicationServices,
+  { storage, config, setup, logger }: HttpAppOptions,
+): HttpApp {
   const app = express();
   const rateLimits = standaloneRateLimits(storage);
   const loginLimiter = new FailureLimiter(rateLimits, 'password', ADDRESS_LIMIT, PASSWORD_WINDOW_MS);
-  // The composition root: framework-free services plus the HTTP adapters the routers share.
-  const services = createApplicationServices({
-    storage,
-    reports: reports ?? createReportRunner(config.storage, storage, { logger }),
-    streamOptions: timerStreamOptions,
-    bus: timerBus,
-    logger,
-    sessionDays: config.sessionDays,
-  });
   const deps: Deps = {
     ...services,
     loginLimiter,
@@ -76,11 +61,6 @@ export function createApplication({
       setup,
     }),
   };
-  timerBus.receive(signal => {
-    deps.publish
-      .refresh(signal.userId, signal.revision)
-      .catch(error => logger.error('Timer refresh failed', { error }));
-  });
 
   app.disable('x-powered-by');
   app.set('etag', false);
@@ -105,11 +85,6 @@ export function createApplication({
     });
     next();
   });
-  app.locals.close = async () => {
-    closing = true;
-    for (const controller of active) controller.abort();
-    await deps.close();
-  };
 
   app.get('/healthz', async (req, res) => {
     await storage.health();
@@ -132,5 +107,12 @@ export function createApplication({
   app.use(webRootRoutes(config.webRoot));
 
   app.use(errorHandler(logger));
-  return { app, services: deps };
+  return {
+    app,
+    async close() {
+      closing = true;
+      for (const controller of active) controller.abort();
+      await services.close();
+    },
+  };
 }

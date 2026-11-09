@@ -1,11 +1,11 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:4ef1f653d8f00766596da4f9e9176e51d7cb23b2a3df39dcc7277be20dd6bb2e'
-node_count: 115
+nodes_hash: 'sha256:0effc48d9c381853a3e896a528de908d62772fb27f2af6a4b19cf83b33f7cac2'
+node_count: 116
 ---
 # kenkeep Graph
 
-Total nodes: 115
+Total nodes: 116
 
 ## map-admin-user-management-api-and-the-last-active-admin-rule
 
@@ -15,6 +15,15 @@ Total nodes: 115
 - **tags:** server, auth, admin
 - **relates_to:** map-users-roles-and-workspace-membership
 - **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:map:7
+
+## map-api-composition-root-services-http-app-and-clock
+
+- **kind:** map
+- **title:** API composition root: services, HTTP app and clock
+- **path:** api-and-data/map-api-composition-root-services-http-app-and-clock.md
+- **tags:** server, architecture, testing
+- **relates_to:** practice-signed-in-operations-bind-the-authenticated-user, map-app-report-endpoints
+- **derived_from:** packages/api/src/index.ts, packages/api/src/app.ts, packages/api/src/services/application.ts, packages/api/test/fixtures/app.ts
 
 ## map-app-report-endpoints
 

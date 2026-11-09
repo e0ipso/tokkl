@@ -5,7 +5,7 @@
  * who is no longer a member of the entry's workspace.
  */
 import { nextPhase, startSession, type PomodoroSessionConfig } from '@tokkl/common/pomodoroSession';
-import type { OperationContext } from './ports.ts';
+import type { Clock, OperationContext } from './ports.ts';
 import type { EntryDetails, Id, PauseChain, PomodoroSession, User } from './model.ts';
 import { calendarInput, StateConflict } from '../lib/errors.ts';
 import { getPomodoroSessionConfig } from './accountValues.ts';
@@ -144,12 +144,13 @@ async function settledView(repositories: EntryReaders, userId: Id, now: Date): P
 
 /**
  * The timer operations of one user. Each action reads the user's row again under its guards, so
- * only `signedIn.id` is used.
+ * only `signedIn.id` is used. Each action reads the time once, from `clock`.
  */
 export function createTimerOperations<R extends EntryRepositories>(
   runner: TimerRunner<R>,
   signedIn: Pick<User, 'id'>,
   publish: TimerPublication,
+  clock: Clock,
 ) {
   const userId = signedIn.id;
   /**
@@ -250,7 +251,8 @@ export function createTimerOperations<R extends EntryRepositories>(
      * Reads the timer in a read snapshot, so a read never waits for the write guards. Only a state
      * that settling would change takes the write path, which settles, numbers and publishes it.
      */
-    async getTimerState(now = new Date()): Promise<TimerView> {
+    async getTimerState(): Promise<TimerView> {
+      const now = clock.now();
       const settled = await runner.readSnapshot(repositories => settledView(repositories, userId, now));
       return settled ? Object.freeze(settled) : action(now, async () => {});
     },
@@ -258,7 +260,8 @@ export function createTimerOperations<R extends EntryRepositories>(
      * Starts a running entry the way a v9 create does: a running timer stops at the new start,
      * and a Pomodoro session or pause chain it belonged to ends.
      */
-    async startTimer(start: StartTimer, now = new Date()): Promise<TimerView> {
+    async startTimer(start: StartTimer): Promise<TimerView> {
+      const now = clock.now();
       const explicit = start.workspaceId;
       return action(
         now,
@@ -274,7 +277,8 @@ export function createTimerOperations<R extends EntryRepositories>(
       );
     },
     /** Stops the running entry at `stop`, or now, the way a v9 stop does. */
-    async stopTimer(revision: number, stop?: Date, now = new Date()): Promise<TimerView> {
+    async stopTimer(revision: number, stop?: Date): Promise<TimerView> {
+      const now = clock.now();
       return action(now, async (ctx, user) => {
         await checkRevision(ctx, user, revision, now);
         const e = await ctx.entries.running(user.id);
@@ -286,7 +290,8 @@ export function createTimerOperations<R extends EntryRepositories>(
      * Edits the running entry's labels and start the way a v9 edit of it does, with the same
      * validation and the same membership check.
      */
-    async editTimer(edit: EditTimer, now = new Date()): Promise<TimerView> {
+    async editTimer(edit: EditTimer): Promise<TimerView> {
+      const now = clock.now();
       return action(now, async (ctx, user) => {
         if (edit.revision !== undefined) await checkRevision(ctx, user, edit.revision, now);
         const e = await ctx.entries.running(user.id);
@@ -297,7 +302,8 @@ export function createTimerOperations<R extends EntryRepositories>(
         await updateTimeEntry(ctx, user, e.workspaceId, e.id, { ...edit.entry, times, tagAction: 'replace' }, publish);
       });
     },
-    async startPomodoro(start: StartPomodoro, now = new Date()): Promise<TimerView> {
+    async startPomodoro(start: StartPomodoro): Promise<TimerView> {
+      const now = clock.now();
       const explicit = start.workspaceId;
       return action(
         now,
@@ -310,10 +316,12 @@ export function createTimerOperations<R extends EntryRepositories>(
         !explicit,
       );
     },
-    async nextPomodoroPhase(revision: number, now = new Date()): Promise<TimerView> {
+    async nextPomodoroPhase(revision: number): Promise<TimerView> {
+      const now = clock.now();
       return action(now, (ctx, user) => nextPhaseWork(ctx, user, revision, now));
     },
-    async endPomodoro(revision: number, now = new Date()): Promise<TimerView> {
+    async endPomodoro(revision: number): Promise<TimerView> {
+      const now = clock.now();
       return action(now, async (ctx, user) => {
         const s = await sessionAt(ctx, user, revision, now);
         await stopRunningEntry(ctx, user, await getTimeEntry(ctx, user.id, s.entryId), now);
@@ -325,13 +333,16 @@ export function createTimerOperations<R extends EntryRepositories>(
      * pause acts on whatever runs, for older clients (see `OPTIONAL_REVISION_ACTIONS` in
      * `commands/timers.ts`).
      */
-    async pauseTimer(revision: number | undefined, now = new Date()): Promise<TimerView> {
+    async pauseTimer(revision: number | undefined): Promise<TimerView> {
+      const now = clock.now();
       return action(now, (ctx, user) => pauseWork(ctx, user, revision, now));
     },
-    async resumeTimer(revision: number, now = new Date()): Promise<TimerView> {
+    async resumeTimer(revision: number): Promise<TimerView> {
+      const now = clock.now();
       return action(now, (ctx, user) => resumeWork(ctx, user, revision, now));
     },
-    async discardPause(revision: number, now = new Date()): Promise<TimerView> {
+    async discardPause(revision: number): Promise<TimerView> {
+      const now = clock.now();
       return action(now, async (ctx, user) => {
         await pausedAt(ctx, user, revision, now);
         await ctx.timers.deletePauseChain(user.id);

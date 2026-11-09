@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
 import type { TimerState } from '@tokkl/types';
 import { storageFor } from './fixtures/database.ts';
-import { createApplication } from '../src/app.ts';
+import { composeApp } from './fixtures/app.ts';
 import { type TimerStreamOptions } from '../src/services/timerStreams.ts';
 import {
   CSRF,
@@ -296,7 +296,7 @@ test('opening one stream over the cap closes the oldest', STREAM_TEST, async t =
 
 test('closing every stream lets the server close', STREAM_TEST, async t => {
   const ctx = await setup();
-  const { app, services } = createApplication({
+  const { app, services } = composeApp({
     storage: storageFor(ctx.db),
     config: testConfig(),
     setup: { code: null },
@@ -320,7 +320,7 @@ test(
   STREAM_TEST,
   async t => {
     const ctx = await setup();
-    const { app, services } = createApplication({
+    const { app, services, close } = composeApp({
       storage: storageFor(ctx.db),
       config: testConfig(),
       setup: { code: null },
@@ -348,7 +348,7 @@ test(
     assert.equal(started.status, 200);
 
     let closed = false;
-    const closing = app.locals.close().then(() => (closed = true));
+    const closing = close().then(() => (closed = true));
     await new Promise(resolve => setTimeout(resolve, 50));
     assert.equal(closed, false, 'shutdown waits for the held delivery');
     release.resolve();

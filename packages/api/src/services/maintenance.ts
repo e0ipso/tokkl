@@ -9,6 +9,7 @@
  * not closed under it.
  */
 import type {
+  Clock,
   IdempotencyKeysRepository,
   RateLimitsRepository,
   SessionsRepository,
@@ -57,12 +58,14 @@ async function untilClean(storage: MaintenanceTransactions, cleanup: Cleanup, no
 }
 
 /**
- * Runs every cleanup once, as of `now`. One that fails is logged and the others still run.
+ * Runs every cleanup once, as of the time `clock` reads when the run starts. One that fails is
+ * logged and the others still run.
  */
 export async function runMaintenance(
   storage: MaintenanceTransactions,
-  { now = new Date(), logger = silentLogger }: { now?: Date; logger?: Logger } = {},
+  { clock, logger = silentLogger }: { clock: Clock; logger?: Logger },
 ): Promise<MaintenanceReport> {
+  const now = clock.now();
   const report: MaintenanceReport = {};
   for (const [name, cleanup] of Object.entries(CLEANUPS) as [keyof typeof CLEANUPS, Cleanup][]) {
     try {
@@ -77,6 +80,8 @@ export async function runMaintenance(
 }
 
 export interface MaintenanceOptions {
+  /** Each run deletes what has expired by the time it reads from here. */
+  clock: Clock;
   intervalMs?: number;
   logger?: Logger;
 }
@@ -90,14 +95,14 @@ export interface Maintenance {
 
 export function startMaintenance(
   storage: MaintenanceTransactions,
-  { intervalMs = MAINTENANCE_INTERVAL_MS, logger = silentLogger }: MaintenanceOptions = {},
+  { clock, intervalMs = MAINTENANCE_INTERVAL_MS, logger = silentLogger }: MaintenanceOptions,
 ): Maintenance {
   let running: Promise<void> | undefined;
   let closed = false;
   const run = () =>
     closed
       ? Promise.resolve()
-      : (running ??= runMaintenance(storage, { logger })
+      : (running ??= runMaintenance(storage, { clock, logger })
           .then(() => {})
           .finally(() => {
             running = undefined;

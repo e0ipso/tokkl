@@ -9,7 +9,7 @@ import { createStorage } from '../fixtures/storageShortcuts.ts';
 import { openConnection } from '../../src/storage/connections.ts';
 import type { PhysicalDatabase } from '../../src/storage/physical.ts';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
-import { createApplication } from '../../src/app.ts';
+import { composeApp } from '../fixtures/app.ts';
 import type { TimerBus, TimerSignal } from '../../src/storage/timerBus.ts';
 import { createTimerPublication } from '../../src/services/timerPublication.ts';
 import { testConfig } from '../helpers.ts';
@@ -117,11 +117,8 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       setup: { code: null },
       timerStreamOptions: { keepAliveMs: 600000 },
     });
-    const apps = [
-      createApplication(options(stores[0]!, buses[0]!.bus)),
-      createApplication(options(remote.storage, buses[1]!.bus)),
-    ];
-    const servers = await Promise.all(apps.map(application => serveInvariant(application.app)));
+    const apps = [composeApp(options(stores[0]!, buses[0]!.bus)), composeApp(options(remote.storage, buses[1]!.bus))];
+    const servers = await Promise.all(apps.map(application => serveInvariant(application)));
     const streams: Array<Awaited<ReturnType<typeof readTimerStream>>> = [];
     t.after(async () => {
       remote.release();

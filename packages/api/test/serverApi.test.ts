@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import type { AppStatus, CatalogRevision, ServerApi, ServerCapability, TimerState } from '@tokkl/types';
 import { storageFor } from './fixtures/database.ts';
 import { SERVER_API, setup, testConfig, testServer, type TestContext } from './helpers.ts';
-import { createApp } from './fixtures/app.ts';
+import { composeApp } from './fixtures/app.ts';
 import { OPTIONAL_REVISION_ACTIONS } from '../src/commands/timers.ts';
 import { createLogger } from '../src/lib/logger.ts';
 
@@ -139,14 +139,14 @@ test('only the actions listed as optional-revision act without a revision, each 
 test('an optional-revision action sent without one is logged at info, hourly per user agent and action', async t => {
   const ctx = await setup();
   const lines: Array<Record<string, unknown>> = [];
-  const app = createApp({
+  const { app, close } = composeApp({
     storage: storageFor(ctx.db),
     config: testConfig(ctx.db),
     setup: { code: null },
     // The default level, so operators see these lines without turning on debug.
     logger: createLogger({ level: 'info', sink: line => lines.push(JSON.parse(line)) }),
   });
-  after(() => app.locals.close());
+  after(() => close());
   const server = testServer(app);
   const authorization = `Basic ${Buffer.from(`${ctx.user.apiToken}:api_token`).toString('base64')}`;
   const post = async (path: string, body: unknown, agent: string) => {
