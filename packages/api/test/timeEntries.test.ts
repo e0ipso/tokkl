@@ -506,6 +506,7 @@ test('trash lists deleted entries, restores and purges them', async () => {
 
   const trash = await ctx.json('GET', '/api/app/trash');
   assert.deepEqual(trash.body.map((e: any) => e.description).sort(), ['a', 'b']);
+  assert.deepEqual((await ctx.json('GET', '/api/app/trash/total')).body, { total: 2, limit: 1000 });
 
   const purgeOne = await ctx.json('DELETE', `/api/app/trash/${a.body.id}`);
   assert.equal(purgeOne.body.deleted, 1);
@@ -516,7 +517,7 @@ test('trash lists deleted entries, restores and purges them', async () => {
   assert.deepEqual((await ctx.json('GET', '/api/app/trash')).body, []);
 });
 
-test('emptying the trash deletes every trashed entry, past the newest thousand and in every workspace', async () => {
+test('the trash lists the newest thousand, counts them all, and emptying it deletes every one in every workspace', async () => {
   const ctx = await setup();
   const other = await createWorkspace(ctx.db, 'Other');
   await addWorkspaceMember(ctx.db, other.id, ctx.user.id, 'owner');
@@ -533,11 +534,15 @@ test('emptying the trash deletes every trashed entry, past the newest thousand a
     count: 3,
     newestDeletedAt: '2026-10-01T12:00:00.000Z',
   });
+  // The list stops at the newest thousand; the total says how many it left out.
+  assert.equal((await ctx.json('GET', '/api/app/trash')).body.length, 1000);
+  assert.deepEqual((await ctx.json('GET', '/api/app/trash/total')).body, { total: 1004, limit: 1000 });
 
   const empty = await ctx.json('DELETE', '/api/app/trash');
   assert.equal(empty.status, 200);
   assert.equal(empty.body.deleted, 1004);
   assert.deepEqual((await ctx.json('GET', '/api/app/trash')).body, []);
+  assert.deepEqual((await ctx.json('GET', '/api/app/trash/total')).body, { total: 0, limit: 1000 });
 });
 
 /** An instant as the API returns it, to the second with a +00:00 offset. */

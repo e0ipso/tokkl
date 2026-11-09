@@ -33,6 +33,9 @@ import type {
 } from './model.ts';
 import type { RowRange } from '../lib/pagination.ts';
 
+/** The most trashed entries one trash read returns, so the read stays bounded. */
+export const TRASH_READ_LIMIT = 1000;
+
 export type StorageConflictKind = 'unique' | 'foreign-key' | 'serialization' | 'deadlock' | 'busy';
 /**
  * What a repository throws when the database refuses a write for a conflict, which the domain maps
@@ -325,7 +328,10 @@ export interface EntriesReader {
   get(userId: Id, id: Id, includeDeleted?: boolean): Promise<EntryDetails | undefined>;
   running(userId: Id): Promise<EntryDetails | undefined>;
   bounds(userId: Id): Promise<EntryBounds>;
+  /** The user's newest `TRASH_READ_LIMIT` trashed entries, newest deletion first. */
   listDeleted(userId: Id): Promise<EntryDetails[]>;
+  /** How many trashed entries the user has, those `listDeleted` leaves out included. */
+  countDeleted(userId: Id): Promise<number>;
   /** Used for timezone reanchoring without fetching every entry's related labels. */
   listAllDay(userId: Id): Promise<TimeEntry[]>;
   findDuplicate(key: EntryDuplicateKey): Promise<Id | undefined>;

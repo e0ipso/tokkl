@@ -57,7 +57,7 @@ export interface CatalogReadRepositories {
 }
 /** Reads of one user's time entries. */
 export interface EntryReadRepositories {
-  entries: Pick<EntriesReader, 'list' | 'get' | 'running' | 'bounds' | 'listDeleted'>;
+  entries: Pick<EntriesReader, 'list' | 'get' | 'running' | 'bounds' | 'listDeleted' | 'countDeleted'>;
 }
 export type ReadQueryRepositories = AccountReadRepositories & CatalogReadRepositories & EntryReadRepositories;
 
@@ -252,6 +252,7 @@ export function createEntryQueries(r: EntryReadRepositories) {
     timeEntry: (userId: Id, id: Id): Promise<EntryDetails> => getTimeEntry(r, userId, id),
     entryBounds: (userId: Id): Promise<EntryBounds> => r.entries.bounds(userId),
     trash: (userId: Id): Promise<EntryDetails[]> => r.entries.listDeleted(userId),
+    trashTotal: (userId: Id): Promise<number> => r.entries.countDeleted(userId),
   };
 }
 

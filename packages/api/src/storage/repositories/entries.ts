@@ -1,7 +1,7 @@
 import { sql, type Kysely, type Selectable, type Updateable } from 'kysely';
 import type { Backend } from '../config.ts';
 import type { PhysicalDatabase, TimeEntriesRow } from '../physical.ts';
-import type { EntryFilter, EntryInput, Repositories } from '../../domain/ports.ts';
+import { TRASH_READ_LIMIT, type EntryFilter, type EntryInput, type Repositories } from '../../domain/ports.ts';
 import type { EntryDetails, TimeEntry, TagLabel } from '../../domain/model.ts';
 import { booleanValue, entityId, safeInteger, utcInstant } from '../conversion.ts';
 import { classifyConflict } from '../errors.ts';
@@ -291,8 +291,20 @@ export function createEntryRepositories(
           .where('e.user_id', '=', userId)
           .where('e.deleted_at', 'is not', null)
           .orderBy('e.deleted_at', 'desc')
-          .limit(1000)
+          .limit(TRASH_READ_LIMIT)
           .execute(),
+      );
+    },
+    async countDeleted(userId) {
+      return safeInteger(
+        (
+          await db
+            .selectFrom('time_entries')
+            .select(db.fn.countAll().as('n'))
+            .where('user_id', '=', userId)
+            .where('deleted_at', 'is not', null)
+            .executeTakeFirstOrThrow()
+        ).n,
       );
     },
     async trashedWorkspaceIds(userId) {
