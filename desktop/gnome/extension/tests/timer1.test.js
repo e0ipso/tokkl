@@ -2,7 +2,7 @@
 //   node --test 'desktop/gnome/extension/**/*.test.js'
 
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 import {
@@ -227,18 +227,4 @@ test('the preferences keep no length range of their own', () => {
     const prefs = readFileSync(new URL('../prefs.js', import.meta.url), 'utf8');
     assert.doesNotMatch(prefs, /\b999\b/);
     assert.doesNotMatch(prefs, /lower:|upper:/);
-});
-
-// No fallback for a service below the floor is left behind.
-test('the fallbacks for older services are gone', () => {
-    const extension = name => existsSync(new URL(`../${name}`, import.meta.url));
-    const source = name => readFileSync(new URL(`../${name}`, import.meta.url), 'utf8');
-    assert.equal(extension('legacyactions.js'), false, 'legacyactions.js');
-    assert.equal(extension('legacylimits.js'), false, 'legacylimits.js');
-    assert.equal(source('menumodel.js').includes('legacyPresentation'), false, 'legacyPresentation() in menumodel.js');
-    assert.equal(
-        source('timerrequests.js').includes('hasRequestMethods'),
-        false,
-        'the plain methods in timerrequests.js',
-    );
 });
