@@ -9,13 +9,7 @@ import type { Clock, OperationContext } from './ports.ts';
 import type { EntryDetails, Id, PauseChain, PomodoroSession, User } from './model.ts';
 import { calendarInput, StateConflict } from '../lib/errors.ts';
 import { getPomodoroSessionConfig } from './accountValues.ts';
-import {
-  getTimeEntry,
-  protectEntryOperation,
-  type EntryContext,
-  type EntryReaders,
-  type EntryRepositories,
-} from './entryAccess.ts';
+import { getTimeEntry, protectEntryOperation, type EntryContext, type EntryRepositories } from './entryAccess.ts';
 import type { EntryFields, NewEntry } from './entryCommands.ts';
 import { entryDurationSeconds, wholeSeconds } from './entrySpans.ts';
 import { idempotent } from './idempotency.ts';
@@ -121,7 +115,7 @@ const copiedLabels = (e: EntryDetails): StartPomodoro['entry'] => ({
 });
 export interface TimerRunner<R extends EntryRepositories> {
   transaction<T>(work: (context: OperationContext<R>) => Promise<T>): Promise<T>;
-  readSnapshot<T>(work: (repositories: EntryReaders) => Promise<T>): Promise<T>;
+  readSnapshot<T>(work: (repositories: EntryRepositories) => Promise<T>): Promise<T>;
 }
 type ActionWork = (ctx: EntryContext, user: User) => Promise<void>;
 
@@ -130,7 +124,7 @@ type ActionWork = (ctx: EntryContext, user: User) => Promise<void>;
  * would answer without writing. Undefined when settling would write, or when the action would
  * refuse the read (a missing user or a missing workspace), so the caller takes the write path.
  */
-async function settledView(repositories: EntryReaders, userId: Id, now: Date): Promise<TimerView | undefined> {
+async function settledView(repositories: EntryRepositories, userId: Id, now: Date): Promise<TimerView | undefined> {
   const user = await repositories.users.get(userId);
   if (!user) return undefined;
   const data = await repositories.timers.read(userId);

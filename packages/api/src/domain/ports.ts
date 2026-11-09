@@ -72,7 +72,7 @@ export interface UserTimerRevision {
   user: User;
   timerRevision: number;
 }
-export interface UsersReader {
+export interface UsersRepository {
   count(): Promise<number>;
   countActiveAdmins(): Promise<number>;
   get(id: Id): Promise<User | undefined>;
@@ -81,8 +81,6 @@ export interface UsersReader {
   findByEmail(email: string): Promise<User | undefined>;
   findByApiToken(token: string): Promise<User | undefined>;
   list(): Promise<User[]>;
-}
-export interface UsersRepository extends UsersReader {
   /** Creates the account and its owned default workspace and membership together. */
   createAccount(input: NewAccount): Promise<User>;
   updateAccount(id: Id, changes: AccountChanges): Promise<User>;
@@ -93,7 +91,7 @@ export interface UsersRepository extends UsersReader {
   setAccess(id: Id, role: UserRole, disabledAt: UtcInstant | null): Promise<User>;
   delete(id: Id): Promise<void>;
 }
-export interface WorkspacesReader {
+export interface WorkspacesRepository {
   get(id: Id): Promise<Workspace | undefined>;
   forMember(userId: Id, workspaceId: Id): Promise<Workspace | undefined>;
   listForUser(userId: Id): Promise<Workspace[]>;
@@ -105,8 +103,6 @@ export interface WorkspacesReader {
    * new default currency. 0 for a missing workspace.
    */
   catalogRevision(workspaceId: Id): Promise<number>;
-}
-export interface WorkspacesRepository extends WorkspacesReader {
   create(name: string): Promise<Workspace>;
   update(
     id: Id,
@@ -117,18 +113,14 @@ export interface WorkspacesRepository extends WorkspacesReader {
   addMember(membership: Membership): Promise<void>;
   deleteSoleMemberWorkspaces(userId: Id): Promise<void>;
 }
-export interface SettingsReader {
+export interface SettingsRepository {
   /** Missing values remain missing so application settings rules apply deployment defaults. */
   read(): Promise<Partial<InstanceSettings>>;
-}
-export interface SettingsRepository extends SettingsReader {
   write(changes: SettingChange[]): Promise<void>;
 }
-export interface TokensReader {
+export interface TokensRepository {
   listPendingInvites(now: UtcInstant): Promise<AccountToken[]>;
   findUsable(tokenHash: string, kind: AccountToken['kind'], now: UtcInstant): Promise<AccountToken | undefined>;
-}
-export interface TokensRepository extends TokensReader {
   create(input: Omit<AccountToken, 'id'>): Promise<AccountToken>;
   /** Compare-and-set: false for already used, expired or revoked tokens. */
   consume(id: Id, now: UtcInstant, userId?: Id): Promise<boolean>;
@@ -141,10 +133,8 @@ export interface TokensRepository extends TokensReader {
    */
   deleteSpent(now: UtcInstant): Promise<number>;
 }
-export interface SessionsReader {
+export interface SessionsRepository {
   find(tokenHash: string): Promise<Session | undefined>;
-}
-export interface SessionsRepository extends SessionsReader {
   create(session: Session): Promise<void>;
   delete(tokenHash: string): Promise<void>;
   deleteForUser(userId: Id, keepTokenHash?: string): Promise<void>;
@@ -203,12 +193,10 @@ export interface ClientFilter {
   status?: 'active' | 'archived' | 'both';
   name?: string;
 }
-export interface ClientsReader {
+export interface ClientsRepository {
   list(workspaceId: Id, filter?: ClientFilter): Promise<Client[]>;
   get(workspaceId: Id, id: Id): Promise<Client | undefined>;
   findByName(workspaceId: Id, name: string): Promise<Client | undefined>;
-}
-export interface ClientsRepository extends ClientsReader {
   create(input: Pick<Client, 'workspaceId' | 'name' | 'notes' | 'archived'>): Promise<Client>;
   update(workspaceId: Id, id: Id, changes: Partial<Pick<Client, 'name' | 'notes' | 'archived'>>): Promise<Client>;
   /** Caller validates project ownership before invoking this selective restore. */
@@ -226,7 +214,7 @@ export interface ProjectFilter {
   changedSince?: UtcInstant;
 }
 export type ProjectInput = Omit<Project, 'id' | 'createdAt' | 'updatedAt'>;
-export interface ProjectsReader {
+export interface ProjectsRepository {
   count(workspaceId: Id): Promise<number>;
   getMetadata(workspaceId: Id, id: Id): Promise<Project | undefined>;
   listForClient(workspaceId: Id, clientId: Id): Promise<Array<Pick<Project, 'id' | 'name'>>>;
@@ -236,8 +224,6 @@ export interface ProjectsReader {
   /** Indexed lookup; never computes history totals. */
   getRef(workspaceId: Id, id: Id): Promise<ProjectRef | undefined>;
   findByName(workspaceId: Id, clientId: Id | null, name: string): Promise<Project | undefined>;
-}
-export interface ProjectsRepository extends ProjectsReader {
   create(input: ProjectInput): Promise<ProjectSummary>;
   update(workspaceId: Id, id: Id, changes: Partial<Omit<ProjectInput, 'workspaceId'>>): Promise<ProjectSummary>;
   delete(workspaceId: Id, id: Id, entryMode: 'detach' | 'delete'): Promise<void>;
@@ -252,7 +238,7 @@ export interface TaskSearchFilter {
   /** Keeps tasks updated at or after this instant. */
   changedSince?: UtcInstant;
 }
-export interface TasksReader {
+export interface TasksRepository {
   getMetadata(workspaceId: Id, id: Id): Promise<Task | undefined>;
   /** Ordered by folded name, then id. `ids` keeps only those tasks. */
   list(
@@ -290,8 +276,6 @@ export interface TasksReader {
   get(workspaceId: Id, id: Id, projectId?: Id): Promise<TaskSummary | undefined>;
   getRef(workspaceId: Id, id: Id): Promise<TaskRef | undefined>;
   findByName(workspaceId: Id, projectId: Id, name: string): Promise<Task | undefined>;
-}
-export interface TasksRepository extends TasksReader {
   create(input: TaskInput): Promise<TaskSummary>;
   update(
     workspaceId: Id,
@@ -301,14 +285,12 @@ export interface TasksRepository extends TasksReader {
   ): Promise<TaskSummary>;
   delete(workspaceId: Id, projectId: Id, id: Id): Promise<void>;
 }
-export interface TagsReader {
+export interface TagsRepository {
   /** Ordered by folded name, then id. A `range` keeps only those rows of that order. */
   list(workspaceId: Id, search?: string, range?: RowRange): Promise<Tag[]>;
   findByIds(workspaceId: Id, ids: readonly Id[]): Promise<Tag[]>;
   get(workspaceId: Id, id: Id): Promise<Tag | undefined>;
   findByName(workspaceId: Id, name: string): Promise<Tag | undefined>;
-}
-export interface TagsRepository extends TagsReader {
   resolveNames(workspaceId: Id, names: string[]): Promise<Tag[]>;
   create(workspaceId: Id, name: string): Promise<Tag>;
   rename(workspaceId: Id, id: Id, name: string): Promise<Tag>;
@@ -323,7 +305,7 @@ export interface EntryFilter {
 }
 /** Exact normalized values; application rules snap live writes before invoking persistence. */
 export type EntryInput = Omit<TimeEntry, 'id' | 'createdAt' | 'updatedAt'> & { tagIds: Id[] };
-export interface EntriesReader {
+export interface EntriesRepository {
   list(userId: Id, filter?: EntryFilter): Promise<EntryDetails[]>;
   get(userId: Id, id: Id, includeDeleted?: boolean): Promise<EntryDetails | undefined>;
   running(userId: Id): Promise<EntryDetails | undefined>;
@@ -335,8 +317,6 @@ export interface EntriesReader {
   /** Used for timezone reanchoring without fetching every entry's related labels. */
   listAllDay(userId: Id): Promise<TimeEntry[]>;
   findDuplicate(key: EntryDuplicateKey): Promise<Id | undefined>;
-}
-export interface EntriesRepository extends EntriesReader {
   create(input: EntryInput): Promise<EntryDetails>;
   /** Same integrity checks as create, without reloading labels discarded by import callers. */
   insert(input: EntryInput): Promise<Id>;
@@ -378,15 +358,13 @@ export interface IdempotencyKeysRepository {
    */
   deleteExpired(before: UtcInstant): Promise<number>;
 }
-export interface TimersReader {
+export interface TimersRepository {
   read(userId: Id): Promise<TimerSnapshot>;
   getSession(userId: Id): Promise<PomodoroSession | undefined>;
   getPauseChain(userId: Id): Promise<PauseChain | undefined>;
   getRevision(userId: Id): Promise<TimerRevision | undefined>;
   /** IDs in ascending order for predictable lock acquisition before catalog changes. */
   affectedUsers(workspaceId: Id): Promise<Id[]>;
-}
-export interface TimersRepository extends TimersReader {
   saveSession(session: PomodoroSession): Promise<void>;
   deleteSession(userId: Id): Promise<void>;
   savePauseChain(chain: PauseChain): Promise<void>;
@@ -492,24 +470,6 @@ export interface TransfersRepository {
     limit: number,
   ): Promise<EntryDetails[]>;
 }
-/** What a read-only snapshot needs: every repository's reads and none of its writes. */
-export interface ReadOnlyRepositories {
-  users: UsersReader;
-  workspaces: WorkspacesReader;
-  settings: SettingsReader;
-  tokens: TokensReader;
-  sessions: SessionsReader;
-  clients: ClientsReader;
-  projects: ProjectsReader;
-  tasks: TasksReader;
-  tags: TagsReader;
-  entries: EntriesReader;
-  timers: TimersReader;
-  reports: ReportsRepository;
-  transfers: TransfersRepository;
-}
-/** The reads of the repositories named in `R`: what a read-only snapshot over them may call. */
-export type ReadersOf<R> = Pick<ReadOnlyRepositories, Extract<keyof R, keyof ReadOnlyRepositories>>;
 export interface Repositories {
   users: UsersRepository;
   workspaces: WorkspacesRepository;
@@ -556,7 +516,7 @@ export type TransactionContext = OperationContext<Repositories>;
  */
 export interface Storage {
   transaction<T>(work: (context: TransactionContext) => Promise<T>, options?: { dryRun?: boolean }): Promise<T>;
-  readSnapshot<T>(work: (repositories: ReadOnlyRepositories) => Promise<T>): Promise<T>;
+  readSnapshot<T>(work: (repositories: Repositories) => Promise<T>): Promise<T>;
   health(): Promise<void>;
   close(): Promise<void>;
 }

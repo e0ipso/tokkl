@@ -4,13 +4,13 @@
  */
 import { PROJECT_COLORS } from '@tokkl/common/colors';
 import type {
-  ClientsReader,
+  ClientsRepository,
   OperationContext,
   ProjectInput,
-  ProjectsReader,
+  ProjectsRepository,
   Repositories,
-  TagsReader,
-  TasksReader,
+  TagsRepository,
+  TasksRepository,
 } from './ports.ts';
 import type { Client, Id, ProjectSummary, TaskSummary, Tag } from './model.ts';
 import { StorageConflict } from './ports.ts';
@@ -65,13 +65,13 @@ function unique(existing: { id: number } | undefined, except?: Id, tag = false):
   if (existing && existing.id !== except)
     throw invalidInput(tag ? 'A tag with the same name already exists' : 'Name has already been taken');
 }
-export async function getClient(ctx: { clients: Pick<ClientsReader, 'get'> }, wid: Id, id: Id): Promise<Client> {
+export async function getClient(ctx: { clients: Pick<ClientsRepository, 'get'> }, wid: Id, id: Id): Promise<Client> {
   const value = await ctx.clients.get(wid, id);
   if (!value) throw notFound(`No client with ID ${id} was found`);
   return value;
 }
 export async function getProject(
-  ctx: { projects: Pick<ProjectsReader, 'get'> },
+  ctx: { projects: Pick<ProjectsRepository, 'get'> },
   wid: Id,
   id: Id,
 ): Promise<ProjectSummary> {
@@ -80,7 +80,7 @@ export async function getProject(
   return value;
 }
 export async function getTask(
-  ctx: { tasks: Pick<TasksReader, 'get'> },
+  ctx: { tasks: Pick<TasksRepository, 'get'> },
   wid: Id,
   id: Id,
   pid?: Id,
@@ -89,7 +89,7 @@ export async function getTask(
   if (!value) throw notFound('Task not found');
   return value;
 }
-export async function getTag(ctx: { tags: Pick<TagsReader, 'get'> }, wid: Id, id: Id): Promise<Tag> {
+export async function getTag(ctx: { tags: Pick<TagsRepository, 'get'> }, wid: Id, id: Id): Promise<Tag> {
   const value = await ctx.tags.get(wid, id);
   if (!value) throw notFound('Tag not found');
   return value;

@@ -1,6 +1,6 @@
 import type { StorageConfig } from '../config.ts';
 import { openReadConnection } from '../connections.ts';
-import type { ReadOnlyRepositories } from '../../domain/ports.ts';
+import type { Repositories } from '../../domain/ports.ts';
 import type { PhysicalDatabase } from '../physical.ts';
 import { createTransactionRunner } from '../transactions.ts';
 import { createAccountRepositories } from './accounts.ts';
@@ -11,7 +11,7 @@ export const reportRunsInline = (config: StorageConfig): boolean =>
   config.backend === 'sqlite' && config.filename === ':memory:';
 /** The accounts, reports and exports a report worker's read-only snapshot hands out. */
 export type ReportReaderRepositories = Pick<
-  ReadOnlyRepositories,
+  Repositories,
   'users' | 'workspaces' | 'sessions' | 'reports' | 'transfers'
 >;
 export interface ReportReader {

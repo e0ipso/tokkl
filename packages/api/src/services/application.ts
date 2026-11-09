@@ -16,7 +16,6 @@ import type {
 import {
   createAccountOperations,
   createPreferenceOperations,
-  type AccountEntryEffects,
   type AccountOperations,
   type AccountPasswordAttempt,
 } from '../domain/accounts.ts';
@@ -120,37 +119,6 @@ function guardedRunner(storage: Storage, authentication: Authentication, adminis
   };
 }
 
-/**
- * The account operations a signed-in user reaches, acting as `authentication`'s user. The actor,
- * the deployment's session length and the timer effects of a time zone change or an account
- * deletion are bound in, so a caller passes only what the request says.
- */
-function signedInAccountOperations(
-  operations: AccountOperations<Repositories>,
-  { user, credential }: Authentication,
-  effects: AccountEntryEffects<Repositories>,
-  sessionDays: number,
-) {
-  const actorId = user.id;
-  return {
-    setAccess: (userId: Id, change: AccessChange) => operations.setAccess(actorId, userId, change),
-    /** `email` is what the admin typed to confirm; it must name the account being deleted. */
-    deleteAccount: (userId: Id, email: string | undefined) => operations.deleteAccount(actorId, userId, email, effects),
-    revokeSessions: (userId: Id) => operations.revokeSessions(actorId, userId),
-    createPasswordReset: (userId: Id) => operations.createPasswordReset(actorId, userId),
-    createInvite: (request: InviteRequest) => operations.createInvite(actorId, request, sessionDays),
-    revokeInvite: (id: Id) => operations.revokeInvite(actorId, id),
-    updateSettings: (changes: SettingChanges) => operations.updateSettings(actorId, changes, sessionDays),
-    updateWorkspace: (workspaceId: Id, changes: WorkspaceChanges) =>
-      operations.updateWorkspace(actorId, workspaceId, changes),
-    /** A password change also needs the current password, checked through `attempt`. */
-    updateProfile: (update: ProfileUpdate, attempt?: AccountPasswordAttempt) =>
-      operations.updateProfile(user, credential, update, effects, attempt),
-    rotateApiToken: () => operations.rotateApiToken(user, credential),
-  };
-}
-export type SignedInAccountOperations = ReturnType<typeof signedInAccountOperations>;
-
 /** A credential change rechecks the account's open timer streams. */
 const accountSecurity = (timerStreams: Pick<TimerStreams, 'recheck'>): AccountSecurityEffects => ({
   recheckUser: id => timerStreams.recheck(id),
@@ -237,13 +205,29 @@ export function createApplicationServices({
         slot.export(assembly, output, { authentication }),
       );
     },
-    accountsFor: (authentication: Authentication): SignedInAccountOperations =>
-      signedInAccountOperations(
-        createAccountOperations(guardedRunner(storage, authentication, true), security),
-        authentication,
-        entryEffects,
-        sessionDays,
-      ),
+    /** The account operations a signed-in user reaches, acting as `authentication`'s user. */
+    accountsFor(authentication: Authentication) {
+      const operations = createAccountOperations(guardedRunner(storage, authentication, true), security);
+      const { user, credential } = authentication;
+      const actorId = user.id;
+      return {
+        setAccess: (userId: Id, change: AccessChange) => operations.setAccess(actorId, userId, change),
+        /** `email` is what the admin typed to confirm; it must name the account being deleted. */
+        deleteAccount: (userId: Id, email: string | undefined) =>
+          operations.deleteAccount(actorId, userId, email, entryEffects),
+        revokeSessions: (userId: Id) => operations.revokeSessions(actorId, userId),
+        createPasswordReset: (userId: Id) => operations.createPasswordReset(actorId, userId),
+        createInvite: (request: InviteRequest) => operations.createInvite(actorId, request, sessionDays),
+        revokeInvite: (id: Id) => operations.revokeInvite(actorId, id),
+        updateSettings: (changes: SettingChanges) => operations.updateSettings(actorId, changes, sessionDays),
+        updateWorkspace: (workspaceId: Id, changes: WorkspaceChanges) =>
+          operations.updateWorkspace(actorId, workspaceId, changes),
+        /** A password change also needs the current password, checked through `attempt`. */
+        updateProfile: (update: ProfileUpdate, attempt?: AccountPasswordAttempt) =>
+          operations.updateProfile(user, credential, update, entryEffects, attempt),
+        rotateApiToken: () => operations.rotateApiToken(user, credential),
+      };
+    },
     /** Preferences take only the user's guard, so their credential check runs before and after. */
     preferencesFor: (authentication: Authentication) =>
       createPreferenceOperations(guardedTransactions(storage, authentication), authentication.user.id),

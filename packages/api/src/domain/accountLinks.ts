@@ -1,5 +1,5 @@
 /** Invite and password reset links: single-use tokens an admin hands out, stored as hashes. */
-import type { TokensReader, UsersReader } from './ports.ts';
+import type { TokensRepository, UsersRepository } from './ports.ts';
 import type { Id, User } from './model.ts';
 import { invalidInput, notFound } from '../lib/errors.ts';
 import { generateApiToken, generateSessionToken, hashPassword, sha256 } from '../lib/crypto.ts';
@@ -21,11 +21,11 @@ export const INVITE_NOT_FOUND = 'This invite link is not valid. Ask your admin f
 export const RESET_NOT_FOUND = 'This password reset link is not valid. Ask your admin for a new one.';
 const PASSWORD_RESET_HOURS = 24;
 
-export async function findUsableInvite(ctx: { tokens: Pick<TokensReader, 'findUsable'> }, token: string) {
+export async function findUsableInvite(ctx: { tokens: Pick<TokensRepository, 'findUsable'> }, token: string) {
   return ctx.tokens.findUsable(sha256(token), 'invite', now());
 }
 export async function findResetUser(
-  ctx: { tokens: Pick<TokensReader, 'findUsable'>; users: Pick<UsersReader, 'get'> },
+  ctx: { tokens: Pick<TokensRepository, 'findUsable'>; users: Pick<UsersRepository, 'get'> },
   token: string,
 ): Promise<User | undefined> {
   const reset = await ctx.tokens.findUsable(sha256(token), 'password_reset', now());

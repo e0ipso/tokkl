@@ -4,19 +4,19 @@
  */
 import type {
   ClientFilter,
-  ClientsReader,
-  EntriesReader,
+  ClientsRepository,
+  EntriesRepository,
   EntryFilter,
   ProjectFilter,
-  ProjectsReader,
-  SettingsReader,
-  TagsReader,
+  ProjectsRepository,
+  SettingsRepository,
+  TagsRepository,
   TaskSortKey,
-  TasksReader,
-  TokensReader,
+  TasksRepository,
+  TokensRepository,
   TransfersRepository,
-  UsersReader,
-  WorkspacesReader,
+  UsersRepository,
+  WorkspacesRepository,
 } from './ports.ts';
 import type {
   AccountToken,
@@ -41,23 +41,23 @@ import { offsetRange, pageRange, slicePage, type PageWindow, type RowRange } fro
 
 /** Reads about accounts, the instance and workspace membership. No repository here can write. */
 export interface AccountReadRepositories {
-  users: Pick<UsersReader, 'list'>;
-  workspaces: Pick<WorkspacesReader, 'forMember' | 'listForUser' | 'getRole' | 'countMembers' | 'listMembers'>;
-  settings: SettingsReader;
-  tokens: Pick<TokensReader, 'listPendingInvites'>;
+  users: Pick<UsersRepository, 'list'>;
+  workspaces: Pick<WorkspacesRepository, 'forMember' | 'listForUser' | 'getRole' | 'countMembers' | 'listMembers'>;
+  settings: SettingsRepository;
+  tokens: Pick<TokensRepository, 'listPendingInvites'>;
   transfers: TransfersRepository;
 }
 /** Reads of the clients, projects, tasks and tags in the workspaces a user belongs to. */
 export interface CatalogReadRepositories {
-  workspaces: Pick<WorkspacesReader, 'listForUser' | 'catalogRevision'>;
-  clients: Pick<ClientsReader, 'list' | 'get'>;
-  projects: Pick<ProjectsReader, 'list' | 'get'>;
-  tasks: Pick<TasksReader, 'list' | 'get' | 'listSortKeys' | 'count' | 'listByCreation' | 'listForMember'>;
-  tags: Pick<TagsReader, 'list'>;
+  workspaces: Pick<WorkspacesRepository, 'listForUser' | 'catalogRevision'>;
+  clients: Pick<ClientsRepository, 'list' | 'get'>;
+  projects: Pick<ProjectsRepository, 'list' | 'get'>;
+  tasks: Pick<TasksRepository, 'list' | 'get' | 'listSortKeys' | 'count' | 'listByCreation' | 'listForMember'>;
+  tags: Pick<TagsRepository, 'list'>;
 }
 /** Reads of one user's time entries. */
 export interface EntryReadRepositories {
-  entries: Pick<EntriesReader, 'list' | 'get' | 'running' | 'bounds' | 'listDeleted' | 'countDeleted'>;
+  entries: Pick<EntriesRepository, 'list' | 'get' | 'running' | 'bounds' | 'listDeleted' | 'countDeleted'>;
 }
 export type ReadQueryRepositories = AccountReadRepositories & CatalogReadRepositories & EntryReadRepositories;
 
