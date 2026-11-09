@@ -22,6 +22,7 @@ import {
   resetCheckReply,
   runningEntryReply,
   trashEmptiedReply,
+  trashTotalReply,
   weeklyReportReply,
 } from './replies.ts';
 
@@ -275,6 +276,12 @@ test('the admin write replies the views read decode, and a broken one names its 
   const link = { url: '/reset-password/abc', expires_at: '2026-10-28T10:00:00+00:00' };
   assert.deepEqual(passwordResetLinkReply(link), link);
   assert.throws(() => passwordResetLinkReply({ ...link, expires_at: 'tomorrow' }), at('reply.expires_at'));
+});
+
+test('the trash total decodes, and a count that is not a whole number fails', () => {
+  assert.deepEqual(trashTotalReply({ total: 1500, limit: 1000 }), { total: 1500, limit: 1000 });
+  assert.throws(() => trashTotalReply({ total: 1500 }), at('reply.limit'));
+  assert.throws(() => trashTotalReply({ total: 1.5, limit: 1000 }), at('reply.total'));
 });
 
 test('the entry write replies the views read decode: emptied trash and a bulk edit', () => {

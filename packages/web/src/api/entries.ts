@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { queryOptions, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useWid } from './account.ts';
 import { api } from './client.ts';
 import { ignoreReply } from './decode.ts';
@@ -14,6 +14,7 @@ import {
   entryListReply,
   timeEntryReply,
   trashEmptiedReply,
+  trashTotalReply,
 } from './replies.ts';
 import { attemptTimerRequest, editRunningEntry, timerWrite, type RunningEntryChanges } from './timerHooks.ts';
 import { MOVES_TIMER } from './timerState.ts';
@@ -45,12 +46,25 @@ export function useEntryBounds() {
   });
 }
 
-/** Deleted entries, newest deletion first. The server returns at most 1000. */
+/** Deleted entries, newest deletion first. The server lists at most `limit` of them (`useTrashTotal`). */
 export function useTrash() {
   return useQuery({
     queryKey: keys.trash,
     queryFn: ({ signal }) => api.get(`${APP}/trash`, { signal, decode: entryListReply }),
   });
+}
+
+/**
+ * How many entries the trash holds (`total`) and how many of the newest the trash list shows at
+ * most (`limit`). Its key sits under `keys.trash`, so whatever refreshes the trash refreshes it.
+ */
+export const trashTotalOptions = queryOptions({
+  queryKey: [...keys.trash, 'total'],
+  queryFn: ({ signal }) => api.get(`${APP}/trash/total`, { signal, decode: trashTotalReply }),
+});
+
+export function useTrashTotal() {
+  return useQuery(trashTotalOptions);
 }
 
 /**

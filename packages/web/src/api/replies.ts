@@ -44,6 +44,7 @@ import type {
   TimerPomodoro,
   TimerPomodoroPhase,
   TimerState,
+  TrashTotal,
   UserRole,
   WeeklyReport,
   Workspace,
@@ -377,6 +378,9 @@ export const passwordResetLinkReply: Decoder<PasswordResetLink> = object<Passwor
   url: string,
   expires_at: instant,
 });
+
+/** GET /api/app/trash/total: how many entries the trash holds, and how many of them the trash list shows at most. */
+export const trashTotalReply: Decoder<TrashTotal> = object<TrashTotal>({ total: integer, limit: integer });
 
 /** DELETE /api/app/trash: how many entries were deleted for good. */
 export const trashEmptiedReply = object<{ deleted: number }>({ deleted: integer });

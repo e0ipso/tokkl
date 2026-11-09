@@ -198,7 +198,7 @@ export const manage = {
   started: 'Started',
   duration: 'Duration',
   deleted: 'Deleted',
-  trashLimit: 'Showing the 1000 most recently deleted entries.',
+  trashLimit: 'Showing the {limit} most recently deleted of {total} entries.',
   emptyTrashTitle: 'Empty the trash?',
   emptyTrashAll: "This deletes every entry in the trash for good. You can't undo this.",
   emptyTrashCount: {
