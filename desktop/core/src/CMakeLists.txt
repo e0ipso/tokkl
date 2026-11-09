@@ -55,6 +55,8 @@ add_library(tokklcore STATIC
     pomodorostore.h
     projectcatalog.cpp
     projectcatalog.h
+    projectcatalogadapter.cpp
+    projectcatalogadapter.h
     projectchoices.cpp
     projectchoices.h
     projectloader.cpp

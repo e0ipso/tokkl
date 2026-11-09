@@ -168,8 +168,8 @@ bool TimerCoordinator::start()
     if (!m_model->canStartNew()) {
         return false;
     }
-    m_selection->startSent();
-    const NextStartSelection::Choice choice = m_selection->nextStart();
+    m_selection->started();
+    const NextStartSelection::Choice choice = m_selection->choice();
     StartEntry entry;
     entry.start = m_state->clock()->now().toUTC();
     entry.projectId = choice.projectId;
@@ -226,7 +226,7 @@ bool TimerCoordinator::resume()
     if (!m_model->canWrite() || m_model->isRunning() || !m_model->isPaused()) {
         return false;
     }
-    m_selection->startSent();
+    m_selection->started();
     beginMutation();
 
     m_model->stateClient()->resume(m_epoch.guard(this, [this](const TimerActionResult &result) {

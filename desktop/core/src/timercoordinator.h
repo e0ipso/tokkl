@@ -183,7 +183,7 @@ private:
 
     TimerModel *m_model;
     TimerStateUpdates *m_state;
-    TimerSelectionUpdates *m_selection;
+    NextStartSelection *m_selection;
     TimerCatalogUpdates *m_catalog;
     ProjectLoader *m_loader;
     QPointer<Clock> m_clock;
