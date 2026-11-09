@@ -28,7 +28,7 @@ const unsettled = new Map<string, { key: string; since: number }>();
  * characters. `crypto.randomUUID` would need a secure context, and an instance may be served over
  * plain HTTP on a local network.
  */
-export function newIdempotencyKey(): string {
+function newIdempotencyKey(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(16));
   return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
 }
