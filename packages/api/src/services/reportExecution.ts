@@ -41,13 +41,8 @@ export interface ExecutionEvents {
 }
 
 export interface ReportExecution {
-  /**
-   * True when `run` may be called now. The first call starts the worker; `available` follows once
-   * it is ready.
-   */
+  /** True when `run` may be called now. The first call starts the worker; `available` follows once it is up. */
   ready(): boolean;
-  /** True when `run` may be called now without starting anything first. */
-  warm(): boolean;
   /** Runs `job`; its outcome goes to `settled`. */
   run(job: ExecutionJob): void;
   /** Gives up the running job: its outcome is never reported, and a worker running it stops. */
@@ -106,9 +101,6 @@ class InlineExecution implements ReportExecution {
     this.logger = logger;
   }
   ready(): boolean {
-    return !this.work;
-  }
-  warm(): boolean {
     return !this.work;
   }
   run(job: ExecutionJob): void {
@@ -171,9 +163,6 @@ class WorkerExecution implements ReportExecution {
     if (this.stopping) return false;
     if (!this.worker) this.start();
     return this.started;
-  }
-  warm(): boolean {
-    return !this.stopping && this.started;
   }
   run(job: ExecutionJob): void {
     this.current = job;

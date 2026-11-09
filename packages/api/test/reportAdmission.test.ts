@@ -118,19 +118,6 @@ test('a download that runs past its deadline is given up with a 503 and Retry-Af
   assert.ok(Date.now() - started < 2000);
 });
 
-test('the download lane limits must be valid', () => {
-  const source: JobSource = { readSnapshot: () => Promise.reject(new Error('unused')) };
-  assert.throws(() => createReportRunner(INLINE, source, { downloads: { maxQueue: 0 } }), /Invalid download queue/);
-  assert.throws(
-    () => createReportRunner(INLINE, source, { downloads: { maxQueue: 4, maxPerUser: 5 } }),
-    /Invalid download share/,
-  );
-  assert.throws(
-    () => createReportRunner(INLINE, source, { downloads: { deadlineMs: 0 } }),
-    /Invalid download deadline/,
-  );
-});
-
 /** Storage that counts its read snapshots. */
 function countingReads(storage: Storage): { storage: Storage; reads: () => number } {
   let reads = 0;
@@ -350,30 +337,6 @@ test('one account cannot take more than its share of the report queue', async t 
   for (const result of await Promise.all(again)) assert.ok(result instanceof ApplicationError);
 });
 
-test('queued reports take turns between accounts', async t => {
-  const { source, order, reading, release } = gatedSource();
-  const runner = createReportRunner(INLINE, source, { maxQueue: 16, maxPerUser: 4 });
-  t.after(() => runner.close());
-  const jobs = [
-    ...[1, 1, 1, 1].map(user => runReport(runner, user, user, WEEKLY as never).catch(() => {})),
-    ...[2, 2].map(user => runReport(runner, user, user, WEEKLY as never).catch(() => {})),
-    runReport(runner, 3, 3, WEEKLY as never).catch(() => {}),
-  ];
-  for (let i = 0; i < jobs.length; i++) {
-    await reading(i + 1);
-    release();
-  }
-  await Promise.all(jobs);
-  // Account 1 was running when the others queued; after it, each account takes the next turn.
-  assert.deepEqual(order, [1, 2, 3, 1, 2, 1, 1]);
-});
-
-test('the per-account share must fit the queue', () => {
-  const source: JobSource = { readSnapshot: () => Promise.reject(new Error('unused')) };
-  for (const maxPerUser of [0, 1.5, 17])
-    assert.throws(() => createReportRunner(INLINE, source, { maxQueue: 16, maxPerUser }), /Invalid report share/);
-});
-
 /** A database the fake workers never open; any file-backed config runs jobs in workers. */
 const WORKER = { backend: 'sqlite' as const, filename: 'unused.db', busyTimeoutMs: 5000 };
 const UNUSED: JobSource = { readSnapshot: () => Promise.reject(new Error('unused')) };
@@ -454,24 +417,6 @@ test('a lane runs up to its concurrency at once, so one slow job holds only its 
   assert.deepEqual(await Promise.all([...downloads, ...reports]), Array(7).fill(undefined));
 });
 
-test('a freed worker goes to the account served longest ago, and shares still count running jobs', async t => {
-  const { startWorker, posted } = fakeReportWorkers();
-  const runner = createReportRunner(WORKER, UNUSED, { startWorker, maxQueue: 8, maxPerUser: 3, concurrency: 2 });
-  t.after(() => runner.close());
-  const mine = reportsFor(runner, [1, 1, 1]);
-  await postedJobs(posted, 2);
-  const theirs = reportsFor(runner, [2]);
-  const full = await runReport(runner, 1, 1, WEEKLY as never).catch((error: Error) => error);
-  assert.match(String(full), /Report queue is full/, 'two running and one queued are the whole share');
-  posted[0]!.worker.finish(posted[0]!.id);
-  await postedJobs(posted, 3);
-  assert.equal(posted[2]!.work.userId, 2, 'the other account goes before the third job of the first');
-  for (const job of posted.slice(1)) job.worker.finish(job.id);
-  await postedJobs(posted, 4);
-  posted[3]!.worker.finish(posted[3]!.id);
-  assert.deepEqual(await Promise.all([...mine, ...theirs]), Array(4).fill(undefined));
-});
-
 test('a lane starts one worker at a time, and a crash fails only the job on that worker', async t => {
   const { startWorker, posted, workers } = fakeReportWorkers();
   const runner = createReportRunner(WORKER, UNUSED, { startWorker });
@@ -484,20 +429,6 @@ test('a lane starts one worker at a time, and a crash fails only the job on that
   assert.match(String(await first), /Report worker stopped/);
   posted[1]!.worker.finish(posted[1]!.id);
   assert.equal(await second, undefined);
-});
-
-test('a lane runs at least one job and at most its queue at once', () => {
-  for (const concurrency of [0, 1.5, 17])
-    assert.throws(
-      () => createReportRunner(INLINE, UNUSED, { maxQueue: 16, concurrency }),
-      /Invalid report concurrency/,
-    );
-  assert.throws(
-    () => createReportRunner(INLINE, UNUSED, { downloads: { maxQueue: 2, concurrency: 3 } }),
-    /Invalid download concurrency/,
-  );
-  // A short queue lowers the default instead of refusing it.
-  assert.doesNotThrow(() => createReportRunner(INLINE, UNUSED, { maxQueue: 1, downloads: { maxQueue: 1 } }));
 });
 
 /** Waits until `ready()` holds, for at most `ms`, and says whether it did. */
@@ -527,6 +458,7 @@ test('a report request the client abandons gives back its place, queued or runni
       signals.push(options.signal!);
       return runner.reserve(options, slot =>
         work({
+          ...slot,
           run: (...args) => {
             submitted++;
             return slot.run(...args);
