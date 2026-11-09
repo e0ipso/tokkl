@@ -6,7 +6,7 @@
  */
 export const LOG_LEVELS = ['debug', 'info', 'warn', 'error', 'silent'] as const;
 export type LogLevel = (typeof LOG_LEVELS)[number];
-export type LogFields = Readonly<Record<string, unknown>>;
+type LogFields = Readonly<Record<string, unknown>>;
 
 export interface Logger {
   debug(message: string, fields?: LogFields): void;
@@ -17,20 +17,7 @@ export interface Logger {
   child(fields: LogFields): Logger;
 }
 
-export type LogSink = (line: string, level: Exclude<LogLevel, 'silent'>) => void;
-
-export interface LoggerOptions {
-  level?: LogLevel;
-  sink?: LogSink;
-  now?: () => Date;
-}
-
 const RANK: Readonly<Record<LogLevel, number>> = { debug: 10, info: 20, warn: 30, error: 40, silent: 100 };
-
-const standardStreams: LogSink = (line, level) => {
-  if (level === 'warn' || level === 'error') console.error(line);
-  else console.log(line);
-};
 
 export function isLogLevel(value: string): value is LogLevel {
   return (LOG_LEVELS as readonly string[]).includes(value);
@@ -41,11 +28,11 @@ function serializable(value: unknown): unknown {
   return value;
 }
 
-export function createLogger(options: LoggerOptions = {}, context: LogFields = {}): Logger {
-  const { level = 'info', sink = standardStreams, now = () => new Date() } = options;
+export function createLogger(options: { level?: LogLevel } = {}, context: LogFields = {}): Logger {
+  const { level = 'info' } = options;
   const write = (lineLevel: Exclude<LogLevel, 'silent'>, message: string, fields: LogFields = {}) => {
     if (RANK[lineLevel] < RANK[level]) return;
-    const entry: Record<string, unknown> = { time: now().toISOString(), level: lineLevel, msg: message };
+    const entry: Record<string, unknown> = { time: new Date().toISOString(), level: lineLevel, msg: message };
     for (const [key, value] of Object.entries({ ...context, ...fields })) entry[key] = serializable(value);
     let line: string;
     try {
@@ -53,7 +40,8 @@ export function createLogger(options: LoggerOptions = {}, context: LogFields = {
     } catch {
       line = JSON.stringify({ time: entry.time, level: lineLevel, msg: message, fields: 'unserializable' });
     }
-    sink(line, lineLevel);
+    if (lineLevel === 'warn' || lineLevel === 'error') console.error(line);
+    else console.log(line);
   };
   return {
     debug: (message, fields) => write('debug', message, fields),

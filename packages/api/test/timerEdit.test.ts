@@ -2,9 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { TimerState } from '@tokkl/types';
 import { removeWorkspaceMember } from './fixtures/physical.ts';
-import { addUser, setup, type TestContext } from './helpers.ts';
+import { addUser, setup, type TestContext, timerState as state } from './helpers.ts';
 
-const state = async (ctx: TestContext) => (await ctx.json<TimerState>('GET', '/api/app/timer')).body;
 const edit = (ctx: TestContext, body: unknown) => ctx.json<TimerState>('POST', '/api/app/timer/edit', body);
 /** `state` without the instant it was read at, so two reads of one revision compare equal. */
 const timeless = (s: TimerState) => ({ ...s, server_time: null });

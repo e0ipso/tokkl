@@ -16,7 +16,6 @@ import type {
 import {
   createAccountOperations,
   createPreferenceOperations,
-  type AccountEntryEffects,
   type AccountOperations,
   type AccountPasswordAttempt,
 } from '../domain/accounts.ts';
@@ -33,10 +32,14 @@ import type { ExportAssemblyJob, ExportEmitter } from './exportJobs.ts';
 import type { ReportExecutor } from './reportRunner.ts';
 import { createCatalogOperations } from './catalogOperations.ts';
 import { createEntryOperations } from './entryOperations.ts';
-import { credentialCheck, credentialKey } from './streamCredentials.ts';
 import { startMaintenance } from './maintenance.ts';
-import { createTimerDelivery } from './timerDelivery.ts';
-import { presentTimerOperations, type PresentedTimerOperations } from './timerReplies.ts';
+import {
+  createTimerDelivery,
+  credentialCheck,
+  credentialKey,
+  presentTimerOperations,
+  type PresentedTimerOperations,
+} from './timerDelivery.ts';
 import {
   DEFAULT_TIMER_STREAM_LIMITS,
   type EventStreamResponse,
@@ -54,7 +57,7 @@ export const DEFAULT_SERVICE_SETTINGS: Readonly<ServiceSettings> = Object.freeze
   timerStreams: DEFAULT_TIMER_STREAM_LIMITS,
 });
 
-export interface ApplicationServiceOptions {
+interface ApplicationServiceOptions {
   storage: Storage;
   /** Runs reports and export assemblies. The services close it when they close. */
   reports: ReportExecutor;
@@ -116,37 +119,6 @@ function guardedRunner(storage: Storage, authentication: Authentication, adminis
   };
 }
 
-/**
- * The account operations a signed-in user reaches, acting as `authentication`'s user. The actor,
- * the deployment's session length and the timer effects of a time zone change or an account
- * deletion are bound in, so a caller passes only what the request says.
- */
-function signedInAccountOperations(
-  operations: AccountOperations<Repositories>,
-  { user, credential }: Authentication,
-  effects: AccountEntryEffects<Repositories>,
-  sessionDays: number,
-) {
-  const actorId = user.id;
-  return {
-    setAccess: (userId: Id, change: AccessChange) => operations.setAccess(actorId, userId, change),
-    /** `email` is what the admin typed to confirm; it must name the account being deleted. */
-    deleteAccount: (userId: Id, email: string | undefined) => operations.deleteAccount(actorId, userId, email, effects),
-    revokeSessions: (userId: Id) => operations.revokeSessions(actorId, userId),
-    createPasswordReset: (userId: Id) => operations.createPasswordReset(actorId, userId),
-    createInvite: (request: InviteRequest) => operations.createInvite(actorId, request, sessionDays),
-    revokeInvite: (id: Id) => operations.revokeInvite(actorId, id),
-    updateSettings: (changes: SettingChanges) => operations.updateSettings(actorId, changes, sessionDays),
-    updateWorkspace: (workspaceId: Id, changes: WorkspaceChanges) =>
-      operations.updateWorkspace(actorId, workspaceId, changes),
-    /** A password change also needs the current password, checked through `attempt`. */
-    updateProfile: (update: ProfileUpdate, attempt?: AccountPasswordAttempt) =>
-      operations.updateProfile(user, credential, update, effects, attempt),
-    rotateApiToken: () => operations.rotateApiToken(user, credential),
-  };
-}
-export type SignedInAccountOperations = ReturnType<typeof signedInAccountOperations>;
-
 /** A credential change rechecks the account's open timer streams. */
 const accountSecurity = (timerStreams: Pick<TimerStreams, 'recheck'>): AccountSecurityEffects => ({
   recheckUser: id => timerStreams.recheck(id),
@@ -173,7 +145,7 @@ export function createApplicationServices({
   logger = silentLogger,
   sessionDays,
 }: ApplicationServiceOptions) {
-  const { timerStreams, publish, settled } = createTimerDelivery({
+  const { timerStreams, push, settled } = createTimerDelivery({
     storage,
     bus,
     clock,
@@ -182,7 +154,8 @@ export function createApplicationServices({
   });
   const security = accountSecurity(timerStreams);
   const streamCredentials = { check: (authentication: Authentication) => credentialCheck(storage, authentication) };
-  const entryEffects = createAccountEntryEffects<Repositories>(publish);
+  const { publish } = push;
+  const entryEffects = createAccountEntryEffects<Repositories>(push);
   const maintenance = startMaintenance(storage, { clock, logger });
   /** Runs read queries in one snapshot, after checking the credential in that same snapshot. */
   function readFor<T>(
@@ -199,13 +172,13 @@ export function createApplicationServices({
   }
   return {
     timerStreams,
-    publish,
+    push,
     reports,
     /** Builds each timer stream's keep-alive credential check. */
     streamCredentials,
     /** The claim runs before the stream joins, so it never shares a group with a deleted account's streams. */
     openTimerStream(authentication: Authentication, res: EventStreamResponse): Promise<void> {
-      publish.claim(authentication.user.id, authentication.user.createdAt);
+      push.claim(authentication.user.id, authentication.user.createdAt);
       return timerStreams.open(
         authentication.user.id,
         res,
@@ -232,13 +205,29 @@ export function createApplicationServices({
         slot.export(assembly, output, { authentication }),
       );
     },
-    accountsFor: (authentication: Authentication): SignedInAccountOperations =>
-      signedInAccountOperations(
-        createAccountOperations(guardedRunner(storage, authentication, true), security),
-        authentication,
-        entryEffects,
-        sessionDays,
-      ),
+    /** The account operations a signed-in user reaches, acting as `authentication`'s user. */
+    accountsFor(authentication: Authentication) {
+      const operations = createAccountOperations(guardedRunner(storage, authentication, true), security);
+      const { user, credential } = authentication;
+      const actorId = user.id;
+      return {
+        setAccess: (userId: Id, change: AccessChange) => operations.setAccess(actorId, userId, change),
+        /** `email` is what the admin typed to confirm; it must name the account being deleted. */
+        deleteAccount: (userId: Id, email: string | undefined) =>
+          operations.deleteAccount(actorId, userId, email, entryEffects),
+        revokeSessions: (userId: Id) => operations.revokeSessions(actorId, userId),
+        createPasswordReset: (userId: Id) => operations.createPasswordReset(actorId, userId),
+        createInvite: (request: InviteRequest) => operations.createInvite(actorId, request, sessionDays),
+        revokeInvite: (id: Id) => operations.revokeInvite(actorId, id),
+        updateSettings: (changes: SettingChanges) => operations.updateSettings(actorId, changes, sessionDays),
+        updateWorkspace: (workspaceId: Id, changes: WorkspaceChanges) =>
+          operations.updateWorkspace(actorId, workspaceId, changes),
+        /** A password change also needs the current password, checked through `attempt`. */
+        updateProfile: (update: ProfileUpdate, attempt?: AccountPasswordAttempt) =>
+          operations.updateProfile(user, credential, update, entryEffects, attempt),
+        rotateApiToken: () => operations.rotateApiToken(user, credential),
+      };
+    },
     /** Preferences take only the user's guard, so their credential check runs before and after. */
     preferencesFor: (authentication: Authentication) =>
       createPreferenceOperations(guardedTransactions(storage, authentication), authentication.user.id),

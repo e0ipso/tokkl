@@ -3,7 +3,17 @@ import { test, type TestContext as NodeTestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { ACCOUNT_ADDRESS_LIMIT, ADDRESS_LIMIT } from '../src/auth/rateLimit.ts';
 import { RESET_NOT_FOUND } from '../src/domain/accountLinks.ts';
-import { addUser, CSRF, duringPasswordCheck, PASSWORD, sessionCookie, setup, type TestContext } from './helpers.ts';
+import {
+  addUser,
+  anonymous,
+  CSRF,
+  duringPasswordCheck,
+  login,
+  PASSWORD,
+  sessionCookie,
+  setup,
+  type TestContext,
+} from './helpers.ts';
 
 const HOUR_MS = 3_600_000;
 const NEW_PASSWORD = 'brand new secret';
@@ -16,22 +26,10 @@ async function issue(admin: TestContext, userId: number) {
   return { ...created, token: created.url.replace(/^\/reset\//, ''), text };
 }
 
-/** A request without the admin's API token, as a logged-out browser sends it. */
-const anonymous = (
-  ctx: TestContext,
-  method: string,
-  path: string,
-  body?: unknown,
-  headers: Record<string, string> = {},
-) => ctx.request(method, path, body, { authorization: '', ...headers });
-
 const check = (ctx: TestContext, token: string) => anonymous(ctx, 'GET', `/api/app/password-resets/${token}`);
 
 const use = (ctx: TestContext, token: string, password: unknown = NEW_PASSWORD) =>
   anonymous(ctx, 'POST', `/api/app/password-resets/${token}`, { password }, CSRF);
-
-const login = (ctx: TestContext, email: string, password: string) =>
-  anonymous(ctx, 'POST', '/api/app/login', { email, password }, CSRF);
 
 const meWith = (ctx: TestContext, cookie: string) => anonymous(ctx, 'GET', '/api/v9/me', undefined, { cookie });
 

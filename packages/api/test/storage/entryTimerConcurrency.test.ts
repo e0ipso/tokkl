@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
-import type { TimerState } from '@tokkl/types';
+import type { TimerView } from '../../src/domain/timerView.ts';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { openConnection } from '../../src/storage/connections.ts';
 import type { PhysicalDatabase } from '../../src/storage/physical.ts';
@@ -9,18 +9,11 @@ import { createTransactionRunner } from '../../src/storage/transactions.ts';
 import { StorageConflict } from '../../src/domain/ports.ts';
 import * as entries from '../fixtures/entryBodies.ts';
 import { createTimerOperations } from '../../src/domain/timers.ts';
-import { createTimerPublication } from '../../src/services/timerPublication.ts';
-import { presentTimerOperations } from '../../src/services/timerReplies.ts';
+import { createTimerPublication, presentTimerOperations } from '../../src/services/timerDelivery.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 import { entryTimerFactory, entryAccount, entryAt as at } from './support/entry-timer.ts';
 import { errorReply } from '../../src/http/errors.ts';
-function gate() {
-  let resolve!: () => void;
-  const promise = new Promise<void>(r => {
-    resolve = r;
-  });
-  return { resolve, promise };
-}
+import { gate } from './support/invariantHttp.ts';
 for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
   test(
     `${backend}: real entry/timer races, late settlement and publication isolation`,
@@ -46,7 +39,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           const stored = await runner.readSnapshot(ctx => ctx.timers.getRevision(id));
           assert.ok(stored && stored.revision >= state.revision);
           revisions.push(state.revision);
-        });
+        }).publish;
         const timers = [runner, second].map(r =>
           entries.bodyTimers((id, clock) => presentTimerOperations(createTimerOperations(r, { id }, publish, clock))),
         );
@@ -125,7 +118,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
             const broken = createTimerPublication(async (id, state) => {
               assert.equal((await runner.readSnapshot(ctx => ctx.timers.getRevision(id)))?.revision, state.revision);
               throw new Error('subscriber failure');
-            });
+            }).publish;
             const timer = entries.bodyTimers((id, clock) =>
               presentTimerOperations(createTimerOperations(runner, { id }, broken, clock)),
             );
@@ -203,23 +196,23 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           const held = gate(),
             release = gate(),
             states: number[] = [];
-          const p = createTimerPublication<TimerState>(async (_id, state) => {
+          const p = createTimerPublication(async (_id, state) => {
             states.push(state.revision);
             if (states.length === 1) {
               held.resolve();
               await release.promise;
             }
           });
-          const state = await timers[0]!.getTimerState(user.id);
-          const a = p(user.id, { ...state, revision: 30 }, user.createdAt);
+          const view = (revision: number) => ({ revision }) as TimerView;
+          const a = p.publish(user.id, view(30), user.createdAt);
           await held.promise;
-          const b = p(user.id, { ...state, revision: 32 }, user.createdAt),
-            c = p(user.id, { ...state, revision: 31 }, user.createdAt);
+          const b = p.publish(user.id, view(32), user.createdAt),
+            c = p.publish(user.id, view(31), user.createdAt);
           release.resolve();
           await Promise.all([a, b, c]);
           assert.deepEqual(states, [30, 32]);
           p.forgetUser(user.id);
-          await p(user.id, { ...state, revision: 1 }, user.createdAt);
+          await p.publish(user.id, view(1), user.createdAt);
           assert.deepEqual(states, [30, 32, 1], 'a deleted account ID can be reused by a new account');
         });
       } finally {

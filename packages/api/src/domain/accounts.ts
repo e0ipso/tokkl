@@ -3,6 +3,7 @@
  * user's own profile, preferences and workspace settings. Links and sessions live in their own
  * modules; `createAccountOperations` puts them together.
  */
+import { now } from '../lib/clock.ts';
 import type { OperationContext } from './ports.ts';
 import type { Id, InstanceSettings, JsonObject, User, Workspace } from './model.ts';
 import { forbidden, invalidInput, notFound, tooManyAttempts } from '../lib/errors.ts';
@@ -19,7 +20,6 @@ import {
   accountRecord,
   emailConflict,
   lockExistingUser,
-  now,
   refused,
   requireAdmin,
   type AccountRepositories,

@@ -1,7 +1,7 @@
 import type { Preferences } from '@tokkl/types';
 
 /** One preference save in progress: the fields it changes. */
-export interface PendingSave {
+interface PendingSave {
   readonly changes: Partial<Preferences>;
 }
 

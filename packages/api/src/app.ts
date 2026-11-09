@@ -20,7 +20,7 @@ import { appReportRoutes, reportsV3Routes } from './routes/reports.ts';
 import { timerRoutes } from './routes/timer.ts';
 import { togglV9Routes } from './routes/toggl/index.ts';
 
-export interface HttpAppOptions {
+interface HttpAppOptions {
   /** What the sign-in, rate limit and health check adapters read and write directly. */
   storage: Storage;
   config: Config;

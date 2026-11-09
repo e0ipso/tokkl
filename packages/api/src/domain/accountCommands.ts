@@ -26,7 +26,7 @@ export interface AccessChange {
   disabled?: boolean;
 }
 
-export interface PasswordChange {
+interface PasswordChange {
   password: string;
   /** What the client sent as the current password; checked against the stored hash. */
   currentPassword: string;

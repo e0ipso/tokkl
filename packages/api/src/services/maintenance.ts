@@ -22,7 +22,7 @@ import { silentLogger, type Logger } from '../lib/logger.ts';
 export const MAINTENANCE_INTERVAL_MS = 60 * 60 * 1000;
 
 /** The repositories the job cleans, each through one batched delete. */
-export interface MaintenanceRepositories {
+interface MaintenanceRepositories {
   idempotencyKeys: Pick<IdempotencyKeysRepository, 'deleteExpired'>;
   sessions: Pick<SessionsRepository, 'deleteExpired'>;
   rateLimits: Pick<RateLimitsRepository, 'deleteExpired'>;
@@ -30,7 +30,7 @@ export interface MaintenanceRepositories {
 }
 
 /** Opens the write transactions the job deletes in. A `Storage` is one. */
-export interface MaintenanceTransactions {
+interface MaintenanceTransactions {
   transaction<T>(work: (context: MaintenanceRepositories) => Promise<T>): Promise<T>;
 }
 
@@ -45,7 +45,7 @@ const CLEANUPS = {
 } as const satisfies Record<string, Cleanup>;
 
 /** Rows each cleanup deleted in one run; a failed cleanup is left out. */
-export type MaintenanceReport = Partial<Record<keyof typeof CLEANUPS, number>>;
+type MaintenanceReport = Partial<Record<keyof typeof CLEANUPS, number>>;
 
 /** Runs `cleanup` a batch per transaction until a batch deletes nothing, and returns the total. */
 async function untilClean(storage: MaintenanceTransactions, cleanup: Cleanup, now: Date): Promise<number> {
@@ -79,38 +79,24 @@ export async function runMaintenance(
   return report;
 }
 
-export interface MaintenanceOptions {
-  /** Each run deletes what has expired by the time it reads from here. */
-  clock: Clock;
-  intervalMs?: number;
-  logger?: Logger;
-}
-
-export interface Maintenance {
-  /** Runs the job now, or joins the run in progress. */
-  run(): Promise<void>;
-  /** Stops the timer and waits for a run in progress. */
-  close(): Promise<void>;
-}
-
+/** Runs the job every hour until closed. Each run deletes what has expired by `clock`'s time. */
 export function startMaintenance(
   storage: MaintenanceTransactions,
-  { clock, intervalMs = MAINTENANCE_INTERVAL_MS, logger = silentLogger }: MaintenanceOptions,
-): Maintenance {
+  { clock, logger = silentLogger }: { clock: Clock; logger?: Logger },
+) {
   let running: Promise<void> | undefined;
   let closed = false;
-  const run = () =>
-    closed
-      ? Promise.resolve()
-      : (running ??= runMaintenance(storage, { clock, logger })
-          .then(() => {})
-          .finally(() => {
-            running = undefined;
-          }));
-  const timer = setInterval(() => void run(), intervalMs);
+  const timer = setInterval(() => {
+    if (closed) return;
+    running ??= runMaintenance(storage, { clock, logger })
+      .then(() => {})
+      .finally(() => {
+        running = undefined;
+      });
+  }, MAINTENANCE_INTERVAL_MS);
   timer.unref();
   return {
-    run,
+    /** Stops the timer and waits for a run in progress. */
     async close() {
       closed = true;
       clearInterval(timer);

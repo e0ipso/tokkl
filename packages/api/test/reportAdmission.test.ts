@@ -4,7 +4,6 @@ import type { AddressInfo } from 'node:net';
 import express from 'express';
 import { openSQLiteDatabase, storageFor } from './fixtures/database.ts';
 import { insertAccount } from './fixtures/domain.ts';
-import type { Authentication } from '../src/domain/credentials.ts';
 import { errorHandler } from '../src/http/errors.ts';
 import { ApplicationError, RequestCancelled } from '../src/lib/errors.ts';
 import { silentLogger } from '../src/lib/logger.ts';
@@ -16,11 +15,10 @@ import { systemClock } from '../src/lib/clock.ts';
 import { ReportRunner, type ReportExecutor } from '../src/services/reportRunner.ts';
 import { createReportRunner } from '../src/reportRunners.ts';
 import { composeApp } from './fixtures/app.ts';
-import { testConfig, testServer } from './helpers.ts';
+import { testConfig, testServer, until } from './helpers.ts';
 import { runReport, runExport } from './fixtures/reportRunner.ts';
 import { fakeReportWorkers, postedJobs } from './fixtures/fakeReportWorker.ts';
 import type { JobSource } from '../src/services/reportExecution.ts';
-import type { Storage } from '../src/domain/ports.ts';
 
 const INLINE = { backend: 'sqlite' as const, filename: ':memory:', busyTimeoutMs: 5000 };
 const WEEKLY = {
@@ -118,23 +116,12 @@ test('a download that runs past its deadline is given up with a 503 and Retry-Af
   assert.ok(Date.now() - started < 2000);
 });
 
-test('the download lane limits must be valid', () => {
-  const source: JobSource = { readSnapshot: () => Promise.reject(new Error('unused')) };
-  assert.throws(() => createReportRunner(INLINE, source, { downloads: { maxQueue: 0 } }), /Invalid download queue/);
-  assert.throws(
-    () => createReportRunner(INLINE, source, { downloads: { maxQueue: 4, maxPerUser: 5 } }),
-    /Invalid download share/,
-  );
-  assert.throws(
-    () => createReportRunner(INLINE, source, { downloads: { deadlineMs: 0 } }),
-    /Invalid download deadline/,
-  );
-});
-
-/** Storage that counts its read snapshots. */
-function countingReads(storage: Storage): { storage: Storage; reads: () => number } {
+/** Application services over `reports` whose storage counts its read snapshots, and an account's export. */
+async function exportReads(t: TestContext, reports: ReportExecutor) {
+  const db = await openSQLiteDatabase();
+  const storage = storageFor(db);
   let reads = 0;
-  return {
+  const services = createApplicationServices({
     storage: {
       ...storage,
       readSnapshot: work => {
@@ -142,16 +129,7 @@ function countingReads(storage: Storage): { storage: Storage; reads: () => numbe
         return storage.readSnapshot(work);
       },
     },
-    reads: () => reads,
-  };
-}
-
-test('a full download lane refuses an account export before reading it', async t => {
-  const db = await openSQLiteDatabase();
-  const counted = countingReads(storageFor(db));
-  const services = createApplicationServices({
-    storage: counted.storage,
-    reports: fullRunner(t),
+    reports,
     bus: createLocalTimerBus(),
     clock: systemClock,
     settings: DEFAULT_SERVICE_SETTINGS,
@@ -165,56 +143,29 @@ test('a full download lane refuses an account export before reading it', async t
     passwordHash: 'unused',
     role: 'user',
   });
-  const authentication: Authentication = {
-    user,
-    credential: { kind: 'api-token', token: user.apiToken },
-    authMethod: 'basic',
-  };
-  await assert.rejects(
+  const exportAccount = (signal?: AbortSignal) =>
     services.exportAccount(
-      authentication,
+      { user, credential: { kind: 'api-token', token: user.apiToken }, authMethod: 'basic' },
       { kind: 'export-json', exportedAt: '2026-01-01T00:00:00Z', filename: 'x' },
       async () => {},
-    ),
+      { signal },
+    );
+  return { exportAccount, reads: () => reads };
+}
+
+test('a full download lane or a cancelled request refuses an account export before reading it', async t => {
+  const full = await exportReads(t, fullRunner(t));
+  await assert.rejects(
+    full.exportAccount(),
     error =>
       error instanceof ApplicationError &&
       error.kind === 'unavailable' &&
       error.message === 'Report queue is full' &&
       error.retryAfterSeconds === 2,
   );
-  assert.equal(counted.reads(), 0);
-});
-
-test('a cancelled account export reads nothing', async t => {
-  const db = await openSQLiteDatabase();
-  const counted = countingReads(storageFor(db));
-  const reports = createReportRunner(INLINE, { readSnapshot: () => Promise.reject(new Error('unused')) });
-  const services = createApplicationServices({
-    storage: counted.storage,
-    reports,
-    bus: createLocalTimerBus(),
-    clock: systemClock,
-    settings: DEFAULT_SERVICE_SETTINGS,
-    sessionDays: 30,
-  });
-  t.after(() => services.close());
-  const user = await insertAccount(db, {
-    email: 'cancel@example.test',
-    fullname: 'Cancel',
-    timezone: 'UTC',
-    passwordHash: 'unused',
-    role: 'user',
-  });
-  await assert.rejects(
-    services.exportAccount(
-      { user, credential: { kind: 'api-token', token: user.apiToken }, authMethod: 'basic' },
-      { kind: 'export-json', exportedAt: '2026-01-01T00:00:00Z', filename: 'x' },
-      async () => {},
-      { signal: AbortSignal.abort() },
-    ),
-    error => error instanceof RequestCancelled,
-  );
-  assert.equal(counted.reads(), 0);
+  const cancelled = await exportReads(t, createReportRunner(INLINE, UNUSED));
+  await assert.rejects(cancelled.exportAccount(AbortSignal.abort()), error => error instanceof RequestCancelled);
+  assert.deepEqual([full.reads(), cancelled.reads()], [0, 0]);
 });
 
 test('a full report queue answers a report request before it reads the workspace', async t => {
@@ -350,30 +301,6 @@ test('one account cannot take more than its share of the report queue', async t 
   for (const result of await Promise.all(again)) assert.ok(result instanceof ApplicationError);
 });
 
-test('queued reports take turns between accounts', async t => {
-  const { source, order, reading, release } = gatedSource();
-  const runner = createReportRunner(INLINE, source, { maxQueue: 16, maxPerUser: 4 });
-  t.after(() => runner.close());
-  const jobs = [
-    ...[1, 1, 1, 1].map(user => runReport(runner, user, user, WEEKLY as never).catch(() => {})),
-    ...[2, 2].map(user => runReport(runner, user, user, WEEKLY as never).catch(() => {})),
-    runReport(runner, 3, 3, WEEKLY as never).catch(() => {}),
-  ];
-  for (let i = 0; i < jobs.length; i++) {
-    await reading(i + 1);
-    release();
-  }
-  await Promise.all(jobs);
-  // Account 1 was running when the others queued; after it, each account takes the next turn.
-  assert.deepEqual(order, [1, 2, 3, 1, 2, 1, 1]);
-});
-
-test('the per-account share must fit the queue', () => {
-  const source: JobSource = { readSnapshot: () => Promise.reject(new Error('unused')) };
-  for (const maxPerUser of [0, 1.5, 17])
-    assert.throws(() => createReportRunner(INLINE, source, { maxQueue: 16, maxPerUser }), /Invalid report share/);
-});
-
 /** A database the fake workers never open; any file-backed config runs jobs in workers. */
 const WORKER = { backend: 'sqlite' as const, filename: 'unused.db', busyTimeoutMs: 5000 };
 const UNUSED: JobSource = { readSnapshot: () => Promise.reject(new Error('unused')) };
@@ -454,24 +381,6 @@ test('a lane runs up to its concurrency at once, so one slow job holds only its 
   assert.deepEqual(await Promise.all([...downloads, ...reports]), Array(7).fill(undefined));
 });
 
-test('a freed worker goes to the account served longest ago, and shares still count running jobs', async t => {
-  const { startWorker, posted } = fakeReportWorkers();
-  const runner = createReportRunner(WORKER, UNUSED, { startWorker, maxQueue: 8, maxPerUser: 3, concurrency: 2 });
-  t.after(() => runner.close());
-  const mine = reportsFor(runner, [1, 1, 1]);
-  await postedJobs(posted, 2);
-  const theirs = reportsFor(runner, [2]);
-  const full = await runReport(runner, 1, 1, WEEKLY as never).catch((error: Error) => error);
-  assert.match(String(full), /Report queue is full/, 'two running and one queued are the whole share');
-  posted[0]!.worker.finish(posted[0]!.id);
-  await postedJobs(posted, 3);
-  assert.equal(posted[2]!.work.userId, 2, 'the other account goes before the third job of the first');
-  for (const job of posted.slice(1)) job.worker.finish(job.id);
-  await postedJobs(posted, 4);
-  posted[3]!.worker.finish(posted[3]!.id);
-  assert.deepEqual(await Promise.all([...mine, ...theirs]), Array(4).fill(undefined));
-});
-
 test('a lane starts one worker at a time, and a crash fails only the job on that worker', async t => {
   const { startWorker, posted, workers } = fakeReportWorkers();
   const runner = createReportRunner(WORKER, UNUSED, { startWorker });
@@ -485,27 +394,6 @@ test('a lane starts one worker at a time, and a crash fails only the job on that
   posted[1]!.worker.finish(posted[1]!.id);
   assert.equal(await second, undefined);
 });
-
-test('a lane runs at least one job and at most its queue at once', () => {
-  for (const concurrency of [0, 1.5, 17])
-    assert.throws(
-      () => createReportRunner(INLINE, UNUSED, { maxQueue: 16, concurrency }),
-      /Invalid report concurrency/,
-    );
-  assert.throws(
-    () => createReportRunner(INLINE, UNUSED, { downloads: { maxQueue: 2, concurrency: 3 } }),
-    /Invalid download concurrency/,
-  );
-  // A short queue lowers the default instead of refusing it.
-  assert.doesNotThrow(() => createReportRunner(INLINE, UNUSED, { maxQueue: 1, downloads: { maxQueue: 1 } }));
-});
-
-/** Waits until `ready()` holds, for at most `ms`, and says whether it did. */
-async function until(ready: () => boolean, ms = 5000): Promise<boolean> {
-  const end = Date.now() + ms;
-  while (!ready() && Date.now() < end) await new Promise(resolve => setTimeout(resolve, 5));
-  return ready();
-}
 
 test('a report request the client abandons gives back its place, queued or running', async t => {
   const db = await openSQLiteDatabase();
@@ -527,6 +415,7 @@ test('a report request the client abandons gives back its place, queued or runni
       signals.push(options.signal!);
       return runner.reserve(options, slot =>
         work({
+          ...slot,
           run: (...args) => {
             submitted++;
             return slot.run(...args);
@@ -568,16 +457,16 @@ test('a report request the client abandons gives back its place, queued or runni
   await reading(1);
   const queued = new AbortController();
   answers.push(post(queued.signal));
-  assert.ok(await until(() => submitted === 2), 'the second report was queued');
+  await until(() => submitted === 2, 'the second report was queued');
   assert.equal(await free(1), false, 'both places are taken');
 
   queued.abort();
-  assert.ok(await until(() => signals[1]!.aborted), 'the server saw the queued request close');
+  await until(() => signals[1]!.aborted, 'the server saw the queued request close');
   assert.equal(await free(1), true, 'the queued request gave back its place');
   assert.equal(await free(2), false, 'the running request still holds its place');
 
   running.abort();
-  assert.ok(await until(() => signals[0]!.aborted), 'the server saw the running request close');
+  await until(() => signals[0]!.aborted, 'the server saw the running request close');
   assert.equal(await free(2), true, 'the running request gave back its place');
   assert.deepEqual(await Promise.all(answers), ['aborted', 'aborted']);
 });

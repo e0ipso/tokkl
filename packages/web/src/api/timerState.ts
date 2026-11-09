@@ -1,9 +1,16 @@
 import { onlineManager, type Mutation, type QueryClient } from '@tanstack/react-query';
 import { ApiError, RequestTimeoutError, UnparsableReplyError } from './client.ts';
-import { DecodeError } from './decode.ts';
-import { timerStateReply } from './replies.ts';
+import { DecodeError, isRecord } from './decode.ts';
 import { clockOffset } from './serverClock.ts';
-import type { TimerState } from '@tokkl/types';
+import type {
+  DiscardedPomodoro,
+  TimeEntry,
+  TimerPause,
+  TimerPomodoro,
+  TimerPomodoroPhase,
+  TimerState,
+} from '@tokkl/types';
+import { isFiniteNumber, isInstant, isSafeInteger } from '@tokkl/common/validators';
 import { t } from '../i18n/messages.ts';
 
 /** What the views show when another device changed the timer before this action reached the server. */
@@ -25,18 +32,99 @@ export class TimerActionError extends Error {
   }
 }
 
-/**
- * Whether `value` is a whole timer state: the revision and server time, and the running entry,
- * pause chain, session and discarded pomodoro each null or of their full shape.
- */
+type Check = (value: unknown) => boolean;
+
+const text: Check = value => typeof value === 'string';
+const flag: Check = value => typeof value === 'boolean';
+const nullable =
+  (check: Check): Check =>
+  value =>
+    value === null || check(value);
+const listOf =
+  (check: Check): Check =>
+  value =>
+    Array.isArray(value) && value.every(check);
+const oneOf =
+  (...values: readonly string[]): Check =>
+  value =>
+    values.some(candidate => candidate === value);
+
+/** Checks every field of `T`, so a field added to `T` must be checked too. */
+function shape<T>(fields: { readonly [K in keyof T]-?: Check }): Check {
+  const entries: Array<[string, Check]> = Object.entries(fields);
+  return value => isRecord(value) && entries.every(([key, check]) => check(value[key]));
+}
+
+const id = nullable(isSafeInteger);
+const metaName: Check = value => value === undefined || value === null || text(value);
+const phaseKind = oneOf('work', 'shortRest', 'longRest');
+
+const isEntry = shape<TimeEntry>({
+  id: isSafeInteger,
+  workspace_id: isSafeInteger,
+  project_id: id,
+  task_id: id,
+  billable: flag,
+  start: isInstant,
+  stop: nullable(isInstant),
+  duration: isFiniteNumber,
+  description: text,
+  tags: listOf(text),
+  tag_ids: listOf(isSafeInteger),
+  at: isInstant,
+  server_deleted_at: nullable(isInstant),
+  all_day: flag,
+  project_name: metaName,
+  project_color: metaName,
+  client_name: metaName,
+  task_name: metaName,
+});
+
+const isPause = shape<TimerPause>({
+  paused: flag,
+  seconds: isFiniteNumber,
+  workspace_id: isSafeInteger,
+  description: text,
+  project_id: id,
+  task_id: id,
+  tag_ids: listOf(isSafeInteger),
+  tags: listOf(text),
+  billable: flag,
+  clone_entry_id: id,
+});
+
+const isPomodoro = shape<TimerPomodoro>({
+  work_minutes: isFiniteNumber,
+  short_rest_minutes: isFiniteNumber,
+  long_rest_minutes: isFiniteNumber,
+  long_rest_every: isFiniteNumber,
+  phase: shape<TimerPomodoroPhase>({
+    kind: phaseKind,
+    start: isInstant,
+    completed: isSafeInteger,
+    planned_end: isInstant,
+  }),
+  upcoming_phase: phaseKind,
+  transition: oneOf('workToShortRest', 'shortRestToWork', 'workToLongRest', 'longRestToWork'),
+  number: isSafeInteger,
+  entry_id: isSafeInteger,
+  pomodoro_start: isInstant,
+});
+
+const isState = shape<TimerState>({
+  revision: isSafeInteger,
+  server_time: isInstant,
+  running_entry: nullable(isEntry),
+  pause: nullable(isPause),
+  pomodoro: nullable(isPomodoro),
+  discarded_pomodoro: nullable(
+    shape<DiscardedPomodoro>({ entry_id: isSafeInteger, start: isInstant, stop: isInstant }),
+  ),
+});
+
+/** Whether `value` is a whole timer state, its running entry, pause and session included. */
 export function isTimerState(value: unknown): value is TimerState {
-  try {
-    timerStateReply(value);
-    return true;
-  } catch (error) {
-    if (error instanceof DecodeError) return false;
-    throw error;
-  }
+  return isState(value);
 }
 
 /** A reply that should have been a timer state and was not. */
@@ -57,7 +145,7 @@ export function timerStateOf(value: unknown): TimerState {
 }
 
 /** What to write into the caches for an arriving state. */
-export interface TimerUpdate {
+interface TimerUpdate {
   state: TimerState;
   /** The clock offset taken at arrival, or null if the state's server time is unreadable. */
   offset: number | null;

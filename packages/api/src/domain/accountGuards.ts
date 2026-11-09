@@ -1,5 +1,5 @@
 /** What every account operation shares: its repositories and runner, and the guards it takes. */
-import type { OperationContext, ReadersOf, Repositories } from './ports.ts';
+import type { OperationContext, Repositories } from './ports.ts';
 import type { Id, User, UserRole } from './model.ts';
 import { StorageConflict } from './ports.ts';
 import { forbidden, invalidInput, notFound } from '../lib/errors.ts';
@@ -9,19 +9,16 @@ import { DEFAULT_PREFERENCES } from './accountValues.ts';
 import { isActiveAdmin } from './credentials.ts';
 
 export type AccountRepositories = Pick<Repositories, 'users' | 'workspaces' | 'settings' | 'tokens' | 'sessions'>;
-export type AccountContext = OperationContext<AccountRepositories>;
-/** The reads a read-only snapshot gives an account operation. */
-export type AccountReaders = ReadersOf<AccountRepositories>;
+type AccountContext = OperationContext<AccountRepositories>;
 export interface AccountRunner<R extends AccountRepositories = AccountRepositories> {
   transaction<T>(work: (context: OperationContext<R>) => Promise<T>): Promise<T>;
-  readSnapshot<T>(work: (repositories: AccountReaders) => Promise<T>): Promise<T>;
+  readSnapshot<T>(work: (repositories: AccountRepositories) => Promise<T>): Promise<T>;
 }
 /** Application composition supplies local stream credential rechecks. Called after confirmed commit. */
 export interface AccountSecurityEffects {
   recheckUser(userId: Id): Promise<void>;
 }
 
-export const now = () => new Date().toISOString();
 export const refused = () => forbidden('Incorrect username and/or password');
 
 /** The user under its guard. A deletion that commits meanwhile restarts the transaction. */

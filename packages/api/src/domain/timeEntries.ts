@@ -6,7 +6,7 @@
 import { MAX_DURATION_SECONDS } from '@tokkl/common/duration';
 import { snapInstant } from '@tokkl/common/snap';
 import { dateKey, startOfDay } from '@tokkl/common/time';
-import type { EntriesRepository, EntryInput, SettingsReader } from './ports.ts';
+import type { EntriesRepository, EntryInput, SettingsRepository } from './ports.ts';
 import type { EntryDetails, Id, TimeEntry, User } from './model.ts';
 import { ApplicationError, conflict, invalidInput } from '../lib/errors.ts';
 import { isoSeconds } from '../lib/values.ts';
@@ -61,8 +61,8 @@ export async function reanchorNoTimeEntries(
 }
 
 /** Stops `entry` at `at` on the resolution grid. One too short to keep is discarded: false. */
-export async function stopEntryAt(
-  ctx: { settings: Pick<SettingsReader, 'read'>; entries: Pick<EntriesRepository, 'update'> },
+async function stopEntryAt(
+  ctx: { settings: Pick<SettingsRepository, 'read'>; entries: Pick<EntriesRepository, 'update'> },
   user: User,
   entry: TimeEntry,
   at: Date,
@@ -241,7 +241,7 @@ async function applyEntryUpdate(
 }
 
 /** The two entries a split leaves: the original, cut short, and the new one after it. */
-export interface SplitEntries {
+interface SplitEntries {
   first: EntryDetails;
   second: EntryDetails;
 }

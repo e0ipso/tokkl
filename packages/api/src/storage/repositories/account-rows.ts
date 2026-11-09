@@ -69,7 +69,6 @@ export const settingKeys = {
 } as const;
 
 /** Every query uses the operation's supplied checkout. Construct only inside the runner's factory. */
-export const now = () => new Date().toISOString();
 /** The id MySQL and MariaDB report for an insert. */
 export async function generatedId(query: { executeTakeFirstOrThrow(): Promise<{ insertId?: bigint }> }) {
   return entityId((await query.executeTakeFirstOrThrow()).insertId);

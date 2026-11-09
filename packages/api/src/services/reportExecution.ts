@@ -28,7 +28,7 @@ export interface ExecutionJob {
 }
 
 /** What an execution tells the runner. */
-export interface ExecutionEvents {
+interface ExecutionEvents {
   /**
    * The job `id` ended with `result`, or with `error`, a message safe to show the client. An export
    * ends without a result, once its last piece went to `output` and every piece was taken.
@@ -41,13 +41,8 @@ export interface ExecutionEvents {
 }
 
 export interface ReportExecution {
-  /**
-   * True when `run` may be called now. The first call starts the worker; `available` follows once
-   * it is ready.
-   */
+  /** True when `run` may be called now. The first call starts the worker; `available` follows once it is up. */
   ready(): boolean;
-  /** True when `run` may be called now without starting anything first. */
-  warm(): boolean;
   /** Runs `job`; its outcome goes to `settled`. */
   run(job: ExecutionJob): void;
   /** Gives up the running job: its outcome is never reported, and a worker running it stops. */
@@ -82,7 +77,7 @@ interface Reply {
 }
 
 /** The job's kind and the runner's id for it: what a log line may say about a job. */
-export function jobFields(job: ExecutionJob) {
+function jobFields(job: ExecutionJob) {
   return { jobId: job.id, jobKind: isDownload(job.work) ? downloadKind(job.work) : job.work.job.kind };
 }
 
@@ -106,9 +101,6 @@ class InlineExecution implements ReportExecution {
     this.logger = logger;
   }
   ready(): boolean {
-    return !this.work;
-  }
-  warm(): boolean {
     return !this.work;
   }
   run(job: ExecutionJob): void {
@@ -171,9 +163,6 @@ class WorkerExecution implements ReportExecution {
     if (this.stopping) return false;
     if (!this.worker) this.start();
     return this.started;
-  }
-  warm(): boolean {
-    return !this.stopping && this.started;
   }
   run(job: ExecutionJob): void {
     this.current = job;

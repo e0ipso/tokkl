@@ -4,16 +4,11 @@
  * restart the transaction, which then finds the account gone and refuses, as it does for an
  * account deleted before the request started.
  */
+import { now } from '../lib/clock.ts';
 import type { User } from './model.ts';
 import { forbidden } from '../lib/errors.ts';
 import { generateApiToken, generateSessionToken, sha256 } from '../lib/crypto.ts';
-import {
-  now,
-  refused,
-  type AccountRepositories,
-  type AccountRunner,
-  type AccountSecurityEffects,
-} from './accountGuards.ts';
+import { refused, type AccountRepositories, type AccountRunner, type AccountSecurityEffects } from './accountGuards.ts';
 import { currentCredentialUser, findActiveSession, unchangedActive, type AccountCredential } from './credentials.ts';
 import { getInstanceSettings } from './instanceSettings.ts';
 

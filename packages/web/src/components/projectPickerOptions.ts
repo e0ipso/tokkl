@@ -1,14 +1,14 @@
 import type { Project, Task } from '@tokkl/types';
 
 /** The active projects of one client, each with the active tasks that match the search. */
-export interface PickerGroup {
+interface PickerGroup {
   /** The client's name, or '' for projects without a client. */
   client: string;
   rows: Array<{ project: Project; tasks: Task[] }>;
 }
 
 /** One option of the project picker's listbox: a project, a task of it, or "No project". */
-export interface PickerOption {
+interface PickerOption {
   projectId: number | null;
   taskId: number | null;
 }

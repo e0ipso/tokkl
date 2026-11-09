@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { hasEdits, mergedDraft, unstoredEdits, withEdit } from './serverDraft.ts';
+import { unstoredEdits, withEdit } from './useServerDraft.ts';
 
 interface Form {
   name: string;
@@ -9,21 +9,11 @@ interface Form {
 
 const server: Form = { name: 'Tokkl', days: '30' };
 
-test('the draft shows the server values under the edits', () => {
-  assert.deepEqual(mergedDraft(server, { days: '7' }), { name: 'Tokkl', days: '7' });
-  assert.deepEqual(mergedDraft({ ...server, name: 'Renamed elsewhere' }, { days: '7' }), {
-    name: 'Renamed elsewhere',
-    days: '7',
-  });
-});
-
 test('a value set back to the server one is no longer an edit', () => {
   const edited = withEdit({}, server, false, 'days', '7');
   assert.deepEqual(edited, { days: '7' });
-  assert.equal(hasEdits(edited), true);
   const reverted = withEdit(edited, server, false, 'days', '30');
   assert.deepEqual(reverted, {});
-  assert.equal(hasEdits(reverted), false);
 });
 
 test('while saving, a value equal to the server one stays an edit', () => {

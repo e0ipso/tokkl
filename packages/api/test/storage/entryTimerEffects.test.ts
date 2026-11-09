@@ -7,8 +7,7 @@ import * as catalog from '../fixtures/catalogBodies.ts';
 import * as entries from '../fixtures/entryBodies.ts';
 import { createTimerOperations } from '../../src/domain/timers.ts';
 import { createCatalogTimerEffects, createAccountEntryEffects } from '../../src/domain/timerEffects.ts';
-import { createTimerPublication } from '../../src/services/timerPublication.ts';
-import { presentTimerOperations } from '../../src/services/timerReplies.ts';
+import { createTimerPublication, presentTimerOperations } from '../../src/services/timerDelivery.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 import { entryTimerFactory, entryAccount, entryAt as at } from './support/entry-timer.ts';
 
@@ -22,13 +21,14 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       const user = await runner.transaction(ctx => ctx.users.createAccount(entryAccount('owner')));
       const wid = user.defaultWorkspaceId;
       const events: Array<[number, number]> = [];
-      const publish = createTimerPublication(async (id, state) => {
+      const publication = createTimerPublication(async (id, state) => {
         events.push([id, state.revision]);
       });
+      const { publish } = publication;
       const timer = entries.timersById((id, clock) =>
           presentTimerOperations(createTimerOperations(runner, { id }, publish, clock)),
         ),
-        effects = createAccountEntryEffects<ReturnType<ReturnType<typeof entryTimerFactory>>>(publish);
+        effects = createAccountEntryEffects<ReturnType<ReturnType<typeof entryTimerFactory>>>(publication);
       const accounts = createAccountOperations(runner, { async recheckUser() {} });
       const client = await runner.transaction(ctx => catalog.createClient(ctx, wid, { name: 'Client' }));
       const project = await runner.transaction(ctx =>
@@ -206,7 +206,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         const broken = createTimerPublication(async id => {
           heard.push(id);
           if (id === user.id) throw new Error('subscriber');
-        });
+        }).publish;
         await runner.transaction(async ctx => {
           const fx = createCatalogTimerEffects(ctx, broken);
           await catalog.updateProject(ctx, wid, p.id, { name: 'Delivered' }, fx);

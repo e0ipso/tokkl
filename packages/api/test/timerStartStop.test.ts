@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import type { TimerState } from '@tokkl/types';
 import { listTimeEntries, serializeTimeEntry } from './fixtures/domain.ts';
 import { removeWorkspaceMember } from './fixtures/physical.ts';
-import { setup, type TestContext } from './helpers.ts';
+import { setup, type TestContext, timerState as state } from './helpers.ts';
 
 /** A user on an instance with a 1-minute resolution, so starts and stops keep their minute. */
 async function timerSetup(): Promise<TestContext> {
@@ -11,8 +11,6 @@ async function timerSetup(): Promise<TestContext> {
   assert.equal((await ctx.json('PUT', '/api/app/admin/settings', { time_resolution_minutes: 1 })).status, 200);
   return ctx;
 }
-
-const state = async (ctx: TestContext) => (await ctx.json<TimerState>('GET', '/api/app/timer')).body;
 
 /** The user's live entries, oldest first, as the v9 API shows them. */
 async function stored(ctx: TestContext) {

@@ -29,7 +29,7 @@ let held: { remaining: number; during: () => Promise<unknown>; settle: (result: 
 };
 syncBuiltinESMExports();
 
-const { addUser, CSRF, PASSWORD, sessionCookie, setup } = await import('./helpers.ts');
+const { addUser, anonymous, CSRF, login, PASSWORD, sessionCookie, setup } = await import('./helpers.ts');
 
 const CHECK = 1;
 const HASH = 2;
@@ -45,17 +45,6 @@ function duringScrypt(nth: number, during: () => Promise<unknown>): Promise<unkn
     held = { remaining: nth, during, settle: resolve };
   });
 }
-
-const anonymous = (
-  ctx: TestContext,
-  method: string,
-  path: string,
-  body?: unknown,
-  headers: Record<string, string> = {},
-) => ctx.request(method, path, body, { authorization: '', ...headers });
-
-const login = (ctx: TestContext, email: string, password: string) =>
-  anonymous(ctx, 'POST', '/api/app/login', { email, password }, CSRF);
 
 const changeBody = { current_password: PASSWORD, password: ATTACKER_PASSWORD };
 const putWithCookie = (ctx: TestContext, cookie: string, body: unknown = changeBody) =>

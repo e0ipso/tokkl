@@ -14,9 +14,8 @@ import {
 import { createCatalogRepositories } from '../../src/storage/repositories/catalogs.ts';
 import { createStorage } from '../fixtures/storageShortcuts.ts';
 import * as catalog from '../fixtures/catalogBodies.ts';
-import { NAMES, oracle, SEARCHES } from '../fixtures/taskSearchOracle.ts';
+import { GOLDEN, NAMES } from '../fixtures/taskSearchGolden.ts';
 import { createCatalogQueries } from '../../src/domain/queries.ts';
-import { serializeTask } from '../../src/presenters/toggl.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 
 for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
@@ -469,7 +468,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
 }
 
 for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
-  test(`${backend}: the workspace task search answers what the in-memory search answered`, async () => {
+  test(`${backend}: the workspace task search answers its golden pages`, async () => {
     const fixture = await disposableBackend(backend);
     const connection = await initializeDatabase(fixture.config);
     const storage = createStorage(connection);
@@ -492,28 +491,15 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           .where('id', '=', task.id)
           .execute();
       }
-      const read = <T>(work: (queries: ReturnType<typeof createCatalogQueries>) => Promise<T>) =>
-        storage.readSnapshot(r => work(createCatalogQueries(r)));
-      const all = await read(queries => queries.workspaceTasks(ws));
-      const body = (tasks: Parameters<typeof serializeTask>[0][]) => JSON.stringify(tasks.map(serializeTask));
-      for (const sortField of ['name', 'created_at'] as const)
-        for (const sortOrder of ['ASC', 'DESC'] as const)
-          for (const search of SEARCHES)
-            for (const [active, projectId, changedSince] of [
-              [undefined, undefined, undefined],
-              [true, projects[1], '2026-10-12T09:00:00.000Z'],
-            ] as const)
-              for (const window of [
-                { page: 1, perPage: 200 },
-                { page: 2, perPage: 3 },
-              ]) {
-                const query = { projectId, active, changedSince, search, sortField, sortOrder };
-                const expected = oracle(all, query, window);
-                const actual = await read(queries => queries.searchTasks(ws, query, window));
-                const label = JSON.stringify({ query, window });
-                assert.equal(actual.totalCount, expected.totalCount, label);
-                assert.equal(body(actual.tasks), body(expected.tasks), label);
-              }
+      for (const [{ project, ...search }, window, names, total] of GOLDEN) {
+        const query = { ...search, projectId: project === undefined ? undefined : projects[project] };
+        const actual = await storage.readSnapshot(r => createCatalogQueries(r).searchTasks(ws, query, window));
+        assert.deepEqual(
+          [actual.tasks.map(task => task.name), actual.totalCount],
+          [names, total],
+          JSON.stringify(query),
+        );
+      }
     } finally {
       await storage.close();
       await fixture.cleanup();

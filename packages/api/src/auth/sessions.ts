@@ -21,7 +21,7 @@ import {
 export interface SetupState {
   code: string | null;
 }
-export interface SessionOptions {
+interface SessionOptions {
   loginLimiter: FailureLimiter;
   setupLimiter: FailureLimiter;
   sessionDays: number;

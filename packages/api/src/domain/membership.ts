@@ -1,4 +1,4 @@
-import type { WorkspacesReader } from './ports.ts';
+import type { WorkspacesRepository } from './ports.ts';
 import type { Id, Workspace } from './model.ts';
 import { forbidden } from '../lib/errors.ts';
 
@@ -10,7 +10,7 @@ export const noWorkspaceAccess = () => forbidden(NO_WORKSPACE_ACCESS);
 
 /** The workspace when `userId` is a member of it; 403 otherwise. A stored default is no exception. */
 export async function memberWorkspace(
-  ctx: { workspaces: Pick<WorkspacesReader, 'forMember'> },
+  ctx: { workspaces: Pick<WorkspacesRepository, 'forMember'> },
   userId: Id,
   workspaceId: Id,
 ): Promise<Workspace> {
@@ -21,7 +21,7 @@ export async function memberWorkspace(
 
 /** The workspace when `userId` owns it. A member gets its own 403; anyone else the usual one. */
 export async function ownedWorkspace(
-  ctx: { workspaces: Pick<WorkspacesReader, 'forMember' | 'getRole'> },
+  ctx: { workspaces: Pick<WorkspacesRepository, 'forMember' | 'getRole'> },
   userId: Id,
   workspaceId: Id,
 ): Promise<Workspace> {

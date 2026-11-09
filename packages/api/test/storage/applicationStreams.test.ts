@@ -8,12 +8,15 @@ import { silentLogger } from '../../src/lib/logger.ts';
 import { EventEmitter } from 'node:events';
 import type { Authentication } from '../../src/domain/credentials.ts';
 import type { User } from '../../src/domain/model.ts';
-import { credentialKey } from '../../src/services/streamCredentials.ts';
+import { credentialKey } from '../../src/services/timerDelivery.ts';
 import {
+  DEFAULT_TIMER_STREAM_LIMITS,
   TimerStreams,
   type EventStreamResponse,
   type StreamCredentialResult,
 } from '../../src/services/timerStreams.ts';
+import { gate } from './support/invariantHttp.ts';
+import { until } from '../helpers.ts';
 const state = (revision: number): TimerState => ({
   revision,
   server_time: '2026-10-30T12:00:00.000Z',
@@ -22,13 +25,6 @@ const state = (revision: number): TimerState => ({
   pomodoro: null,
   discarded_pomodoro: null,
 });
-function gate() {
-  let resolve!: () => void;
-  const promise = new Promise<void>(r => {
-    resolve = r;
-  });
-  return { promise, resolve };
-}
 test(
   'initial builds serialize and an overtaken snapshot never follows a committed state',
   { timeout: 10000 },
@@ -47,7 +43,7 @@ test(
       }
       active--;
       return state(1);
-    });
+    }, DEFAULT_TIMER_STREAM_LIMITS);
     const app = express();
     app.get('/', async (_req, res) => streams.open(1, res, async () => ({ valid: true, revision: 0 })));
     const server = app.listen(0, '127.0.0.1');
@@ -78,7 +74,7 @@ test(
 test('an initial async failure reaches Express before headers are sent', { timeout: 10000 }, async t => {
   const streams = new TimerStreams(async () => {
     throw Error('read failed');
-  });
+  }, DEFAULT_TIMER_STREAM_LIMITS);
   const app = express();
   app.get('/', async (_req, res) => streams.open(1, res, async () => ({ valid: true, revision: 0 })));
   app.use((_error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) =>
@@ -105,7 +101,7 @@ test(
       intervals++;
       return original(...args);
     });
-    const streams = new TimerStreams(async () => state(0));
+    const streams = new TimerStreams(async () => state(0), DEFAULT_TIMER_STREAM_LIMITS);
     const app = express();
     app.get('/broken', async (_req, res) => {
       res.write = () => {
@@ -144,7 +140,7 @@ test('retiring an account detaches its pending initial build from a reused ident
       return state(9);
     }
     return state(0);
-  });
+  }, DEFAULT_TIMER_STREAM_LIMITS);
   const app = express();
   app.get('/', async (_req, res) => streams.open(1, res, async () => ({ valid: true, revision: 0 })));
   const server = app.listen(0, '127.0.0.1');
@@ -193,9 +189,6 @@ async function streamServer(
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/`;
   return { base, arrived: () => arrived };
 }
-async function until(condition: () => boolean): Promise<void> {
-  while (!condition()) await new Promise(r => setTimeout(r, 5));
-}
 test('a burst over the per-user cap checks and builds only the streams it keeps', { timeout: 10000 }, async t => {
   const release = gate();
   t.after(() => release.resolve());
@@ -206,7 +199,7 @@ test('a burst over the per-user cap checks and builds only the streams it keeps'
       builds++;
       return state(1);
     },
-    { maxPerUser: 2 },
+    { ...DEFAULT_TIMER_STREAM_LIMITS, maxPerUser: 2 },
   );
   const { base, arrived } = await streamServer(t, streams, async () => {
     if (++checks === 1) await release.promise;
@@ -237,7 +230,7 @@ test('streams still opening count toward the process-wide cap', { timeout: 10000
   const release = gate();
   t.after(() => release.resolve());
   const checked: number[] = [];
-  const streams = new TimerStreams(async () => state(1), { maxStreams: 2 });
+  const streams = new TimerStreams(async () => state(1), { ...DEFAULT_TIMER_STREAM_LIMITS, maxStreams: 2 });
   const { base, arrived } = await streamServer(t, streams, async id => {
     checked.push(id);
     await release.promise;
@@ -291,7 +284,7 @@ const passing = async (): Promise<StreamCredentialResult> => ({ valid: true, rev
 const settled = () => new Promise(resolve => setImmediate(resolve));
 
 test('the first event names a reconnect wait within the bounds, different from stream to stream', async t => {
-  const streams = new TimerStreams(async () => state(1));
+  const streams = new TimerStreams(async () => state(1), DEFAULT_TIMER_STREAM_LIMITS);
   t.after(() => streams.closeAll());
   const waits = new Set<number>();
   for (let user = 1; user <= 20; user++) {
@@ -310,7 +303,7 @@ test('the first event names a reconnect wait within the bounds, different from s
 });
 
 test('a stream whose socket is full waits for it to drain instead of ending', { timeout: 10000 }, async t => {
-  const streams = new TimerStreams(async () => state(1), { drainTimeoutMs: 5000 });
+  const streams = new TimerStreams(async () => state(1), { ...DEFAULT_TIMER_STREAM_LIMITS, drainTimeoutMs: 5000 });
   t.after(() => streams.closeAll());
   const res = new SlowResponse();
   res.accepting = false;
@@ -323,7 +316,7 @@ test('a stream whose socket is full waits for it to drain instead of ending', { 
 });
 
 test('a stream that does not drain in time ends', { timeout: 10000 }, async t => {
-  const streams = new TimerStreams(async () => state(1), { drainTimeoutMs: 20 });
+  const streams = new TimerStreams(async () => state(1), { ...DEFAULT_TIMER_STREAM_LIMITS, drainTimeoutMs: 20 });
   t.after(() => streams.closeAll());
   const res = new SlowResponse();
   res.accepting = false;
@@ -334,7 +327,11 @@ test('a stream that does not drain in time ends', { timeout: 10000 }, async t =>
 });
 
 test('a stream ends when a write would pass its unsent byte bound', { timeout: 10000 }, async t => {
-  const streams = new TimerStreams(async () => state(1), { drainTimeoutMs: 5000, maxBufferedBytes: 300 });
+  const streams = new TimerStreams(async () => state(1), {
+    ...DEFAULT_TIMER_STREAM_LIMITS,
+    drainTimeoutMs: 5000,
+    maxBufferedBytes: 300,
+  });
   t.after(() => streams.closeAll());
   const res = new SlowResponse();
   res.accepting = false;
@@ -348,7 +345,7 @@ test('a stream ends when a write would pass its unsent byte bound', { timeout: 1
 
 test('streams of one credential share each keep-alive, publish and recheck check', { timeout: 10000 }, async t => {
   t.mock.timers.enable({ apis: ['setInterval'] });
-  const streams = new TimerStreams(async () => state(1), { keepAliveMs: 1000 });
+  const streams = new TimerStreams(async () => state(1), { ...DEFAULT_TIMER_STREAM_LIMITS, keepAliveMs: 1000 });
   t.after(() => streams.closeAll());
   const checks = { shared: 0, other: 0 };
   let sharedValid = true;

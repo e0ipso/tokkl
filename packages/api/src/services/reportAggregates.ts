@@ -85,7 +85,7 @@ export function timeSeries(
 
 export type WeeklyRows = 'projects' | 'clients';
 
-export interface WeeklyGrid {
+interface WeeklyGrid {
   /** One column per day for ranges up to a week, one per week for anything longer. */
   mode: 'days' | 'weeks';
   /** Each column's first and last day inside the range. */

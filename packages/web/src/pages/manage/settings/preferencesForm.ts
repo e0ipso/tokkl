@@ -3,14 +3,7 @@ import { t, type MessageKey } from '../../../i18n/messages.ts';
 
 /** The preferences form's options, its draft shape and the rules that turn a draft into a save. */
 
-export const DATE_FORMATS = [
-  'YYYY-MM-DD',
-  'DD/MM/YYYY',
-  'MM/DD/YYYY',
-  'DD.MM.YYYY',
-  'DD-MM-YYYY',
-  'MM-DD-YYYY',
-] as const;
+const DATE_FORMATS = ['YYYY-MM-DD', 'DD/MM/YYYY', 'MM/DD/YYYY', 'DD.MM.YYYY', 'DD-MM-YYYY', 'MM-DD-YYYY'] as const;
 
 export const TIME_FORMATS = [
   { value: 'H:mm', label: 'settings.time24', twelveHour: false },
@@ -72,7 +65,7 @@ export const POMODORO_NUMBERS = [
 }>;
 
 /** Every number the form edits, with the unit its error message names. */
-export const NUMBER_FIELDS = [
+const NUMBER_FIELDS = [
   ...POMODORO_NUMBERS,
   { key: 'long_timer_reminder_hours', unit: 'settings.spokenHours' },
 ] as const;
@@ -126,7 +119,7 @@ export function toDraft(values: Editable): Draft {
   };
 }
 
-export const isWholeNumber = (text: string) => text.trim() !== '' && Number.isInteger(Number(text.trim()));
+const isWholeNumber = (text: string) => text.trim() !== '' && Number.isInteger(Number(text.trim()));
 
 /** Whether an edited value is what the server stores, comparing a typed number by its value, not its text. */
 export function isStored(key: keyof Draft, value: Draft[keyof Draft], stored: Editable): boolean {

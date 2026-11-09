@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { QueryClient, type QueryKey } from '@tanstack/react-query';
 import { keys, stale } from './keys.ts';
 import { ApiError, UnparsableReplyError, api } from './client.ts';
-import { ignoreReply } from './decode.ts';
 import {
   acceptTimerState,
   attemptTimerRequest,
@@ -15,32 +14,12 @@ import {
 } from './timerHooks.ts';
 import { TIMER_OFFLINE_MESSAGE, TimerActionError, UnreadableTimerStateError } from './timerState.ts';
 import type { TimeEntry, TimerState } from '@tokkl/types';
+import { timeEntry, timerState } from '../testFixtures.ts';
 
-const state = (revision: number, running_entry: TimeEntry | null = null): TimerState => ({
-  revision,
-  server_time: '2026-10-27T10:00:00.000Z',
-  running_entry,
-  pause: null,
-  pomodoro: null,
-  discarded_pomodoro: null,
-});
+const state = (revision: number, running_entry: TimeEntry | null = null) => timerState(revision, { running_entry });
 
-const running = (id: number): TimeEntry => ({
-  id,
-  workspace_id: 1,
-  project_id: null,
-  task_id: null,
-  billable: false,
-  start: '2026-10-27T09:00:00.000Z',
-  stop: null,
-  duration: -1,
-  description: `Entry ${id}`,
-  tags: [],
-  tag_ids: [],
-  at: '2026-10-27T09:00:00.000Z',
-  server_deleted_at: null,
-  all_day: false,
-});
+const running = (id: number) =>
+  timeEntry({ id, start: '2026-10-27T09:00:00.000Z', at: '2026-10-27T09:00:00.000Z', description: `Entry ${id}` });
 
 const derived: QueryKey[] = [keys.entries, keys.report, keys.trash, keys.projects, keys.tasks, keys.tags];
 const projectTasks: QueryKey = [...keys.tasks, 'project', 4];
@@ -142,65 +121,36 @@ test('Start posts the new entry at the cached revision and takes the reply as th
   assert.equal(invalidated(qc, keys.entries), true, 'the lists refetch for the started entry');
 });
 
-test('Stop posts the stop time at the cached revision; a 409 hands over the current state', async t => {
-  const qc = seeded();
-  qc.setQueryData(keys.timer, state(3, running(5)));
-  const { fetch, sent } = answering({ status: 409, body: state(4, running(6)) }, { status: 200, body: state(5) });
-  t.mock.method(globalThis, 'fetch', fetch);
-  await assert.rejects(
-    stopTimer(qc, '2026-10-27T10:30:00.000Z'),
-    (error: unknown) => error instanceof TimerActionError && error.kind === 'conflict',
-  );
-  assert.deepEqual(sent[0], {
-    path: '/api/app/timer/stop',
-    method: 'POST',
-    body: { revision: 3, stop: '2026-10-27T10:30:00.000Z' },
-  });
-  // The conflict's state replaced the stale one, so the next stop goes out at its revision.
-  assert.equal(qc.getQueryData<TimerState>(keys.timer)?.running_entry?.id, 6);
-  await stopTimer(qc);
-  assert.deepEqual(sent[1]?.body, { revision: 4 });
-  assert.equal(qc.getQueryData<TimerState>(keys.timer)?.running_entry, null);
-});
+const actions: Array<[string, (qc: QueryClient) => Promise<unknown>, string, Record<string, unknown>]> = [
+  [
+    'Stop',
+    qc => stopTimer(qc, '2026-10-27T10:30:00.000Z'),
+    '/api/app/timer/stop',
+    { stop: '2026-10-27T10:30:00.000Z' },
+  ],
+  ['Pause', qc => pauseTimer(qc), '/api/app/timer/pause', {}],
+  [
+    'A Pomodoro start',
+    qc => startPomodoro(qc, { description: 'Focus', work_minutes: 25 }),
+    '/api/app/pomodoro',
+    { created_with: 'tokkl-web', description: 'Focus', work_minutes: 25 },
+  ],
+];
 
-test('Pause posts at the cached revision; a 409 hands over the current state', async t => {
-  const qc = seeded();
-  qc.setQueryData(keys.timer, state(3, running(5)));
-  const { fetch, sent } = answering({ status: 409, body: state(4, running(6)) }, { status: 200, body: state(5) });
-  t.mock.method(globalThis, 'fetch', fetch);
-  await assert.rejects(
-    pauseTimer(qc),
-    (error: unknown) => error instanceof TimerActionError && error.kind === 'conflict',
-  );
-  assert.deepEqual(sent[0], { path: '/api/app/timer/pause', method: 'POST', body: { revision: 3 } });
-  assert.equal(qc.getQueryData<TimerState>(keys.timer)?.running_entry?.id, 6, 'the conflict state is adopted');
-  await pauseTimer(qc);
-  assert.deepEqual(sent[1]?.body, { revision: 4 });
-  assert.equal(qc.getQueryData<TimerState>(keys.timer)?.revision, 5);
-});
-
-test('a Pomodoro start posts at the cached revision; a 409 hands over the current state', async t => {
-  const qc = seeded();
-  qc.setQueryData(keys.timer, state(3));
-  const { fetch, sent } = answering(
-    { status: 409, body: state(4, running(6)) },
-    { status: 200, body: state(5, running(7)) },
-  );
-  t.mock.method(globalThis, 'fetch', fetch);
-  await assert.rejects(
-    startPomodoro(qc, { description: 'Focus', work_minutes: 25 }),
-    (error: unknown) => error instanceof TimerActionError && error.kind === 'conflict',
-  );
-  assert.deepEqual(sent[0], {
-    path: '/api/app/pomodoro',
-    method: 'POST',
-    body: { created_with: 'tokkl-web', description: 'Focus', work_minutes: 25, revision: 3 },
+for (const [name, act, path, body] of actions)
+  test(`${name} posts at the cached revision; a 409 hands over the current state`, async t => {
+    const qc = seeded();
+    qc.setQueryData(keys.timer, state(3, running(5)));
+    const { fetch, sent } = answering({ status: 409, body: state(4, running(6)) }, { status: 200, body: state(5) });
+    t.mock.method(globalThis, 'fetch', fetch);
+    await assert.rejects(act(qc), (error: unknown) => error instanceof TimerActionError && error.kind === 'conflict');
+    assert.deepEqual(sent[0], { path, method: 'POST', body: { ...body, revision: 3 } });
+    // The conflict's state replaced the stale one, so the next action goes out at its revision.
+    assert.equal(qc.getQueryData<TimerState>(keys.timer)?.running_entry?.id, 6);
+    await act(qc);
+    assert.deepEqual(sent[1]?.body, { ...body, revision: 4 });
+    assert.equal(qc.getQueryData<TimerState>(keys.timer)?.revision, 5);
   });
-  assert.equal(qc.getQueryData<TimerState>(keys.timer)?.running_entry?.id, 6, 'the conflict state is adopted');
-  await startPomodoro(qc, { description: 'Focus' });
-  assert.deepEqual(sent[1]?.body, { created_with: 'tokkl-web', description: 'Focus', revision: 4 });
-  assert.equal(qc.getQueryData<TimerState>(keys.timer)?.running_entry?.id, 7);
-});
 
 test('a Start that got no reply fails with the offline message', async t => {
   const qc = seeded();
@@ -230,9 +180,7 @@ test('a Start answered twice with a 5xx keeps its message, and the next timer wr
   await assert.rejects(startTimer(qc, { description: 'Write' }), (error: unknown) => isApiErrorWith(error, 502));
   // A duration typed into the bar, which the bar still showed idle, is not sent on top of the landed Start.
   await assert.rejects(
-    attemptTimerRequest(qc, () =>
-      api.post('/api/v9/workspaces/1/time_entries', { description: 'Typed' }, { decode: ignoreReply }),
-    ),
+    attemptTimerRequest(qc, () => api.post('/api/v9/workspaces/1/time_entries', { description: 'Typed' })),
     (error: unknown) => error instanceof TimerActionError && error.kind === 'conflict',
   );
   assert.deepEqual(
@@ -256,7 +204,7 @@ test('after an unknown outcome a read that finds the state unchanged lets the wr
   );
   t.mock.method(globalThis, 'fetch', fetch);
   const edit = (description: string) =>
-    timerWrite(qc, () => api.put('/api/v9/workspaces/1/time_entries/5', { description }, { decode: ignoreReply }));
+    timerWrite(qc, () => api.put('/api/v9/workspaces/1/time_entries/5', { description }));
   await assert.rejects(edit('First'), (error: unknown) => error instanceof UnparsableReplyError);
   await edit('Second');
   await edit('Third');

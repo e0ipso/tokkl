@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { Express } from 'express';
+import type { TimerState } from '@tokkl/types';
 import { storageFor, storageConfigFor, setServices, reopenDatabase } from './fixtures/database.ts';
 import { copySQLiteFile } from './fixtures/physical.ts';
 import { composeApp, streamSettings } from './fixtures/app.ts';
@@ -27,8 +28,42 @@ export interface TestContext {
 }
 
 export const PASSWORD = 'correct horse battery';
+
+/** Waits until `condition` holds, checking every 20 ms, and fails after `ms`. */
+export async function until(condition: () => boolean | Promise<boolean>, what = 'the condition', ms = 10_000) {
+  const deadline = performance.now() + ms;
+  while (!(await condition())) {
+    if (performance.now() > deadline) throw new Error(`Timed out waiting for ${what}`);
+    await new Promise(resolve => setTimeout(resolve, 20));
+  }
+}
+
+/** A request without the API token, as a logged-out browser sends it. */
+export const anonymous = (
+  ctx: TestContext,
+  method: string,
+  path: string,
+  body?: unknown,
+  headers: Record<string, string> = {},
+) => ctx.request(method, path, body, { authorization: '', ...headers });
+
+/** A password login from a logged-out browser. */
+export const login = (ctx: TestContext, email: string, password = PASSWORD) =>
+  anonymous(ctx, 'POST', '/api/app/login', { email, password }, CSRF);
+
+/** Records the JSON lines loggers write to the console until the test ends. */
+export function recordLogs(t: NodeTestContext): Array<Record<string, unknown>> {
+  const lines: Array<Record<string, unknown>> = [];
+  const keep = (line: unknown) => void lines.push(JSON.parse(String(line)));
+  t.mock.method(console, 'log', keep);
+  t.mock.method(console, 'error', keep);
+  return lines;
+}
 /** The header the web client sends on every request; session-starting and cookie-authenticated writes need it. */
 export const CSRF = { 'x-tokkl-csrf': '1' };
+
+/** The signed-in user's timer state, read over HTTP. */
+export const timerState = async (ctx: TestContext) => (await ctx.json<TimerState>('GET', '/api/app/timer')).body;
 
 export interface TestServer {
   request: (path: string, init?: RequestInit) => Promise<Response>;

@@ -7,7 +7,7 @@
 import type { DurationFormat } from '@tokkl/types';
 import { authenticatedUser, type Authentication } from '../domain/credentials.ts';
 import { forbidden } from '../lib/errors.ts';
-import type { ReadOnlyRepositories, ReportCursor } from '../domain/ports.ts';
+import type { Repositories, ReportCursor } from '../domain/ports.ts';
 import type { EntryDetails } from '../domain/model.ts';
 import { csvExportWriter, jsonExportWriter } from './exports.ts';
 
@@ -23,7 +23,7 @@ export interface ExportJobWork {
   authentication?: Authentication;
 }
 
-export type ExportRepositories = Pick<ReadOnlyRepositories, 'users' | 'sessions' | 'transfers'>;
+export type ExportRepositories = Pick<Repositories, 'users' | 'sessions' | 'transfers'>;
 export interface ExportSource {
   readSnapshot<T>(work: (repositories: ExportRepositories) => Promise<T>): Promise<T>;
 }

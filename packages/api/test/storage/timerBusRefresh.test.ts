@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { test } from 'node:test';
 import { sql } from 'kysely';
 import type { TimerState } from '@tokkl/types';
+import type { TimerView } from '../../src/domain/timerView.ts';
 import type { Storage } from '../../src/domain/ports.ts';
 import type { User } from '../../src/domain/model.ts';
 import { createStorage } from '../fixtures/storageShortcuts.ts';
@@ -11,7 +12,7 @@ import type { PhysicalDatabase } from '../../src/storage/physical.ts';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { composeApp, streamSettings } from '../fixtures/app.ts';
 import type { TimerBus, TimerSignal } from '../../src/storage/timerBus.ts';
-import { createTimerPublication } from '../../src/services/timerPublication.ts';
+import { createTimerPublication } from '../../src/services/timerDelivery.ts';
 import { testConfig } from '../helpers.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 import { gate, readTimerStream, serveInvariant } from './support/invariantHttp.ts';
@@ -206,7 +207,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       await hub.settled();
       assert.equal(remote.reads(), reads, 'signals at or below the delivered revision read nothing');
       // A hint above the database's revision rebuilds once and delivers nothing.
-      await services(1).publish.refresh(u.id, current + 5);
+      await services(1).push.refresh(u.id, current + 5);
       await pause(50);
       assert.equal(onB.states.length, seenOnB);
       assert.equal(onA.states.length, seenOnA);
@@ -226,7 +227,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       held.release.resolve();
       await onB.until(() => onB.states.some(s => s.revision === second));
       await hub.settled();
-      await services(1).publish.refresh(u.id, second + 1);
+      await services(1).push.refresh(u.id, second + 1);
       await pause(50);
       assert.deepEqual(
         onB.states.slice(seenOnB).map(s => s.revision),
@@ -357,16 +358,9 @@ test('a refresh that started before the account was forgotten delivers nothing',
   const built = gate(),
     release = gate(),
     delivered: number[] = [];
-  const state = (revision: number): TimerState => ({
-    revision,
-    server_time: '2026-10-30T12:00:00.000Z',
-    running_entry: null,
-    pause: null,
-    pomodoro: null,
-    discarded_pomodoro: null,
-  });
+  const state = (revision: number) => ({ revision }) as TimerView;
   let streams = true;
-  const publish = createTimerPublication<TimerState>(
+  const publish = createTimerPublication(
     async (_id, s) => {
       delivered.push(s.revision);
     },
@@ -397,16 +391,9 @@ test('a refresh that started before the account was forgotten delivers nothing',
 test('a process drops deliveries for an incarnation of the id other than the one its streams opened for', async () => {
   const delivered: number[] = [],
     forgotten: number[] = [];
-  const state = (revision: number): TimerState => ({
-    revision,
-    server_time: '2026-10-30T12:00:00.000Z',
-    running_entry: null,
-    pause: null,
-    pomodoro: null,
-    discarded_pomodoro: null,
-  });
+  const state = (revision: number) => ({ revision }) as TimerView;
   let rebuilt = { state: state(9), incarnation: 'first' };
-  const publish = createTimerPublication<TimerState>(
+  const publish = createTimerPublication(
     async (_id, s) => {
       delivered.push(s.revision);
     },
@@ -421,16 +408,16 @@ test('a process drops deliveries for an incarnation of the id other than the one
     },
   );
   publish.claim(7, 'first');
-  await publish(7, state(5), 'first');
+  await publish.publish(7, state(5), 'first');
   // Another process deleted the account and a new one got the id. Its stream opens here.
   publish.claim(7, 'second');
   assert.deepEqual(forgotten, [7], "the first account's streams and cached state go");
-  await publish(7, state(6), 'first');
+  await publish.publish(7, state(6), 'first');
   await publish.refresh(7, 9);
   assert.deepEqual(delivered, [5], 'late work for the first account delivers nothing');
   rebuilt = { state: state(1), incarnation: 'second' };
   await publish.refresh(7, 1);
-  await publish(7, state(2), 'second');
+  await publish.publish(7, state(2), 'second');
   assert.deepEqual(delivered, [5, 1, 2], 'the second account starts from nothing');
   publish.claim(7, 'second');
   assert.deepEqual(forgotten, [7], 'another stream for the same account forgets nothing');

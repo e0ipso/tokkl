@@ -8,7 +8,7 @@ const SOUNDS: Record<PomodoroTransition, string> = {
   longRestToWork: '/sounds/pomodoro-long-rest-to-work.wav',
 };
 
-export interface SessionAlarm {
+interface SessionAlarm {
   key: string;
   transition: PomodoroTransition;
 }

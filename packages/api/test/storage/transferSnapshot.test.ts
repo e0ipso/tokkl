@@ -6,7 +6,7 @@ import { openConnection } from '../../src/storage/connections.ts';
 import { createTransactionRunner } from '../../src/storage/transactions.ts';
 import { createTransferRepositories } from '../../src/storage/repositories/transfers.ts';
 import { createTimeEntry } from '../fixtures/entryBodies.ts';
-import { createTimerPublication } from '../../src/services/timerPublication.ts';
+import { createTimerPublication } from '../../src/services/timerDelivery.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 import { entryTimerFactory, entryAccount } from './support/entry-timer.ts';
 for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
@@ -20,7 +20,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       const factory = entryTimerFactory(backend),
         runner = createTransactionRunner(connection, factory),
         writes = createTransactionRunner(writer, factory);
-      const publish = createTimerPublication(async () => {});
+      const publish = createTimerPublication(async () => {}).publish;
       try {
         const user = await runner.transaction(ctx => ctx.users.createAccount(entryAccount('export-scope')));
         const stranger = await runner.transaction(ctx => ctx.users.createAccount(entryAccount('excluded')));

@@ -10,8 +10,7 @@ import type { JobSource } from '../../src/services/reportExecution.ts';
 import { mkdtempSync, existsSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { collectAccountExport } from '../fixtures/exports.ts';
-import { oracleExportBody } from '../fixtures/exportOracle.ts';
+import { exportBody } from '../fixtures/exports.ts';
 import { createTransferRepositories } from '../../src/storage/repositories/transfers.ts';
 import { answerJob, answerOnRunner, jobs } from './support/report-jobs.ts';
 import { Worker } from 'node:worker_threads';
@@ -27,22 +26,15 @@ import { errorReply } from '../../src/http/errors.ts';
 import { runReportJob, type ReportJob } from '../../src/services/reportJobs.ts';
 import type { ExportAssemblyJob } from '../../src/services/exportJobs.ts';
 import { createTimerOperations } from '../../src/domain/timers.ts';
-import { createTimerPublication } from '../../src/services/timerPublication.ts';
+import { createTimerPublication, presentTimerOperations } from '../../src/services/timerDelivery.ts';
 import { systemClock } from '../../src/lib/clock.ts';
-import { presentTimerOperations } from '../../src/services/timerReplies.ts';
 import { createTimeEntry } from '../fixtures/entryBodies.ts';
 import { entryTimerFactory, entryAccount } from './support/entry-timer.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 import { trackedWorkers } from './support/reportWorkers.ts';
 import type { Backend } from '../../src/storage/config.ts';
 import { createLogger } from '../../src/lib/logger.ts';
-
-/** A logger that keeps each line as parsed JSON. */
-function recordedLog() {
-  const lines: Array<Record<string, unknown>> = [];
-  const logger = createLogger({ level: 'debug', sink: line => lines.push(JSON.parse(line)) });
-  return { logger, lines };
-}
+import { recordLogs } from '../helpers.ts';
 
 /** The body `runner` streams for `userId`'s export. */
 async function streamedExport(runner: ReportRunner, userId: number, assembly: ExportAssemblyJob): Promise<string> {
@@ -75,7 +67,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
       }));
       const user = await operations.transaction(r => r.users.createAccount(entryAccount('worker')));
       const wid = user.defaultWorkspaceId;
-      const publish = createTimerPublication(async () => {});
+      const publish = createTimerPublication(async () => {}).publish;
       const timers = presentTimerOperations(createTimerOperations(operations, user, publish, systemClock));
       await operations.transaction(r =>
         createTimeEntry(r, user, wid, { start: '2026-10-05T10:00:00Z', duration: 3600, description: 'Work' }, publish),
@@ -106,12 +98,11 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
           await answerOnRunner(runner, user.id, wid, request),
           await answerJob(operations, { userId: user.id, workspaceId: wid, job: request }),
         );
-      const exported = await collectAccountExport(operations, user.id);
       for (const assembly of [
         { kind: 'export-json', exportedAt: '2026-10-30T12:00:00.000Z', filename: 'tokkl.json' },
         { kind: 'export-csv', range: {}, filename: 'tokkl.csv' },
       ] as ExportAssemblyJob[])
-        assert.equal(await streamedExport(runner, user.id, assembly), oracleExportBody(exported, assembly));
+        assert.equal(await streamedExport(runner, user.id, assembly), await exportBody(operations, user.id, assembly));
       // Every job so far ran in the two workers the runner started: the reports' first, then the downloads'.
       assert.equal(workers.started.length, 2);
       const worker = workers.started[0]!;
@@ -276,14 +267,13 @@ test('memory SQLite stays inline; reader startup never creates or migrates a fil
     await runReportJob(operations, { userId: user.id, workspaceId: user.defaultWorkspaceId, job }),
   );
   assert.equal(workers.started.length, 0);
-  const exported = await collectAccountExport(operations, user.id);
   const assembly: ExportAssemblyJob = {
     kind: 'export-json',
     exportedAt: '2026-10-30T12:00:00.000Z',
     filename: 'tokkl.json',
   };
   const body = await streamedExport(runner, user.id, assembly);
-  assert.equal(body, oracleExportBody(exported, assembly));
+  assert.equal(body, await exportBody(operations, user.id, assembly));
   // The export reads the account in its own snapshot; no credential reaches the output.
   assert.equal(body.includes(user.apiToken), false);
   await c.db.deleteFrom('workspace_users').where('user_id', '=', user.id).execute();
@@ -295,32 +285,32 @@ test('memory SQLite stays inline; reader startup never creates or migrates a fil
   const dir = mkdtempSync(join(tmpdir(), 'tokkl-report-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const filename = join(dir, 'missing', 'db.sqlite');
-  const startupLog = recordedLog();
-  const missing = createReportRunner({ ...config, filename }, operations, { logger: startupLog.logger });
+  const lines = recordLogs(t);
+  const logger = createLogger({ level: 'debug' });
+  const missing = createReportRunner({ ...config, filename }, operations, { logger });
   t.after(() => missing.close());
   await assert.rejects(runReport(missing, user.id, user.defaultWorkspaceId, job), /Report worker stopped/);
   assert.equal(existsSync(join(dir, 'missing')), false);
   // The startup failure is logged with its stack frames, never its message or the database path.
-  const [started] = startupLog.lines;
+  const [started] = lines;
   assert.equal(started?.msg, 'Report worker failed to start');
   assert.equal(started?.level, 'error');
   assert.ok((started?.diagnostic as { frames: string[] }).frames.length > 0);
-  assert.equal(JSON.stringify(startupLog.lines).includes(dir), false);
+  assert.equal(JSON.stringify(lines).includes(dir), false);
   const empty = join(dir, 'empty.sqlite');
   writeFileSync(empty, '');
   const before = readFileSync(empty);
-  const jobLog = recordedLog();
-  const unmigrated = createReportRunner({ ...config, filename: empty }, operations, { logger: jobLog.logger });
+  const unmigrated = createReportRunner({ ...config, filename: empty }, operations, { logger });
   t.after(() => unmigrated.close());
   await assert.rejects(runReport(unmigrated, user.id, user.defaultWorkspaceId, job), /Report failed/);
   await unmigrated.close();
   assert.deepEqual(readFileSync(empty), before);
   // The job's failure names the job, not the SQL error's message.
-  const failed = jobLog.lines.find(line => line.msg === 'Report failed');
+  const failed = lines.find(line => line.msg === 'Report failed');
   assert.equal(failed?.jobKind, 'app-report');
   assert.equal(typeof failed?.jobId, 'number');
   assert.ok((failed?.diagnostic as { frames: string[] }).frames.length > 0);
-  assert.doesNotMatch(JSON.stringify(jobLog.lines), /no such table/i);
+  assert.doesNotMatch(JSON.stringify(lines), /no such table/i);
 });
 
 test('an idle storage report worker lets its parent process exit', async () => {

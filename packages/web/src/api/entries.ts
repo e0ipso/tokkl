@@ -2,23 +2,22 @@ import { useMemo } from 'react';
 import { queryOptions, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useWid } from './account.ts';
 import { api } from './client.ts';
-import { ignoreReply } from './decode.ts';
-import { coversPreviousRange } from './entriesPlaceholder.ts';
+import { list, object } from './decode.ts';
 import { postCreate } from './idempotency.ts';
 import { invalidate } from './invalidate.ts';
 import { keys, stale } from './keys.ts';
 import { APP, V9, wsPath } from './paths.ts';
-import {
-  bulkPatchResultReply,
-  entryBoundsReply,
-  entryListReply,
-  timeEntryReply,
-  trashEmptiedReply,
-  trashTotalReply,
-} from './replies.ts';
 import { attemptTimerRequest, editRunningEntry, timerWrite, type RunningEntryChanges } from './timerHooks.ts';
 import { MOVES_TIMER } from './timerState.ts';
-import type { PatchOperation, TimeEntry, TimeEntryInput, TimerState } from '@tokkl/types';
+import type {
+  BulkPatchResult,
+  EntryBounds,
+  PatchOperation,
+  TimeEntry,
+  TimeEntryInput,
+  TimerState,
+  TrashTotal,
+} from '@tokkl/types';
 
 /** Time entries: lists, writes and the trash. The running entry comes from the timer state (timerHooks.ts). */
 
@@ -41,7 +40,7 @@ export function useEntries(startDate: string, endDate: string) {
 export function useEntryBounds() {
   return useQuery({
     queryKey: [...keys.report, 'bounds'],
-    queryFn: ({ signal }) => api.get(`${APP}/bounds`, { signal, decode: entryBoundsReply }),
+    queryFn: ({ signal }) => api.get<EntryBounds>(`${APP}/bounds`, { signal, decode: object }),
     refetchInterval: 60_000,
   });
 }
@@ -50,7 +49,7 @@ export function useEntryBounds() {
 export function useTrash() {
   return useQuery({
     queryKey: keys.trash,
-    queryFn: ({ signal }) => api.get(`${APP}/trash`, { signal, decode: entryListReply }),
+    queryFn: ({ signal }) => api.get<TimeEntry[]>(`${APP}/trash`, { signal, decode: list }),
   });
 }
 
@@ -60,7 +59,7 @@ export function useTrash() {
  */
 export const trashTotalOptions = queryOptions({
   queryKey: [...keys.trash, 'total'],
-  queryFn: ({ signal }) => api.get(`${APP}/trash/total`, { signal, decode: trashTotalReply }),
+  queryFn: ({ signal }) => api.get<TrashTotal>(`${APP}/trash/total`, { signal, decode: object }),
 });
 
 export function useTrashTotal() {
@@ -74,24 +73,24 @@ export function useTrashTotal() {
 export const entryRequests = {
   /** Entries that started from startDate to endDate, both "YYYY-MM-DD" in the account timezone. */
   list: (startDate: string, endDate: string, signal?: AbortSignal) =>
-    api.get(`${V9}/me/time_entries?start_date=${startDate}&end_date=${endDate}&meta=true`, {
+    api.get<TimeEntry[]>(`${V9}/me/time_entries?start_date=${startDate}&end_date=${endDate}&meta=true`, {
       signal,
-      decode: entryListReply,
+      decode: list,
     }),
-  get: (id: number) => api.get(`${V9}/me/time_entries/${id}?meta=true`, { decode: timeEntryReply }),
+  get: (id: number) => api.get<TimeEntry>(`${V9}/me/time_entries/${id}?meta=true`, { decode: object }),
   create: (wid: number, input: TimeEntryInput) =>
-    postCreate(
+    postCreate<TimeEntry>(
       `${wsPath(wid, 'time_entries')}?meta=true`,
       { created_with: 'tokkl-web', ...input },
-      { decode: timeEntryReply },
+      { decode: object },
     ),
   /** Saves an edit. The views refetch the entry rather than read the reply. */
   update: (wid: number, id: number, input: TimeEntryInput) =>
-    api.put(`${wsPath(wid, 'time_entries', id)}?meta=true`, input, { decode: ignoreReply }),
-  remove: (wid: number, id: number) => api.delete(wsPath(wid, 'time_entries', id), undefined, { decode: ignoreReply }),
+    api.put(`${wsPath(wid, 'time_entries', id)}?meta=true`, input),
+  remove: (wid: number, id: number) => api.delete(wsPath(wid, 'time_entries', id)),
   /** Deletes a trashed entry for good. */
-  purge: (id: number) => api.delete(`${APP}/trash/${id}`, undefined, { decode: ignoreReply }),
-  emptyTrash: () => api.delete(`${APP}/trash`, undefined, { decode: trashEmptiedReply }),
+  purge: (id: number) => api.delete(`${APP}/trash/${id}`),
+  emptyTrash: () => api.delete<{ deleted: number }>(`${APP}/trash`, undefined, { decode: object }),
 };
 
 function useInvalidateEntries() {
@@ -110,7 +109,7 @@ export function useCreateEntry() {
 }
 
 /** An edit of one entry: its id and the fields that change. */
-export type EntryUpdate = TimeEntryInput & { id: number };
+type EntryUpdate = TimeEntryInput & { id: number };
 
 /**
  * The mutation scope of writes to entry `id`. TanStack sends the writes in one scope one at a time,
@@ -145,7 +144,7 @@ export function updateEntry(qc: QueryClient, wid: number, { id, ...input }: Entr
 }
 
 /** An edit of the running entry: its id, which picks the scope, and the fields that change. */
-export type RunningEntryUpdate = RunningEntryChanges & { id: number };
+type RunningEntryUpdate = RunningEntryChanges & { id: number };
 
 /**
  * Sends an edit of the running entry through the timer (`editRunningEntry` in timerHooks.ts),
@@ -157,7 +156,7 @@ export function updateRunningEntry(qc: QueryClient, { id, ...changes }: RunningE
 }
 
 /** What the entry edit hooks return: `mutate` reports a failure to `onError` only. */
-export interface EntryUpdater<Update = EntryUpdate, Reply = void> {
+interface EntryUpdater<Update = EntryUpdate, Reply = void> {
   mutate(update: Update, options?: { onError?: (error: Error) => void }): void;
   mutateAsync(update: Update): Promise<Reply>;
 }
@@ -186,7 +185,7 @@ export function useUpdateRunningEntry(): EntryUpdater<RunningEntryUpdate, TimerS
 }
 
 /** A finished entry typed into the idle timer bar: the draft's fields and the span it covers. */
-export type TypedEntryInput = TimeEntryInput & { start: string; stop: string };
+type TypedEntryInput = TimeEntryInput & { start: string; stop: string };
 
 /**
  * Saves the finished entry typed into the idle timer bar as a duration, as a timer write
@@ -230,7 +229,7 @@ export function useRestoreEntry() {
   const onSuccess = useInvalidateEntries();
   return useMutation({
     meta: MOVES_TIMER,
-    mutationFn: (id: number) => api.post(`${APP}/time_entries/${id}/restore`, undefined, { decode: ignoreReply }),
+    mutationFn: (id: number) => api.post(`${APP}/time_entries/${id}/restore`),
     onSuccess,
   });
 }
@@ -242,13 +241,13 @@ export function useBulkPatch() {
   return useMutation({
     meta: MOVES_TIMER,
     mutationFn: ({ ids, operations }: { ids: number[]; operations: PatchOperation[] }) =>
-      api.patch(wsPath(wid, 'time_entries', ids.join(',')), operations, { decode: bulkPatchResultReply }),
+      api.patch<BulkPatchResult>(wsPath(wid, 'time_entries', ids.join(',')), operations, { decode: object }),
     onSuccess,
   });
 }
 
 /** Where a stopped entry splits: the stored halves, as `snappedSplit` gives them. */
-export interface SplitSpans {
+interface SplitSpans {
   first: { start: Date; stop: Date };
   second: { start: Date; stop: Date };
 }
@@ -264,11 +263,30 @@ export function useSplitEntry() {
   return useMutation({
     meta: MOVES_TIMER,
     mutationFn: ({ entry, halves }: { entry: TimeEntry; halves: SplitSpans }) =>
-      postCreate(
-        `${APP}/time_entries/${entry.id}/split`,
-        { at: halves.second.start.toISOString(), created_with: 'tokkl-web' },
-        { decode: ignoreReply },
-      ),
+      postCreate(`${APP}/time_entries/${entry.id}/split`, {
+        at: halves.second.start.toISOString(),
+        created_with: 'tokkl-web',
+      }),
     onSettled,
   });
+}
+
+/**
+ * Whether the rows of the previous entries query may stay on screen while `startDate`..`endDate`
+ * loads. `previousKey` is that query's key, `['entries', start, end]`. Only a range that covers the
+ * previous one keeps its rows, so the list never shows entries from outside the range it is
+ * loading.
+ */
+export function coversPreviousRange(
+  previousKey: readonly unknown[] | undefined,
+  startDate: string,
+  endDate: string,
+): boolean {
+  const [, previousStart, previousEnd] = previousKey ?? [];
+  return (
+    typeof previousStart === 'string' &&
+    typeof previousEnd === 'string' &&
+    startDate <= previousStart &&
+    endDate >= previousEnd
+  );
 }

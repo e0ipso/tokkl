@@ -56,18 +56,18 @@ function pad(n: number): string {
   return String(n).padStart(2, '0');
 }
 
-export function startOfMonth(key: string): string {
+function startOfMonth(key: string): string {
   return `${key.slice(0, 7)}-01`;
 }
 
 /** First day of the month `months` away from the month containing `key`. */
-export function addMonths(key: string, months: number): string {
+function addMonths(key: string, months: number): string {
   const parsed = parseDateKey(key)!;
   const index = parsed.year * 12 + (parsed.month - 1) + months;
   return `${Math.floor(index / 12)}-${pad((index % 12) + 1)}-01`;
 }
 
-export function endOfMonth(key: string): string {
+function endOfMonth(key: string): string {
   return addDays(addMonths(key, 1), -1);
 }
 
@@ -129,7 +129,7 @@ export function matchingPreset(
   );
 }
 
-export function rangeDays(range: DateRange): number {
+function rangeDays(range: DateRange): number {
   return daysBetween(range.from, range.to) + 1;
 }
 

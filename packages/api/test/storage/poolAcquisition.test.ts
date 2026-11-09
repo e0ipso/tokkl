@@ -3,14 +3,7 @@ import { setImmediate } from 'node:timers/promises';
 import { test } from 'node:test';
 import { openConnection, type StorageConnection } from '../../src/storage/connections.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
-
-function gate() {
-  let resolve!: () => void;
-  const promise = new Promise<void>(done => {
-    resolve = done;
-  });
-  return { promise, resolve };
-}
+import { gate } from './support/invariantHttp.ts';
 
 for (const backend of ['mysql', 'mariadb'] as const) {
   test(`${backend}: overlapping requests wait for bounded pool checkouts`, { timeout: 180000 }, async t => {

@@ -10,7 +10,7 @@ const TABBABLE = [
 ].join(', ');
 
 /** The controls Tab stops on inside `container`, in document order. */
-export function tabbables(container: HTMLElement): HTMLElement[] {
+function tabbables(container: HTMLElement): HTMLElement[] {
   return [...container.querySelectorAll<HTMLElement>(TABBABLE)].filter(
     element => element.tabIndex >= 0 && !element.hidden && element.getClientRects().length > 0,
   );

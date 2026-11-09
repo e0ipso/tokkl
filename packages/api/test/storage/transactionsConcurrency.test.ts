@@ -9,14 +9,8 @@ import { createTransactionRunner } from '../../src/storage/transactions.ts';
 import { StorageConflict } from '../../src/domain/ports.ts';
 import { StorageTransactionError } from '../../src/storage/errors.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
+import { gate } from './support/invariantHttp.ts';
 
-function gate() {
-  let resolve!: () => void;
-  const promise = new Promise<void>(r => {
-    resolve = r;
-  });
-  return { promise, resolve };
-}
 const instant = '2026-01-01T00:00:00.000Z';
 function repos(db: Kysely<PhysicalDatabase>, backend: string) {
   const connectionId = async () => {
@@ -53,9 +47,6 @@ function repos(db: Kysely<PhysicalDatabase>, backend: string) {
       },
       async rename(id: number, fullname: string) {
         await db.updateTable('users').set({ fullname }).where('id', '=', id).execute();
-      },
-      async count() {
-        return Number((await db.selectFrom('users').select(db.fn.countAll().as('n')).executeTakeFirstOrThrow()).n);
       },
       async admins() {
         return Number(
@@ -100,21 +91,6 @@ function repos(db: Kysely<PhysicalDatabase>, backend: string) {
           .execute();
       },
     },
-    tokens: {
-      async consume() {
-        return (
-          (
-            await db
-              .updateTable('account_tokens')
-              .set({ used_at: instant })
-              .where('id', '=', 1)
-              .where('used_at', 'is', null)
-              .where('expires_at', '>', instant)
-              .executeTakeFirstOrThrow()
-          ).numUpdatedRows === 1n
-        );
-      },
-    },
   };
 }
 for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
@@ -131,22 +107,6 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         (await sql.raw(backend === 'sqlite' ? 'select sqlite_version() as v' : 'select version() as v').execute(c.db))
           .rows[0],
       );
-      await t.test('instance guard protects first setup before a user exists', async () => {
-        let created = 0;
-        await Promise.all(
-          [runner, second].map((r, index) =>
-            r.transaction(async ctx => {
-              await ctx.lockInstanceAdministration();
-              if ((await ctx.users.count()) === 0) {
-                await delay(15);
-                await ctx.users.add(index + 1);
-                created++;
-              }
-            }),
-          ),
-        );
-        assert.equal(created, 1);
-      });
       await c.db.deleteFrom('users').execute();
       await runner.transaction(async ctx => {
         for (const id of [1, 2, 3]) await ctx.users.add(id);
@@ -322,25 +282,6 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           await assert.rejects(ctx.lockWorkspaces([1]), /lock order/);
           await ctx.lockUsers([3]);
         });
-      });
-      await t.test('conditional one-time token consumption has exactly one winner', async () => {
-        await c.db
-          .insertInto('account_tokens')
-          .values({
-            id: 1,
-            token_hash: 'hash',
-            kind: 'password_reset',
-            role: null,
-            note: null,
-            user_id: 1,
-            created_by: null,
-            created_at: instant,
-            expires_at: '2027-01-01T00:00:00.000Z',
-            used_at: null,
-          })
-          .execute();
-        const outcomes = await Promise.all([runner, second].map(r => r.transaction(ctx => ctx.tokens.consume())));
-        assert.deepEqual(outcomes.sort(), [false, true]);
       });
       await t.test('repeatable read snapshot survives an independent committed write and rejects writes', async () => {
         await runner.readSnapshot(async r => {

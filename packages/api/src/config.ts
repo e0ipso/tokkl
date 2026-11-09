@@ -27,7 +27,7 @@ export interface Config {
   logLevel: LogLevel;
 }
 
-export interface LoadedConfig {
+interface LoadedConfig {
   config: Config;
   /** Lines to log at startup about deprecated settings or files still in use. */
   notices: string[];

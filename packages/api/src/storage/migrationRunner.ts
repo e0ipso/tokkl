@@ -14,7 +14,7 @@ import { openReadConnection, type StorageConnection } from './connections.ts';
 import type { PhysicalDatabase } from './physical.ts';
 import { createTableDDL, ledgerColumns, quote, serverDDL } from './schema.ts';
 
-export class StorageMigrationError extends Error {
+class StorageMigrationError extends Error {
   constructor(
     reason: 'unsupported-engine' | 'unsupported-schema' | 'inconsistent-schema' | 'migration-failed' | 'reader',
   ) {

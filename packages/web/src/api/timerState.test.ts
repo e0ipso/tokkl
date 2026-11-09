@@ -20,35 +20,12 @@ import { t } from '../i18n/messages.ts';
 import { ApiError, RequestTimeoutError, UnparsableReplyError } from './client.ts';
 import { DecodeError } from './decode.ts';
 import { clockOffset, serverNow } from './serverClock.ts';
+import { POMODORO, timeEntry, timerState } from '../testFixtures.ts';
 
-const entry: TimeEntry = {
-  id: 7,
-  workspace_id: 1,
-  project_id: null,
-  task_id: null,
-  billable: false,
-  start: '2026-10-27T10:00:00.000Z',
-  stop: null,
-  duration: -1,
-  description: 'Write',
-  tags: [],
-  tag_ids: [],
-  at: '2026-10-27T10:00:00.000Z',
-  server_deleted_at: null,
-  all_day: false,
-};
+const entry = timeEntry();
 
-function state(revision: number, overrides: Partial<TimerState> = {}): TimerState {
-  return {
-    revision,
-    server_time: '2026-10-27T10:00:05.000Z',
-    running_entry: entry,
-    pause: null,
-    pomodoro: null,
-    discarded_pomodoro: null,
-    ...overrides,
-  };
-}
+const state = (revision: number, overrides: Partial<TimerState> = {}) =>
+  timerState(revision, { server_time: '2026-10-27T10:00:05.000Z', running_entry: entry, ...overrides });
 
 test('a state with a lower revision than the cached one is dropped; an equal or higher one is kept', () => {
   assert.equal(planTimerUpdate(state(5), state(4), 0), null);
@@ -85,23 +62,7 @@ const pause: TimerPause = {
   clone_entry_id: null,
 };
 
-const pomodoro: TimerPomodoro = {
-  work_minutes: 25,
-  short_rest_minutes: 5,
-  long_rest_minutes: 15,
-  long_rest_every: 4,
-  phase: {
-    kind: 'work',
-    start: '2026-10-27T10:00:00.000Z',
-    completed: 0,
-    planned_end: '2026-10-27T10:25:00.000Z',
-  },
-  upcoming_phase: 'shortRest',
-  transition: 'workToShortRest',
-  number: 1,
-  entry_id: 7,
-  pomodoro_start: '2026-10-27T10:00:00.000Z',
-};
+const pomodoro = POMODORO;
 
 test('only objects shaped like a timer state pass the guard', () => {
   assert.equal(isTimerState(state(1)), true);
@@ -201,7 +162,7 @@ test('a write that got no reply, a 5xx, or a 2xx that does not parse or decode m
     new ApiError(502, 'Bad Gateway'),
     new ApiError(503, 'Unavailable'),
     new UnparsableReplyError('PUT', '/api/v9/workspaces/1/time_entries/7', new SyntaxError('Unexpected token <')),
-    new DecodeError('reply.id', 'a whole number'),
+    new DecodeError(),
     new UnreadableTimerStateError(),
   ];
   for (const error of unknown) assert.equal(isOutcomeUnknown(error), true, error.message);

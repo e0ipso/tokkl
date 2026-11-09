@@ -25,7 +25,7 @@ export const LONG_PRESS_MS = 500;
 export const LONG_PRESS_TOLERANCE_PX = 10;
 
 /** A touch that is being held on a column or block, and the drag it becomes if the hold completes. */
-export interface Press {
+interface Press {
   readonly next: CalendarDrag;
   readonly pointerId: number;
   readonly x: number;
@@ -43,7 +43,7 @@ export interface GestureState {
 
 export const IDLE: GestureState = { press: null, drag: null };
 
-export interface PointerAt {
+interface PointerAt {
   readonly pointerId: number;
   readonly x: number;
   readonly y: number;
@@ -73,7 +73,7 @@ export type GestureOutcome =
   /** A drag ended: save it (see `dropChange` in calendarDrop.ts). */
   | { readonly kind: 'drop'; readonly drag: CalendarDrag };
 
-export interface GestureStep {
+interface GestureStep {
   readonly state: GestureState;
   readonly outcome: GestureOutcome;
 }

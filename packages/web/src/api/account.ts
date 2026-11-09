@@ -1,10 +1,9 @@
 import { mutationOptions, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { api, type Checked } from './client.ts';
-import { ignoreReply } from './decode.ts';
+import { api } from './client.ts';
+import { object } from './decode.ts';
 import { keys } from './keys.ts';
 import { V9, wsPath } from './paths.ts';
 import { createPreferenceSaves, type PreferenceSaves } from './preferenceSaves.ts';
-import { meReply, preferencesReply, workspaceReply } from './replies.ts';
 import type { Me, Preferences, Workspace } from '@tokkl/types';
 
 /** The signed-in account: /me, its preferences and its workspace. */
@@ -12,7 +11,7 @@ import type { Me, Preferences, Workspace } from '@tokkl/types';
 export function useMe() {
   return useQuery({
     queryKey: keys.me,
-    queryFn: ({ signal }) => api.get(`${V9}/me`, { signal, decode: meReply }),
+    queryFn: ({ signal }) => api.get<Me>(`${V9}/me`, { signal, decode: object }),
     staleTime: 60_000,
   });
 }
@@ -26,7 +25,7 @@ export function useWid(): number {
 export function usePreferences() {
   return useQuery({
     queryKey: keys.preferences,
-    queryFn: ({ signal }) => api.get(`${V9}/me/preferences`, { signal, decode: preferencesReply }),
+    queryFn: ({ signal }) => api.get<Preferences>(`${V9}/me/preferences`, { signal, decode: object }),
     staleTime: 60_000,
   });
 }
@@ -42,11 +41,11 @@ function savesOf(qc: QueryClient): PreferenceSaves {
   return saves;
 }
 
-/** Sends preference changes. The reply replaces the cached preferences, so it must be `Checked`. */
-export type SendPreferences = (changes: Partial<Preferences>) => Promise<Checked<Preferences>>;
+/** Sends preference changes. The reply replaces the cached preferences. */
+type SendPreferences = (changes: Partial<Preferences>) => Promise<Preferences>;
 
 const sendPreferences: SendPreferences = changes =>
-  api.post(`${V9}/me/preferences`, changes, { decode: preferencesReply });
+  api.post<Preferences>(`${V9}/me/preferences`, changes, { decode: object });
 
 /**
  * Saving preference changes: shown at once, sent one at a time in the order made, and on failure
@@ -82,7 +81,7 @@ export function useWorkspace() {
   const wid = useWid();
   return useQuery({
     queryKey: keys.workspace,
-    queryFn: ({ signal }) => api.get(wsPath(wid), { signal, decode: workspaceReply }),
+    queryFn: ({ signal }) => api.get<Workspace>(wsPath(wid), { signal, decode: object }),
     enabled: wid > 0,
     staleTime: 60_000,
   });
@@ -99,9 +98,8 @@ export type WorkspaceChanges = Pick<
  * shows what changed: none of them reads its reply, the new token included.
  */
 export const accountRequests = {
-  saveProfile: (changes: ProfileChanges) => api.put(`${V9}/me`, changes, { decode: ignoreReply }),
-  changePassword: (body: { current_password: string; password: string }) =>
-    api.put(`${V9}/me`, body, { decode: ignoreReply }),
-  resetApiToken: () => api.post(`${V9}/me/reset_token`, undefined, { decode: ignoreReply }),
-  saveWorkspace: (wid: number, changes: WorkspaceChanges) => api.put(wsPath(wid), changes, { decode: ignoreReply }),
+  saveProfile: (changes: ProfileChanges) => api.put(`${V9}/me`, changes),
+  changePassword: (body: { current_password: string; password: string }) => api.put(`${V9}/me`, body),
+  resetApiToken: () => api.post(`${V9}/me/reset_token`),
+  saveWorkspace: (wid: number, changes: WorkspaceChanges) => api.put(wsPath(wid), changes),
 };

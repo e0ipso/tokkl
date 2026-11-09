@@ -10,6 +10,7 @@ import { postgresOptions } from '../../src/storage/connections.ts';
 import { TIMER_BUS_APPLICATION, TIMER_BUS_CHANNEL } from '../../src/storage/timerBus.ts';
 import { databaseUrl, openTimerStream, startApi, type ApiProcess } from './support/apiProcess.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
+import { until } from '../helpers.ts';
 
 /** The delivery budget for the fast path; the keep-alive is 25 s, so anything under this came from the bus. */
 const FAST_MS = 5000;
@@ -23,14 +24,6 @@ type Visible = Omit<TimerState, 'server_time'>;
 
 const visible = ({ server_time: _time, ...rest }: TimerState): Visible => rest;
 const basic = (token: string) => `Basic ${Buffer.from(`${token}:api_token`).toString('base64')}`;
-
-async function until(condition: () => boolean | Promise<boolean>, what: string, ms: number): Promise<void> {
-  const deadline = performance.now() + ms;
-  while (!(await condition())) {
-    if (performance.now() > deadline) throw new Error(`Timed out waiting for ${what}`);
-    await sleep(20);
-  }
-}
 
 test(
   'postgres: two API processes share timer changes, recover a missed signal, honor revocation and isolation, and shut down clean',

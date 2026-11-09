@@ -23,7 +23,7 @@ import {
   type JobResult,
   type ReportJob,
 } from '../services/reportJobs.ts';
-import type { DownloadSlot, ReportSlot } from '../services/reportRunner.ts';
+import type { ReportSlot } from '../services/reportRunner.ts';
 import { streamDownload } from '../http/download.ts';
 import { lenientNumber } from '../http/params.ts';
 
@@ -60,7 +60,7 @@ function queued(
  */
 function downloading(
   deps: ReportRouteDeps,
-  handler: (req: Request, res: Response, slot: DownloadSlot) => Promise<void>,
+  handler: (req: Request, res: Response, slot: ReportSlot) => Promise<void>,
 ): (req: Request, res: Response) => Promise<void> {
   return (req, res) =>
     deps.reports.reserveDownload({ userId: res.locals.auth.user.id, signal: res.locals.workSignal }, slot =>
@@ -72,7 +72,7 @@ function downloading(
  * Streams a detailed CSV from the download lane, a batch at a time. The headers go out with the
  * first piece, so refusals before it keep their status.
  */
-function sendCsv(slot: DownloadSlot, res: Response, ws: Workspace, job: CsvDownloadJob): Promise<void> {
+function sendCsv(slot: ReportSlot, res: Response, ws: Workspace, job: CsvDownloadJob): Promise<void> {
   const headers = {
     'Content-Type': 'text/csv; charset=utf-8',
     'Content-Disposition': `attachment; filename="${CSV_DOWNLOAD_FILENAMES[job.kind]}"`,

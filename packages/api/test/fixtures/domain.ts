@@ -3,8 +3,7 @@ import { createAccountOperations } from './accountBodies.ts';
 import { createTimerOperations, type TimerRunner } from '../../src/domain/timers.ts';
 import type { Repositories } from '../../src/domain/ports.ts';
 import { settleTimer as settle } from '../../src/domain/timerSettlement.ts';
-import { createTimerPublication } from '../../src/services/timerPublication.ts';
-import { presentTimerOperations } from '../../src/services/timerReplies.ts';
+import { createTimerPublication, presentTimerOperations } from '../../src/services/timerDelivery.ts';
 import * as entries from './entryBodies.ts';
 import type { User } from '../../src/domain/model.ts';
 import {
@@ -19,8 +18,8 @@ import {
 export type { UserRole, User } from '../../src/domain/model.ts';
 export { MAX_FAVORITES } from '../../src/domain/accountValues.ts';
 export { serializeTimeEntry } from '../../src/presenters/toggl.ts';
-const silent = createTimerPublication(async () => {});
-const publication = (db: FixtureDatabase) => servicesFor(db)?.publish ?? silent;
+const silent = createTimerPublication(async () => {}).publish;
+const publication = (db: FixtureDatabase) => servicesFor(db)?.push.publish ?? silent;
 export function createFirstAdmin(db: FixtureDatabase, body: Record<string, unknown>) {
   return createAccountOperations(storageFor(db), { recheckUser: async () => {} }).createFirstAdmin(body);
 }
@@ -48,9 +47,6 @@ export const addWorkspaceMember = (db: FixtureDatabase, wid: number, uid: number
   transaction(db, ctx => ctx.workspaces.addMember({ workspaceId: wid, userId: uid, role }));
 export const isWorkspaceMember = async (db: FixtureDatabase, uid: number, wid: number) =>
   !!(await storageFor(db).workspaces.forMember(uid, wid));
-export const getWorkspaceRole = (db: FixtureDatabase, uid: number, wid: number) =>
-  storageFor(db).workspaces.getRole(uid, wid);
-export const countWorkspaceMembers = (db: FixtureDatabase, wid: number) => storageFor(db).workspaces.countMembers(wid);
 export const listTimeEntries = (db: FixtureDatabase, uid: number) => storageFor(db).entries.list(uid);
 export const listDeletedEntries = (db: FixtureDatabase, uid: number) => storageFor(db).entries.listDeleted(uid);
 export const createTimeEntry = (db: FixtureDatabase, user: User, wid: number, body: Record<string, unknown>) =>

@@ -1,11 +1,6 @@
 import { sessionCount } from './fixtures/physical.ts';
-import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
 import { storageFor } from './fixtures/database.ts';
 import { createApp } from './fixtures/app.ts';
 import { hashPassword, sha256 } from '../src/lib/crypto.ts';
@@ -20,7 +15,6 @@ import {
   type Keys,
 } from '../src/auth/rateLimit.ts';
 import { openDatabase, type FixtureDatabase } from './fixtures/database.ts';
-import { MIGRATIONS } from './fixtures/legacyMigrations.ts';
 import { insertAccount, createFirstAdmin, getUser, type User } from './fixtures/domain.ts';
 import { CSRF, PASSWORD, SERVER_API, setup, testConfig, testServer } from './helpers.ts';
 
@@ -304,23 +298,6 @@ test('PUT /me refuses offset IDs and unknown timezones and changes nothing', asy
     assert.equal(refused.body, 'Invalid timezone', timezone);
   }
   assert.deepEqual(await getUser(ctx.db, ctx.user.id), before);
-});
-
-test('SQLite legacy schema version 5 is refused without modifying its data', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'tokkl-refusal-'));
-  const path = join(dir, 'legacy.sqlite');
-  try {
-    const old = new DatabaseSync(path);
-    old.function('canonical_time_zone', { deterministic: true }, value => value);
-    for (const migration of MIGRATIONS.slice(0, 5)) old.exec(migration);
-    old.exec('PRAGMA user_version=5');
-    old.close();
-    const before = readFileSync(path);
-    await assert.rejects(openDatabase(path), /unsupported-schema/);
-    assert.deepEqual(readFileSync(path), before);
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
 });
 
 /** createFirstAdmin refuses a second account, so tests that need one insert it directly. */

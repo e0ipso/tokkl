@@ -8,7 +8,7 @@ import type { Settings } from './settings.ts';
 import { snappedInstant, snappedSeconds } from './snapping.ts';
 
 /** What a finished calendar drag does to the entries, as the server should receive it. */
-export type DropChange =
+type DropChange =
   /** A plain click on an empty slot, or a resize of a running entry: nothing to save. */
   | { readonly kind: 'none' }
   /** A click on a block that did not move it: open it in the editor. */

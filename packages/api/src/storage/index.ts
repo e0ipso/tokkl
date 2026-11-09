@@ -1,6 +1,6 @@
 import type { StorageConnection } from './connections.ts';
 import type { PhysicalDatabase } from './physical.ts';
-import type { RateLimitChecks, ReadOnlyRepositories, Storage, TransactionContext } from '../domain/ports.ts';
+import type { RateLimitChecks, Repositories, Storage, TransactionContext } from '../domain/ports.ts';
 import { createTransactionRunner, type TransactionRunnerOptions } from './transactions.ts';
 import { createAccountRepositories } from './repositories/accounts.ts';
 import { createCatalogRepositories } from './repositories/catalogs.ts';
@@ -9,7 +9,7 @@ import { createTimerRepositories } from './repositories/timers.ts';
 import { createTransferRepositories } from './repositories/transfers.ts';
 import { createReportRepositories } from './repositories/reports.ts';
 
-export type StorageOptions = TransactionRunnerOptions;
+type StorageOptions = TransactionRunnerOptions;
 
 /** Takes ownership of an initialized connection. Every operation binds all repositories together. */
 export function createStorage(connection: StorageConnection<PhysicalDatabase>, options: StorageOptions = {}): Storage {
@@ -42,7 +42,7 @@ export function createStorage(connection: StorageConnection<PhysicalDatabase>, o
     transaction<T>(work: (ctx: TransactionContext) => Promise<T>, options?: { dryRun?: boolean }): Promise<T> {
       return track(() => operations.transaction(work, options));
     },
-    readSnapshot<T>(work: (repositories: ReadOnlyRepositories) => Promise<T>): Promise<T> {
+    readSnapshot<T>(work: (repositories: Repositories) => Promise<T>): Promise<T> {
       return track(() => operations.readSnapshot(work));
     },
   };

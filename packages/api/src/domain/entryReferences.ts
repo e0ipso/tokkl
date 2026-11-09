@@ -48,7 +48,7 @@ export function currentTagIds(row: EntryDetails): Id[] {
   return row.tags.map(tag => tag.id);
 }
 
-export interface ResolvedProject {
+interface ResolvedProject {
   projectId: Id | null;
   taskId: Id | null;
   project: ProjectRef | null | undefined;

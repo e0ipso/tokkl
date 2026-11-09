@@ -1,7 +1,10 @@
-import { test, mock } from 'node:test';
+import { afterEach, test, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import type { TimerState } from '@tokkl/types';
-import { DEFAULT_RETRY, connectTimerStream, retryDelay, type TimerEventSource } from './timerStream.ts';
+import { connectTimerStream, retryDelay, type TimerEventSource } from './timerStream.ts';
+import { timerState } from '../testFixtures.ts';
+
+afterEach(() => mock.restoreAll());
 
 class FakeSource implements TimerEventSource {
   readyState = 0;
@@ -29,17 +32,11 @@ class FakeSource implements TimerEventSource {
   }
 }
 
-const state = (revision: number): TimerState => ({
-  revision,
-  server_time: '2026-10-27T10:00:00.000Z',
-  running_entry: null,
-  pause: null,
-  pomodoro: null,
-  discarded_pomodoro: null,
-});
+const state = (revision: number) => timerState(revision);
 
 /** A stream whose retries draw `random` (0 by default, so each waits the shortest time, 5 s). */
 function setup(random: () => number = () => 0) {
+  mock.method(Math, 'random', random);
   const sources: FakeSource[] = [];
   const states: TimerState[] = [];
   const statuses: boolean[] = [];
@@ -50,7 +47,6 @@ function setup(random: () => number = () => 0) {
       return source;
     },
     { onState: s => states.push(s), onStatus: up => statuses.push(up) },
-    { retry: { ...DEFAULT_RETRY, random } },
   );
   const at = (index: number): FakeSource => {
     const source = sources[index];
@@ -219,7 +215,10 @@ test('keep-alives do not keep a connection that never sent a state', t => {
 });
 
 test('the retry wait is random between 5 s and a ceiling that doubles per failure, up to 60 s', () => {
-  const at = (random: number) => (failures: number) => retryDelay(failures, { ...DEFAULT_RETRY, random: () => random });
+  const at = (random: number) => (failures: number) => {
+    mock.method(Math, 'random', () => random);
+    return retryDelay(failures);
+  };
   assert.deepEqual([0, 1, 2, 3, 4, 10, 2000].map(at(0)), [5000, 5000, 5000, 5000, 5000, 5000, 5000]);
   assert.deepEqual([0, 1, 2, 3, 4, 10, 2000].map(at(0.5)), [7500, 12_500, 22_500, 32_500, 32_500, 32_500, 32_500]);
   assert.deepEqual([0, 1, 2, 3, 4].map(at(0.999_999)), [10_000, 20_000, 40_000, 60_000, 60_000]);

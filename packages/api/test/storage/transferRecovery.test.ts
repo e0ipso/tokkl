@@ -5,7 +5,7 @@ import { createTransactionRunner } from '../../src/storage/transactions.ts';
 import { createTransferRepositories } from '../../src/storage/repositories/transfers.ts';
 import { importsById } from '../fixtures/imports.ts';
 import { buildJsonExport } from '../fixtures/exports.ts';
-import { createTimerPublication } from '../../src/services/timerPublication.ts';
+import { createTimerPublication } from '../../src/services/timerDelivery.ts';
 import { createTimeEntry, stopTimeEntry } from '../fixtures/entryBodies.ts';
 import type { PhysicalDatabase } from '../../src/storage/physical.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
@@ -26,7 +26,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       const events: unknown[] = [],
         publish = createTimerPublication(async (id, state) => {
           events.push([id, state]);
-        });
+        }).publish;
       const imports = importsById(
         {
           async transaction(work, options) {

@@ -72,7 +72,7 @@ export function lenientNumber(value: unknown, fallback: number): number {
   return Number(value ?? fallback) || fallback;
 }
 
-export interface PageLimits {
+interface PageLimits {
   defaultPerPage: number;
   maxPerPage: number;
 }

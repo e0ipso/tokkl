@@ -12,44 +12,18 @@ import {
   splitTimeEntry,
   stopTimeEntry,
   updateTimeEntry,
-  type SplitEntries,
 } from '../domain/timeEntries.ts';
 import { getTimeEntry, type EntryTransactions } from '../domain/entryAccess.ts';
 import { idempotent } from '../domain/idempotency.ts';
 import type { IdempotencyClaim } from '../lib/idempotency.ts';
 import type { TimerPublication } from '../domain/timerSettlement.ts';
-import type { EntryDetails, Id, User } from '../domain/model.ts';
-
-/** `create` and `split` take an optional `Idempotency-Key` claim; see `domain/idempotency.ts`. */
-export interface EntryOperations {
-  create(wid: Id, entry: NewEntry, claim?: IdempotencyClaim): Promise<EntryDetails>;
-  update(wid: Id, id: Id, changes: EntryChanges): Promise<EntryDetails>;
-  /** Stops a running entry at `at`, or now. */
-  stop(wid: Id, id: Id, at?: Date): Promise<EntryDetails>;
-  /** Applies every step to each entry; a refused entry is listed under `failure`. */
-  patch(
-    wid: Id,
-    ids: Id[],
-    steps: EntryPatchStep[],
-  ): Promise<{ success: Id[]; failure: Array<{ id: Id; message: string }> }>;
-  /** Moves the entry to the trash. */
-  remove(wid: Id, id: Id): Promise<void>;
-  /** Takes an entry out of the trash. */
-  restore(id: Id): Promise<EntryDetails>;
-  /** Deletes trashed entries for good: the one with `id`, or all of them. Answers how many. */
-  purgeTrash(id?: Id): Promise<number>;
-  /** Splits a stopped entry in two, both halves or neither. */
-  split(id: Id, split: EntrySplit, claim?: IdempotencyClaim): Promise<SplitEntries>;
-}
+import type { Id, User } from '../domain/model.ts';
 
 /** `storage` checks the user's credential around each transaction. */
-export function createEntryOperations(
-  storage: EntryTransactions,
-  user: User,
-  publish: TimerPublication,
-): EntryOperations {
+export function createEntryOperations(storage: EntryTransactions, user: User, publish: TimerPublication) {
   return {
-    create: (wid, entry, claim) =>
+    /** `create` and `split` take an optional `Idempotency-Key` claim; see `domain/idempotency.ts`. */
+    create: (wid: Id, entry: NewEntry, claim?: IdempotencyClaim) =>
       storage.transaction(ctx =>
         idempotent(ctx, user.id, claim, {
           create: () => createTimeEntry(ctx, user, wid, entry, publish),
@@ -57,14 +31,16 @@ export function createEntryOperations(
           replay: id => getTimeEntry(ctx, user.id, id),
         }),
       ),
-    update: (wid, id, changes) => storage.transaction(ctx => updateTimeEntry(ctx, user, wid, id, changes, publish)),
-    stop: (wid, id, at) => storage.transaction(ctx => stopTimeEntry(ctx, user, wid, id, publish, at)),
-    patch: (wid, ids, steps) => storage.transaction(ctx => patchTimeEntries(ctx, user, wid, ids, steps, publish)),
-    remove: (wid, id) => storage.transaction(ctx => deleteTimeEntry(ctx, user.id, wid, id, publish)),
-    restore: id => storage.transaction(ctx => restoreTimeEntry(ctx, user, id, publish)),
-    purgeTrash: id => storage.transaction(ctx => purgeDeletedEntries(ctx, user.id, publish, id)),
+    update: (wid: Id, id: Id, changes: EntryChanges) =>
+      storage.transaction(ctx => updateTimeEntry(ctx, user, wid, id, changes, publish)),
+    stop: (wid: Id, id: Id, at?: Date) => storage.transaction(ctx => stopTimeEntry(ctx, user, wid, id, publish, at)),
+    patch: (wid: Id, ids: Id[], steps: EntryPatchStep[]) =>
+      storage.transaction(ctx => patchTimeEntries(ctx, user, wid, ids, steps, publish)),
+    remove: (wid: Id, id: Id) => storage.transaction(ctx => deleteTimeEntry(ctx, user.id, wid, id, publish)),
+    restore: (id: Id) => storage.transaction(ctx => restoreTimeEntry(ctx, user, id, publish)),
+    purgeTrash: (id?: Id) => storage.transaction(ctx => purgeDeletedEntries(ctx, user.id, publish, id)),
     // The entry keeps the first half, so a repeat reads it and the second half it made.
-    split: (id, split, claim) =>
+    split: (id: Id, split: EntrySplit, claim?: IdempotencyClaim) =>
       storage.transaction(ctx =>
         idempotent(ctx, user.id, claim, {
           create: () => splitTimeEntry(ctx, user, id, split, publish),

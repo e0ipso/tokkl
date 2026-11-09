@@ -1,26 +1,17 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { TimeEntry } from '@tokkl/types';
 import { dayTotals, layoutBlocks, minuteToPx, pxToMinute, rangeTotal, snapMinute } from './calendarLayout.ts';
+import { timeEntry } from '../testFixtures.ts';
 
-function entry(id: number, start: string, stop: string | null): TimeEntry {
-  return {
+const entry = (id: number, start: string, stop: string | null) =>
+  timeEntry({
     id,
-    workspace_id: 1,
-    project_id: null,
-    task_id: null,
-    billable: false,
     start,
     stop,
     duration: stop ? (Date.parse(stop) - Date.parse(start)) / 1000 : -1,
     description: '',
-    tags: [],
-    tag_ids: [],
     at: start,
-    server_deleted_at: null,
-    all_day: false,
-  };
-}
+  });
 
 test('snapMinute rounds to whole steps and stays on the day', () => {
   assert.equal(snapMinute(22, 15), 15);

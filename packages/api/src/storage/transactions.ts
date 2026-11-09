@@ -7,11 +7,11 @@ import { classifyConflict, StorageTransactionError } from './errors.ts';
 import { beginSqliteTransaction } from './sqliteBridge.ts';
 
 /** Internal only: construct ALL repositories using this exact connection-bound db. */
-export type RepositoryFactory<D, R extends object> = (db: Kysely<D>) => R;
-export interface TransactionOptions {
+type RepositoryFactory<D, R extends object> = (db: Kysely<D>) => R;
+interface TransactionOptions {
   dryRun?: boolean;
 }
-export interface TransactionRunner<R extends object> {
+interface TransactionRunner<R extends object> {
   transaction<T>(work: (context: OperationContext<R>) => Promise<T>, options?: TransactionOptions): Promise<T>;
   readSnapshot<T>(work: (repositories: R) => Promise<T>): Promise<T>;
 }

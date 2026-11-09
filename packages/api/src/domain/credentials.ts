@@ -2,7 +2,7 @@
  * When a sign-in still counts. Request authentication, the guarded rechecks around writes, the timer
  * stream checks and the account operations all apply these rules, so they agree on every credential.
  */
-import type { SessionsReader, UsersReader } from './ports.ts';
+import type { SessionsRepository, UsersRepository } from './ports.ts';
 import type { Session, User } from './model.ts';
 import { safeEqual, sha256 } from '../lib/crypto.ts';
 
@@ -28,7 +28,7 @@ const sessionLive = (session: Session, now: string) => session.expiresAt >= now;
 
 /** The live session for a cookie token and its active user. */
 export async function findActiveSession(
-  ctx: { sessions: Pick<SessionsReader, 'find'>; users: Pick<UsersReader, 'get'> },
+  ctx: { sessions: Pick<SessionsRepository, 'find'>; users: Pick<UsersRepository, 'get'> },
   token: string,
 ): Promise<{ session: Session; user: User } | undefined> {
   const session = await ctx.sessions.find(sha256(token));
@@ -43,7 +43,7 @@ export async function findActiveSession(
  * a password sign-in, the token seen then). Tokens are compared in constant time.
  */
 export async function credentialHolds(
-  ctx: { sessions: Pick<SessionsReader, 'find'> },
+  ctx: { sessions: Pick<SessionsRepository, 'find'> },
   seen: User,
   credential: AccountCredential,
   current: User | undefined,
@@ -60,7 +60,7 @@ export async function credentialHolds(
 
 /** Reads the account again and applies `credentialHolds`, in the caller's snapshot or under its guards. */
 export async function currentCredentialUser(
-  ctx: { sessions: Pick<SessionsReader, 'find'>; users: Pick<UsersReader, 'get'> },
+  ctx: { sessions: Pick<SessionsRepository, 'find'>; users: Pick<UsersRepository, 'get'> },
   seen: User,
   credential: AccountCredential,
 ): Promise<User | undefined> {
@@ -69,7 +69,7 @@ export async function currentCredentialUser(
 
 /** `currentCredentialUser` for a signed-in request. */
 export function authenticatedUser(
-  ctx: { sessions: Pick<SessionsReader, 'find'>; users: Pick<UsersReader, 'get'> },
+  ctx: { sessions: Pick<SessionsRepository, 'find'>; users: Pick<UsersRepository, 'get'> },
   auth: Authentication,
 ): Promise<User | undefined> {
   return currentCredentialUser(ctx, auth.user, auth.credential);

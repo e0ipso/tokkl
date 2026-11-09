@@ -61,8 +61,7 @@ export const DEFAULT_TIMER_STREAM_LIMITS: Readonly<TimerStreamLimits> = Object.f
   maxStreams: 1000,
 });
 
-/** Limits left out take their `DEFAULT_TIMER_STREAM_LIMITS` value. */
-export interface TimerStreamOptions extends Partial<TimerStreamLimits> {
+interface TimerStreamOptions extends TimerStreamLimits {
   /** Called, never awaited, when a keep-alive check reads a revision newer than this process delivered. */
   onBehind?: (id: number, revision: number) => void;
 }
@@ -98,16 +97,9 @@ export class TimerStreams {
   readonly #options: TimerStreamLimits;
   readonly #onBehind: (id: number, revision: number) => void;
   #closed = false;
-  constructor(state: (id: number) => Promise<TimerState>, options: TimerStreamOptions = {}) {
+  constructor(state: (id: number) => Promise<TimerState>, options: TimerStreamOptions) {
     this.#state = state;
-    const defaults = DEFAULT_TIMER_STREAM_LIMITS;
-    this.#options = {
-      keepAliveMs: options.keepAliveMs ?? defaults.keepAliveMs,
-      drainTimeoutMs: options.drainTimeoutMs ?? defaults.drainTimeoutMs,
-      maxBufferedBytes: options.maxBufferedBytes ?? defaults.maxBufferedBytes,
-      maxPerUser: options.maxPerUser ?? defaults.maxPerUser,
-      maxStreams: options.maxStreams ?? defaults.maxStreams,
-    };
+    this.#options = { ...options };
     this.#onBehind = options.onBehind ?? (() => {});
   }
   #group(id: number): Group {

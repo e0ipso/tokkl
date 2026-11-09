@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ADDRESS_LIMIT } from '../src/auth/rateLimit.ts';
 import { INVITE_NOT_FOUND } from '../src/domain/accountLinks.ts';
-import { addUser, CSRF, setup, type TestContext } from './helpers.ts';
+import { addUser, anonymous, CSRF, setup, type TestContext } from './helpers.ts';
 
 const DAY_MS = 86_400_000;
 const NEW_PASSWORD = 'invited person 1';
@@ -17,15 +17,6 @@ async function invite(admin: TestContext, body: Record<string, unknown> = { role
   const created = JSON.parse(text) as { id: number; url: string; expires_at: string; created_at: string };
   return { ...created, token: created.url.replace(/^\/invite\//, ''), text };
 }
-
-/** A request without the admin's API token, as a logged-out browser sends it. */
-const anonymous = (
-  ctx: TestContext,
-  method: string,
-  path: string,
-  body?: unknown,
-  headers: Record<string, string> = {},
-) => ctx.request(method, path, body, { authorization: '', ...headers });
 
 const accept = (ctx: TestContext, token: string, account: Record<string, unknown>) =>
   anonymous(

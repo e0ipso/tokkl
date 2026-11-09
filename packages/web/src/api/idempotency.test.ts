@@ -2,11 +2,11 @@ import { test, type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { ApiError, RequestTimeoutError } from './client.ts';
 import { clientRequests } from './clients.ts';
-import { ignoreReply } from './decode.ts';
 import { entryRequests } from './entries.ts';
 import { postCreate, sendCreate } from './idempotency.ts';
 import { projectRequests } from './projects.ts';
 import { tagRequests } from './tags.ts';
+import { project, timeEntry } from '../testFixtures.ts';
 
 /**
  * A fetch that answers each request with the next of `replies` (a status and JSON body, or an error
@@ -115,20 +115,17 @@ test('the same request sent again during the wait reuses the key', async t => {
 test('a refused create is not sent again', async t => {
   const { fetch, sent } = answering({ status: 400, body: 'Name taken' });
   t.mock.method(globalThis, 'fetch', fetch);
-  await assert.rejects(
-    postCreate('/api/v9/workspaces/1/tags', { name: 'refused' }, { decode: ignoreReply }),
-    (error: unknown) => {
-      return error instanceof ApiError && error.status === 400;
-    },
-  );
+  await assert.rejects(postCreate('/api/v9/workspaces/1/tags', { name: 'refused' }), (error: unknown) => {
+    return error instanceof ApiError && error.status === 400;
+  });
   assert.equal(sent.length, 1);
 });
 
 test('a new intent gets a new key, even for the same request', async t => {
   const { fetch, sent } = answering({ status: 200, body: { id: 1 } }, { status: 200, body: { id: 2 } });
   t.mock.method(globalThis, 'fetch', fetch);
-  await postCreate('/api/v9/workspaces/1/tags', { name: 'twice' }, { decode: ignoreReply });
-  await postCreate('/api/v9/workspaces/1/tags', { name: 'twice' }, { decode: ignoreReply });
+  await postCreate('/api/v9/workspaces/1/tags', { name: 'twice' });
+  await postCreate('/api/v9/workspaces/1/tags', { name: 'twice' });
   assert.deepEqual(sent[1]?.body, sent[0]?.body);
   assert.notEqual(sent[1]?.key, sent[0]?.key);
 });
@@ -203,38 +200,16 @@ test('a new intent forgets the kept keys past their 23 hours, and only those', a
 
 /** What each create answers, in the order the test below sends them: the record it made, or for a task nothing read. */
 const created = [
-  {
+  timeEntry({
     id: 1,
-    workspace_id: 1,
-    project_id: null,
-    task_id: null,
-    billable: false,
     start: '2026-10-27T10:00:00+00:00',
     stop: '2026-10-27T11:00:00+00:00',
     duration: 3600,
     description: 'Entry',
-    tags: [],
-    tag_ids: [],
     at: '2026-10-27T11:00:00+00:00',
-    server_deleted_at: null,
-    all_day: false,
-  },
+  }),
   { id: 1, wid: 1, name: 'Client', notes: null, archived: false },
-  {
-    id: 2,
-    workspace_id: 1,
-    client_id: null,
-    client_name: null,
-    name: 'Project',
-    color: '#06aaf5',
-    active: true,
-    billable: false,
-    estimated_hours: null,
-    rate: null,
-    currency: null,
-    actual_seconds: 0,
-    status: 'active',
-  },
+  project({ id: 2, name: 'Project', color: '#06aaf5' }),
   { id: 1 },
   { id: 1, workspace_id: 1, name: 'Tag' },
 ];

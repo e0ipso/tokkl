@@ -9,7 +9,7 @@ import {
   unchangedActive,
 } from '../domain/credentials.ts';
 import type { User } from '../domain/model.ts';
-import type { UsersReader } from '../domain/ports.ts';
+import type { UsersRepository } from '../domain/ports.ts';
 import { clientAddress, getCookie } from '../http/request.ts';
 import { forbidden, tooManyAttempts } from '../lib/errors.ts';
 import { safeEqual, verifyAgainstDummy, verifyPassword } from '../lib/crypto.ts';
@@ -29,7 +29,7 @@ declare module 'express-serve-static-core' {
     auth: Authentication;
   }
 }
-export type AuthHandler = RequestHandler<Record<string, string>, unknown, unknown, Request['query'], AuthLocals>;
+type AuthHandler = RequestHandler<Record<string, string>, unknown, unknown, Request['query'], AuthLocals>;
 
 export function hasCsrfHeader(req: Request): boolean {
   return req.headers[CSRF_HEADER] === '1' || req.headers[LEGACY_CSRF_HEADER] === '1';
@@ -69,7 +69,7 @@ export async function authenticatePassword<R extends AccountRepositories>(
   if (!seen || !result.valid) return;
   return runner.readSnapshot(ctx => currentActiveUser(ctx, seen));
 }
-async function currentActiveUser(ctx: { users: Pick<UsersReader, 'get'> }, seen: User): Promise<User | undefined> {
+async function currentActiveUser(ctx: { users: Pick<UsersRepository, 'get'> }, seen: User): Promise<User | undefined> {
   const current = await ctx.users.get(seen.id);
   return unchangedActive(current, seen) ? current : undefined;
 }

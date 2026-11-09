@@ -7,13 +7,7 @@ import { createAccountOperations } from '../fixtures/accountBodies.ts';
 import { composeApp } from '../fixtures/app.ts';
 import { testConfig, testServer, setup, addUser } from '../helpers.ts';
 import { addWorkspaceMember } from '../fixtures/domain.ts';
-function gate() {
-  let resolve!: () => void;
-  const promise = new Promise<void>(r => {
-    resolve = r;
-  });
-  return { promise, resolve };
-}
+import { gate } from './support/invariantHttp.ts';
 test('credentials revoked after HTTP authentication cannot authorize an entry write', async t => {
   const storage = createStorage(
     await initializeDatabase({ backend: 'sqlite', filename: ':memory:', busyTimeoutMs: 5000 }),
@@ -139,7 +133,7 @@ for (const backend of ['postgres', 'mysql', 'mariadb'] as const)
             owner,
             owner.defaultWorkspaceId,
             { start: '2026-10-30T12:00:00Z' },
-            services.publish,
+            services.push.publish,
           )
         ).id;
         entered.resolve();

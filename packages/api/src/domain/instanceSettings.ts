@@ -1,5 +1,5 @@
 import { isTimeResolution } from '@tokkl/common/snap';
-import type { SettingsReader } from './ports.ts';
+import type { SettingsRepository } from './ports.ts';
 import type { InstanceSettings } from './model.ts';
 
 /** Every time resolution an admin can choose: the divisors of 60. */
@@ -43,7 +43,7 @@ export function timeResolutionOf(stored: Partial<InstanceSettings>): number {
 
 /** The effective settings: stored values that pass their rule, else the deployment's defaults. */
 export async function getInstanceSettings(
-  ctx: { settings: SettingsReader },
+  ctx: { settings: SettingsRepository },
   deploymentSessionDays: number,
 ): Promise<InstanceSettings> {
   const stored = await ctx.settings.read();

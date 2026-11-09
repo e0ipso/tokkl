@@ -16,10 +16,7 @@ import { presentPomodoroLimits, presentServerApi } from '../presenters/serverApi
 import type { AppStatus, CatalogRevision, TrashTotal } from '@tokkl/types';
 import { TRASH_READ_LIMIT } from '../domain/ports.ts';
 
-export type AppRouteDeps = Pick<
-  Deps,
-  'auth' | 'sessions' | 'readFor' | 'entriesFor' | 'exportAccount' | 'preferencesFor'
->;
+type AppRouteDeps = Pick<Deps, 'auth' | 'sessions' | 'readFor' | 'entriesFor' | 'exportAccount' | 'preferencesFor'>;
 
 export function appRoutes(deps: AppRouteDeps): Router {
   const { sessions } = deps;

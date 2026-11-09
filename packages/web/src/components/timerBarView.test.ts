@@ -1,24 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { TimeEntry, TimerPause, TimerPomodoro, TimerState } from '@tokkl/types';
+import type { TimerPause, TimerPomodoro, TimerState } from '@tokkl/types';
 import { descriptionPlaceholder, pauseAnnouncement, timerBarClass, timerBarView } from './timerBarView.ts';
+import { timeEntry, timerState } from '../testFixtures.ts';
 
-const entry: TimeEntry = {
-  id: 7,
-  workspace_id: 1,
-  project_id: null,
-  task_id: null,
-  billable: false,
-  start: '2026-10-27T10:00:00.000Z',
-  stop: null,
-  duration: -1,
-  description: 'Write',
-  tags: [],
-  tag_ids: [],
-  at: '2026-10-27T10:00:00.000Z',
-  server_deleted_at: null,
-  all_day: false,
-};
+const entry = timeEntry();
 
 const pause: TimerPause = {
   paused: true,
@@ -33,17 +19,8 @@ const pause: TimerPause = {
   clone_entry_id: null,
 };
 
-function state(overrides: Partial<TimerState>): TimerState {
-  return {
-    revision: 1,
-    server_time: '2026-10-27T10:00:05.000Z',
-    running_entry: null,
-    pause: null,
-    pomodoro: null,
-    discarded_pomodoro: null,
-    ...overrides,
-  };
-}
+const state = (overrides: Partial<TimerState>) =>
+  timerState(1, { server_time: '2026-10-27T10:00:05.000Z', ...overrides });
 
 test('a running entry wins over the manual preference', () => {
   const view = timerBarView(state({ running_entry: entry }), true);

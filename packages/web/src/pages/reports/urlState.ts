@@ -9,7 +9,7 @@ export type Tab = (typeof TABS)[number];
 export const GROUPINGS: readonly Grouping[] = ['projects', 'clients', 'tags', 'time_entries', 'tasks'];
 export type SubGrouping = Grouping | 'none';
 
-export type BillableFilter = 'all' | 'billable' | 'nonbillable';
+type BillableFilter = 'all' | 'billable' | 'nonbillable';
 export type SortKey = 'date' | 'duration' | 'description';
 export type SortDir = 'asc' | 'desc';
 export type WeeklyRows = 'projects' | 'clients';
@@ -79,7 +79,7 @@ function formatIds(ids: IdFilter, negated: boolean): string {
   return `${negated ? 'not.' : ''}${ids.map(id => (id === null ? 'none' : String(id))).join('.')}`;
 }
 
-export function parseState(
+function parseState(
   params: URLSearchParams,
   todayKey: string,
   beginningOfWeek: number,
@@ -121,7 +121,7 @@ export function parseState(
 }
 
 /** Writes only the values that differ from the defaults, so URLs stay short. */
-export function serializeState(state: ReportState): URLSearchParams {
+function serializeState(state: ReportState): URLSearchParams {
   const params = new URLSearchParams();
   if (state.preset) {
     if (state.preset !== DEFAULT_PRESET) params.set('range', state.preset);

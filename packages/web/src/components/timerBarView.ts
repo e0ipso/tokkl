@@ -5,7 +5,7 @@ import { t } from '../i18n/messages.ts';
 export type TimerBarMode = 'running' | 'paused' | 'manual' | 'idle';
 
 /** What the timer bar shows for a timer state. */
-export interface TimerBarView {
+interface TimerBarView {
   mode: TimerBarMode;
   /** The running entry the bar shows; null during a Pomodoro session, which the Pomodoro page owns. */
   current: TimeEntry | null;

@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type RefObject } from 'react';
 import type { Report } from '@tokkl/types';
 import { activeLocale } from '../../i18n/locale.ts';
 import { duration } from '../../lib/format.ts';
@@ -6,6 +6,9 @@ import type { Settings } from '../../lib/settings.ts';
 import { ChartDataTable, ChartTooltip, StripePattern, Swatch } from './SeriesChartParts.tsx';
 import {
   axisLabel,
+  DEFAULT_GEOMETRY,
+  readGeometry,
+  type Geometry,
   chartLayout,
   columnShape,
   isChartKey,
@@ -14,7 +17,6 @@ import {
   tooltipPosition,
   type Resolution,
 } from './seriesChartLayout.ts';
-import { useGeometry, useWidth } from './useChartSize.ts';
 import { t, type MessageKey } from '../../i18n/messages.ts';
 
 const hoursFormat = new Intl.NumberFormat(activeLocale.numberLocale, { maximumFractionDigits: 2 });
@@ -168,4 +170,31 @@ export function SeriesChart({
       <ChartDataTable series={series} resolution={resolution} settings={settings} />
     </div>
   );
+}
+
+/** The element's content width, kept up to date while it resizes. */
+function useWidth(ref: RefObject<HTMLElement | null>): number {
+  const [width, setWidth] = useState(0);
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    setWidth(element.clientWidth);
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry) setWidth(Math.floor(entry.contentRect.width));
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [ref]);
+  return width;
+}
+
+/** Reads the geometry from the element's custom properties once, before the first paint. */
+function useGeometry(ref: RefObject<HTMLElement | null>): Geometry {
+  const [geometry, setGeometry] = useState(DEFAULT_GEOMETRY);
+  useLayoutEffect(() => {
+    if (!ref.current) return;
+    const style = getComputedStyle(ref.current);
+    setGeometry(readGeometry(name => style.getPropertyValue(name)));
+  }, [ref]);
+  return geometry;
 }

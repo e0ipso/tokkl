@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { coversPreviousRange } from './entriesPlaceholder.ts';
+import { coversPreviousRange } from './entries.ts';
 
 const key = (start: string, end: string) => ['entries', start, end] as const;
 

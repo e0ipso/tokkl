@@ -2,13 +2,10 @@ import { storageFor } from './fixtures/database.ts';
 import { sessionCount as countSessions } from './fixtures/physical.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { CSRF, PASSWORD, addUser, duringPasswordCheck, sessionCookie, setup, type TestContext } from './helpers.ts';
+import { addUser, duringPasswordCheck, login, PASSWORD, sessionCookie, setup, type TestContext } from './helpers.ts';
 
 const basicPassword = (email: string, password = PASSWORD) =>
   `Basic ${Buffer.from(`${email}:${password}`).toString('base64')}`;
-
-const login = (ctx: TestContext, email: string) =>
-  ctx.request('POST', '/api/app/login', { email, password: PASSWORD }, { authorization: '', ...CSRF });
 
 const sessionCount = (ctx: TestContext, userId: number) => countSessions(ctx.db, userId);
 
