@@ -134,8 +134,3 @@ export function createApplication({
   app.use(errorHandler(logger));
   return { app, services: deps };
 }
-
-/** The Express app of `createApplication`, for callers that serve it and never call a service directly. */
-export function createApp(options: AppOptions): Express {
-  return createApplication(options).app;
-}

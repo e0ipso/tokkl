@@ -20,7 +20,7 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { createApp } from '../../../../packages/api/src/app.ts';
+import { createApp } from '../../../../packages/api/test/fixtures/app.ts';
 import { addUser, setup, testConfig, type TestContext } from '../../../../packages/api/test/helpers.ts';
 
 const RUN_TIMEOUT_MS = 20 * 60 * 1000;

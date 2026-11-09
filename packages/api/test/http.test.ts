@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { storageFor } from './fixtures/database.ts';
-import { createApp } from '../src/app.ts';
+import { createApp } from './fixtures/app.ts';
 import { openDatabase } from './fixtures/database.ts';
 import { createFirstAdmin } from './fixtures/domain.ts';
 import { CSRF, PASSWORD, setup, testConfig, testServer } from './helpers.ts';

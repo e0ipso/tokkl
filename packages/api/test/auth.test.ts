@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { storageFor } from './fixtures/database.ts';
-import { createApp } from '../src/app.ts';
+import { createApp } from './fixtures/app.ts';
 import { hashPassword, sha256 } from '../src/lib/crypto.ts';
 import { MAX_PASSWORD_LENGTH, normalizeEmail } from '../src/domain/accountValues.ts';
 import {
@@ -352,7 +352,7 @@ test('PUT /me refuses an email another user has, in any case, and allows recasin
 });
 
 test('behind a trusted proxy the rate limit keys on the last X-Forwarded-For hop', async () => {
-  const { createApp: create } = await import('../src/app.ts');
+  const { createApp: create } = await import('./fixtures/app.ts');
   const { openDatabase: open } = await import('./fixtures/database.ts');
   const { createFirstAdmin } = await import('./fixtures/domain.ts');
   const db = await open();

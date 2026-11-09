@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import type { AppStatus, CatalogRevision, ServerApi, ServerCapability, TimerState } from '@tokkl/types';
 import { storageFor } from './fixtures/database.ts';
 import { SERVER_API, setup, testConfig, testServer, type TestContext } from './helpers.ts';
-import { createApp } from '../src/app.ts';
+import { createApp } from './fixtures/app.ts';
 import { OPTIONAL_REVISION_ACTIONS } from '../src/commands/timers.ts';
 import { createLogger } from '../src/lib/logger.ts';
 

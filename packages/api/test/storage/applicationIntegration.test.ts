@@ -3,7 +3,8 @@ import { test } from 'node:test';
 import { createStorage } from '../fixtures/storageShortcuts.ts';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createAccountOperations } from '../fixtures/accountBodies.ts';
-import { createApp, createApplication } from '../../src/app.ts';
+import { createApplication } from '../../src/app.ts';
+import { createApp } from '../fixtures/app.ts';
 import { testConfig, testServer, setup, addUser } from '../helpers.ts';
 import { addWorkspaceMember } from '../fixtures/domain.ts';
 function gate() {

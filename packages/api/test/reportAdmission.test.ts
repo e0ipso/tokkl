@@ -14,7 +14,7 @@ import { createApplicationServices } from '../src/services/application.ts';
 import { createLocalTimerBus } from '../src/storage/timerBus.ts';
 import { ReportRunner, type ReportExecutor } from '../src/services/reportRunner.ts';
 import { createReportRunner } from '../src/reportRunners.ts';
-import { createApp } from '../src/app.ts';
+import { createApp } from './fixtures/app.ts';
 import { testConfig, testServer } from './helpers.ts';
 import { runReport, runExport } from './fixtures/reportRunner.ts';
 import { fakeReportWorkers, postedJobs } from './fixtures/fakeReportWorker.ts';

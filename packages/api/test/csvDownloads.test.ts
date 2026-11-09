@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { storageFor } from './fixtures/database.ts';
-import { createApp } from '../src/app.ts';
+import { createApp } from './fixtures/app.ts';
 import { createReportRunner } from '../src/reportRunners.ts';
 import { runReport } from './fixtures/reportRunner.ts';
 import type { JobSource } from '../src/services/reportExecution.ts';

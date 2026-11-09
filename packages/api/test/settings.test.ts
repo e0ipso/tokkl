@@ -6,7 +6,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { storageFor } from './fixtures/database.ts';
-import { createApp } from '../src/app.ts';
+import { createApp } from './fixtures/app.ts';
 import { sha256 } from '../src/lib/crypto.ts';
 import { openDatabase, type FixtureDatabase } from './fixtures/database.ts';
 import { createFirstAdmin, type User } from './fixtures/domain.ts';

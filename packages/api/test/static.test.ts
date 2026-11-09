@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { storageFor } from './fixtures/database.ts';
-import { createApp } from '../src/app.ts';
+import { createApp } from './fixtures/app.ts';
 import { openDatabase } from './fixtures/database.ts';
 import { testConfig, testServer } from './helpers.ts';
 

@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createApp } from '../../src/app.ts';
+import { createApp } from './app.ts';
 import type { Config } from '../../src/config.ts';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createStorage } from '../../src/storage/index.ts';

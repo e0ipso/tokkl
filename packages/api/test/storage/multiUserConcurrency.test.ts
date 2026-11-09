@@ -7,7 +7,7 @@ import { createStorage } from '../fixtures/storageShortcuts.ts';
 import { openConnection } from '../../src/storage/connections.ts';
 import type { PhysicalDatabase } from '../../src/storage/physical.ts';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
-import { createApp } from '../../src/app.ts';
+import { createApp } from '../fixtures/app.ts';
 import { testConfig } from '../helpers.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 import { readTimerStream, serveInvariant, transactionBarrier } from './support/invariantHttp.ts';
