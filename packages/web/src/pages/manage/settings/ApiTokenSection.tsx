@@ -17,7 +17,7 @@ export function ApiTokenSection({ me }: { me: Me }) {
   const [confirmReset, setConfirmReset] = useState(false);
   const origin = window.location.origin;
 
-  const reset = useAction<void, string>({
+  const reset = useAction({
     mutationFn: accountRequests.resetApiToken,
     invalidate: stale.credentials,
     success: t('settings.tokenReset'),

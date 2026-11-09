@@ -1,7 +1,6 @@
 import type { Page, Route } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
-import { chooseCsv, openSettings, recentDate, transferFixture } from './transfer-tests-helpers.ts';
 
 // Canaries for the runtimeErrors fixture. Each one provokes a failure, checks that verify() rejects
 // with it, then empties the list so the fixture's own verify() at teardown passes. Only these
@@ -9,32 +8,21 @@ import { chooseCsv, openSettings, recentDate, transferFixture } from './transfer
 
 test('an error hidden by ErrorBoundary fails the scenario', async ({ page, runtimeErrors }, testInfo) => {
   await login(page);
-  await openSettings(page);
-  // Every GET reply is decoded, so a malformed one fails its query instead of a render. A Toggl CSV
-  // preview reply is a write reply the settings page renders unchecked: one whose `skipped` is not
-  // a list makes the import summary throw while rendering.
-  const preview = {
-    dry_run: true,
-    rows: 1,
-    created: 1,
-    skipped_duplicates: 0,
-    created_projects: [],
-    created_clients: [],
-    errors: [],
-    users: [],
-    skipped: 5,
-  };
-  await page.route(/\/api\/app\/import\/toggl-csv\?dry_run=true$/, route =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(preview) }),
-  );
-  await chooseCsv(page, transferFixture('toggl-detailed.csv', { RECENT_DATE: recentDate() }));
+  // Every reply is decoded, so a malformed one fails its request instead of a render. An account
+  // time zone is decoded as text, and the server only stores canonical zone names: one the browser
+  // does not know makes date formatting throw while rendering.
+  await page.route(/\/api\/v9\/me$/, async route => {
+    const response = await route.fetch();
+    await route.fulfill({ response, json: { ...(await response.json()), timezone: 'Nowhere/Never' } });
+  });
+  await page.reload();
   // The error page is an alert with the page's h1 and a way back.
   const alert = page
     .getByRole('alert')
     .filter({ has: page.getByRole('heading', { level: 1, name: 'Something broke on this page' }) });
   await expect(alert).toBeVisible();
   await expect(alert.getByRole('button', { name: 'Try again' })).toBeVisible();
-  await expect(runtimeErrors.verify(testInfo)).rejects.toThrow(/console: TypeError: .* is not a function/);
+  await expect(runtimeErrors.verify(testInfo)).rejects.toThrow(/console: RangeError: .*Nowhere\/Never/);
   runtimeErrors.issues.splice(0);
 });
 

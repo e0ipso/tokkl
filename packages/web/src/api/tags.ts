@@ -1,12 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useWid } from './account.ts';
 import { api } from './client.ts';
+import { ignoreReply } from './decode.ts';
 import { postCreate } from './idempotency.ts';
 import { invalidate } from './invalidate.ts';
 import { keys, stale } from './keys.ts';
 import { wsPath } from './paths.ts';
-import { tagListReply } from './replies.ts';
-import type { Tag } from './types.ts';
+import { tagListReply, tagReply } from './replies.ts';
 
 export function useTags() {
   const wid = useWid();
@@ -22,9 +22,9 @@ export function useTags() {
  * carries an `Idempotency-Key` (`postCreate` in idempotency.ts).
  */
 export const tagRequests = {
-  create: (wid: number, name: string) => postCreate<Tag>(wsPath(wid, 'tags'), { name }),
-  rename: (wid: number, id: number, name: string) => api.put<Tag>(wsPath(wid, 'tags', id), { name }),
-  remove: (wid: number, id: number) => api.delete(wsPath(wid, 'tags', id)),
+  create: (wid: number, name: string) => postCreate(wsPath(wid, 'tags'), { name }, { decode: tagReply }),
+  rename: (wid: number, id: number, name: string) => api.put(wsPath(wid, 'tags', id), { name }, { decode: tagReply }),
+  remove: (wid: number, id: number) => api.delete(wsPath(wid, 'tags', id), undefined, { decode: ignoreReply }),
 };
 
 /** Creates a tag from a picker, with no toast: the picker shows the new tag checked. */

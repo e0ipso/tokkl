@@ -2,15 +2,22 @@ import { useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useWid } from './account.ts';
 import { api } from './client.ts';
+import { ignoreReply } from './decode.ts';
 import { coversPreviousRange } from './entriesPlaceholder.ts';
 import { postCreate } from './idempotency.ts';
 import { invalidate } from './invalidate.ts';
 import { keys, stale } from './keys.ts';
 import { APP, V9, wsPath } from './paths.ts';
-import { entryBoundsReply, entryListReply, timeEntryReply } from './replies.ts';
+import {
+  bulkPatchResultReply,
+  entryBoundsReply,
+  entryListReply,
+  timeEntryReply,
+  trashEmptiedReply,
+} from './replies.ts';
 import { attemptTimerRequest, editRunningEntry, timerWrite, type RunningEntryChanges } from './timerHooks.ts';
 import { MOVES_TIMER } from './timerState.ts';
-import type { BulkPatchResult, PatchOperation, TimeEntry, TimeEntryInput, TimerState } from './types.ts';
+import type { PatchOperation, TimeEntry, TimeEntryInput, TimerState } from './types.ts';
 
 /** Time entries: lists, writes and the trash. The running entry comes from the timer state (timerHooks.ts). */
 
@@ -59,13 +66,18 @@ export const entryRequests = {
     }),
   get: (id: number) => api.get(`${V9}/me/time_entries/${id}?meta=true`, { decode: timeEntryReply }),
   create: (wid: number, input: TimeEntryInput) =>
-    postCreate<TimeEntry>(`${wsPath(wid, 'time_entries')}?meta=true`, { created_with: 'tokkl-web', ...input }),
+    postCreate(
+      `${wsPath(wid, 'time_entries')}?meta=true`,
+      { created_with: 'tokkl-web', ...input },
+      { decode: timeEntryReply },
+    ),
+  /** Saves an edit. The views refetch the entry rather than read the reply. */
   update: (wid: number, id: number, input: TimeEntryInput) =>
-    api.put<TimeEntry>(`${wsPath(wid, 'time_entries', id)}?meta=true`, input),
-  remove: (wid: number, id: number) => api.delete<null>(wsPath(wid, 'time_entries', id)),
+    api.put(`${wsPath(wid, 'time_entries', id)}?meta=true`, input, { decode: ignoreReply }),
+  remove: (wid: number, id: number) => api.delete(wsPath(wid, 'time_entries', id), undefined, { decode: ignoreReply }),
   /** Deletes a trashed entry for good. */
-  purge: (id: number) => api.delete(`${APP}/trash/${id}`),
-  emptyTrash: () => api.delete<{ deleted: number }>(`${APP}/trash`),
+  purge: (id: number) => api.delete(`${APP}/trash/${id}`, undefined, { decode: ignoreReply }),
+  emptyTrash: () => api.delete(`${APP}/trash`, undefined, { decode: trashEmptiedReply }),
 };
 
 function useInvalidateEntries() {
@@ -109,7 +121,7 @@ function inEntryScope<T>(qc: QueryClient, id: number, write: () => Promise<T>, o
  * stopped entries go this way; edits of the running entry go through the timer
  * (`updateRunningEntry`).
  */
-export function updateEntry(qc: QueryClient, wid: number, { id, ...input }: EntryUpdate): Promise<TimeEntry> {
+export function updateEntry(qc: QueryClient, wid: number, { id, ...input }: EntryUpdate): Promise<void> {
   return inEntryScope(
     qc,
     id,
@@ -131,7 +143,7 @@ export function updateRunningEntry(qc: QueryClient, { id, ...changes }: RunningE
 }
 
 /** What the entry edit hooks return: `mutate` reports a failure to `onError` only. */
-export interface EntryUpdater<Update = EntryUpdate, Reply = TimeEntry> {
+export interface EntryUpdater<Update = EntryUpdate, Reply = void> {
   mutate(update: Update, options?: { onError?: (error: Error) => void }): void;
   mutateAsync(update: Update): Promise<Reply>;
 }
@@ -204,7 +216,7 @@ export function useRestoreEntry() {
   const onSuccess = useInvalidateEntries();
   return useMutation({
     meta: MOVES_TIMER,
-    mutationFn: (id: number) => api.post<TimeEntry>(`${APP}/time_entries/${id}/restore`),
+    mutationFn: (id: number) => api.post(`${APP}/time_entries/${id}/restore`, undefined, { decode: ignoreReply }),
     onSuccess,
   });
 }
@@ -216,7 +228,7 @@ export function useBulkPatch() {
   return useMutation({
     meta: MOVES_TIMER,
     mutationFn: ({ ids, operations }: { ids: number[]; operations: PatchOperation[] }) =>
-      api.patch<BulkPatchResult>(wsPath(wid, 'time_entries', ids.join(',')), operations),
+      api.patch(wsPath(wid, 'time_entries', ids.join(',')), operations, { decode: bulkPatchResultReply }),
     onSuccess,
   });
 }
@@ -231,19 +243,18 @@ export interface SplitSpans {
  * Splits a stopped entry in two at the halves' shared boundary. The server cuts the entry's
  * snapped span there and writes both halves in one transaction, so a failed split changes nothing.
  * It carries an `Idempotency-Key` (`postCreate`), so a split whose reply was lost is not made
- * twice. Answers the new second half.
+ * twice. The halves show through the refetch, not the reply.
  */
 export function useSplitEntry() {
   const onSettled = useInvalidateEntries();
   return useMutation({
     meta: MOVES_TIMER,
-    mutationFn: async ({ entry, halves }: { entry: TimeEntry; halves: SplitSpans }) => {
-      const { second } = await postCreate<{ first: TimeEntry; second: TimeEntry }>(
+    mutationFn: ({ entry, halves }: { entry: TimeEntry; halves: SplitSpans }) =>
+      postCreate(
         `${APP}/time_entries/${entry.id}/split`,
         { at: halves.second.start.toISOString(), created_with: 'tokkl-web' },
-      );
-      return second;
-    },
+        { decode: ignoreReply },
+      ),
     onSettled,
   });
 }

@@ -85,9 +85,9 @@ test('edits of one entry go out one at a time, in the order made; edits of anoth
     'the second edit of entry 7 waits for the first',
   );
   requests[1]!.answer();
-  assert.equal((await other).description, 'Other');
+  await other;
   requests[0]!.answer();
-  assert.equal((await first).description, 'Wri');
+  await first;
   await tick();
   assert.deepEqual(
     requests.map(request => request.body.description),

@@ -37,7 +37,7 @@ export function ProfileSection({ me }: { me: Me }) {
   const zones = useMemo(() => timeZones(me.timezone), [me.timezone]);
   const browserZone = browserTimeZone();
 
-  const save = useAction<ProfileChanges, Me>({
+  const save = useAction<ProfileChanges>({
     mutationFn: accountRequests.saveProfile,
     // Day boundaries depend on the timezone and week start, so entry lists and reports refetch too.
     invalidate: stale.profile,

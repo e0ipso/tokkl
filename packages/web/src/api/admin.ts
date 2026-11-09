@@ -3,8 +3,16 @@ import { api } from './client.ts';
 import { keys } from './keys.ts';
 import { APP } from './paths.ts';
 import type { Checked } from './client.ts';
-import { adminAccountListReply, instanceSettingsReply, inviteListReply } from './replies.ts';
-import type { AdminAccount, CreatedInvite, InstanceSettings, PasswordResetLink, UserRole } from './types.ts';
+import { ignoreReply } from './decode.ts';
+import {
+  adminAccountListReply,
+  adminAccountReply,
+  createdInviteReply,
+  instanceSettingsReply,
+  inviteListReply,
+  passwordResetLinkReply,
+} from './replies.ts';
+import type { InstanceSettings, UserRole } from './types.ts';
 
 /**
  * Instance administration under /api/app/admin. The server answers 403 to anyone but an admin,
@@ -39,14 +47,17 @@ export type AccountChange = { role: UserRole } | { disabled: boolean };
 
 /** Admin writes. Pass them to a mutation together with the matching `stale` list. */
 export const adminRequests = {
-  updateUser: (id: number, change: AccountChange) => api.patch<AdminAccount>(`${ADMIN}/users/${id}`, change),
+  updateUser: (id: number, change: AccountChange) =>
+    api.patch(`${ADMIN}/users/${id}`, change, { decode: adminAccountReply }),
   /** Signs the account out of every browser. Its API token keeps working. */
-  revokeSessions: (id: number) => api.post(`${ADMIN}/users/${id}/sessions/revoke`),
-  createPasswordReset: (id: number) => api.post<PasswordResetLink>(`${ADMIN}/users/${id}/password-reset`),
+  revokeSessions: (id: number) => api.post(`${ADMIN}/users/${id}/sessions/revoke`, undefined, { decode: ignoreReply }),
+  createPasswordReset: (id: number) =>
+    api.post(`${ADMIN}/users/${id}/password-reset`, undefined, { decode: passwordResetLinkReply }),
   /** Deletes the account; the server checks the typed email against it. */
-  deleteUser: (id: number, email: string) => api.delete(`${ADMIN}/users/${id}`, { email }),
-  createInvite: (body: { role: UserRole; note: string }) => api.post<CreatedInvite>(`${ADMIN}/invites`, body),
-  revokeInvite: (id: number) => api.delete(`${ADMIN}/invites/${id}`),
+  deleteUser: (id: number, email: string) => api.delete(`${ADMIN}/users/${id}`, { email }, { decode: ignoreReply }),
+  createInvite: (body: { role: UserRole; note: string }) =>
+    api.post(`${ADMIN}/invites`, body, { decode: createdInviteReply }),
+  revokeInvite: (id: number) => api.delete(`${ADMIN}/invites/${id}`, undefined, { decode: ignoreReply }),
   /** The reply replaces the cached settings, so it is checked. */
   saveSettings: (changes: Partial<InstanceSettings>): Promise<Checked<InstanceSettings>> =>
     api.put(`${ADMIN}/settings`, changes, { decode: instanceSettingsReply }),

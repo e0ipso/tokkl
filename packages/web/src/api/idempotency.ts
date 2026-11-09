@@ -1,5 +1,4 @@
 import { request, type Checked, type RequestOptions } from './client.ts';
-import type { Decoder } from './decode.ts';
 import { isOutcomeUnknown } from './timerState.ts';
 
 /**
@@ -100,14 +99,8 @@ export async function sendCreate<T>(
 
 type CreateOptions<T> = Omit<RequestOptions<T>, 'body' | 'idempotencyKey'>;
 
-/** POSTs a create with an `Idempotency-Key` (`sendCreate`): `Checked` when given a decoder, trusted otherwise. */
-export function postCreate<T>(
-  path: string,
-  body: unknown,
-  options: CreateOptions<T> & { decode: Decoder<T> },
-): Promise<Checked<T>>;
-export function postCreate<T>(path: string, body: unknown, options?: CreateOptions<T>): Promise<T>;
-export function postCreate<T>(path: string, body: unknown, options: CreateOptions<T> = {}): Promise<T> {
+/** POSTs a create with an `Idempotency-Key` (`sendCreate`), its reply checked by `options.decode`. */
+export function postCreate<T>(path: string, body: unknown, options: CreateOptions<T>): Promise<Checked<T>> {
   return sendCreate(`POST ${path} ${JSON.stringify(body)}`, idempotencyKey =>
     request<T>('POST', path, { ...options, body, idempotencyKey }),
   );

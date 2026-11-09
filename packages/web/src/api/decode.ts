@@ -1,8 +1,8 @@
 /**
  * Small runtime checks for server replies. A decoder checks a value and returns it typed when it
  * fits, without converting it, and throws a `DecodeError` naming the first field that does not.
- * Query functions pass one to `api.get`/`api.post`, so a malformed reply fails the query like a
- * failed request does and the view shows its usual load error.
+ * Every request passes one: a query function's makes a malformed reply fail the query like a failed
+ * request does, so the view shows its usual load error, and a write's fails the write.
  */
 
 import { isFiniteNumber, isInstant, isSafeInteger } from '@tokkl/common/validators';
@@ -49,6 +49,13 @@ export const instant: Decoder<string> = (value, at = ROOT) =>
 
 export const boolean: Decoder<boolean> = (value, at = ROOT) =>
   typeof value === 'boolean' ? value : fail(at, t('api.expectBoolean'));
+
+/**
+ * For a write whose reply nothing reads, such as a delete or a login: whatever JSON came back, the
+ * caller gets nothing, so no view or cache can come to depend on an unchecked reply. A reply that
+ * is not JSON still fails, before any decoder runs.
+ */
+export const ignoreReply: Decoder<void> = () => undefined;
 
 /** One of a fixed set of strings, such as a role or a resolution. */
 export function oneOf<const V extends readonly string[]>(...values: V): Decoder<V[number]> {

@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useWid } from './account.ts';
 import { api } from './client.ts';
+import { ignoreReply } from './decode.ts';
 import { postCreate } from './idempotency.ts';
 import { invalidate } from './invalidate.ts';
 import { keys, stale } from './keys.ts';
 import { V9, wsPath } from './paths.ts';
-import { projectListReply, taskListReply } from './replies.ts';
+import { projectListReply, projectReply, taskListReply, taskReply } from './replies.ts';
 import type { Project, Task } from './types.ts';
 
 /** Projects and their tasks. */
@@ -69,17 +70,17 @@ export type ProjectDeletionMode = 'unassign' | 'delete';
  */
 export const projectRequests = {
   create: (wid: number, body: Partial<Project> & { name: string }) =>
-    postCreate<Project>(wsPath(wid, 'projects'), body),
+    postCreate(wsPath(wid, 'projects'), body, { decode: projectReply }),
   update: (wid: number, id: number, body: Partial<ProjectBody> & { active?: boolean }) =>
-    api.put<Project>(wsPath(wid, 'projects', id), body),
+    api.put(wsPath(wid, 'projects', id), body, { decode: projectReply }),
   remove: (wid: number, id: number, mode: ProjectDeletionMode) =>
-    api.delete(`${wsPath(wid, 'projects', id)}?teDeletionMode=${mode}`),
+    api.delete(`${wsPath(wid, 'projects', id)}?teDeletionMode=${mode}`, undefined, { decode: ignoreReply }),
   createTask: (wid: number, projectId: number, name: string) =>
-    postCreate<Task>(wsPath(wid, 'projects', projectId, 'tasks'), { name }),
+    postCreate(wsPath(wid, 'projects', projectId, 'tasks'), { name }, { decode: ignoreReply }),
   updateTask: (wid: number, projectId: number, id: number, changes: Partial<Pick<Task, 'name' | 'active'>>) =>
-    api.put<Task>(wsPath(wid, 'projects', projectId, 'tasks', id), changes),
+    api.put(wsPath(wid, 'projects', projectId, 'tasks', id), changes, { decode: taskReply }),
   removeTask: (wid: number, projectId: number, id: number) =>
-    api.delete<null>(wsPath(wid, 'projects', projectId, 'tasks', id)),
+    api.delete(wsPath(wid, 'projects', projectId, 'tasks', id), undefined, { decode: ignoreReply }),
 };
 
 /** Creates a project from a picker, with no toast: the picker shows the new project picked. */
