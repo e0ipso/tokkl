@@ -50,7 +50,7 @@ export function appRoutes(deps: AppRouteDeps): Router {
   );
   app.post('/me/preferences', auth, async (req, res) => {
     const changes = parsePreferenceChanges(readJson(req));
-    res.json(await deps.preferencesFor(res.locals.auth).savePreferences(res.locals.auth.user.id, changes));
+    res.json(await deps.preferencesFor(res.locals.auth).savePreferences(changes));
   });
   app.post('/time_entries/:id/restore', auth, async (req, res) => {
     const entry = await deps.entriesFor(res.locals.auth).restore(parseId(req.params.id));

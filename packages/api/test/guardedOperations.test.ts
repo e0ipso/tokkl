@@ -30,13 +30,31 @@ async function signedIn(t: TestContext) {
   });
   const valid: Authentication = { user, credential: { kind: 'api-token', token: user.apiToken }, authMethod: 'basic' };
   const stale: Authentication = { ...valid, credential: { kind: 'api-token', token: `${user.apiToken}-old` } };
-  return { services, valid, stale };
+  return { services, storage, user, valid, stale };
 }
 
-test('signed-in account operations refuse a stale credential in their read snapshots too', async t => {
-  const { services, valid, stale } = await signedIn(t);
-  assert.equal(await services.accountsFor(valid).findSessionUser('no-such-session'), undefined);
-  await assert.rejects(services.accountsFor(stale).findSessionUser('no-such-session'), refused);
+test('signed-in account operations refuse a stale credential', async t => {
+  const { services, stale } = await signedIn(t);
+  await assert.rejects(services.accountsFor(stale).rotateApiToken(), refused);
+});
+
+test('the signed-in account operations act for the signed-in user', async t => {
+  const { services, storage, user, valid } = await signedIn(t);
+  const accounts = services.accountsFor(valid);
+  // The signed-in user is the actor, and is no admin.
+  await assert.rejects(
+    accounts.revokeSessions(user.id),
+    error => error instanceof ApplicationError && error.message === 'Admin access required',
+  );
+  const token = await accounts.rotateApiToken();
+  assert.equal((await storage.readSnapshot(repositories => repositories.users.get(user.id)))?.apiToken, token);
+});
+
+test('the signed-in preference saves act for the signed-in user', async t => {
+  const { services, storage, user, valid } = await signedIn(t);
+  await services.preferencesFor(valid).savePreferences({ theme: 'dark' });
+  const stored = await storage.readSnapshot(repositories => repositories.users.get(user.id));
+  assert.equal(stored?.preferences.theme, 'dark');
 });
 
 test('the services the routers share hold no account operations without a credential check', async t => {

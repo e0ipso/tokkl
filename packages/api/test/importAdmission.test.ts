@@ -10,7 +10,7 @@ import { ApplicationError, RequestCancelled, unavailable } from '../src/lib/erro
 import { silentLogger } from '../src/lib/logger.ts';
 import { importRoutes } from '../src/routes/imports.ts';
 import { createImportAdmission, IMPORT_BUSY_RETRY_SECONDS } from '../src/services/importAdmission.ts';
-import { createImportOperations } from '../src/services/importJson.ts';
+import { importsById } from './fixtures/imports.ts';
 import { createTimerPublication } from '../src/services/timerPublication.ts';
 import { initializeDatabase } from '../src/storage/migrations.ts';
 import { createTransactionRunner } from '../src/storage/transactions.ts';
@@ -233,7 +233,7 @@ test('a cancelled import stops between records and before commit, and rolls back
   const connection = await initializeDatabase(config);
   t.after(() => connection.close());
   const runner = createTransactionRunner(connection, entryTimerFactory('sqlite'));
-  const imports = createImportOperations(
+  const imports = importsById(
     runner,
     createTimerPublication(async () => {}),
   );

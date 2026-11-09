@@ -1,11 +1,11 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:bbe0c1d2ead1fc9b12f826c2b1e98251785ce025be9c0fa13ddc8b17337626ac'
-node_count: 114
+nodes_hash: 'sha256:4ef1f653d8f00766596da4f9e9176e51d7cb23b2a3df39dcc7277be20dd6bb2e'
+node_count: 115
 ---
 # kenkeep Graph
 
-Total nodes: 114
+Total nodes: 115
 
 ## map-admin-user-management-api-and-the-last-active-admin-rule
 
@@ -793,6 +793,15 @@ Total nodes: 114
 - **tags:** web, css, navigation, contrast, tokens, calendar
 - **relates_to:** map-app-shell-brand-and-navigation, practice-contrast-tables-and-project-colours, map-shared-list-controls-in-manage-ui, practice-week-calendar-hour-height-agrees-in-three-places
 - **derived_from:** 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:practice:0
+
+## practice-signed-in-operations-bind-the-authenticated-user
+
+- **kind:** practice
+- **title:** Signed-in operations bind the authenticated user at construction
+- **path:** api-and-data/users-and-admin/practice-signed-in-operations-bind-the-authenticated-user.md
+- **tags:** server, auth, architecture
+- **relates_to:** practice-password-checks-go-through-failurelimiter-attempt
+- **derived_from:** packages/api/src/services/application.ts, packages/api/src/routes/README.md
 
 ## practice-stopped-entry-grid-validation
 

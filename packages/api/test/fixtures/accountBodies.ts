@@ -23,6 +23,14 @@ export function createAccountOperations<R extends AccountRepositories>(
   return withBodies(domain.createAccountOperations(runner, security), runner);
 }
 
+/** `userId`'s preference saves, taking raw bodies. */
+export function createPreferenceOperations<R extends AccountRepositories>(runner: AccountRunner<R>, userId: number) {
+  const operations = domain.createPreferenceOperations(runner, userId);
+  return {
+    savePreferences: async (body: Body) => operations.savePreferences(parse.parsePreferenceChanges(body)),
+  };
+}
+
 /** `operations` taking raw bodies; `runner` reads the links the way the link routes do. */
 export function withBodies<R extends AccountRepositories>(
   operations: domain.AccountOperations<R>,
@@ -54,8 +62,6 @@ export function withBodies<R extends AccountRepositories>(
       effects: domain.AccountEntryEffects<R>,
       attempt?: AccountPasswordAttempt,
     ) => operations.updateProfile(seen, credential, parse.parseProfileUpdate(body), effects, attempt),
-    savePreferences: async (userId: number, body: Body) =>
-      operations.savePreferences(userId, parse.parsePreferenceChanges(body)),
     updateSettings: async (actorId: number, body: Body, deploymentSessionDays: number) =>
       operations.updateSettings(actorId, parse.parseSettingChanges(body), deploymentSessionDays),
   };

@@ -232,14 +232,15 @@ function createProfileOperations<R extends AccountRepositories>(
 }
 
 /**
- * Saving preferences guards only the user. A deletion that commits while the save waits makes the
- * user lock restart the transaction, which then finds the account gone.
+ * `userId`'s preference saves. Saving guards only the user. A deletion that commits while the save
+ * waits makes the user lock restart the transaction, which then finds the account gone.
  */
 export function createPreferenceOperations<R extends AccountRepositories>(
   runner: Pick<AccountRunner<R>, 'transaction'>,
+  userId: Id,
 ) {
   return {
-    async savePreferences(userId: Id, changes: PreferenceChanges): Promise<JsonObject> {
+    async savePreferences(changes: PreferenceChanges): Promise<JsonObject> {
       return runner.transaction(async ctx => {
         const user = await lockExistingUser(ctx, userId);
         if (!isActiveUser(user)) throw refused();
@@ -262,7 +263,6 @@ export function createAccountOperations<R extends AccountRepositories>(
     ...createInviteOperations(runner),
     ...createPasswordResetOperations(runner, security),
     ...createProfileOperations(runner, security),
-    ...createPreferenceOperations(runner),
     ...createSessionOperations(runner, security),
   };
 }

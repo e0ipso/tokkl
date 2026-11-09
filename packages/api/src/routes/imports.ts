@@ -48,12 +48,12 @@ function startCsvImport(deps: ImportRouteDeps, req: Request, res: Response) {
   const users = queryList(req, 'user');
   if (users?.length === 0) throw invalidInput('Invalid user selection');
   const options = { dryRun: query(req, 'dry_run') === 'true', users, signal: res.locals.workSignal };
-  return deps.importsFor(res.locals.auth).importTogglCsv(res.locals.auth.user.id, text, options);
+  return deps.importsFor(res.locals.auth).importTogglCsv(text, options);
 }
 function startJsonImport(deps: ImportRouteDeps, req: Request, res: Response) {
   const data = parseImportFile(takeText(req));
   const options = { dryRun: query(req, 'dry_run') === 'true', signal: res.locals.workSignal };
-  return deps.importsFor(res.locals.auth).importJsonExport(res.locals.auth.user.id, data, options);
+  return deps.importsFor(res.locals.auth).importJsonExport(data, options);
 }
 
 /**

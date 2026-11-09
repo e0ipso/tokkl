@@ -11,7 +11,7 @@ import { getPreferences } from '../../src/domain/accountValues.ts';
 import { parseNewAccount as readNewAccount } from '../../src/commands/accounts.ts';
 import { serializeAccount, serializeInvite, serializeUser, serializeWorkspace } from '../../src/presenters/toggl.ts';
 import { jsonObject } from '../../src/storage/conversion.ts';
-import { createAccountOperations } from '../fixtures/accountBodies.ts';
+import { createAccountOperations, createPreferenceOperations } from '../fixtures/accountBodies.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 
 for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
@@ -209,21 +209,22 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       await t.test(
         'unknown preferences retain all finite JSON numbers, known validation and size errors stay exact',
         async () => {
-          const prefs = await operations.savePreferences(bob.id, {
+          const preferences = createPreferenceOperations(runner, bob.id);
+          const prefs = await preferences.savePreferences({
             extension: { huge: 1e100, smallest: Number.MIN_VALUE },
             theme: 'dark',
           });
           assert.deepEqual(prefs.extension, { huge: 1e100, smallest: Number.MIN_VALUE });
           assert.equal(prefs.theme, 'dark');
-          assert.equal((await operations.savePreferences(bob.id, { overflow: Infinity })).overflow, null);
+          assert.equal((await preferences.savePreferences({ overflow: Infinity })).overflow, null);
           assert.equal(getPreferences((await readUser(bob.id))!).theme, 'dark');
           assert.deepEqual(jsonObject('{"extension":1e100}'), { extension: 1e100 });
           await assert.rejects(
-            operations.savePreferences(bob.id, { theme: 'invalid' }),
+            preferences.savePreferences({ theme: 'invalid' }),
             error(400, 'Invalid theme: expected one of system, light, dark'),
           );
           await assert.rejects(
-            operations.savePreferences(bob.id, { large: 'x'.repeat(65536) }),
+            preferences.savePreferences({ large: 'x'.repeat(65536) }),
             error(400, 'Preferences are too large'),
           );
         },

@@ -25,7 +25,7 @@ export function workspaceRoutes(deps: Pick<Deps, 'readFor' | 'accountsFor'>): Ro
     );
     const changes = parseWorkspaceChanges(readJson(req));
     // The update commits only for the workspace's owner, so the reply speaks for an owner.
-    const workspace = await deps.accountsFor(res.locals.auth).updateWorkspace(userId, id, changes);
+    const workspace = await deps.accountsFor(res.locals.auth).updateWorkspace(id, changes);
     res.json(serializeWorkspace(workspace, 'owner'));
   });
   api.get(

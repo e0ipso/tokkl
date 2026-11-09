@@ -135,7 +135,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           authMethod: 'basic' as const,
         };
         const { hold, deletion } = await deleting(member.id, member.email);
-        const save = services.preferencesFor(authentication).savePreferences(member.id, { theme: 'dark' });
+        const save = services.preferencesFor(authentication).savePreferences({ theme: 'dark' });
         const result = await afterDeletion(save, hold, deletion);
         assert.deepEqual(refusal(result), { status: 403, body: 'Incorrect username and/or password' });
       });
