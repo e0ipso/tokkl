@@ -10,8 +10,11 @@ import { setup } from './helpers.ts';
 import { openDatabase } from './fixtures/database.ts';
 import { MIGRATIONS } from './fixtures/legacyMigrations.ts';
 import { lenientNumber, pageWindow } from '../src/http/params.ts';
-import { offsetRange, pageRange, sliceOffset, slicePage } from '../src/lib/pagination.ts';
+import { offsetRange, pageRange, slicePage } from '../src/lib/pagination.ts';
 import { addWorkspaceMember, createWorkspace } from './fixtures/domain.ts';
+
+/** `limit` items from the 0-based `offset`, as the offset paging of `/me/tasks` answers them. */
+const sliceOffset = <T>(items: readonly T[], offset: number, limit: number): T[] => items.slice(offset, offset + limit);
 
 /** Every v9 DELETE answers an empty 200, as Toggl's docs list no response body for them. */
 async function assertEmptyOk(response: Response): Promise<void> {
