@@ -66,6 +66,8 @@ const KNOWN_CAPABILITIES: Readonly<Record<ServerCapability, true>> = {
   'pause-revision': true,
   'timer-edit-entry': true,
   'idempotency-keys': true,
+  'catalog-revision': true,
+  'latest-entry': true,
 };
 
 const capabilities = knownNames(KNOWN_CAPABILITIES);

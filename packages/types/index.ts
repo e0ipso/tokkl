@@ -33,6 +33,9 @@ export type UserRole = 'admin' | 'user';
  *   `revision`, and an optional `start`.
  * - `idempotency-keys`: the v9 time entry, client, project, task and tag creates, timer start,
  *   Pomodoro start and entry split take an `Idempotency-Key` header.
+ * - `catalog-revision`: `GET /api/app/workspaces/{wid}/catalog` answers a `CatalogRevision`.
+ * - `latest-entry`: `GET /api/app/time_entries/latest` answers the newest live entry by start, with
+ *   the v9 `meta` fields, or `null`.
  */
 export type ServerCapability =
   | 'app-preferences'
@@ -41,7 +44,9 @@ export type ServerCapability =
   | 'pomodoro-revision'
   | 'pause-revision'
   | 'timer-edit-entry'
-  | 'idempotency-keys';
+  | 'idempotency-keys'
+  | 'catalog-revision'
+  | 'latest-entry';
 
 /**
  * Tokkl only, in `GET /api/app/status`: what this server's API offers. A client tests a capability
