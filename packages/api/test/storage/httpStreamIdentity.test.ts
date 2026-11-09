@@ -4,7 +4,7 @@ import type { TimerState } from '@tokkl/types';
 import type { Authentication } from '../../src/domain/credentials.ts';
 import { createStorage } from '../fixtures/storageShortcuts.ts';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
-import { createApp } from '../../src/app.ts';
+import { createApplication } from '../../src/app.ts';
 import { withBodies } from '../fixtures/accountBodies.ts';
 import { createSessionAccountOperations } from '../../src/services/application.ts';
 import { testConfig } from '../helpers.ts';
@@ -18,9 +18,13 @@ for (const delayed of [false, true])
     async t => {
       const fixture = await disposableBackend('sqlite');
       const storage = createStorage(await initializeDatabase(fixture.config));
-      const app = createApp({ storage, config: { ...testConfig(), storage: fixture.config }, setup: { code: null } });
+      const { app, services: composed } = createApplication({
+        storage,
+        config: { ...testConfig(), storage: fixture.config },
+        setup: { code: null },
+      });
       const server = await serveInvariant(app),
-        services = app.locals.services;
+        services = composed;
       const accounts = withBodies(createSessionAccountOperations(storage, services), storage);
       const release = gate(),
         entered = gate(),

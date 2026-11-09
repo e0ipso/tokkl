@@ -7,7 +7,7 @@ import type { AddressInfo } from 'node:net';
 import type { Express } from 'express';
 import { storageFor, storageConfigFor, setServices, reopenDatabase } from './fixtures/database.ts';
 import { copySQLiteFile } from './fixtures/physical.ts';
-import { createApp } from '../src/app.ts';
+import { createApplication } from '../src/app.ts';
 import { hashPassword } from '../src/lib/crypto.ts';
 import { FailureLimiter, type AttemptResult, type Keys } from '../src/auth/rateLimit.ts';
 import type { Config } from '../src/config.ts';
@@ -125,8 +125,12 @@ export async function sessionCookie(ctx: TestContext): Promise<string> {
 function serve(db: FixtureDatabase, user: User): TestContext {
   let app = apps.get(db);
   if (!app) {
-    const application = createApp({ storage: storageFor(db), config: testConfig(db), setup: { code: null } });
-    setServices(db, application.locals.services);
+    const { app: application, services } = createApplication({
+      storage: storageFor(db),
+      config: testConfig(db),
+      setup: { code: null },
+    });
+    setServices(db, services);
     app = testServer(application);
     after(() => application.locals.close());
   }
@@ -194,18 +198,18 @@ export function replaceFixtureApp(
   ctx: TestContext,
   options: import('../src/services/timerStreams.ts').TimerStreamOptions,
 ) {
-  const app = createApp({
+  const { app, services } = createApplication({
     storage: storageFor(ctx.db),
     config: testConfig(ctx.db),
     setup: { code: null },
     timerStreamOptions: options,
   });
-  setServices(ctx.db, app.locals.services);
+  setServices(ctx.db, services);
   after(() => app.locals.close());
   const server = testServer(app);
   apps.set(ctx.db, server);
   return {
-    streams: app.locals.services.timerStreams as import('../src/services/timerStreams.ts').TimerStreams,
+    streams: services.timerStreams,
     server,
   };
 }

@@ -4,7 +4,7 @@ import type { ReadOnlyRepositories, Storage } from '../../src/domain/ports.ts';
 import type { Backend } from '../../src/storage/config.ts';
 import { createStorage } from '../../src/storage/index.ts';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
-import { createApp } from '../../src/app.ts';
+import { createApplication } from '../../src/app.ts';
 import { createReportRunner } from '../../src/reportRunners.ts';
 import { createAccountEntryEffects } from '../../src/domain/timerEffects.ts';
 import { withBodies } from '../fixtures/accountBodies.ts';
@@ -43,14 +43,14 @@ test('SQLite authenticated reads reject a replacement account with reused IDs', 
   const fixture = await disposableBackend('sqlite');
   const storage = createStorage(await initializeDatabase(fixture.config));
   const workers = trackedWorkers();
-  const app = createApp({
+  const { app, services: composed } = createApplication({
     storage,
     config: { ...testConfig(), storage: fixture.config },
     setup: { code: null },
     reports: createReportRunner(fixture.config, storage, { startWorker: workers.startWorker }),
   });
   const server = await serveInvariant(app),
-    services = app.locals.services;
+    services = composed;
   const accounts = withBodies(createSessionAccountOperations(storage, services), storage);
   t.after(async () => {
     await server.close();
@@ -126,14 +126,14 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
     const fixture = await disposableBackend(backend);
     const storage = createStorage(await initializeDatabase(fixture.config));
     const workers = trackedWorkers();
-    const app = createApp({
+    const { app, services: composed } = createApplication({
       storage,
       config: { ...testConfig(), storage: fixture.config },
       setup: { code: null },
       reports: createReportRunner(fixture.config, storage, { startWorker: workers.startWorker }),
     });
     const server = await serveInvariant(app),
-      services = app.locals.services;
+      services = composed;
     const accounts = withBodies(createSessionAccountOperations(storage, services), storage);
     t.after(async () => {
       await server.close();
@@ -213,14 +213,14 @@ test('SQLite queued HTTP reports reject a replacement account with reused IDs', 
   const fixture = await disposableBackend('sqlite');
   const storage = createStorage(await initializeDatabase(fixture.config));
   const workers = trackedWorkers();
-  const app = createApp({
+  const { app, services: composed } = createApplication({
     storage,
     config: { ...testConfig(), storage: fixture.config },
     setup: { code: null },
     reports: createReportRunner(fixture.config, storage, { startWorker: workers.startWorker }),
   });
   const server = await serveInvariant(app),
-    services = app.locals.services;
+    services = composed;
   const accounts = withBodies(createSessionAccountOperations(storage, services), storage);
   t.after(async () => {
     await server.close();

@@ -8,7 +8,7 @@ import { createStorage } from '../fixtures/storageShortcuts.ts';
 import { openConnection } from '../../src/storage/connections.ts';
 import type { PhysicalDatabase } from '../../src/storage/physical.ts';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
-import { createApp } from '../../src/app.ts';
+import { createApplication } from '../../src/app.ts';
 import { testConfig } from '../helpers.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 import { gate, readTimerStream, serveInvariant } from './support/invariantHttp.ts';
@@ -74,20 +74,20 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       remote = countedReads(counted, () => statements);
     // Both instances use the default local bus, so B learns about A's commits only from its own tick.
     const apps = [
-      createApp({
+      createApplication({
         storage: local,
         config: { ...testConfig(), storage: config },
         setup: { code: null },
         timerStreamOptions: { keepAliveMs: 600000 },
       }),
-      createApp({
+      createApplication({
         storage: remote.storage,
         config: { ...testConfig(), storage: config },
         setup: { code: null },
         timerStreamOptions: { keepAliveMs: KEEP_ALIVE_MS },
       }),
     ];
-    const servers = await Promise.all(apps.map(serveInvariant));
+    const servers = await Promise.all(apps.map(application => serveInvariant(application.app)));
     const streams: Array<Awaited<ReturnType<typeof readTimerStream>>> = [];
     t.after(async () => {
       remote.release();
@@ -168,7 +168,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       const seen = onB.states.length,
         base = await revision();
       const entry = (await local.entries.running(u.id))!;
-      const published = t.mock.method(apps[1]!.locals.services.timerStreams, 'publish');
+      const published = t.mock.method(apps[1]!.services.timerStreams, 'publish');
       // Hold the next tick inside the stream's queue, before its credential check reads.
       const held = remote.hold();
       await held.entered.promise;
