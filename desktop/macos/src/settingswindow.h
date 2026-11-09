@@ -10,6 +10,8 @@
 
 class QCheckBox;
 class QComboBox;
+class QDialogButtonBox;
+class QFormLayout;
 class QLabel;
 class QLineEdit;
 class QPushButton;
@@ -100,6 +102,18 @@ Q_SIGNALS:
     void saved();
 
 private:
+    // The window's sections, built in the order they show. Each adds its
+    // rows to form.
+    void buildConnectionRows(QFormLayout *form);
+    void buildLoginRows(QFormLayout *form);
+    void buildPomodoroRows(QFormLayout *form);
+    void buildSoundRows(QFormLayout *form);
+    // The fields' object names, listed above the constructor.
+    void nameFields();
+    // Connects the fields to the setup, the preferences, the save and the
+    // window's buttons.
+    void connectFields(QDialogButtonBox *buttons);
+
     QString authMode() const;
     void onSaveFinished(bool close);
     void onAccountChanged();
