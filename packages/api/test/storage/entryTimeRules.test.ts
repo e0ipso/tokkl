@@ -7,7 +7,7 @@ import { createTransactionRunner } from '../../src/storage/transactions.ts';
 import * as entries from '../fixtures/entryBodies.ts';
 import * as catalog from '../fixtures/catalogBodies.ts';
 import { serializeTimeEntry } from '../../src/presenters/toggl.ts';
-import { createTimerPublication } from '../../src/services/timerPublication.ts';
+import { createTimerPublication } from '../../src/services/timerDelivery.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 import { entryTimerFactory, entryAccount, entryAt as at } from './support/entry-timer.ts';
 import { failsWith } from '../fixtures/errors.ts';
@@ -23,7 +23,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
     const fixture = await disposableBackend(backend),
       connection = await initializeDatabase(fixture.config);
     const runner = createTransactionRunner(connection, entryTimerFactory(backend));
-    const publish = createTimerPublication(async () => {});
+    const publish = createTimerPublication(async () => {}).publish;
     try {
       let user = await runner.transaction(ctx => ctx.users.createAccount(entryAccount('rules')));
       const wid = user.defaultWorkspaceId;

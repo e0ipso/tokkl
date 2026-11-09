@@ -71,7 +71,7 @@ export function createCatalogTimerEffects(full: EntryContext, publish: TimerPubl
 }
 
 export function createAccountEntryEffects<R extends AccountRepositories & EntryRepositories>(
-  publish: LocalTimerPublication,
+  push: LocalTimerPublication,
 ): AccountEntryEffects<R> {
   const timerOwners = async (ctx: EntryContext, workspaces: Array<{ id: Id }>) => [
     ...new Set((await Promise.all(workspaces.map(w => ctx.timers.affectedUsers(w.id)))).flat()),
@@ -79,15 +79,15 @@ export function createAccountEntryEffects<R extends AccountRepositories & EntryR
   return {
     async reanchorTimezone(ctx, id, from, to) {
       await reanchorNoTimeEntries(ctx, id, from, to);
-      touchTimer(ctx, id, publish);
+      touchTimer(ctx, id, push.publish);
     },
     async affectedDeletionUsers(ctx, _id, workspaces) {
       return (await timerOwners(ctx, workspaces)).sort((a, b) => a - b);
     },
     async beforeDelete(ctx, user, workspaces) {
-      for (const id of await timerOwners(ctx, workspaces)) if (id !== user.id) touchTimer(ctx, id, publish);
+      for (const id of await timerOwners(ctx, workspaces)) if (id !== user.id) touchTimer(ctx, id, push.publish);
       ctx.afterCommit(async () => {
-        publish.forgetUser(user.id);
+        push.forgetUser(user.id);
       });
     },
   };

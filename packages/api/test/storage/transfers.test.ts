@@ -5,7 +5,7 @@ import { createTransactionRunner } from '../../src/storage/transactions.ts';
 import { createTransferRepositories } from '../../src/storage/repositories/transfers.ts';
 import { importsById } from '../fixtures/imports.ts';
 import { buildJsonExport, buildCsvExport } from '../fixtures/exports.ts';
-import { createTimerPublication } from '../../src/services/timerPublication.ts';
+import { createTimerPublication } from '../../src/services/timerDelivery.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 import { entryTimerFactory, entryAccount } from './support/entry-timer.ts';
 for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
@@ -19,7 +19,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
     const events: unknown[] = [],
       publish = createTimerPublication(async (id, state) => {
         events.push([id, state]);
-      });
+      }).publish;
     const imports = importsById(runner, publish);
     try {
       const user = await runner.transaction(ctx => ctx.users.createAccount(entryAccount('transfer')));

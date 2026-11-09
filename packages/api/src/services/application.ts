@@ -33,10 +33,14 @@ import type { ExportAssemblyJob, ExportEmitter } from './exportJobs.ts';
 import type { ReportExecutor } from './reportRunner.ts';
 import { createCatalogOperations } from './catalogOperations.ts';
 import { createEntryOperations } from './entryOperations.ts';
-import { credentialCheck, credentialKey } from './streamCredentials.ts';
 import { startMaintenance } from './maintenance.ts';
-import { createTimerDelivery } from './timerDelivery.ts';
-import { presentTimerOperations, type PresentedTimerOperations } from './timerReplies.ts';
+import {
+  createTimerDelivery,
+  credentialCheck,
+  credentialKey,
+  presentTimerOperations,
+  type PresentedTimerOperations,
+} from './timerDelivery.ts';
 import {
   DEFAULT_TIMER_STREAM_LIMITS,
   type EventStreamResponse,
@@ -173,7 +177,7 @@ export function createApplicationServices({
   logger = silentLogger,
   sessionDays,
 }: ApplicationServiceOptions) {
-  const { timerStreams, publish, settled } = createTimerDelivery({
+  const { timerStreams, push, settled } = createTimerDelivery({
     storage,
     bus,
     clock,
@@ -182,7 +186,8 @@ export function createApplicationServices({
   });
   const security = accountSecurity(timerStreams);
   const streamCredentials = { check: (authentication: Authentication) => credentialCheck(storage, authentication) };
-  const entryEffects = createAccountEntryEffects<Repositories>(publish);
+  const { publish } = push;
+  const entryEffects = createAccountEntryEffects<Repositories>(push);
   const maintenance = startMaintenance(storage, { clock, logger });
   /** Runs read queries in one snapshot, after checking the credential in that same snapshot. */
   function readFor<T>(
@@ -199,13 +204,13 @@ export function createApplicationServices({
   }
   return {
     timerStreams,
-    publish,
+    push,
     reports,
     /** Builds each timer stream's keep-alive credential check. */
     streamCredentials,
     /** The claim runs before the stream joins, so it never shares a group with a deleted account's streams. */
     openTimerStream(authentication: Authentication, res: EventStreamResponse): Promise<void> {
-      publish.claim(authentication.user.id, authentication.user.createdAt);
+      push.claim(authentication.user.id, authentication.user.createdAt);
       return timerStreams.open(
         authentication.user.id,
         res,

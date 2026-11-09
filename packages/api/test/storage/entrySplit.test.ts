@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createTransactionRunner } from '../../src/storage/transactions.ts';
 import { splitTimeEntry } from '../../src/domain/timeEntries.ts';
-import { createTimerPublication } from '../../src/services/timerPublication.ts';
+import { createTimerPublication } from '../../src/services/timerDelivery.ts';
 import { errorReply } from '../../src/http/errors.ts';
 import { createTimeEntry } from '../fixtures/entryBodies.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
@@ -26,7 +26,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
     });
     const user = await runner.transaction(ctx => ctx.users.createAccount(entryAccount('split')));
     const wid = user.defaultWorkspaceId;
-    const publish = createTimerPublication(async () => {});
+    const publish = createTimerPublication(async () => {}).publish;
     const original = await runner.transaction(ctx =>
       createTimeEntry(
         ctx,

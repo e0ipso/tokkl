@@ -27,9 +27,8 @@ import { errorReply } from '../../src/http/errors.ts';
 import { runReportJob, type ReportJob } from '../../src/services/reportJobs.ts';
 import type { ExportAssemblyJob } from '../../src/services/exportJobs.ts';
 import { createTimerOperations } from '../../src/domain/timers.ts';
-import { createTimerPublication } from '../../src/services/timerPublication.ts';
+import { createTimerPublication, presentTimerOperations } from '../../src/services/timerDelivery.ts';
 import { systemClock } from '../../src/lib/clock.ts';
-import { presentTimerOperations } from '../../src/services/timerReplies.ts';
 import { createTimeEntry } from '../fixtures/entryBodies.ts';
 import { entryTimerFactory, entryAccount } from './support/entry-timer.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
@@ -75,7 +74,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
       }));
       const user = await operations.transaction(r => r.users.createAccount(entryAccount('worker')));
       const wid = user.defaultWorkspaceId;
-      const publish = createTimerPublication(async () => {});
+      const publish = createTimerPublication(async () => {}).publish;
       const timers = presentTimerOperations(createTimerOperations(operations, user, publish, systemClock));
       await operations.transaction(r =>
         createTimeEntry(r, user, wid, { start: '2026-10-05T10:00:00Z', duration: 3600, description: 'Work' }, publish),

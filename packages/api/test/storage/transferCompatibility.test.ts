@@ -7,7 +7,7 @@ import { createTransferRepositories } from '../../src/storage/repositories/trans
 import { importsById } from '../fixtures/imports.ts';
 import { assembleJsonExport, assembleCsvExport } from '../fixtures/exportOracle.ts';
 import { buildJsonExport, buildCsvExport } from '../fixtures/exports.ts';
-import { createTimerPublication } from '../../src/services/timerPublication.ts';
+import { createTimerPublication } from '../../src/services/timerDelivery.ts';
 import { deleteTimeEntry } from '../../src/domain/timeEntries.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 import { entryTimerFactory, entryAccount } from './support/entry-timer.ts';
@@ -47,7 +47,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         ...createTransferRepositories(db, backend),
       }));
       t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-10-30T12:00:00.000Z') });
-      const publish = createTimerPublication(async () => {}),
+      const publish = createTimerPublication(async () => {}).publish,
         imports = importsById(runner, publish);
       let expectedIndex = 0;
       const legacy = {

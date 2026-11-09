@@ -32,7 +32,7 @@ const { createAccountOperations, createDomainAccountOperations } = await import(
 const { FailureLimiter, PASSWORD_WINDOW_MS, passwordCounters, accountCounters, addressCounter } =
   await import('../../src/auth/rateLimit.ts');
 const { createAuthMiddleware, passwordAttempt } = await import('../../src/auth/middleware.ts');
-const { credentialCheck } = await import('../../src/services/streamCredentials.ts');
+const { credentialCheck } = await import('../../src/services/timerDelivery.ts');
 const { clientAddress } = await import('../../src/http/request.ts');
 const { createSessionHandlers } = await import('../../src/auth/sessions.ts');
 const { ApplicationError } = await import('../../src/lib/errors.ts');

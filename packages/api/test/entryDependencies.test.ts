@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { entryResolution, getEntryIn } from '../src/domain/entryAccess.ts';
-import { createTimerPublication } from '../src/services/timerPublication.ts';
+import { createTimerPublication } from '../src/services/timerDelivery.ts';
 import { createCatalogOperations } from '../src/services/catalogOperations.ts';
 import { createEntryOperations } from '../src/services/entryOperations.ts';
 import type { EntryDetails } from '../src/domain/model.ts';
@@ -36,7 +36,7 @@ test('entry and catalog writes run on a runner that offers only transactions', a
   t.after(() => connection.close());
   const storage = createTransactionRunner(connection, entryTimerFactory('sqlite'));
   const user = await storage.transaction(r => r.users.createAccount(entryAccount('narrow')));
-  const publish = createTimerPublication(async () => {});
+  const publish = createTimerPublication(async () => {}).publish;
   // No readSnapshot, health or close: the writes open transactions and nothing else.
   const transactionsOnly = { transaction: storage.transaction };
   const project = await createCatalogOperations(transactionsOnly, user.id, publish).createProject(

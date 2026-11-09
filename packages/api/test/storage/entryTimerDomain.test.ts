@@ -8,8 +8,7 @@ import { createEntryRepositories } from '../../src/storage/repositories/entries.
 import { createTimerRepositories } from '../../src/storage/repositories/timers.ts';
 import * as entries from '../fixtures/entryBodies.ts';
 import { createTimerOperations } from '../../src/domain/timers.ts';
-import { createTimerPublication } from '../../src/services/timerPublication.ts';
-import { presentTimerOperations } from '../../src/services/timerReplies.ts';
+import { createTimerPublication, presentTimerOperations } from '../../src/services/timerDelivery.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 import { failsWith } from '../fixtures/errors.ts';
 import { errorReply } from '../../src/http/errors.ts';
@@ -43,7 +42,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         const publish = createTimerPublication(async (id, state) => {
           events.push(state.revision);
           assert.equal((await runner.readSnapshot(ctx => ctx.timers.getRevision(id)))?.revision, state.revision);
-        });
+        }).publish;
         const timer = entries.bodyTimers((id, clock) =>
           presentTimerOperations(createTimerOperations(runner, { id }, publish, clock)),
         );

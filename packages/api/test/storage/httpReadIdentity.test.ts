@@ -116,7 +116,7 @@ test('SQLite authenticated reads reject a replacement account with reused IDs', 
         admin.id,
         replacement.id,
         replacement.email,
-        createAccountEntryEffects(services.publish),
+        createAccountEntryEffects(services.push),
       );
     });
 });
@@ -293,7 +293,7 @@ test('SQLite queued HTTP reports reject a replacement account with reused IDs', 
         admin.id,
         replacement.id,
         replacement.email,
-        createAccountEntryEffects(services.publish),
+        createAccountEntryEffects(services.push),
       );
     });
   }

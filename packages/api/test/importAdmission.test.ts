@@ -11,7 +11,7 @@ import { silentLogger } from '../src/lib/logger.ts';
 import { importRoutes } from '../src/routes/imports.ts';
 import { createImportAdmission } from '../src/services/importAdmission.ts';
 import { importsById } from './fixtures/imports.ts';
-import { createTimerPublication } from '../src/services/timerPublication.ts';
+import { createTimerPublication } from '../src/services/timerDelivery.ts';
 import { initializeDatabase } from '../src/storage/migrations.ts';
 import { createTransactionRunner } from '../src/storage/transactions.ts';
 import { entryAccount, entryTimerFactory } from './storage/support/entry-timer.ts';
@@ -236,10 +236,7 @@ test('a cancelled import stops between records and before commit, and rolls back
   const connection = await initializeDatabase(config);
   t.after(() => connection.close());
   const runner = createTransactionRunner(connection, entryTimerFactory('sqlite'));
-  const imports = importsById(
-    runner,
-    createTimerPublication(async () => {}),
-  );
+  const imports = importsById(runner, createTimerPublication(async () => {}).publish);
   const stored = (userId: number) =>
     runner.readSnapshot(async r => ({
       entries: (await r.entries.list(userId)).length,

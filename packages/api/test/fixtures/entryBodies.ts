@@ -8,7 +8,7 @@ import * as domain from '../../src/domain/timeEntries.ts';
 import type { EntryContext } from '../../src/domain/entryAccess.ts';
 import type { ExactEntryImport } from '../../src/domain/entryImport.ts';
 import type { TimerPublication } from '../../src/domain/timerSettlement.ts';
-import type { PresentedTimerOperations } from '../../src/services/timerReplies.ts';
+import type { PresentedTimerOperations } from '../../src/services/timerDelivery.ts';
 import type { User } from '../../src/domain/model.ts';
 import type { Clock } from '../../src/domain/ports.ts';
 import type { EditTimer, StartPomodoro, StartTimer } from '../../src/domain/timers.ts';

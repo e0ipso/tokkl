@@ -14,7 +14,10 @@ export type SettlementContext = OperationContext<SettlementRepositories>;
 /** One local application instance owns this callback. No connection or database identity is exposed.
  * `incarnation` is the user row's `createdAt`. It tells apart accounts that reuse a deleted id. */
 export type TimerPublication = (userId: Id, view: TimerView, incarnation: string) => Promise<void>;
-export type LocalTimerPublication = TimerPublication & { forgetUser(userId: Id): void };
+export interface LocalTimerPublication {
+  publish: TimerPublication;
+  forgetUser(userId: Id): void;
+}
 
 /**
  * True when settling `snapshot` would write: a session or pause chain is detached from the running

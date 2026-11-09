@@ -139,7 +139,7 @@ for (const backend of ['postgres', 'mysql', 'mariadb'] as const)
             owner,
             owner.defaultWorkspaceId,
             { start: '2026-10-30T12:00:00Z' },
-            services.publish,
+            services.push.publish,
           )
         ).id;
         entered.resolve();

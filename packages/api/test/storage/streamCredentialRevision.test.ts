@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { Authentication } from '../../src/domain/credentials.ts';
-import { credentialCheck } from '../../src/services/streamCredentials.ts';
+import { credentialCheck } from '../../src/services/timerDelivery.ts';
 import { sha256 } from '../../src/lib/crypto.ts';
 import { createStorage } from '../fixtures/storageShortcuts.ts';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
