@@ -17,7 +17,6 @@ using namespace Tokkl;
 namespace
 {
 const QString instance = QStringLiteral("https://a.example.test");
-const QByteArray meBody = R"({"id":3,"email":"bea@example.test","fullname":"Bea","timezone":"UTC","default_workspace_id":7,"beginning_of_week":1})";
 
 // The requests whose path ends with the suffix.
 QList<qsizetype> find(const FakeTransport &transport, const QByteArray &method, const QString &suffix)
@@ -87,7 +86,7 @@ private Q_SLOTS:
         QVERIFY(f.stack.session()->setPomodoroMode(true));
         f.configure();
         QTRY_COMPARE(find(f.transport, "GET", QStringLiteral("/me")).size(), 1);
-        f.transport.respond(find(f.transport, "GET", QStringLiteral("/me")).first(), FakeTransport::answer(200, meBody));
+        f.transport.respond(find(f.transport, "GET", QStringLiteral("/me")).first(), FakeTransport::answer(200, meBody()));
         QVERIFY(f.stack.connection()->isConnected());
         // One read of the state, by the one client. The timer and the
         // session both show it.

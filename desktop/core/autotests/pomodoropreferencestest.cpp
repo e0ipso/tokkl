@@ -22,43 +22,10 @@ const QString shortRestKey = QStringLiteral("pomodoro_break_interval_in_minutes"
 const QString longRestKey = QStringLiteral("pomodoro_long_break_interval_in_minutes");
 const QString everyKey = QStringLiteral("pomodoro_long_break_every");
 
-// The account. What its server announces comes from GET /api/app/status.
-QByteArray meBody(qint64 id, qint64 workspace)
-{
-    const QJsonObject me{
-        {QStringLiteral("id"), id},
-        {QStringLiteral("email"), QStringLiteral("bea@example.test")},
-        {QStringLiteral("fullname"), QStringLiteral("Bea")},
-        {QStringLiteral("timezone"), QStringLiteral("UTC")},
-        {QStringLiteral("default_workspace_id"), workspace},
-    };
-    return QJsonDocument(me).toJson(QJsonDocument::Compact);
-}
-
-// The whole preferences object the server answers with, including a key of
-// another client.
-QByteArray preferencesBody(const PomodoroConfig &config)
-{
-    return QJsonDocument(QJsonObject{
-                             {workKey, config.workMinutes},
-                             {shortRestKey, config.shortRestMinutes},
-                             {longRestKey, config.longRestMinutes},
-                             {everyKey, config.longRestEvery},
-                             {QStringLiteral("theme"), QStringLiteral("dark")},
-                         })
-        .toJson(QJsonDocument::Compact);
-}
-
-// An error body: the API sends the message as a bare JSON string.
-QByteArray message(const char *text)
-{
-    return QByteArrayLiteral("\"") + QByteArray(text) + QByteArrayLiteral("\"");
-}
-
 // A 400 for the preference key, which the Tokkl-Error-Field header names.
 HttpResponse refusal(const QString &key, const char *text)
 {
-    HttpResponse response = FakeTransport::answer(400, message(text));
+    HttpResponse response = FakeTransport::answer(400, errorBody(text));
     response.errorField = key.toLatin1();
     return response;
 }
@@ -208,7 +175,7 @@ private Q_SLOTS:
 
         // Any other failure is the general error.
         QVERIFY(f.preferences.save(50, 10, 20, 4));
-        f.transport.respondLast(FakeTransport::answer(400, message("Preferences are too large")));
+        f.transport.respondLast(FakeTransport::answer(400, errorBody("Preferences are too large")));
         QCOMPARE(f.preferences.errorString(), QStringLiteral("Preferences are too large"));
         QVERIFY(f.preferences.longRestMinutesError().isEmpty());
 
@@ -234,7 +201,7 @@ private Q_SLOTS:
 
         QVERIFY(f.preferences.save(25, 5, 61, 13));
         QVERIFY(f.lastIs("POST", QStringLiteral("/api/app/me/preferences")));
-        HttpResponse refused = FakeTransport::answer(400, message("Invalid pomodoro_focus_interval_in_minutes: expected an integer from 1 to 180"));
+        HttpResponse refused = FakeTransport::answer(400, errorBody("Invalid pomodoro_focus_interval_in_minutes: expected an integer from 1 to 180"));
         refused.errorCode = "invalid_preference";
         refused.errorField = "pomodoro_long_break_interval_in_minutes";
         f.transport.respondLast(refused);
@@ -243,7 +210,7 @@ private Q_SLOTS:
         QVERIFY(f.preferences.errorString().isEmpty());
 
         QVERIFY(f.preferences.save(25, 5, 15, 13));
-        HttpResponse other = FakeTransport::answer(400, message("Invalid pomodoro_long_break_every: expected an integer from 1 to 12"));
+        HttpResponse other = FakeTransport::answer(400, errorBody("Invalid pomodoro_long_break_every: expected an integer from 1 to 12"));
         other.errorField = "timezone";
         f.transport.respondLast(other);
         QVERIFY(f.preferences.longRestEveryError().isEmpty());
@@ -259,7 +226,7 @@ private Q_SLOTS:
         QVERIFY(connectAccount(f, instanceA, 3, 7));
         f.transport.respondLast(FakeTransport::answer(200, preferencesBody({25, 5, 15, 4})));
         QVERIFY(f.preferences.save(25, 5, 61, 4));
-        f.transport.respondLast(FakeTransport::answer(400, message("Invalid pomodoro_long_break_interval_in_minutes: expected an integer from 1 to 60")));
+        f.transport.respondLast(FakeTransport::answer(400, errorBody("Invalid pomodoro_long_break_interval_in_minutes: expected an integer from 1 to 60")));
         QVERIFY(f.preferences.longRestMinutesError().isEmpty());
         QCOMPARE(f.preferences.errorString(), QStringLiteral("Invalid pomodoro_long_break_interval_in_minutes: expected an integer from 1 to 60"));
     }
@@ -289,7 +256,7 @@ private Q_SLOTS:
         const qsizetype before = f.transport.requests.size();
         QVERIFY(f.preferences.save(26, 5, 15, 4));
         QVERIFY(f.lastIs("POST", QStringLiteral("/api/app/me/preferences")));
-        f.transport.respondLast(FakeTransport::answer(404, message("Not found")));
+        f.transport.respondLast(FakeTransport::answer(404, errorBody("Not found")));
         QCOMPARE(f.transport.requests.size(), before + 1);
         QVERIFY(!f.preferences.isSaving());
         QCOMPARE(f.preferences.config(), (PomodoroConfig{25, 5, 15, 4}));
@@ -355,7 +322,7 @@ private Q_SLOTS:
         const qsizetype read = f.transport.requests.size() - 1;
         QVERIFY(f.preferences.save(41, 8, 20, 3));
         const qsizetype post = f.transport.requests.size() - 1;
-        f.transport.respond(read, FakeTransport::answer(400, message("Preferences are unavailable")));
+        f.transport.respond(read, FakeTransport::answer(400, errorBody("Preferences are unavailable")));
         QCOMPARE(f.preferences.errorString(), QStringLiteral("Preferences are unavailable"));
         QCOMPARE(refreshed.size(), 2);
 

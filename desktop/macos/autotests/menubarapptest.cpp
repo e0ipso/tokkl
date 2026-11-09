@@ -227,12 +227,6 @@ QString soundFile(const QString &id)
     return QStringLiteral(TOKKL_SOUNDS_DIR "/pomodoro-") + id + QStringLiteral(".wav");
 }
 
-QByteArray meBody()
-{
-    return QByteArrayLiteral(
-        R"({"id":3,"email":"bea@example.test","fullname":"Bea","timezone":"UTC","default_workspace_id":7,"beginning_of_week":1})");
-}
-
 // The running entry that started at startedAt.
 QByteArray entryBody(std::optional<qint64> project = std::nullopt, bool billable = false)
 {
@@ -286,23 +280,9 @@ QByteArray latestBody(qint64 project)
         .toUtf8();
 }
 
-// GET /me/preferences: phases of one minute and a long rest after every
-// second work phase.
-QByteArray preferencesBody()
-{
-    return QByteArrayLiteral(
-        R"({"pomodoro_focus_interval_in_minutes":1,"pomodoro_break_interval_in_minutes":1,)"
-        R"("pomodoro_long_break_interval_in_minutes":1,"pomodoro_long_break_every":2})");
-}
-
 QJsonObject jsonBody(const HttpRequest &request)
 {
     return QJsonDocument::fromJson(request.body).object();
-}
-
-QString iso(const QDateTime &time)
-{
-    return time.toUTC().toString(Qt::ISODateWithMs);
 }
 
 // The server's pause chain of the chainEntryBody entry, with the seconds its
@@ -320,58 +300,6 @@ QJsonObject pauseObject(bool paused, qint64 seconds, std::optional<qint64> clone
         {QStringLiteral("tags"), QJsonArray{QStringLiteral("deep"), QStringLiteral("review")}},
         {QStringLiteral("billable"), true},
         {QStringLiteral("clone_entry_id"), clone ? QJsonValue(*clone) : QJsonValue(QJsonValue::Null)},
-    };
-}
-
-// The phase of a session on the server's clock, with what the server derives
-// from it. Lengths are one minute, with a long rest after every second work
-// phase, as preferencesBody says.
-struct Phase {
-    QString kind;
-    QDateTime start;
-    int completed = 0;
-    QString upcoming;
-    QString transition;
-    int number = 1;
-    QDateTime pomodoroStart;
-};
-
-Phase work(const QDateTime &start, int completed = 0)
-{
-    const bool last = completed + 1 >= 2;
-    return Phase{QStringLiteral("work"),
-                 start,
-                 completed,
-                 last ? QStringLiteral("longRest") : QStringLiteral("shortRest"),
-                 last ? QStringLiteral("workToLongRest") : QStringLiteral("workToShortRest"),
-                 completed + 1,
-                 start};
-}
-
-Phase shortRest(const QDateTime &start, const QDateTime &pomodoroStart)
-{
-    return Phase{QStringLiteral("shortRest"), start, 1, QStringLiteral("work"), QStringLiteral("shortRestToWork"), 1, pomodoroStart};
-}
-
-QJsonObject pomodoroJson(const Phase &phase, qint64 entryId)
-{
-    return QJsonObject{
-        {QStringLiteral("work_minutes"), 1},
-        {QStringLiteral("short_rest_minutes"), 1},
-        {QStringLiteral("long_rest_minutes"), 1},
-        {QStringLiteral("long_rest_every"), 2},
-        {QStringLiteral("phase"),
-         QJsonObject{
-             {QStringLiteral("kind"), phase.kind},
-             {QStringLiteral("start"), iso(phase.start)},
-             {QStringLiteral("completed"), phase.completed},
-             {QStringLiteral("planned_end"), iso(phase.start.addSecs(60))},
-         }},
-        {QStringLiteral("upcoming_phase"), phase.upcoming},
-        {QStringLiteral("transition"), phase.transition},
-        {QStringLiteral("number"), phase.number},
-        {QStringLiteral("entry_id"), entryId},
-        {QStringLiteral("pomodoro_start"), iso(phase.pomodoroStart.isValid() ? phase.pomodoroStart : phase.start)},
     };
 }
 

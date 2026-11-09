@@ -31,20 +31,6 @@ const QByteArray editPath = "/app/timer/edit";
 // The v9 create route, which a start never uses.
 const QByteArray v9StartPath = "/v9/workspaces/7/time_entries";
 
-// The account. What its server announces comes from GET /api/app/status.
-QByteArray meBody(qint64 id, qint64 workspace)
-{
-    const QJsonObject me{
-        {QStringLiteral("id"), id},
-        {QStringLiteral("email"), QStringLiteral("bea@example.test")},
-        {QStringLiteral("fullname"), QStringLiteral("Bea")},
-        {QStringLiteral("timezone"), QStringLiteral("UTC")},
-        {QStringLiteral("default_workspace_id"), workspace},
-        {QStringLiteral("beginning_of_week"), 1},
-    };
-    return QJsonDocument(me).toJson(QJsonDocument::Compact);
-}
-
 QJsonObject entryObject(qint64 id, qint64 workspace, const QString &start, bool running = true, std::optional<qint64> project = std::nullopt)
 {
     const QDateTime begin = QDateTime::fromString(start, Qt::ISODate);
@@ -97,11 +83,6 @@ QJsonObject projectObject(qint64 id, qint64 workspace, const QString &color, boo
                        {QStringLiteral("color"), color},
                        {QStringLiteral("active"), active},
                        {QStringLiteral("billable"), false}};
-}
-
-QByteArray json(const QJsonObject &object)
-{
-    return QJsonDocument(object).toJson(QJsonDocument::Compact);
 }
 
 // A page of distinct active projects of the workspace, ids first .. first + count - 1.
