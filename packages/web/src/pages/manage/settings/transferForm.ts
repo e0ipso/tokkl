@@ -24,3 +24,12 @@ export function toggledUsers(
 ): string[] {
   return users.map(user => user.key).filter(candidate => (candidate === key ? checked : selected.includes(candidate)));
 }
+
+/**
+ * The id a JSON restore problem names, as text. The server echoes whatever the file held there,
+ * any JSON value, so a string stays as it is and anything else is shown as JSON: `String` throws on
+ * an object such as `{"toString": 1}`.
+ */
+export function restoreErrorId(id: unknown): string {
+  return typeof id === 'string' ? id : (JSON.stringify(id) ?? '');
+}

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { ImportResult } from '../../../api/types.ts';
-import { exportFilename, importCounts, toggledUsers } from './transferForm.ts';
+import { exportFilename, importCounts, restoreErrorId, toggledUsers } from './transferForm.ts';
 
 const result: ImportResult = {
   dry_run: true,
@@ -33,4 +33,15 @@ test('rows not created, skipped or from other users are the failed ones', () => 
 test('the chosen users keep the file order', () => {
   assert.deepEqual(toggledUsers(result.users, ['c'], 'a', true), ['a', 'c']);
   assert.deepEqual(toggledUsers(result.users, ['a', 'c'], 'a', false), ['c']);
+});
+
+test("a restore problem names the file's id as text, whatever JSON value it was", () => {
+  assert.deepEqual(['abc', 9001, null, [1, 2], { toString: 1 }, undefined].map(restoreErrorId), [
+    'abc',
+    '9001',
+    'null',
+    '[1,2]',
+    '{"toString":1}',
+    '',
+  ]);
 });
