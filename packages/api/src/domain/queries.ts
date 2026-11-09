@@ -236,6 +236,12 @@ export function createEntryQueries(r: EntryReadRepositories) {
   return {
     timeEntries: (userId: Id, filter: EntryFilter): Promise<EntryDetails[]> => r.entries.list(userId, filter),
     runningEntry: (userId: Id): Promise<EntryDetails | undefined> => r.entries.running(userId),
+    /**
+     * The user's newest live entry by start, running or stopped, in any workspace: the first entry
+     * `/me/time_entries` lists. Read with LIMIT 1 on the user and start index.
+     */
+    latestEntry: async (userId: Id): Promise<EntryDetails | undefined> =>
+      (await r.entries.list(userId, { limit: 1 }))[0],
     timeEntry: (userId: Id, id: Id): Promise<EntryDetails> => getTimeEntry(r, userId, id),
     entryBounds: (userId: Id): Promise<EntryBounds> => r.entries.bounds(userId),
     trash: (userId: Id): Promise<EntryDetails[]> => r.entries.listDeleted(userId),

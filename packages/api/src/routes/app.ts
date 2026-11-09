@@ -66,6 +66,15 @@ export function appRoutes(deps: AppRouteDeps): Router {
       second: serializeTimeEntry(second, presentation),
     });
   });
+  // The entry a client picks the next start's project from, as `/me/time_entries?meta=true` lists it.
+  app.get(
+    '/time_entries/latest',
+    auth,
+    jsonRead(deps, async (_req, res, queries) => {
+      const entry = await queries.latestEntry(res.locals.auth.user.id);
+      return entry ? serializeTimeEntry(entry, { meta: true, user: res.locals.auth.user }) : null;
+    }),
+  );
   app.get(
     '/bounds',
     auth,
