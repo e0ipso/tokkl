@@ -2,6 +2,8 @@
 
 #include <QRandomGenerator>
 
+#include <algorithm>
+
 namespace Tokkl
 {
 
@@ -17,6 +19,25 @@ int retryWaitMs(int baseMs, const Clock *clock)
 {
     const int boundMs = baseMs / retryJitterDivisor;
     return baseMs + (clock ? clock->jitterMs(boundMs) : randomBelow(boundMs));
+}
+
+RetryBackoff::RetryBackoff(int baseMs, int capMs)
+    : m_baseMs(baseMs)
+    , m_capMs(capMs)
+    , m_nextMs(baseMs)
+{
+}
+
+int RetryBackoff::next(const Clock *clock)
+{
+    const int waitMs = retryWaitMs(m_nextMs, clock);
+    m_nextMs = std::min(m_nextMs * 2, m_capMs);
+    return waitMs;
+}
+
+void RetryBackoff::reset()
+{
+    m_nextMs = m_baseMs;
 }
 
 SystemClock::SystemClock(QObject *parent)

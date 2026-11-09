@@ -22,6 +22,14 @@ StatusMenu::StatusMenu(TimerModel *timer, TimerCoordinator *actions, PomodoroSes
     , m_alarm(alarm)
     , m_menu(std::make_unique<QMenu>())
 {
+    // The projects have no stream: each opening asks the core to check
+    // them, so a project renamed or deleted elsewhere does not stay listed.
+    connect(m_menu.get(), &QMenu::aboutToShow, this, [this] {
+        if (m_actions) {
+            m_actions->refreshProjects();
+        }
+    });
+
     m_stateAction = m_menu->addAction(QString());
     m_stateAction->setEnabled(false);
 

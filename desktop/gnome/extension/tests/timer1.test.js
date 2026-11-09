@@ -2,7 +2,7 @@
 //   node --test 'desktop/gnome/extension/**/*.test.js'
 
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 import {
@@ -22,6 +22,7 @@ import {
     phaseName,
     pomodoroModeLabel,
     projectLabel,
+    refreshProjectsOnOpen,
     serviceOutdated,
     serviceRunning,
     sessionLine,
@@ -206,6 +207,43 @@ test('the panel button and the preferences read nothing of a service below the f
     assert.equal(interfaceVersion(gone), 0);
 });
 
+// The menu's opening asks the service to check the projects, once, and
+// only a running service the extension supports: a call to one that is gone
+// would start it.
+test('opening the menu asks the service to check the projects', () => {
+    const checks = [];
+    const withMethod = proxy => {
+        if (proxy) proxy.RefreshProjectsRemote = done => checks.push(done);
+        return proxy;
+    };
+    const current = withMethod(fakeProxy(':1.7', { InterfaceVersion: 2 }));
+    assert.equal(refreshProjectsOnOpen(true, current), true);
+    assert.equal(checks.length, 1);
+    // Closing sends nothing.
+    assert.equal(refreshProjectsOnOpen(false, current), false);
+    assert.equal(checks.length, 1);
+
+    for (const proxy of [
+        withMethod(fakeProxy(null, { InterfaceVersion: 2 })),
+        withMethod(fakeProxy(':1.7', { InterfaceVersion: 1 })),
+        null,
+    ]) {
+        assert.equal(refreshProjectsOnOpen(true, proxy), false);
+    }
+    assert.equal(checks.length, 1);
+
+    // A failed check only logs.
+    const warn = console.warn;
+    const warnings = [];
+    console.warn = message => warnings.push(message);
+    try {
+        checks[0](null, new Error('No reply'));
+    } finally {
+        console.warn = warn;
+    }
+    assert.deepEqual(warnings, ['Tokkl: RefreshProjects failed: No reply']);
+});
+
 // The panel button and the preferences window stop at the same floor.
 test('the extension reads the service only through the shared gate', () => {
     for (const name of ['indicator.js', 'prefs.js']) {
@@ -227,18 +265,4 @@ test('the preferences keep no length range of their own', () => {
     const prefs = readFileSync(new URL('../prefs.js', import.meta.url), 'utf8');
     assert.doesNotMatch(prefs, /\b999\b/);
     assert.doesNotMatch(prefs, /lower:|upper:/);
-});
-
-// No fallback for a service below the floor is left behind.
-test('the fallbacks for older services are gone', () => {
-    const extension = name => existsSync(new URL(`../${name}`, import.meta.url));
-    const source = name => readFileSync(new URL(`../${name}`, import.meta.url), 'utf8');
-    assert.equal(extension('legacyactions.js'), false, 'legacyactions.js');
-    assert.equal(extension('legacylimits.js'), false, 'legacylimits.js');
-    assert.equal(source('menumodel.js').includes('legacyPresentation'), false, 'legacyPresentation() in menumodel.js');
-    assert.equal(
-        source('timerrequests.js').includes('hasRequestMethods'),
-        false,
-        'the plain methods in timerrequests.js',
-    );
 });

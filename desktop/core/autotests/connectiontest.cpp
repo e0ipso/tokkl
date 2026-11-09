@@ -1269,6 +1269,26 @@ private Q_SLOTS:
         QVERIFY(!f.connection.isConnected());
     }
 
+    // The account's retries after connectivity failures follow the one
+    // backoff rule: 30 s, doubling with each failure in a row up to 2 min,
+    // each with the clock's jitter, and 30 s again after a success.
+    void accountRetriesBackOffWithTheClocksJitter()
+    {
+        FakeClock clock;
+        RetryBackoff retry(AuthSession::retryBaseMs, AuthSession::retryMaxMs);
+        QCOMPARE(retry.next(&clock), 30000);
+        QCOMPARE(retry.next(&clock), 60000);
+        QCOMPARE(retry.next(&clock), 120000);
+        QCOMPARE(retry.next(&clock), 120000);
+        // Up to a quarter of the wait more.
+        clock.jitter = 40000;
+        QCOMPARE(retry.next(&clock), 120000 + 29999);
+        retry.reset();
+        QCOMPARE(retry.next(&clock), 30000 + 7499);
+        clock.jitter = 1000;
+        QCOMPARE(retry.next(&clock), 61000);
+    }
+
     // A status read that found no network: the retry asks for the status
     // again, and binds once a supported server answers.
     void statusAskedAgainAfterANetworkFailure()

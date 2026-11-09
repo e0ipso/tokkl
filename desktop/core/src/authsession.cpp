@@ -2,8 +2,6 @@
 
 #include "logging.h"
 
-#include <QRandomGenerator>
-
 #include <utility>
 
 namespace Tokkl
@@ -121,6 +119,16 @@ ApiClient &AuthSession::api()
     return m_api;
 }
 
+void AuthSession::setClock(Clock *clock)
+{
+    m_clock = clock;
+}
+
+const Clock *AuthSession::clock() const
+{
+    return m_clock;
+}
+
 // ----- configuration and credentials ---------------------------------------
 
 void AuthSession::settingsChanged()
@@ -132,6 +140,7 @@ void AuthSession::settingsChanged()
     m_authPaused = false;
     m_cooldown.clear();
     m_retryTimer.stop();
+    m_retry.reset();
     m_credentials.clearInstance();
     setState(m_credentials.instanceText().trimmed().isEmpty() ? Unconfigured : LoadingCredentials);
     scheduleReload();
@@ -211,6 +220,7 @@ void AuthSession::reconnect()
 {
     m_credentials.forgetFailedWrite();
     m_authPaused = false;
+    m_retry.reset();
     if (m_reloadScheduled) {
         return;
     }
@@ -303,7 +313,7 @@ void AuthSession::handleFailure(const HttpResponse &response, const ApiError &er
         // Not an authentication failure. A bound account stays, marked stale.
         setState(Disconnected, error.message);
         if (!hasAccount()) {
-            m_retryTimer.start(retryDelayMs + int(QRandomGenerator::global()->bounded(retryJitterMs)));
+            m_retryTimer.start(m_retry.next(m_clock));
         }
         return;
     default:
@@ -360,6 +370,7 @@ void AuthSession::bind(const Me &me)
     }
     const bool changed = !hasAccount() || m_context->me != me;
     m_context = Context{m_generation, me};
+    m_retry.reset();
     setState(Connected);
     if (changed) {
         Q_EMIT accountChanged();

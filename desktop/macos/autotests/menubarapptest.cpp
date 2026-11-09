@@ -746,6 +746,44 @@ private Q_SLOTS:
         QVERIFY(StatusWords::actionName(QStringLiteral("unknown"), session).isEmpty());
     }
 
+    // The English words are the ones every panel shows, as the core's
+    // shared fixture, statuspresentation.json, lists them.
+    void wordsFollowTheSharedFixture()
+    {
+        QFile file(QStringLiteral(TOKKL_STATUS_FIXTURE));
+        QVERIFY(file.open(QIODevice::ReadOnly));
+        const QJsonObject words = QJsonDocument::fromJson(file.readAll()).object().value(QStringLiteral("words")).toObject();
+        Fixture f;
+        const TimerModel &timer = *appPart<TimerController>(f.app);
+        const PomodoroSession &session = *appPart<PomodoroSession>(f.app);
+
+        const QJsonObject statuses = words.value(QStringLiteral("statuses")).toObject();
+        QCOMPARE(statuses.keys().size(), timerStatusKeys().size());
+        for (const QString &status : timerStatusKeys()) {
+            QCOMPARE(StatusWords::statusWord(status), statuses.value(status).toString());
+        }
+        const QJsonObject actions = words.value(QStringLiteral("actions")).toObject();
+        for (const QString &action : primaryActionKeys()) {
+            QVERIFY2(actions.contains(action), qPrintable(action));
+            if (!actions.value(action).isNull()) {
+                QCOMPARE(StatusWords::actionName(action, session), actions.value(action).toString());
+            }
+        }
+        const QJsonObject phases = words.value(QStringLiteral("phases")).toObject();
+        for (auto it = phases.constBegin(); it != phases.constEnd(); ++it) {
+            QCOMPARE(StatusWords::phaseName(it.key()), it.value().toString());
+        }
+        const QJsonObject labels = words.value(QStringLiteral("projectLabels")).toObject();
+        for (const ProjectLabelParts::Kind kind : {ProjectLabelParts::Kind::None, ProjectLabelParts::Kind::Unknown, ProjectLabelParts::Kind::Unavailable}) {
+            ProjectLabelParts parts;
+            parts.kind = kind;
+            QCOMPARE(StatusWords::projectLabel(parts), labels.value(ProjectLabelParts::kindKey(kind)).toString());
+        }
+        QCOMPARE(StatusWords::runText(timer), words.value(QStringLiteral("activity")).toObject().value(QStringLiteral("stopped")).toString());
+        QCOMPARE(StatusWords::withPart(QStringLiteral("pomodoroMode"), QStringList{QStringLiteral("Stopped 0:00")}, timer, session).value_or(QStringList()),
+                 QStringList{QStringLiteral("Stopped 0:00 · ") + words.value(QStringLiteral("pomodoroMode")).toString()});
+    }
+
     void titleShowsElapsedTime()
     {
         Fixture f;
@@ -864,6 +902,35 @@ private Q_SLOTS:
         QCOMPARE(body.value(QStringLiteral("created_with")).toString(), QStringLiteral("tokkl-macos"));
         QCOMPARE(body.value(QStringLiteral("revision")).toInteger(), f.revision);
         QCOMPARE(body.value(QStringLiteral("project_id")).toInteger(), 12);
+    }
+
+    // Each opening of the menu checks the projects: one read of the catalog
+    // revision, and the list only when the revision moved.
+    void openingTheMenuChecksTheProjects()
+    {
+        Fixture f;
+        QVERIFY(f.connect(QByteArrayLiteral("null")));
+        StatusMenu &menu = *appPart<StatusMenu>(f.app);
+        QTRY_VERIFY(!f.transport.catalogRequests.isEmpty());
+        const qsizetype checks = f.transport.catalogRequests.size();
+        const qsizetype list = f.last("GET", "/projects");
+
+        // As when the system opens the menu.
+        Q_EMIT menu.menu()->aboutToShow();
+        QTRY_COMPARE(f.transport.catalogRequests.size(), checks + 1);
+        QTest::qWait(20);
+        QCOMPARE(f.last("GET", "/projects"), list);
+
+        // Beta was renamed on the server.
+        f.transport.catalog = FakeTransport::catalogAt(2);
+        Q_EMIT menu.menu()->aboutToShow();
+        QVERIFY(f.waitFor("GET", "/projects", list));
+        QByteArray renamed = projectsBody();
+        renamed.replace("\"name\":\"Beta\"", "\"name\":\"Beta renamed\"");
+        f.respond(f.last("GET", "/projects"), 200, renamed);
+        QTRY_VERIFY(projectAction(menu, QStringLiteral("Beta renamed (Acme)")));
+        QVERIFY(!projectAction(menu, QStringLiteral("Beta (Acme)")));
+        QCOMPARE(f.transport.catalogRequests.size(), checks + 2);
     }
 
     // The next start defaults to the last entry's project, a pick while

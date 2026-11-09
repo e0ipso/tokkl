@@ -107,6 +107,7 @@ int main(int argc, char **argv)
                        QSettings::IniFormat);
     Tokkl::SystemClock clock;
     Tokkl::Connection connection(&transport, &store, Tokkl::TimerService::clientName());
+    connection.setClock(&clock);
     // The timer and the session are the server's, read through one state
     // client; the session reads and acts through the timer's.
     Tokkl::TimerController timer(&clock);

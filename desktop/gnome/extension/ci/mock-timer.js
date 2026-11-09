@@ -1,8 +1,10 @@
 // A stand-in for tokkl-timerd in the extension check: it owns
 // org.tokkl.Timer1 on the session bus with the interface description from
 // desktop/gnome/dbus, keeps a timer in memory with no server behind it, and
-// records every method call. A second interface, org.tokkl.Timer1Mock,
-// lets the check read the calls, change properties, start a session as
+// records every method call but RefreshProjects, which it counts apart: the
+// extension sends one each time its menu opens. A second interface,
+// org.tokkl.Timer1Mock, lets the check read the calls and that count,
+// change properties, start a session as
 // another device would, have the server refuse the next request, act as a
 // service older than the extension supports (InterfaceVersion 1), and stop
 // the mock. Configure
@@ -22,6 +24,7 @@ const timerXml = new TextDecoder().decode(bytes);
 const mockXml = `<node>
   <interface name="org.tokkl.Timer1Mock">
     <method name="Calls"><arg name="json" type="s" direction="out"/></method>
+    <method name="ProjectChecks"><arg name="count" type="u" direction="out"/></method>
     <method name="Quit"/>
     <method name="StartForeignSession"/>
     <method name="RefuseNextRequest"><arg name="error" type="s" direction="in"/></method>
@@ -139,6 +142,8 @@ const state = {
 const accountLengths = { work: 50, shortRest: 10, longRest: 20, longRestEvery: 3 };
 
 const calls = [];
+// The RefreshProjects calls, which are not in calls.
+let projectChecks = 0;
 let timer = null;
 let lastRequest = 0;
 // The server's words for the next request it refuses, or null.
@@ -500,6 +505,12 @@ class Timer1 {
         set({ PomodoroLengths: { ...accountLengths } });
     }
 
+    // The mock's projects change only through Set, so there is nothing to
+    // read again.
+    RefreshProjects() {
+        projectChecks += 1;
+    }
+
     SetSound(transition, soundId) {
         calls.push(['SetSound', transition, soundId]);
         if (!(transition in state.Sounds) || !state.SoundChoices.some(choice => choice.id === soundId))
@@ -527,6 +538,7 @@ const loop = new GLib.MainLoop(null, false);
 
 const mock = Gio.DBusExportedObject.wrapJSObject(mockXml, {
     Calls: () => JSON.stringify(calls),
+    ProjectChecks: () => projectChecks,
     // A session another device started: no call of this device's is
     // recorded, and the mode stays as it is.
     StartForeignSession: () => {

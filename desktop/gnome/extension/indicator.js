@@ -21,6 +21,7 @@ import {
     formatElapsed,
     interfaceVersion,
     projectLabel,
+    refreshProjectsOnOpen,
     serviceOutdated,
     serviceRunning,
     supportedProperty,
@@ -167,6 +168,13 @@ export const TokklIndicator = GObject.registerClass(
             const settingsItem = new PopupMenu.PopupMenuItem(_('Settings'));
             settingsItem.connect('activate', () => openPreferences());
             this.menu.addMenuItem(settingsItem);
+
+            // The projects have no stream: each opening checks them. The
+            // handler returns nothing, as true would stop the Shell's own
+            // handlers of the signal.
+            this.menu.connect('open-state-changed', (_menu, open) => {
+                refreshProjectsOnOpen(open, this._proxy);
+            });
         }
 
         /**

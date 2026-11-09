@@ -72,9 +72,9 @@ bool TimerController::chooseBillable(bool billable)
     return m_coordinator->chooseBillable(billable);
 }
 
-void TimerController::refresh()
+void TimerController::refreshProjects()
 {
-    m_coordinator->refresh();
+    m_coordinator->refreshProjects();
 }
 
 void TimerController::resumed()

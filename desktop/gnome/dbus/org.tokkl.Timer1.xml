@@ -17,8 +17,12 @@
     <!-- Start of the running entry as the server recorded it, as Unix time
          in seconds, or 0. On a machine whose clock differs from the
          server's, the current time minus this is off by the difference:
-         use LocalStartTime for elapsed time. Kept for older clients. -->
-    <property name="StartTime" type="x" access="read"/>
+         use LocalStartTime for elapsed time. Kept for third-party
+         callers; LocalStartTime replaces it, and the extension does not
+         read it. -->
+    <property name="StartTime" type="x" access="read">
+      <annotation name="org.freedesktop.DBus.Deprecated" value="true"/>
+    </property>
     <!-- StartTime on this machine's clock: the server's start minus how far
          the server's clock is ahead of this one, as the server_time of the
          last state read gives it. Unix time in seconds, or 0. The running
@@ -291,8 +295,7 @@
          were. Fails with org.tokkl.Timer1.Error.Superseded when another
          Configure call came while the store saved this one's secret: the
          later call's settings are the ones applied, and this call's never
-         were, so a client must not keep them as accepted. A service from
-         before that error answered such a call with success. -->
+         were, so a client must not keep them as accepted. -->
     <method name="Configure">
       <arg name="instanceUrl" type="s" direction="in"/>
       <arg name="authMode" type="s" direction="in"/>
@@ -354,6 +357,13 @@
     </method>
     <!-- Read the lengths from the server again. -->
     <method name="RefreshPreferences"/>
+    <!-- The user is about to see Projects, as when a menu opens: the
+         service asks the server whether the workspace's projects changed,
+         and reads them again only when they did; Projects and
+         ProjectsIncomplete then change as usual. Nothing more is sent while
+         a check is on its way, without a connected account, or once the
+         workspace is lost. -->
+    <method name="RefreshProjects"/>
     <!-- Choose the sound a transition plays. Fails with
          org.freedesktop.DBus.Error.InvalidArgs for a transition or a sound
          id the service does not know. Returns false when the choice cannot

@@ -57,6 +57,7 @@ MenuBarApp::MenuBarApp(Transport *transport,
     , m_stateClient(new TimerStateClient(m_connection, m_clock, this))
     , m_timer(new TimerController(m_clock, this))
 {
+    m_connection->setClock(m_clock);
     // The timer and the session read the same state client, so they agree
     // on the server's timer and session.
     m_timer->setStateClient(m_stateClient);

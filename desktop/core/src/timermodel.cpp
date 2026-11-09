@@ -292,23 +292,6 @@ bool TimerModel::chosenBillable() const
     return isPaused() ? m_shown.chain->billable : m_next->billable();
 }
 
-std::optional<Project> TimerModel::entryProject() const
-{
-    return m_chosen->entryProject();
-}
-
-QVariant TimerModel::entryProjectVariant() const
-{
-    const std::optional<Project> &project = m_chosen->entryProject();
-    return project ? QVariant(project->toVariantMap()) : QVariant::fromValue(nullptr);
-}
-
-QVariant TimerModel::chosenProjectDetails() const
-{
-    const std::optional<Project> project = m_chosen->details(chosenProject(), isRunning() || isPaused());
-    return project ? QVariant(project->toVariantMap()) : QVariant::fromValue(nullptr);
-}
-
 ProjectLabelParts TimerModel::chosenProjectLabel() const
 {
     if (!chosenProject()) {

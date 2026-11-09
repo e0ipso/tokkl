@@ -14,6 +14,9 @@ const [uuid, mockTimer, timer1Xml] = programArgs;
 
 const mockCalls = () =>
     JSON.parse(call('org.tokkl.Timer1', '/org/tokkl/Timer1', 'org.tokkl.Timer1Mock', 'Calls', null, '(s)')[0]);
+// The RefreshProjects calls, which mockCalls() leaves out.
+const projectChecks = () =>
+    call('org.tokkl.Timer1', '/org/tokkl/Timer1', 'org.tokkl.Timer1Mock', 'ProjectChecks', null, '(u)')[0];
 const mockSet = (name, value) =>
     call(
         'org.tokkl.Timer1',
@@ -567,14 +570,19 @@ await step('a change from the service sends nothing back', async () => {
         throw new Error(`unexpected calls: ${JSON.stringify(mockCalls().slice(before))}`);
 });
 
-await step('a secondary click opens the menu and sends nothing', async () => {
+await step('a secondary click opens the menu and only asks for a projects check', async () => {
     const before = mockCalls().length;
+    const checked = projectChecks();
     click(3);
     await waitFor('the menu', () => menuOpen() === true);
+    await waitFor('RefreshProjects', () => projectChecks() === checked + 1 || projectChecks() - checked);
     await delay(300);
     if (mockCalls().length !== before)
         throw new Error(`unexpected calls: ${JSON.stringify(mockCalls().slice(before))}`);
     shell(`${button}.menu.close()`);
+    await waitFor('the menu closed', () => menuOpen() === false);
+    await delay(300);
+    if (projectChecks() !== checked + 1) throw new Error(`${projectChecks() - checked} project checks`);
 });
 
 await step('Space and Return do what a primary click does, and Down opens the menu', async () => {

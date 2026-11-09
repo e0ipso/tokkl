@@ -715,6 +715,29 @@ TestCase {
         compare(fixture.request(start).body.billable, false);
     }
 
+    // Every opening of the menu checks the projects, and reads them only
+    // when they changed, so a project renamed or deleted elsewhere does not
+    // stay in the submenu.
+    function test_openingTheMenuChecksTheProjects() {
+        connectAccount(instanceA, 3, 7);
+        const checks = fixture.catalogChecks;
+        const requests = fixture.requestCount;
+        openMenu();
+        tryVerify(() => fixture.catalogChecks === checks + 1, 3000, "one check");
+        wait(50);
+        compare(fixture.requestCount, requests, "no list read for an unchanged catalog");
+        closeMenu();
+        verify(projectItem("Alpha") !== null);
+
+        fixture.changeCatalog();
+        openMenu();
+        tryVerify(() => fixture.catalogChecks === checks + 2, 3000, "another check");
+        answer("GET", "/projects", 200, [project(12, 7, "Beta renamed", false)]);
+        tryVerify(() => projectItem("Beta renamed") !== null, 3000, "the renamed project");
+        compare(projectItem("Alpha"), null);
+        closeMenu();
+    }
+
     function test_projectsFollowPagination() {
         const firstPage = [];
         for (let i = 1; i <= 200; ++i) {
@@ -901,6 +924,33 @@ TestCase {
         verify(words.actionWord("unknown") === undefined);
         compare(parts.status, "unconfigured");
         compare(parts.action, "start");
+    }
+
+    // The English words are the ones every panel shows, as the core's shared
+    // fixture lists them; each toolkit translates them on its own.
+    function test_wordsFollowTheSharedFixture() {
+        const english = fixture.statusFixture().words;
+        verify(english !== undefined, "the fixture has words");
+        const words = button.words;
+        compare(Object.keys(english.statuses).length, words.parts.statusKeys.length);
+        for (const key of words.parts.statusKeys) {
+            compare(words.statusWord(key), english.statuses[key], "status " + key);
+        }
+        for (const key of words.parts.actionKeys) {
+            if (english.actions[key] !== null) {
+                compare(words.actionWord(key), english.actions[key], "action " + key);
+            }
+        }
+        for (const phase of Object.keys(english.phases)) {
+            compare(words.phaseName(phase), english.phases[phase], "phase " + phase);
+        }
+        for (const kind of Object.keys(english.projectLabels)) {
+            compare(words.projectLabel({
+                kind: kind
+            }), english.projectLabels[kind], "label " + kind);
+        }
+        compare(words.runText, english.activity.stopped);
+        compare(words.partWords("pomodoroMode", ["Stopped 0:00"]), ["Stopped 0:00 · " + english.pomodoroMode]);
     }
 
     function test_unconfiguredDisablesEverything() {

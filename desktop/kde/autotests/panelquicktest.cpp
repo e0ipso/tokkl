@@ -29,8 +29,10 @@
 #include <KLocalizedString>
 
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QJsonDocument>
+#include <QJsonObject>
 #include <QGuiApplication>
 #include <QQmlEngine>
 #include <QQuickItem>
@@ -52,6 +54,7 @@ class PanelFixture : public QObject
     Q_PROPERTY(Tokkl::PomodoroSession *session READ session CONSTANT)
     Q_PROPERTY(Tokkl::PomodoroPreferences *preferences READ preferences CONSTANT)
     Q_PROPERTY(int requestCount READ requestCount)
+    Q_PROPERTY(int catalogChecks READ catalogChecks)
 
 public:
     explicit PanelFixture(QObject *parent = nullptr)
@@ -90,6 +93,31 @@ public:
     int requestCount() const
     {
         return int(m_transport.requests.size());
+    }
+
+    // The reads of the workspace's catalog revision, which the transport
+    // answers on its own.
+    int catalogChecks() const
+    {
+        return int(m_transport.catalogRequests.size());
+    }
+
+    // The core's shared fixture of the panels' words, statuspresentation.json,
+    // as a map: the English words and the elapsed cases among the rest.
+    Q_INVOKABLE QVariantMap statusFixture() const
+    {
+        QFile file(QStringLiteral(TOKKL_STATUS_FIXTURE));
+        if (!file.open(QIODevice::ReadOnly)) {
+            return QVariantMap();
+        }
+        return QJsonDocument::fromJson(file.readAll()).object().toVariantMap();
+    }
+
+    // The projects changed on the server: the next catalog read answers a
+    // new revision.
+    Q_INVOKABLE void changeCatalog()
+    {
+        m_transport.catalog = FakeTransport::catalogAt(++m_catalogRevision);
     }
 
     // Stores a token for the instance and selects it, as the Configure page
@@ -190,6 +218,7 @@ public:
 
 private:
     FakeTransport m_transport;
+    qint64 m_catalogRevision = 1;
     FakeCredentialStore m_store;
     FakeClock m_clock;
     Connection m_connection{&m_transport, &m_store, testClientName()};

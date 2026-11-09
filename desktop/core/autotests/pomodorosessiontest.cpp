@@ -707,8 +707,8 @@ private Q_SLOTS:
         QVERIFY(f.session->setPomodoroMode(true));
         QVERIFY(f.session->canStartSession());
 
-        f.timer.refresh();
         if (trigger == "cooldown") {
+            f.client.refresh();
             f.transport.respond(f.last("GET", statePath), FakeTransport::answer(429, "\"Too many requests\"", "60"));
             QCOMPARE(f.connection.state(), Connection::RateLimited);
         } else {

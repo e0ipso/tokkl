@@ -68,6 +68,11 @@ public:
     // clientName goes into the created_with field of the entries it starts.
     Connection(Transport *transport, CredentialStore *store, const QString &clientName, QObject *parent = nullptr);
 
+    // The clock whose jitter spreads the retry waits of the account's
+    // validation and of a start's resend; not owned. Without one the
+    // system's randomness does.
+    void setClock(Clock *clock);
+
     QString instanceUrl() const;
     void setInstanceUrl(const QString &url);
     AuthMode authMode() const;
@@ -162,11 +167,7 @@ public:
     // failure or another status changes nothing here.
     PendingStream *openTimerEvents();
 
-    // Delay before an automatic retry after a connectivity failure, plus up
-    // to retryJitterMs more at random, and the cooldown after a 429 without
-    // Retry-After.
-    static constexpr int retryDelayMs = AuthSession::retryDelayMs;
-    static constexpr int retryJitterMs = AuthSession::retryJitterMs;
+    // The cooldown after a 429 without Retry-After.
     static constexpr int defaultCooldownMs = Cooldown::defaultMs;
     // Projects per page, the server's maximum, and the most pages read.
     static constexpr int projectPageSize = 200;

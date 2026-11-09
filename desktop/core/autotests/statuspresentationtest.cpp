@@ -94,6 +94,18 @@ private Q_SLOTS:
         QCOMPARE(StatusPresentation::of(status, rules).toVariantMap(), expected(presentation));
     }
 
+    // The elapsed text every panel shows, as the shared fixture pairs it
+    // with seconds.
+    void elapsedFollowsTheFixture()
+    {
+        const QJsonArray cases = fixture().value(QStringLiteral("elapsed")).toArray();
+        QVERIFY(cases.size() >= 5);
+        for (const QJsonValue &value : cases) {
+            const QJsonArray pair = value.toArray();
+            QCOMPARE(TimerModel::formatElapsed(pair.at(0).toInteger()), pair.at(1).toString());
+        }
+    }
+
     // Outside a session the accessible description is the summary, for
     // every policy.
     void accessibleIsTheSummaryOutsideASession()

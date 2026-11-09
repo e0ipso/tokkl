@@ -46,8 +46,9 @@ public:
     Q_INVOKABLE bool chooseBillable(bool billable);
 
 public Q_SLOTS:
-    // Reads the state and the projects again.
-    void refresh();
+    // A panel opens its menu: checks whether the projects changed; see
+    // TimerCoordinator::refreshProjects().
+    void refreshProjects();
     // The session woke from sleep: the state client reads the state and
     // replaces its stream, and the projects are read again. Not resume().
     void resumed();

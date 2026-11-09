@@ -61,6 +61,10 @@ PlasmaComponents.Menu {
 
     // A separate window, so the menu is not clipped to the panel.
     popupType: T.Popup.Window
+
+    // The projects have no stream: each opening asks the core to check
+    // them, so a project renamed or deleted elsewhere does not stay listed.
+    onAboutToShow: menu.timer.refreshProjects()
     // Plasma's own delegate binds to its parent before it has one.
     delegate: PlasmaComponents.MenuItem {}
 

@@ -31,11 +31,6 @@ bool ProjectCatalog::listKnown() const
     return m_revision.has_value();
 }
 
-std::optional<Project> ProjectCatalog::activeProject(qint64 id) const
-{
-    return findActive(m_projects, id);
-}
-
 std::optional<Project> ProjectCatalog::findActive(const QList<Project> &projects, qint64 id)
 {
     const auto found = std::find_if(projects.cbegin(), projects.cend(), [id](const Project &candidate) {

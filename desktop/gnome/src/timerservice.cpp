@@ -564,6 +564,12 @@ void TimerService::RefreshPreferences()
     publishChanges();
 }
 
+void TimerService::RefreshProjects()
+{
+    m_actions->refreshProjects();
+    publishChanges();
+}
+
 bool TimerService::SetSound(const QString &transition, const QString &soundId)
 {
     const std::optional<TransitionKind> kind = parseTransitionKind(transition);

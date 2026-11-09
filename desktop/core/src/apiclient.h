@@ -15,6 +15,8 @@
 namespace Tokkl
 {
 
+class Clock;
+
 // What a request is for, which decides when it may go out and what a
 // refusal of it means.
 enum class ApiAccess {
@@ -42,6 +44,9 @@ public:
     // A request failed with error. False when that ended the generation, so
     // whoever waits for the answer is gone too.
     virtual bool absorbFailure(const HttpResponse &response, const ApiError &error, ApiAccess access) = 0;
+    // The clock whose jitter spreads the client's retry waits
+    // (retryWaitMs()); null leaves it to the system's randomness.
+    virtual const Clock *clock() const = 0;
 };
 
 // Sends the API requests of one session through a transport. It asks the
@@ -98,7 +103,8 @@ public:
     void action(const QUrl &url, const QByteArray &body, ActionCallback done);
     // An action that creates something, sent with idempotencyKey. When its
     // outcome is unknown it goes out once more after one retry wait
-    // (retryWaitMs() from retryMinMs), with the same body and key, so the
+    // (retryWaitMs() from retryMinMs, with the session's clock), with the
+    // same body and key, so the
     // server answers what the first one did if it acted, and acts now if it
     // did not. done gets the second answer, or the first when the session
     // refuses the second. A new generation during the wait drops it, and
