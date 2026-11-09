@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import type { TimerState } from '@tokkl/types';
 import { addWorkspaceMember, listTimeEntries, serializeTimeEntry } from './fixtures/domain.ts';
 import { removeWorkspaceMember } from './fixtures/physical.ts';
-import { addUser, setup, type TestContext } from './helpers.ts';
+import { addUser, setup, type TestContext, timerState as state } from './helpers.ts';
 
 const NO_ACCESS = 'User does not have access to this resource.';
 
@@ -32,7 +32,6 @@ async function leaving(begin: (ctx: LeftContext) => Promise<void>): Promise<Left
   return left;
 }
 
-const state = async (ctx: TestContext) => (await ctx.json<TimerState>('GET', '/api/app/timer')).body;
 const entries = async (ctx: TestContext) =>
   (await listTimeEntries(ctx.db, ctx.user.id)).map(row => serializeTimeEntry(row));
 

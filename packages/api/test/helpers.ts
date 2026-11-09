@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { Express } from 'express';
+import type { TimerState } from '@tokkl/types';
 import { storageFor, storageConfigFor, setServices, reopenDatabase } from './fixtures/database.ts';
 import { copySQLiteFile } from './fixtures/physical.ts';
 import { composeApp, streamSettings } from './fixtures/app.ts';
@@ -38,6 +39,9 @@ export function recordLogs(t: NodeTestContext): Array<Record<string, unknown>> {
 }
 /** The header the web client sends on every request; session-starting and cookie-authenticated writes need it. */
 export const CSRF = { 'x-tokkl-csrf': '1' };
+
+/** The signed-in user's timer state, read over HTTP. */
+export const timerState = async (ctx: TestContext) => (await ctx.json<TimerState>('GET', '/api/app/timer')).body;
 
 export interface TestServer {
   request: (path: string, init?: RequestInit) => Promise<Response>;

@@ -5,9 +5,7 @@ import { createTimerOperations, type TimerRunner } from '../src/domain/timers.ts
 import type { EntryRepositories } from '../src/domain/entryAccess.ts';
 import type { TimerView } from '../src/domain/timerView.ts';
 import { setup } from './helpers.ts';
-import { manualClock } from './fixtures/clock.ts';
-
-const at = (time: string) => new Date(`2026-10-14T${time}Z`);
+import { at, manualClock } from './fixtures/clock.ts';
 
 /** Timer operations on the test database whose runner counts the write transactions it opens. */
 function countedTimers(db: Parameters<typeof storageFor>[0], user: { id: number }) {

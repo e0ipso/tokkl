@@ -17,9 +17,9 @@ import {
   startPomodoro,
 } from './fixtures/domain.ts';
 import { addUser, setup, type TestContext } from './helpers.ts';
+import { at } from './fixtures/clock.ts';
 
 /** An instant on the day these tests track time on. */
-const at = (time: string) => new Date(`2026-10-14T${time}Z`);
 const iso = (time: string) => at(time).toISOString();
 /** The same instant as the v9 API writes it. */
 const v9 = (time: string) => `2026-10-14T${time}+00:00`;

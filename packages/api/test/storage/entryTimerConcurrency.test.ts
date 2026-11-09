@@ -13,13 +13,7 @@ import { createTimerPublication, presentTimerOperations } from '../../src/servic
 import { disposableBackend } from './support/disposableBackend.ts';
 import { entryTimerFactory, entryAccount, entryAt as at } from './support/entry-timer.ts';
 import { errorReply } from '../../src/http/errors.ts';
-function gate() {
-  let resolve!: () => void;
-  const promise = new Promise<void>(r => {
-    resolve = r;
-  });
-  return { resolve, promise };
-}
+import { gate } from './support/invariantHttp.ts';
 for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
   test(
     `${backend}: real entry/timer races, late settlement and publication isolation`,

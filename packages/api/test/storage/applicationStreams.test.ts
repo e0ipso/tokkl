@@ -15,6 +15,7 @@ import {
   type EventStreamResponse,
   type StreamCredentialResult,
 } from '../../src/services/timerStreams.ts';
+import { gate } from './support/invariantHttp.ts';
 const state = (revision: number): TimerState => ({
   revision,
   server_time: '2026-10-30T12:00:00.000Z',
@@ -23,13 +24,6 @@ const state = (revision: number): TimerState => ({
   pomodoro: null,
   discarded_pomodoro: null,
 });
-function gate() {
-  let resolve!: () => void;
-  const promise = new Promise<void>(r => {
-    resolve = r;
-  });
-  return { promise, resolve };
-}
 test(
   'initial builds serialize and an overtaken snapshot never follows a committed state',
   { timeout: 10000 },

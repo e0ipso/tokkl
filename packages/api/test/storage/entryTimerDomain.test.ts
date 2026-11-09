@@ -12,7 +12,7 @@ import { createTimerPublication, presentTimerOperations } from '../../src/servic
 import { disposableBackend } from './support/disposableBackend.ts';
 import { failsWith } from '../fixtures/errors.ts';
 import { errorReply } from '../../src/http/errors.ts';
-const at = (time: string) => new Date(`2026-10-14T${time}Z`);
+import { at } from '../fixtures/clock.ts';
 for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
   test(
     `${backend}: timer pause, stale revision, Pomodoro discard and committed result`,

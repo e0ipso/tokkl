@@ -9,14 +9,8 @@ import { createTransactionRunner } from '../../src/storage/transactions.ts';
 import { StorageConflict } from '../../src/domain/ports.ts';
 import { StorageTransactionError } from '../../src/storage/errors.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
+import { gate } from './support/invariantHttp.ts';
 
-function gate() {
-  let resolve!: () => void;
-  const promise = new Promise<void>(r => {
-    resolve = r;
-  });
-  return { promise, resolve };
-}
 const instant = '2026-01-01T00:00:00.000Z';
 function repos(db: Kysely<PhysicalDatabase>, backend: string) {
   const connectionId = async () => {

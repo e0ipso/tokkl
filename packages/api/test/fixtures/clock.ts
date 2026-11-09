@@ -15,3 +15,6 @@ export function manualClock(start: Date): Clock & { set(at: Date): void } {
     },
   };
 }
+
+/** `time` ("HH:MM:SS") on the day the timer tests run, 2026-10-14 UTC. */
+export const at = (time: string) => new Date(`2026-10-14T${time}Z`);

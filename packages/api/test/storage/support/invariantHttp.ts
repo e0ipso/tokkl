@@ -5,13 +5,7 @@ import type { HttpApp } from '../../../src/app.ts';
 import type { TimerState } from '@tokkl/types';
 import type { Storage } from '../../../src/domain/ports.ts';
 
-export function gate() {
-  let resolve!: () => void;
-  const promise = new Promise<void>(r => {
-    resolve = r;
-  });
-  return { promise, resolve };
-}
+export const gate = () => Promise.withResolvers<void>();
 /** Forces HTTP writes to overlap. The wrapped storage holds each write at its `storage.transaction`
  * call, before the engine opens a transaction, until every request passed to `overlap` has arrived,
  * then releases them together. On SQLite the hold comes before BEGIN IMMEDIATE, so the released
