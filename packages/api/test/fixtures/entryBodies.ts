@@ -60,19 +60,36 @@ export const bodyWriter = (writer: ExactEntryImport) => ({
   create: async (body: Body) => writer.create(parseNewEntry(body)),
 });
 
-/** Timer operations that take a raw Pomodoro body and an unchecked revision. */
-export function bodyTimers(timers: PresentedTimerOperations) {
+type Timers = PresentedTimerOperations;
+/** One user's timer operations with that user's id as the first argument of each. */
+export type TimersById = {
+  [Name in keyof Timers]: (userId: number, ...args: Parameters<Timers[Name]>) => ReturnType<Timers[Name]>;
+};
+
+/** Timer operations that take the user's id first and build `forUser(userId)` for each call. */
+export function timersById(forUser: (userId: number) => Timers): TimersById {
+  const names = Object.keys(forUser(0)) as (keyof Timers)[];
+  return Object.fromEntries(
+    names.map(name => [
+      name,
+      (userId: number, ...args: unknown[]) => (forUser(userId)[name] as (...rest: unknown[]) => unknown)(...args),
+    ]),
+  ) as TimersById;
+}
+
+/** Timer operations by user id that take a raw Pomodoro body and an unchecked revision. */
+export function bodyTimers(forUser: (userId: number) => Timers) {
   return {
-    ...timers,
+    ...timersById(forUser),
     startPomodoro: async (userId: number, body: Body, now?: Date) =>
-      timers.startPomodoro(userId, parseStartPomodoro(body), now),
+      forUser(userId).startPomodoro(parseStartPomodoro(body), now),
     nextPomodoroPhase: async (userId: number, revision: unknown, now?: Date) =>
-      timers.nextPomodoroPhase(userId, parseRevision(revision), now),
+      forUser(userId).nextPomodoroPhase(parseRevision(revision), now),
     endPomodoro: async (userId: number, revision: unknown, now?: Date) =>
-      timers.endPomodoro(userId, parseRevision(revision), now),
+      forUser(userId).endPomodoro(parseRevision(revision), now),
     resumeTimer: async (userId: number, revision: unknown, now?: Date) =>
-      timers.resumeTimer(userId, parseRevision(revision), now),
+      forUser(userId).resumeTimer(parseRevision(revision), now),
     discardPause: async (userId: number, revision: unknown, now?: Date) =>
-      timers.discardPause(userId, parseRevision(revision), now),
+      forUser(userId).discardPause(parseRevision(revision), now),
   };
 }

@@ -74,7 +74,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
       const user = await operations.transaction(r => r.users.createAccount(entryAccount('worker')));
       const wid = user.defaultWorkspaceId;
       const publish = createTimerPublication(async () => {});
-      const timers = presentTimerOperations(createTimerOperations(operations, publish));
+      const timers = presentTimerOperations(createTimerOperations(operations, user, publish));
       await operations.transaction(r =>
         createTimeEntry(r, user, wid, { start: '2026-10-05T10:00:00Z', duration: 3600, description: 'Work' }, publish),
       );
@@ -206,7 +206,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
           publish,
         ),
       );
-      const state = await timers.getTimerState(user.id);
+      const state = await timers.getTimerState();
       assert.equal(state.running_entry?.description, 'live timer');
       const overlapped = !finished;
       const timerMs = performance.now() - timerStarted;

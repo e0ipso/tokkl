@@ -21,13 +21,16 @@ export interface TimerDeliveryOptions {
 }
 
 export function createTimerDelivery({ storage, bus, logger, streamOptions }: TimerDeliveryOptions) {
-  // `timers` and `publish` are defined below; streams call these only after construction.
-  const timerStreams = new TimerStreams(async id => presentTimerState(await timers.getTimerState(id)), {
-    ...streamOptions,
-    onBehind: (id, revision) => {
-      publish.refresh(id, revision).catch(error => logger.error('Timer refresh failed', { error }));
+  // `publish` is defined below; streams call it only after construction.
+  const timerStreams = new TimerStreams(
+    async id => presentTimerState(await createTimerOperations(storage, { id }, publish).getTimerState()),
+    {
+      ...streamOptions,
+      onBehind: (id, revision) => {
+        publish.refresh(id, revision).catch(error => logger.error('Timer refresh failed', { error }));
+      },
     },
-  });
+  );
   const ordered = createTimerPublication<TimerView>(
     async (id, view) => {
       // A failed delivery must not fail the commit that caused it; the next state supersedes it.
@@ -72,11 +75,9 @@ export function createTimerDelivery({ storage, bus, logger, streamOptions }: Tim
       },
     },
   );
-  const timers = createTimerOperations(storage, publish);
   return {
     timerStreams,
     publish,
-    timers,
     /** Waits for started refreshes; call after the streams closed, so no new one starts. */
     async settled(): Promise<void> {
       await Promise.allSettled([...refreshes]);
