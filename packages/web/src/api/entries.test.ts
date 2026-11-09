@@ -13,19 +13,12 @@ import {
   settleOtherWrites,
 } from './timerState.ts';
 import type { TimeEntry, TimerState } from '@tokkl/types';
-import { timeEntry } from '../testFixtures.ts';
+import { timeEntry, timerState } from '../testFixtures.ts';
 
 const entry = (id: number, description: string) =>
   timeEntry({ id, description, start: '2026-10-27T09:00:00.000Z', at: '2026-10-27T09:00:00.000Z' });
 
-const state = (revision: number, running_entry: TimeEntry | null): TimerState => ({
-  revision,
-  server_time: '2026-10-27T10:00:00.000Z',
-  running_entry,
-  pause: null,
-  pomodoro: null,
-  discarded_pomodoro: null,
-});
+const state = (revision: number, running_entry: TimeEntry | null) => timerState(revision, { running_entry });
 
 const EDIT_PATH = '/api/app/timer/edit';
 

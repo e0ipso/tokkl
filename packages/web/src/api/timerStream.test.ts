@@ -2,6 +2,7 @@ import { afterEach, test, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import type { TimerState } from '@tokkl/types';
 import { connectTimerStream, retryDelay, type TimerEventSource } from './timerStream.ts';
+import { timerState } from '../testFixtures.ts';
 
 afterEach(() => mock.restoreAll());
 
@@ -31,14 +32,7 @@ class FakeSource implements TimerEventSource {
   }
 }
 
-const state = (revision: number): TimerState => ({
-  revision,
-  server_time: '2026-10-27T10:00:00.000Z',
-  running_entry: null,
-  pause: null,
-  pomodoro: null,
-  discarded_pomodoro: null,
-});
+const state = (revision: number) => timerState(revision);
 
 /** A stream whose retries draw `random` (0 by default, so each waits the shortest time, 5 s). */
 function setup(random: () => number = () => 0) {

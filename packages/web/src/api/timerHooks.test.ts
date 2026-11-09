@@ -14,16 +14,9 @@ import {
 } from './timerHooks.ts';
 import { TIMER_OFFLINE_MESSAGE, TimerActionError, UnreadableTimerStateError } from './timerState.ts';
 import type { TimeEntry, TimerState } from '@tokkl/types';
-import { timeEntry } from '../testFixtures.ts';
+import { timeEntry, timerState } from '../testFixtures.ts';
 
-const state = (revision: number, running_entry: TimeEntry | null = null): TimerState => ({
-  revision,
-  server_time: '2026-10-27T10:00:00.000Z',
-  running_entry,
-  pause: null,
-  pomodoro: null,
-  discarded_pomodoro: null,
-});
+const state = (revision: number, running_entry: TimeEntry | null = null) => timerState(revision, { running_entry });
 
 const running = (id: number) =>
   timeEntry({ id, start: '2026-10-27T09:00:00.000Z', at: '2026-10-27T09:00:00.000Z', description: `Entry ${id}` });

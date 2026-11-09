@@ -2,19 +2,9 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { TimerPomodoro } from '@tokkl/types';
 import { phaseAlarm } from './pomodoroSessionAlarm.ts';
+import { POMODORO } from '../testFixtures.ts';
 
-const pomodoro: TimerPomodoro = {
-  work_minutes: 25,
-  short_rest_minutes: 5,
-  long_rest_minutes: 15,
-  long_rest_every: 4,
-  phase: { kind: 'work', start: '2026-10-27T10:00:00.000Z', completed: 0, planned_end: '2026-10-27T10:25:00.000Z' },
-  upcoming_phase: 'shortRest',
-  transition: 'workToShortRest',
-  number: 1,
-  entry_id: 7,
-  pomodoro_start: '2026-10-27T10:00:00.000Z',
-};
+const pomodoro = POMODORO;
 
 test('no session rings nothing', () => {
   assert.equal(phaseAlarm(null, Date.parse('2026-10-27T11:00:00.000Z')), null);
