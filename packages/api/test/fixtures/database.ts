@@ -101,6 +101,38 @@ export function filenameFor(db: FixtureDatabase): string {
 }
 export function setServices(db: FixtureDatabase, services: ApplicationServices): void {
   fixtures.get(db)!.services = services;
+  observeTimerDeliveries(services);
+}
+
+export type TimerListener = (state: { revision: number }) => unknown;
+/** Per user: who listens to delivered timer states, and the highest revision delivered so far. */
+export interface TimerObservation {
+  listeners: Map<number, Set<TimerListener>>;
+  reached: Map<number, number>;
+}
+const observations = new WeakMap<object, TimerObservation>();
+
+/**
+ * Records every timer state the services deliver to streams, from the moment they are set, so a
+ * test can wait for delivery (replies do not) and listen to the states delivered.
+ */
+function observeTimerDeliveries(services: ApplicationServices): void {
+  const streams = services.timerStreams;
+  if (observations.has(streams)) return;
+  const observation: TimerObservation = { listeners: new Map(), reached: new Map() };
+  observations.set(streams, observation);
+  const deliver = streams.publish.bind(streams);
+  streams.publish = async (id, state) => {
+    await deliver(id, state);
+    const listeners = [...(observation.listeners.get(id) ?? [])];
+    const results = await Promise.allSettled(listeners.map(async each => each(state)));
+    for (const result of results) if (result.status === 'rejected') console.error('Timer subscriber failed');
+    observation.reached.set(id, Math.max(observation.reached.get(id) ?? 0, state.revision));
+  };
+}
+
+export function timerObservation(db: FixtureDatabase): TimerObservation {
+  return observations.get(servicesFor(db).timerStreams)!;
 }
 export function servicesFor(db: FixtureDatabase): ApplicationServices {
   return fixtures.get(db)!.services!;

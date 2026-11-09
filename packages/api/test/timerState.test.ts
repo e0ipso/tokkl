@@ -5,7 +5,7 @@ import { transaction } from './fixtures/database.ts';
 import { settleTimer } from './fixtures/domain.ts';
 import { createTimeEntry, stopTimeEntry } from './fixtures/domain.ts';
 import { addWorkspaceMember } from './fixtures/domain.ts';
-import { subscribeTimer } from './fixtures/domain.ts';
+import { subscribeTimer, timerDelivered } from './fixtures/domain.ts';
 import { addUser, iso, setup, type TestContext } from './helpers.ts';
 
 /** An instant on the day these tests track time on. */
@@ -86,13 +86,19 @@ interface Publish {
 }
 
 /** Records every publish for the user: the revision the listener reads, and whether a transaction was still open. */
-function watch(ctx: TestContext): Publish[] {
+/** The states delivered to the user's streams from now on; earlier writes are delivered first. */
+async function watch(ctx: TestContext): Promise<Publish[]> {
   const seen: Publish[] = [];
-  subscribeTimer(ctx.db, ctx.user.id, async () => {
-    seen.push({ revision: await revision(ctx), inTransaction: !!currentContext(ctx.db) });
+  subscribeTimer(ctx.db, ctx.user.id, state => {
+    seen.push({ revision: state.revision, inTransaction: !!currentContext(ctx.db) });
   });
+  await timerDelivered(ctx.db, ctx.user.id);
+  seen.splice(0);
   return seen;
 }
+
+/** Waits until each account's committed timer states have all been delivered; replies do not wait. */
+const delivered = (...who: TestContext[]) => Promise.all(who.map(each => timerDelivered(each.db, each.user.id)));
 
 test('each write that stops or removes the pomodoro entry ends the session and publishes once', async () => {
   const ctx = await setup();
@@ -102,8 +108,8 @@ test('each write that stops or removes the pomodoro entry ends the session and p
   const project = (await ctx.json('POST', `/api/v9/workspaces/${ctx.wid}/projects`, { name: 'Alpha' })).body
     .id as number;
   const heard = new Map([
-    [ctx, watch(ctx)],
-    [bob, watch(bob)],
+    [ctx, await watch(ctx)],
+    [bob, await watch(bob)],
   ]);
 
   type End = (entryId: number, hour: string) => Promise<{ status: number }>;
@@ -129,11 +135,13 @@ test('each write that stops or removes the pomodoro entry ends the session and p
     const entryId = await startTimer(owner, { start: at(`${hour}:00:00`), project_id: project }, ctx.wid);
     await putSession(owner, entryId);
     const before = await revision(owner);
+    await delivered(ctx, bob);
     for (const seen of heard.values()) seen.splice(0);
 
     const response = await end(entryId, hour);
     assert.equal(response.status, 200, label);
     assert.equal(await session(owner), undefined, label);
+    await delivered(ctx, bob);
     assert.deepEqual(heard.get(owner), [{ revision: before + 1, inTransaction: false }], label);
     const other = owner === ctx ? bob : ctx;
     assert.deepEqual(heard.get(other), [], `${label}: the other account's state did not change`);
@@ -145,9 +153,11 @@ test('each write that stops or removes the pomodoro entry ends the session and p
   await putSession(ctx, stale);
   await storageFor(ctx.db).entries.softDelete(ctx.user.id, ctx.wid, stale, new Date().toISOString());
   const before = await revision(ctx);
+  await delivered(ctx, bob);
   heard.get(ctx)!.splice(0);
   assert.equal((await ctx.json('DELETE', '/api/app/trash')).status, 200);
   assert.equal(await session(ctx), undefined);
+  await delivered(ctx);
   assert.deepEqual(heard.get(ctx), [{ revision: before + 1, inTransaction: false }]);
 });
 
@@ -158,7 +168,7 @@ test('a pomodoro that a stop rounds to zero is the discarded pomodoro until the 
   const older = (await ctx.json('POST', url, { start: at('08:00:00'), stop: at('08:30:00') })).body.id as number;
   const entryId = await startTimer(ctx, { start: at('09:00:10') });
   await putSession(ctx, entryId);
-  const published = watch(ctx);
+  const published = await watch(ctx);
   const before = await revision(ctx);
 
   const stopped = await ctx.json('PATCH', `${url}/${entryId}/stop`, { stop: at('09:00:20') });
@@ -172,6 +182,7 @@ test('a pomodoro that a stop rounds to zero is the discarded pomodoro until the 
     discarded_stop: iso(at('09:00:00')),
   };
   assert.deepEqual(await discardOf(ctx), discarded);
+  await delivered(ctx);
   assert.deepEqual(published, [{ revision: before + 1, inTransaction: false }]);
 
   // A write that changes nothing in the timer state keeps it.
@@ -181,6 +192,7 @@ test('a pomodoro that a stop rounds to zero is the discarded pomodoro until the 
   // The next change that discards nothing clears it.
   await startTimer(ctx, { start: at('10:00:00') });
   assert.deepEqual(await discardOf(ctx), { discarded_entry_id: null, discarded_start: null, discarded_stop: null });
+  await delivered(ctx);
   assert.equal(published.length, 2);
 
   // A session that moves on to a new pomodoro, as rest to work does, records the one it left in the trash.
@@ -207,12 +219,13 @@ test('writes that leave the pomodoro entry running keep the session', async () =
   const entryId = await startTimer(ctx);
   await putSession(ctx, entryId);
   const stored = await session(ctx);
-  const published = watch(ctx);
+  const published = await watch(ctx);
   const before = await revision(ctx);
 
   // An edit to an older, stopped entry changes nothing the timer state holds.
   assert.equal((await ctx.json('PUT', `${url}/${older}`, { description: 'renamed' })).status, 200);
   assert.equal(await revision(ctx), before);
+  await delivered(ctx);
   assert.deepEqual(published, []);
 
   // A start refused with 400 rolls back whole, so the pomodoro entry still runs and nothing is published.
@@ -221,6 +234,7 @@ test('writes that leave the pomodoro entry running keep the session', async () =
   assert.equal((await ctx.json('GET', '/api/v9/me/time_entries/current')).body.id, entryId);
   assert.deepEqual(await session(ctx), stored);
   assert.equal(await revision(ctx), before);
+  await delivered(ctx);
   assert.deepEqual(published, []);
 
   // Moving the open pomodoro's start keeps the session and its phase start. The running entry
@@ -230,21 +244,24 @@ test('writes that leave the pomodoro entry running keep the session', async () =
   assert.equal(moved.body.stop, null);
   assert.equal(moved.body.start, '2026-10-14T08:55:00+00:00');
   assert.deepEqual(await session(ctx), stored);
+  await delivered(ctx);
   assert.deepEqual(published, [{ revision: before + 1, inTransaction: false }]);
 });
 
 test('a paused chain ends when any other entry starts, and a resumed chain ends when its clone stops', async () => {
   const ctx = await setup();
   const url = entriesUrl(ctx.wid);
-  const published = watch(ctx);
+  const published = await watch(ctx);
   /** Puts a chain on the user and returns the revision one more change will raise by one. */
   const chainUp = async (clone: number | null) => {
     await putChain(ctx, clone);
+    await delivered(ctx);
     published.splice(0);
     return await revision(ctx);
   };
   const assertEnded = async (label: string, before: number) => {
     assert.equal(await chain(ctx), undefined, label);
+    await delivered(ctx);
     assert.deepEqual(published, [{ revision: before + 1, inTransaction: false }], label);
   };
   const stopCurrent = async () => {
@@ -296,29 +313,31 @@ test('deleting the task, tag or project of running entries publishes to each use
   await startTimer(bob, fields, ctx.wid);
   const clone = await startTimer(ctx, fields);
   await putChain(ctx, clone, fields);
-  const heard = [watch(ctx), watch(bob)];
+  const heard = [await watch(ctx), await watch(bob)];
   const running = async (who: TestContext) => (await who.json('GET', '/api/v9/me/time_entries/current')).body;
-  const assertHeardOnce = (label: string) =>
+  const assertHeardOnce = async (label: string) => {
+    await delivered(ctx, bob);
     assert.deepEqual(
       heard.map(seen => seen.splice(0).length),
       [1, 1],
       label,
     );
+  };
 
   assert.equal((await ctx.json('DELETE', `${ws}/projects/${project}/tasks/${task}`)).status, 200);
   for (const who of [ctx, bob]) assert.equal((await running(who)).task_id, null);
   assert.equal((await chain(ctx))?.task_id, null);
-  assertHeardOnce('task delete');
+  await assertHeardOnce('task delete');
 
   assert.equal((await ctx.json('DELETE', `${ws}/tags/${tag}`)).status, 200);
   for (const who of [ctx, bob]) assert.deepEqual((await running(who)).tag_ids, []);
-  assertHeardOnce('tag delete');
+  await assertHeardOnce('tag delete');
 
   assert.equal((await ctx.json('DELETE', `${ws}/projects/${project}`)).status, 200);
   for (const who of [ctx, bob]) assert.equal((await running(who)).project_id, null);
   assert.equal((await chain(ctx))?.project_id, null);
   assert.equal((await chain(ctx))?.clone_entry_id, clone);
-  assertHeardOnce('project delete that keeps the entries');
+  await assertHeardOnce('project delete that keeps the entries');
 });
 
 test('renaming the project, client, task or tag a timer shows publishes the new name to each user', async () => {
@@ -333,7 +352,7 @@ test('renaming the project, client, task or tag a timer shows publishes the new 
   // Bob runs an entry in the admin's workspace. The admin is paused, with the tag on the chain.
   await startTimer(bob, { project_id: project, task_id: task, tag_ids: [tag] }, ctx.wid);
   await putChain(ctx, null, { tag_ids: [tag] });
-  const heard = [watch(ctx), watch(bob)];
+  const heard = [await watch(ctx), await watch(bob)];
   const state = async (who: TestContext) => (await who.json('GET', '/api/app/timer')).body;
 
   const renames: Array<[string, string, string, (bobs: any, admins: any) => void]> = [
@@ -357,6 +376,7 @@ test('renaming the project, client, task or tag a timer shows publishes the new 
   ];
   for (const [label, url, name, check] of renames) {
     assert.equal((await ctx.json('PUT', url, { name })).status, 200, label);
+    await delivered(ctx, bob);
     // The tag is the only name the admin's paused chain shows.
     assert.deepEqual(
       heard.map(seen => seen.splice(0).length),
@@ -367,6 +387,7 @@ test('renaming the project, client, task or tag a timer shows publishes the new 
   }
   // A rename that shows nothing new moves no revision.
   assert.equal((await ctx.json('PUT', `${ws}/tags/${tag}`, { name: 'focus' })).status, 200);
+  await delivered(ctx, bob);
   assert.deepEqual(
     heard.map(seen => seen.splice(0).length),
     [0, 0],
@@ -385,15 +406,17 @@ test('a listener that throws is logged and the write stands; one that settles ag
     // A stream that reads fresh state on each publish settles inside its own transaction.
     subscribeTimer(ctx.db, ctx.user.id, async () => settledAgain.push(await settleTimer(ctx.db, ctx.user.id))),
   ];
-  const published = watch(ctx);
+  const published = await watch(ctx);
 
   const entryId = await startTimer(ctx);
+  await delivered(ctx);
   assert.deepEqual(published, [{ revision: 1, inTransaction: false }]);
   assert.deepEqual(settledAgain, [false]);
   assert.equal(errors.mock.callCount(), 1);
 
   for (const stop of unsubscribe) stop();
   assert.equal((await ctx.json('PATCH', `${entriesUrl(ctx.wid)}/${entryId}/stop`)).status, 200);
+  await delivered(ctx);
   assert.deepEqual(published, [
     { revision: 1, inTransaction: false },
     { revision: 2, inTransaction: false },

@@ -6,7 +6,7 @@ import { errorReply } from '../src/http/errors.ts';
 import { listDeletedEntries, listTimeEntries, serializeTimeEntry } from './fixtures/domain.ts';
 import { getUser } from './fixtures/domain.ts';
 import { addWorkspaceMember } from './fixtures/domain.ts';
-import { subscribeTimer } from './fixtures/domain.ts';
+import { subscribeTimer, timerDelivered } from './fixtures/domain.ts';
 import {
   discardPause,
   endPomodoro,
@@ -26,7 +26,8 @@ const v9 = (time: string) => `2026-10-14T${time}+00:00`;
 
 interface SessionContext extends TestContext {
   /** Publishes the hub made for the user since the last call. */
-  published: () => number;
+  /** Waits until every committed state is delivered, then counts the deliveries since the last call. */
+  published: () => Promise<number>;
 }
 
 /**
@@ -46,7 +47,8 @@ async function sessionSetup(): Promise<SessionContext> {
   assert.equal(saved.status, 200);
   let count = 0;
   subscribeTimer(ctx.db, ctx.user.id, () => count++);
-  const published = () => {
+  const published = async () => {
+    await timerDelivered(ctx.db, ctx.user.id);
     const seen = count;
     count = 0;
     return seen;
@@ -71,9 +73,14 @@ async function trashed(ctx: TestContext) {
 }
 
 /** Asserts that the change from `before` to `after` raised the revision by one and published once. */
-function assertOneChange(ctx: SessionContext, before: TimerState, after: TimerState, label: string): void {
+async function assertOneChange(
+  ctx: SessionContext,
+  before: TimerState,
+  after: TimerState,
+  label: string,
+): Promise<void> {
   assert.equal(after.revision, before.revision + 1, label);
-  assert.equal(ctx.published(), 1, label);
+  assert.equal(await ctx.published(), 1, label);
 }
 
 test('a session cycle stores each pomodoro on rest to work and starts the next at the confirm instant', async () => {
@@ -102,7 +109,7 @@ test('a session cycle stores each pomodoro on rest to work and starts the next a
     },
     at('09:00:00'),
   );
-  assertOneChange(ctx, idle, state, 'start');
+  await assertOneChange(ctx, idle, state, 'start');
   const first = state.running_entry!.id;
   assert.equal(state.server_time, iso('09:00:00'));
   assert.equal(state.running_entry!.project_name, 'Alpha', 'the running entry carries meta');
@@ -130,7 +137,7 @@ test('a session cycle stores each pomodoro on rest to work and starts the next a
   // Work to short rest, confirmed in overtime, changes the session only.
   let before = state;
   state = await nextPomodoroPhase(ctx.db, ctx.user, state.revision, at('09:01:10'));
-  assertOneChange(ctx, before, state, 'work to short rest');
+  await assertOneChange(ctx, before, state, 'work to short rest');
   assert.deepEqual(state.pomodoro, {
     ...before.pomodoro!,
     phase: { kind: 'shortRest', start: iso('09:01:10'), completed: 1, planned_end: iso('09:02:10') },
@@ -145,13 +152,13 @@ test('a session cycle stores each pomodoro on rest to work and starts the next a
   const edit = { description: 'Final', tags: ['deep', 'review'], billable: false };
   assert.equal((await ctx.json('PUT', `/api/v9/workspaces/${ctx.wid}/time_entries/${first}`, edit)).status, 200);
   state = await getTimerState(ctx.db, ctx.user, at('09:02:00'));
-  assertOneChange(ctx, before, state, 'v9 edit');
+  await assertOneChange(ctx, before, state, 'v9 edit');
   assert.deepEqual(state.pomodoro, before.pomodoro);
 
   // Short rest to work stores the pomodoro snapped and starts the next at the exact confirm instant.
   before = state;
   state = await nextPomodoroPhase(ctx.db, ctx.user, state.revision, at('09:02:20'));
-  assertOneChange(ctx, before, state, 'short rest to work');
+  await assertOneChange(ctx, before, state, 'short rest to work');
   const second = state.running_entry!.id;
   assert.notEqual(second, first);
   assert.deepEqual(state.pomodoro, {
@@ -173,7 +180,7 @@ test('a session cycle stores each pomodoro on rest to work and starts the next a
   // Work to long rest, skipped before the planned end, still counts toward the long rest.
   before = state;
   state = await nextPomodoroPhase(ctx.db, ctx.user, state.revision, at('09:02:50'));
-  assertOneChange(ctx, before, state, 'skipped work to long rest');
+  await assertOneChange(ctx, before, state, 'skipped work to long rest');
   assert.deepEqual(state.pomodoro, {
     ...before.pomodoro!,
     phase: { kind: 'longRest', start: iso('09:02:50'), completed: 2, planned_end: iso('09:03:50') },
@@ -185,7 +192,7 @@ test('a session cycle stores each pomodoro on rest to work and starts the next a
   // The long rest resets the count, and its pomodoro meets the first one on the grid.
   before = state;
   state = await nextPomodoroPhase(ctx.db, ctx.user, state.revision, at('09:04:00'));
-  assertOneChange(ctx, before, state, 'long rest to work');
+  await assertOneChange(ctx, before, state, 'long rest to work');
   const third = state.running_entry!.id;
   assert.deepEqual(state.pomodoro, {
     ...before.pomodoro!,
@@ -213,10 +220,10 @@ test('End session stores the open pomodoro, and one too short to keep goes to th
   let state = await startPomodoro(ctx.db, ctx.user, { description: 'Write' }, at('10:00:00'));
   const written = state.running_entry!.id;
   state = await nextPomodoroPhase(ctx.db, ctx.user, state.revision, at('10:01:00'));
-  ctx.published();
+  await ctx.published();
   let before = state;
   state = await endPomodoro(ctx.db, ctx.user, state.revision, at('10:01:40'));
-  assertOneChange(ctx, before, state, 'End during a rest');
+  await assertOneChange(ctx, before, state, 'End during a rest');
   assert.deepEqual(
     { running_entry: state.running_entry, pomodoro: state.pomodoro, discarded_pomodoro: state.discarded_pomodoro },
     { running_entry: null, pomodoro: null, discarded_pomodoro: null },
@@ -231,10 +238,10 @@ test('End session stores the open pomodoro, and one too short to keep goes to th
   state = await startPomodoro(ctx.db, ctx.user, { description: 'Skim' }, at('11:00:00'));
   const skimmed = state.running_entry!.id;
   state = await nextPomodoroPhase(ctx.db, ctx.user, state.revision, at('11:00:05'));
-  ctx.published();
+  await ctx.published();
   before = state;
   state = await nextPomodoroPhase(ctx.db, ctx.user, state.revision, at('11:00:10'));
-  assertOneChange(ctx, before, state, 'rest to work on a pomodoro too short to keep');
+  await assertOneChange(ctx, before, state, 'rest to work on a pomodoro too short to keep');
   assert.deepEqual(state.discarded_pomodoro, { entry_id: skimmed, start: iso('11:00:00'), stop: iso('11:00:00') });
   const next = state.running_entry!;
   assert.equal(next.start, v9('11:00:10'));
@@ -248,7 +255,7 @@ test('End session stores the open pomodoro, and one too short to keep goes to th
   // End sends the next one to the trash too.
   before = state;
   state = await endPomodoro(ctx.db, ctx.user, state.revision, at('11:00:20'));
-  assertOneChange(ctx, before, state, 'End on a pomodoro too short to keep');
+  await assertOneChange(ctx, before, state, 'End on a pomodoro too short to keep');
   assert.equal(state.pomodoro, null);
   assert.deepEqual(state.discarded_pomodoro, { entry_id: next.id, start: iso('11:00:00'), stop: iso('11:00:00') });
   assert.deepEqual(await getTimerState(ctx.db, ctx.user, at('11:00:20')), state);
@@ -276,12 +283,12 @@ test('pause, resume and pause again add up the stored seconds, and discard ends 
     billable: true,
   });
   assert.equal(started.status, 200);
-  ctx.published();
+  await ctx.published();
 
   // Pause stops the entry and keeps the fields Resume clones, with the seconds the entry stored.
   let before = await getTimerState(ctx.db, ctx.user, at('09:05:00'));
   let state = await pauseTimer(ctx.db, ctx.user, at('09:10:00'));
-  assertOneChange(ctx, before, state, 'pause');
+  await assertOneChange(ctx, before, state, 'pause');
   const fields = {
     workspace_id: ctx.wid,
     description: 'Support',
@@ -297,7 +304,7 @@ test('pause, resume and pause again add up the stored seconds, and discard ends 
   // Resume starts a clone at the confirm instant and keeps the chain.
   before = state;
   state = await resumeTimer(ctx.db, ctx.user, state.revision, at('09:15:00'));
-  assertOneChange(ctx, before, state, 'resume');
+  await assertOneChange(ctx, before, state, 'resume');
   const clone = state.running_entry!;
   assert.deepEqual(
     [clone.start, clone.description, clone.project_id, clone.tag_ids, clone.billable],
@@ -308,14 +315,14 @@ test('pause, resume and pause again add up the stored seconds, and discard ends 
   // Pausing the clone extends the chain.
   before = state;
   state = await pauseTimer(ctx.db, ctx.user, at('09:20:00'));
-  assertOneChange(ctx, before, state, 'pause of the clone');
+  await assertOneChange(ctx, before, state, 'pause of the clone');
   assert.deepEqual(state.pause, { paused: true, seconds: 900, ...fields, clone_entry_id: null });
 
   // A tag deleted while paused leaves the chain and stays out when another tag is created.
   before = state;
   assert.equal((await ctx.json('DELETE', `${ws}/tags/${deep}`)).status, 200);
   state = await getTimerState(ctx.db, ctx.user, at('09:21:00'));
-  assertOneChange(ctx, before, state, 'tag delete');
+  await assertOneChange(ctx, before, state, 'tag delete');
   assert.deepEqual([state.pause?.tag_ids, state.pause?.tags], [[calls], ['calls']]);
   const fresh = await ctx.json('POST', `${ws}/tags`, { name: 'fresh' });
   assert.equal(fresh.status, 200);
@@ -361,10 +368,10 @@ test('pause, resume and pause again add up the stored seconds, and discard ends 
   });
 
   // Discard ends the chain and writes nothing.
-  ctx.published();
+  await ctx.published();
   before = state;
   state = await discardPause(ctx.db, ctx.user, state.revision, at('09:50:00'));
-  assertOneChange(ctx, before, state, 'discard');
+  await assertOneChange(ctx, before, state, 'discard');
   assert.deepEqual([state.pause, state.running_entry], [null, null]);
   assert.deepEqual(
     (await stored(ctx)).map(({ description, start, stop }) => [description, start, stop]),
@@ -387,7 +394,7 @@ async function assertRefused(
   action: (now: Date) => Promise<TimerState>,
 ): Promise<void> {
   const current = await getTimerState(ctx.db, ctx.user, now);
-  ctx.published();
+  await ctx.published();
   await assert.rejects(
     () => action(now),
     (error: unknown) => {
@@ -398,7 +405,7 @@ async function assertRefused(
     },
   );
   assert.deepEqual(await getTimerState(ctx.db, ctx.user, now), current, label);
-  assert.equal(ctx.published(), 0, label);
+  assert.equal(await ctx.published(), 0, label);
 }
 
 test('a refused action gets a 409 with the current state and changes nothing', async () => {

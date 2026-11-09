@@ -7,7 +7,15 @@ import { createTimerPublication } from '../../src/services/timerPublication.ts';
 import { presentTimerOperations } from '../../src/services/timerReplies.ts';
 import * as entries from './entryBodies.ts';
 import type { User } from '../../src/domain/model.ts';
-import { storageFor, servicesFor, transaction, currentContext, type FixtureDatabase } from './database.ts';
+import {
+  storageFor,
+  transaction,
+  currentContext,
+  timerObservation,
+  servicesFor,
+  type FixtureDatabase,
+  type TimerListener,
+} from './database.ts';
 export type { UserRole, User } from '../../src/domain/model.ts';
 export { MAX_FAVORITES } from '../../src/domain/accountValues.ts';
 export { serializeTimeEntry } from '../../src/presenters/toggl.ts';
@@ -75,30 +83,31 @@ export const nextPomodoroPhase = (db: FixtureDatabase, user: User, revision: unk
 export const endPomodoro = (db: FixtureDatabase, user: User, revision: unknown, now?: Date) =>
   timers(db).endPomodoro(user.id, revision, now);
 
-type TimerListener = () => unknown;
-const timerListeners = new WeakMap<object, Map<number, Set<TimerListener>>>();
 /**
- * Calls `listener` after each timer state the app delivers to `uid`'s streams, and returns the
+ * Calls `listener` with each timer state the app delivers to `uid`'s streams, and returns the
  * unsubscribe function. A failing listener is reported on the console and does not stop the others.
  */
 export function subscribeTimer(db: FixtureDatabase, uid: number, listener: TimerListener): () => void {
-  const streams = servicesFor(db).timerStreams;
-  let users = timerListeners.get(streams);
-  if (!users) {
-    const listening = new Map<number, Set<TimerListener>>();
-    users = listening;
-    timerListeners.set(streams, listening);
-    const deliver = streams.publish.bind(streams);
-    streams.publish = async (id, state) => {
-      await deliver(id, state);
-      const results = await Promise.allSettled([...(listening.get(id) ?? [])].map(async each => each()));
-      for (const result of results) if (result.status === 'rejected') console.error('Timer subscriber failed');
-    };
+  const { listeners } = timerObservation(db);
+  const forUser = listeners.get(uid) ?? new Set();
+  listeners.set(uid, forUser);
+  forUser.add(listener);
+  return () => forUser.delete(listener);
+}
+
+/**
+ * Waits until every timer state committed for `uid` so far has been delivered to its streams. A
+ * write's reply does not wait for delivery, so a test that counts deliveries waits here first.
+ */
+export async function timerDelivered(db: FixtureDatabase, uid: number, timeoutMs = 5000): Promise<void> {
+  const { reached } = timerObservation(db);
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const committed = (await storageFor(db).timers.getRevision(uid))?.revision ?? 0;
+    if ((reached.get(uid) ?? 0) >= committed) return;
+    if (Date.now() > deadline) throw new Error(`timer revision ${committed} for user ${uid} was never delivered`);
+    await new Promise(resolve => setTimeout(resolve, 5));
   }
-  const listeners = users.get(uid) ?? new Set();
-  users.set(uid, listeners);
-  listeners.add(listener);
-  return () => listeners.delete(listener);
 }
 
 export const listWorkspacesForUser = (db: FixtureDatabase, uid: number) => storageFor(db).workspaces.listForUser(uid);
