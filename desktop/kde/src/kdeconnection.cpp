@@ -7,31 +7,27 @@
 namespace Tokkl
 {
 
-namespace
-{
-// The User-Agent product and the created_with value of the KDE widget.
-QString clientName()
+QString kdeClientName()
 {
     return QStringLiteral("tokkl-kde");
 }
-}
 
 KdeConnection::KdeConnection(QObject *parent)
-    : KdeConnection(new NetworkTransport(clientName()), new SystemClock, parent)
+    : KdeConnection(new NetworkTransport(kdeClientName()), new SystemClock, parent)
 {
 }
 
 // The connection owns the transport and the clock it is given here. As
 // children they go after the session that uses them.
 KdeConnection::KdeConnection(NetworkTransport *transport, SystemClock *clock, QObject *parent)
-    : Connection(transport, KWalletCredentialStore::shared(), *clock, clientName(), parent)
+    : Connection(transport, KWalletCredentialStore::shared(), *clock, kdeClientName(), parent)
 {
     transport->setParent(this);
     clock->setParent(this);
 }
 
 KdeConnectionSetup::KdeConnectionSetup(QObject *parent)
-    : KdeConnectionSetup(new NetworkTransport(clientName()), parent)
+    : KdeConnectionSetup(new NetworkTransport(kdeClientName()), parent)
 {
 }
 

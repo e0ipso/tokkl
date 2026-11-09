@@ -27,7 +27,7 @@ class SoundChoices;
 class StatusItem;
 class StatusMenu;
 class TimerController;
-class TimerStateClient;
+class TimerStack;
 class Transport;
 
 // The menu bar app without its platform layer: the connection, the shared
@@ -111,12 +111,14 @@ private:
     // The app's parts are its children; the destructor deletes the ones
     // that use others first. The settings window is a top-level widget, so
     // the app holds it apart.
-    Connection *m_connection;
     SettingsPomodoroStore *m_pomodoroStore = nullptr;
-    TimerStateClient *m_stateClient;
+    // The connection, the timer, the session and the preferences client,
+    // which the next four name.
+    TimerStack *m_stack;
+    Connection *m_connection;
     TimerController *m_timer;
-    PomodoroPreferences *m_preferences = nullptr;
-    PomodoroSession *m_session = nullptr;
+    PomodoroPreferences *m_preferences;
+    PomodoroSession *m_session;
     SoundChoices *m_sounds = nullptr;
     PomodoroAlarm *m_alarm = nullptr;
     StatusMenu *m_menu = nullptr;

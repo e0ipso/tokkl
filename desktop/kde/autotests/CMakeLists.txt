@@ -44,14 +44,15 @@ ecm_add_test(appletpomodorostoretest.cpp
 set_tests_properties(appletpomodorostore PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen;XDG_DATA_HOME=${_pomodoro_xdg}/data;XDG_CONFIG_HOME=${_pomodoro_xdg}/config;XDG_CACHE_HOME=${_pomodoro_xdg}/cache;XDG_STATE_HOME=${_pomodoro_xdg}/state")
 
-# The timer state client and the Pomodoro wiring the widget creates from
-# QML, on the fakes of desktop/core and a QSettings store.
-ecm_add_test(kdepomodorotest.cpp
-    TEST_NAME kdepomodoro
-    LINK_LIBRARIES tokklkde tokklcorefakes Qt6::Test)
+# The widget's timer as QML creates it, with the Pomodoro mode in the
+# configuration of an applet that a test corona hosts, under its own
+# XDG_CONFIG_HOME. Nothing is configured, so no wallet or host is reached.
+set(_timerstate_xdg "${CMAKE_CURRENT_BINARY_DIR}/xdg-timerstate")
 ecm_add_test(kdetimerstatetest.cpp
     TEST_NAME kdetimerstate
-    LINK_LIBRARIES tokklkde tokklcorefakes Qt6::Test)
+    LINK_LIBRARIES tokklkde Plasma::Plasma KF6::ConfigCore Qt6::Test)
+set_tests_properties(kdetimerstate PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;XDG_DATA_HOME=${_timerstate_xdg}/data;XDG_CONFIG_HOME=${_timerstate_xdg}/config;XDG_CACHE_HOME=${_timerstate_xdg}/cache;XDG_STATE_HOME=${_timerstate_xdg}/state")
 
 # The alarm player: which file it picks per transition, when it starts and
 # stops, and the preview. Offscreen and without an audio device; the sounds
@@ -65,7 +66,7 @@ list(JOIN TOKKL_POMODORO_SOUND_FILES "|" _sound_files)
 target_compile_definitions(alarmplayer PRIVATE
     TOKKL_PLASMOID_ID="${TOKKL_PLASMOID_ID}"
     TOKKL_POMODORO_SOUND_FILES="${_sound_files}")
-set_tests_properties(kdepomodoro kdetimerstate alarmplayer PROPERTIES
+set_tests_properties(alarmplayer PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen;XDG_DATA_HOME=${_alarm_xdg}/data;XDG_CONFIG_HOME=${_alarm_xdg}/config;XDG_CACHE_HOME=${_alarm_xdg}/cache;XDG_STATE_HOME=${_alarm_xdg}/state")
 
 # The panel item, its menu and the Configure page (package/contents/ui),

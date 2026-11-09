@@ -404,11 +404,11 @@ void compareWithResources(const QList<QImage> &images, const QStringList &files)
 // fields directly.
 // The item of the menu, or the field of the settings window, with the object
 // name the app gives it. A missing one fails the test where it is used.
-// The app's part of type T, one of its children.
+// The app's part of type T: one of its children, or of its timer stack's.
 template<typename T>
 T *appPart(const MenuBarApp &app)
 {
-    T *found = app.findChild<T *>(QString(), Qt::FindDirectChildrenOnly);
+    T *found = app.findChild<T *>();
     if (!found) {
         qWarning("The app has no %s", T::staticMetaObject.className());
     }

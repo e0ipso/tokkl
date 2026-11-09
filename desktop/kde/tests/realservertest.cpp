@@ -16,6 +16,7 @@
 #include "pomodorosession.h"
 #include "pomodorostore.h"
 #include "timercontroller.h"
+#include "timerstack.h"
 #include "timerstateclient.h"
 #include "transport.h"
 
@@ -233,23 +234,17 @@ struct Session {
     FakeCredentialStore store;
     RecordingTransport transport;
     FakeClock clock;
-    Connection connection{&transport, &store, clock, QStringLiteral("tokkl-kde")};
-    TimerStateClient state{&connection, &clock};
-    TimerController timer{&clock};
     MemoryPomodoroStore pomodoroStore;
-    // The session reads and acts through the timer's state client, so the
-    // timer has it first.
-    PomodoroSession pomodoro{&clock, bound(), &state, &pomodoroStore};
+    TimerStack stack{&transport, &store, &pomodoroStore, clock, QStringLiteral("tokkl-kde")};
+    // The stack's parts, by the names the tests read them under.
+    Connection &connection{*stack.connection()};
+    TimerController &timer{*stack.timer()};
+    TimerStateClient &state{*timer.stateClient()};
+    PomodoroSession &pomodoro{*stack.session()};
 
     Session()
     {
         clock.current = QDateTime::currentDateTimeUtc();
-    }
-
-    TimerCoordinator *bound()
-    {
-        timer.setStateClient(&state);
-        return timer.coordinator();
     }
 
     QString keyFor(const User &user, AuthMode mode) const

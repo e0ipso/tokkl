@@ -3,11 +3,6 @@
 namespace Tokkl
 {
 
-TimerController::TimerController(QObject *parent)
-    : TimerController(nullptr, parent)
-{
-}
-
 TimerController::TimerController(Clock *clock, QObject *parent)
     : TimerModel(parent)
     , m_coordinator(new TimerCoordinator(this, roles(), clock, this))

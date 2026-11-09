@@ -1,6 +1,6 @@
 #pragma once
 
-// The Pomodoro store the widget creates from QML: a group of the widget's
+// The Pomodoro store of the widget's timer: a group of the widget's
 // own configuration, so a plasmashell restart keeps the mode.
 
 #include "pomodorostore.h"
@@ -16,8 +16,9 @@ namespace Tokkl
 // so nothing else is stored. Entries that earlier versions wrote to the
 // group are not read and not removed. Every write is synced at once. Without
 // a Plasma::Applet nothing is stored and every save returns false. The store
-// does not own the applet; TokklPomodoro (KdePomodoro) hands the store to the
-// session it builds.
+// does not own the applet. TokklTimerState (KdeTimerState) owns the store,
+// hands it to the session it builds, and passes on the applet QML sets,
+// which makes the session read the mode again (sourceChanged()).
 class AppletPomodoroStore : public PomodoroStore
 {
     Q_OBJECT

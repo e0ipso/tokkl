@@ -1,6 +1,6 @@
-// The KDE connection types as the widget creates them: KdeConnection and
-// KdeConnectionSetup with the process-wide KWalletCredentialStore and their
-// own NetworkTransport.
+// The KDE connection types as the widget creates them: KdeConnection,
+// KdeConnectionSetup and the connection of KdeTimerState, with the
+// process-wide KWalletCredentialStore and their own NetworkTransport.
 //
 // KDE Wallet is the real client library talking to a fake kwalletd on a
 // private D-Bus daemon that this test starts, with no service files, so the
@@ -13,6 +13,7 @@
 
 #include "instanceurl.h"
 #include "kdeconnection.h"
+#include "kdetimerstate.h"
 #include "kwalletcredentialstore.h"
 #include "transport.h"
 
@@ -328,6 +329,17 @@ private:
                                      {QStringLiteral("pomodoro_limits"), pomodoroLimits()},
                                  })
                        .toJson(QJsonDocument::Compact);
+        } else if (request.method == "GET" && request.path.endsWith("/api/app/timer")) {
+            // Nothing runs, for the state client of TokklTimerState.
+            body = QJsonDocument(QJsonObject{
+                                     {QStringLiteral("revision"), 1},
+                                     {QStringLiteral("server_time"), QDateTime::currentDateTimeUtc().toString(Qt::ISODate)},
+                                     {QStringLiteral("running_entry"), QJsonValue::Null},
+                                     {QStringLiteral("pause"), QJsonValue::Null},
+                                     {QStringLiteral("pomodoro"), QJsonValue::Null},
+                                     {QStringLiteral("discarded_pomodoro"), QJsonValue::Null},
+                                 })
+                       .toJson(QJsonDocument::Compact);
         } else if (request.method == "POST" && request.path.endsWith("/api/app/timer/start")) {
             body = QJsonDocument(QJsonObject{
                                      {QStringLiteral("revision"), 1},
@@ -613,6 +625,24 @@ private Q_SLOTS:
                 QCOMPARE(request.header("User-Agent"), QByteArray("tokkl-kde/" TOKKL_VERSION_STRING));
             }
         }
+    }
+
+    // The panel's connection, the one TokklTimerState builds, reads the
+    // secret from the shared store and sends the widget's User-Agent.
+    void timerStateConnectsThroughTheWalletStore()
+    {
+        const QString url = m_server.url(QStringLiteral("/timerstate"));
+        m_daemon->storeSecret(KWalletCredentialStore::folder, tokenKey(url), QStringLiteral("tok-kde"));
+        KdeTimerState state;
+        state.connection()->setInstanceUrl(url);
+        QTRY_COMPARE(state.connection()->state(), Connection::Connected);
+        QVERIFY(state.findChildren<CredentialStore *>().isEmpty());
+        const auto me = std::find_if(m_server.requests.cbegin(), m_server.requests.cend(), [](const ReceivedRequest &request) {
+            return request.path == "/timerstate/api/v9/me";
+        });
+        QVERIFY(me != m_server.requests.cend());
+        QCOMPARE(me->header("Authorization"), "Basic " + QByteArray("tok-kde:api_token").toBase64());
+        QCOMPARE(me->header("User-Agent"), QByteArray("tokkl-kde/" TOKKL_VERSION_STRING));
     }
 
     void setupSendsTheKdeUserAgent()

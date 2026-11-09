@@ -18,12 +18,9 @@ class TimerController : public TimerModel
     Q_OBJECT
 
     // Not owned. The connection is the client's.
-    Q_PROPERTY(Tokkl::TimerStateClient *stateClient READ stateClient WRITE setStateClient NOTIFY connectionChanged)
+    Q_PROPERTY(Tokkl::TimerStateClient *stateClient READ stateClient NOTIFY connectionChanged)
 
 public:
-    // Uses the clock of the state client it is given, so QML needs no
-    // clock of its own.
-    explicit TimerController(QObject *parent = nullptr);
     // Uses the given clock, which the controller does not own.
     explicit TimerController(Clock *clock, QObject *parent = nullptr);
     ~TimerController() override;

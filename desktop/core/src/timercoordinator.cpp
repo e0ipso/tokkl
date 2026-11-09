@@ -21,11 +21,10 @@ TimerCoordinator::TimerCoordinator(TimerModel *model, const TimerModelRoles &rol
     , m_selection(roles.selection)
     , m_catalog(roles.catalog)
     , m_loader(new ProjectLoader(model, roles.catalog, this))
-    , m_fixedClock(clock)
-    , m_clientClock(clock == nullptr)
+    , m_clock(clock)
 {
     connect(m_model, &TimerModel::workspaceRefused, this, &TimerCoordinator::loseWorkspace);
-    m_state->bind(nullptr, m_fixedClock);
+    m_state->bind(nullptr, m_clock);
     for (auto signal : {&TimerModel::contextChanged,
                         &TimerModel::statusChanged,
                         &TimerModel::currentEntryChanged,
@@ -96,7 +95,7 @@ void TimerCoordinator::setStateClient(TimerStateClient *client)
         return;
     }
     detach();
-    m_state->bind(client, m_clientClock ? (client ? client->clock() : nullptr) : m_fixedClock.data());
+    m_state->bind(client, m_clock);
     Connection *connection = m_model->connection();
     if (client) {
         connect(client, &TimerStateClient::stateChanged, this, &TimerCoordinator::onStateChanged);
@@ -128,8 +127,7 @@ void TimerCoordinator::detach()
     if (Connection *connection = m_model->connection()) {
         disconnect(connection, nullptr, this, nullptr);
     }
-    // The clock stays until another client brings its own.
-    m_state->bind(nullptr, m_state->clock());
+    m_state->bind(nullptr, m_clock);
 }
 
 void TimerCoordinator::onConnectionChanged()

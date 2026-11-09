@@ -75,6 +75,8 @@ add_library(tokklcore STATIC
     timercoordinator.h
     timermodel.cpp
     timermodel.h
+    timerstack.cpp
+    timerstack.h
     timerstateclient.cpp
     timerstateclient.h
     timerview.cpp

@@ -18,6 +18,7 @@
 #include "soundchoices.h"
 #include "timercontroller.h"
 #include "timerservice.h"
+#include "timerstack.h"
 #include "timerstateclient.h"
 
 #include <QDBusArgument>
@@ -423,35 +424,27 @@ QString bundled(const QString &soundId)
 struct Daemon {
     Daemon(Transport *transport, CredentialStore *store, const QString &settingsFile, Clock *clock)
         : settings(settingsFile, QSettings::IniFormat)
-        , connection(transport, store, *clock, TimerService::clientName())
-        , timer(clock)
-        , client(&connection, clock)
         , pomodoroStore(&settings)
+        , stack(transport, store, &pomodoroStore, *clock, TimerService::clientName())
+        , connection(*stack.connection())
+        , timer(*stack.timer())
+        , session(*stack.session())
         , sounds(&settings, &TimerService::soundKey)
-        , preferences(&connection)
-        , session(clock, bound(timer, client), &client, &pomodoroStore)
         , connectionSettings(&settings, &connection, store)
         , configuration(&connectionSettings)
-        , service({&timer, timer.coordinator(), &session, &preferences, &sounds, &configuration})
+        , service({&timer, timer.coordinator(), &session, stack.preferences(), &sounds, &configuration})
     {
         connectionSettings.load();
     }
 
-    // main.cpp gives the timer its client before it builds the session.
-    static TimerCoordinator *bound(TimerController &timer, TimerStateClient &client)
-    {
-        timer.setStateClient(&client);
-        return timer.coordinator();
-    }
-
     QSettings settings;
-    Connection connection;
-    TimerController timer;
-    TimerStateClient client;
     SettingsPomodoroStore pomodoroStore;
+    TimerStack stack;
+    // The stack's, by the names the tests read them under.
+    Connection &connection;
+    TimerController &timer;
+    PomodoroSession &session;
     SoundChoices sounds;
-    PomodoroPreferences preferences;
-    PomodoroSession session;
     ServiceSettings connectionSettings;
     ConfigurationAdapter configuration;
     TimerService service;
