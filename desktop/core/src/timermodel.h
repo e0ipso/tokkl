@@ -12,7 +12,6 @@
 #include "timerview.h"
 
 #include <QObject>
-#include <QPointer>
 #include <QVariant>
 
 #include <optional>
@@ -49,24 +48,15 @@ public:
 // TimerModel can only read. Each consumer takes only the roles it uses:
 // ProjectLoader takes the catalog alone.
 
-// The state shown: the client and clock it is read from, and the changes of
-// connection, context, activity and state.
+// The state shown, and the changes of context, activity and state.
 class TimerStateUpdates
 {
 public:
     virtual ~TimerStateUpdates() = default;
 
-    // Reads the state, the connection and the clock (for elapsed time and
-    // ticks) from now on. Not owned. Announces nothing: connectionReplaced()
-    // does once the coordinator follows the new client.
-    virtual void bind(TimerStateClient *client, Clock *clock) = 0;
-    virtual Clock *clock() const = 0;
-    // The state the client accepted; none without a client.
+    // The state the client accepted; none before the first read.
     virtual const std::optional<TimerState> &heldState() const = 0;
 
-    // Another state client, or none: announces the connection and the next
-    // start's choice.
-    virtual void connectionReplaced() = 0;
     // The connection's account, workspace or state changed: announces the
     // context and the status.
     virtual void contextUpdated() = 0;
@@ -98,8 +88,9 @@ struct TimerModelRoles {
 // What a panel shows of the timer: the running entry of the connection's
 // validated account and workspace, its elapsed time, the pause chain, the
 // projects, the project and billable flag chosen for the next start, and a
-// status. Its public interface only reads. TimerCoordinator binds it to a
-// TimerStateClient and changes it through its roles (TimerModelRoles); the
+// status. Its public interface only reads. It reads one TimerStateClient,
+// given when it is built, and the client's connection and clock; the
+// TimerCoordinator changes it through its roles (TimerModelRoles), and the
 // panels act through the coordinator.
 //
 // What it shows is derived from one timer state, the one the client
@@ -144,7 +135,7 @@ public:
     Q_ENUM(IndicatorState)
 
     // Not owned. The connection is the state client's.
-    Q_PROPERTY(Tokkl::Connection *connection READ connection NOTIFY connectionChanged)
+    Q_PROPERTY(Tokkl::Connection *connection READ connection CONSTANT)
 
     // The validated context.
     Q_PROPERTY(bool connected READ isConnected NOTIFY contextChanged)
@@ -276,7 +267,6 @@ Q_SIGNALS:
     // lost the workspace. The coordinator decides.
     void workspaceRefused(const Tokkl::ApiError &error);
 
-    void connectionChanged();
     void contextChanged();
     void statusChanged();
     void currentEntryChanged();
@@ -294,19 +284,18 @@ Q_SIGNALS:
     void indicatorChanged();
 
 protected:
-    // The model reads what the actions do from activity, which must outlive
-    // it. A subclass that owns the activity passes it once built.
-    explicit TimerModel(QObject *parent = nullptr);
+    // Reads the client's state, connection and clock (for elapsed time and
+    // ticks). The client is not owned and must outlive the model. The model
+    // reads what the actions do from activity, which must outlive it too. A
+    // subclass that owns the activity passes it once built.
+    explicit TimerModel(TimerStateClient &client, QObject *parent = nullptr);
     void setActivity(const TimerActivity *activity);
 
     // The roles, for the subclass to hand to the coordinator.
     TimerModelRoles roles();
 
     // TimerStateUpdates.
-    void bind(TimerStateClient *client, Clock *clock) override;
-    Clock *clock() const override;
     const std::optional<TimerState> &heldState() const override;
-    void connectionReplaced() override;
     void contextUpdated() override;
     void activityChanged() override;
     void showState() override;
@@ -339,9 +328,8 @@ private:
     void updateProjectChoices();
 
     const TimerActivity *m_activity = nullptr;
-    QPointer<Clock> m_clock;
-    QPointer<TimerStateClient> m_state;
-    QPointer<Connection> m_connection;
+    TimerStateClient &m_state;
+    Connection &m_connection;
 
     // The client's state as shown for the workspace.
     TimerView m_shown;

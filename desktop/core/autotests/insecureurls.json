@@ -1,5 +1,5 @@
 {
-  "about": "Instance addresses and whether the settings warn that they are plain http: ConnectionSetup::isInsecure() for the KDE and macOS settings, and isInsecureUrl() in the GNOME extension's instanceurl.js. An address that is not usable gets no warning; the settings show why it is not usable instead.",
+  "about": "Instance addresses and whether the settings warn that they are plain http: ConnectionSetup::isInsecure() for the KDE and macOS settings, and isInsecureUrl() in the GNOME extension's instanceurl.js. An address that is not usable gets no warning; the settings show why it is not usable instead. The GNOME rule is a JavaScript copy rather than a call to tokkl-timerd because the preferences window warns while the address is typed, also when the service is stopped or older than the extension supports, and calling a stopped service would start it through D-Bus activation. These cases keep the two in step.",
   "cases": [
     {"url": "http://tokkl.example.test", "insecure": true},
     {"url": "HTTP://Tokkl.Example.test/tokkl/", "insecure": true},

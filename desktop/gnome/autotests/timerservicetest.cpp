@@ -420,19 +420,21 @@ QString bundled(const QString &soundId)
 }
 
 // The object graph main.cpp builds for tokkl-timerd, on the test's
-// transport, credential store and clock, in the same order.
+// transport, credential store and clock, in the same order. The alarm plays
+// on an output that records what it is asked.
 struct Daemon {
     Daemon(Transport *transport, CredentialStore *store, const QString &settingsFile, Clock *clock)
         : settings(settingsFile, QSettings::IniFormat)
         , pomodoroStore(&settings)
-        , stack(transport, store, &pomodoroStore, *clock, TimerService::clientName())
+        , stack(transport, store, pomodoroStore, *clock, TimerService::clientName())
         , connection(*stack.connection())
         , timer(*stack.timer())
         , session(*stack.session())
         , sounds(&settings, &TimerService::soundKey)
         , connectionSettings(&settings, &connection, store)
         , configuration(&connectionSettings)
-        , service({&timer, timer.coordinator(), &session, stack.preferences(), &sounds, &configuration})
+        , alarm(&session, &output, &sounds, bundledSoundsDir())
+        , service({&timer, timer.coordinator(), &session, stack.preferences(), &sounds, &configuration, &alarm})
     {
         connectionSettings.load();
     }
@@ -447,6 +449,8 @@ struct Daemon {
     SoundChoices sounds;
     ServiceSettings connectionSettings;
     ConfigurationAdapter configuration;
+    FakeAlarmOutput output;
+    PomodoroAlarm alarm;
     TimerService service;
 };
 
@@ -1576,8 +1580,7 @@ private Q_SLOTS:
         QCOMPARE(f.get(QStringLiteral("UpcomingPhase")).toString(), QString());
         QCOMPARE(f.get(QStringLiteral("SessionMessage")).toString(), QString());
         QCOMPARE(f.result(QStringLiteral("SetSound"), {QStringLiteral("workToShortRest"), QStringLiteral("long-rest-to-work")}).toBool(), true);
-        FakeAlarmOutput output;
-        PomodoroAlarm alarm(&f.daemon->session, &output, &f.daemon->sounds, bundledSoundsDir());
+        const FakeAlarmOutput &output = f.daemon->output;
 
         QCOMPARE(f.result(QStringLiteral("SetPomodoroMode"), {QVariant(true)}).toBool(), true);
         QCOMPARE(f.get(QStringLiteral("PomodoroMode")).toBool(), true);
@@ -2037,12 +2040,8 @@ private Q_SLOTS:
         QCOMPARE(reply.type(), QDBusMessage::ErrorMessage);
         QCOMPARE(reply.errorName(), invalidArgs);
 
-        QCOMPARE(f.result(QStringLiteral("PreviewSound"), {QStringLiteral("short-rest-to-work")}).toBool(), false);
-        FakeAlarmOutput output;
-        PomodoroAlarm alarm(&f.daemon->session, &output, &f.daemon->sounds, bundledSoundsDir());
-        f.service->setAlarm(&alarm);
         QCOMPARE(f.result(QStringLiteral("PreviewSound"), {QStringLiteral("short-rest-to-work")}).toBool(), true);
-        QCOMPARE(output.calls, QStringList{QStringLiteral("once ") + bundled(QStringLiteral("short-rest-to-work"))});
+        QCOMPARE(f.daemon->output.calls, QStringList{QStringLiteral("once ") + bundled(QStringLiteral("short-rest-to-work"))});
 
         {
             const QSettings settings(f.settingsFile(), QSettings::IniFormat);
@@ -2059,9 +2058,8 @@ private Q_SLOTS:
         Fixture f;
         QVERIFY(f.start());
         QCOMPARE(f.get(QStringLiteral("AlarmError")).toString(), QString());
-        FakeAlarmOutput output;
-        PomodoroAlarm alarm(&f.daemon->session, &output, &f.daemon->sounds, bundledSoundsDir());
-        f.service->setAlarm(&alarm);
+        FakeAlarmOutput &output = f.daemon->output;
+        PomodoroAlarm &alarm = f.daemon->alarm;
         QCOMPARE(f.result(QStringLiteral("PreviewSound"), {QStringLiteral("short-rest-to-work")}).toBool(), true);
         output.fail(QStringLiteral("Connection refused"));
         QCOMPARE(f.get(QStringLiteral("AlarmError")).toString(), QStringLiteral("No alarm sound: Connection refused"));
@@ -2083,19 +2081,15 @@ private Q_SLOTS:
 
     // The alarm loops the file of the sound chosen for the ringing
     // transition, follows a change of choice while ringing, stops on Next
-    // phase and on End session, and plays a preview once; once the service
-    // has it, PreviewSound is accepted. An alarm made while one rings starts
-    // at once.
+    // phase and on End session, and plays a preview once. An alarm made
+    // while one rings starts at once.
     void alarmPlayerDrivesTheBackend()
     {
         Fixture f;
         QVERIFY(f.start());
         QVERIFY(f.connect());
         QCOMPARE(f.result(QStringLiteral("SetSound"), {QStringLiteral("workToShortRest"), QStringLiteral("long-rest-to-work")}).toBool(), true);
-        QCOMPARE(f.result(QStringLiteral("PreviewSound"), {QStringLiteral("short-rest-to-work")}).toBool(), false);
-        FakeAlarmOutput backend;
-        PomodoroAlarm player(&f.daemon->session, &backend, &f.daemon->sounds, bundledSoundsDir());
-        f.service->setAlarm(&player);
+        FakeAlarmOutput &backend = f.daemon->output;
         QCOMPARE(f.result(QStringLiteral("PreviewSound"), {QStringLiteral("short-rest-to-work")}).toBool(), true);
         QCOMPARE(backend.calls, QStringList{QStringLiteral("once ") + bundled(QStringLiteral("short-rest-to-work"))});
         backend.calls.clear();

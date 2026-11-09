@@ -265,8 +265,8 @@ class PomodoroSessionTest : public QObject
         FakeClock clock;
         SettingsPomodoroStore store{&settings};
         Connection connection{&transport, &credentials, clock, testClientName()};
-        TimerStateClient client{&connection, &clock};
-        TimerController timer{&clock};
+        TimerStateClient client{connection, clock};
+        TimerController timer{client};
         // Absent for a test that creates it later, as after a restart.
         std::unique_ptr<PomodoroSession> session;
         qint64 revision = 0; // of the last state built
@@ -277,7 +277,6 @@ class PomodoroSessionTest : public QObject
         explicit Fixture(bool withSession = true)
         {
             transport.status = FakeTransport::currentStatus();
-            timer.setStateClient(&client);
             if (withSession) {
                 createSession();
             }
@@ -285,7 +284,7 @@ class PomodoroSessionTest : public QObject
 
         void createSession()
         {
-            session = std::make_unique<PomodoroSession>(&clock, timer.coordinator(), &client, &store);
+            session = std::make_unique<PomodoroSession>(clock, *timer.coordinator(), client, store);
         }
 
         QDateTime serverNow() const
@@ -400,7 +399,7 @@ private Q_SLOTS:
     {
         Fixture f(false);
         SwitchingStore store;
-        PomodoroSession session(&f.clock, f.timer.coordinator(), &f.client, &store);
+        PomodoroSession session(f.clock, *f.timer.coordinator(), f.client, store);
         QSignalSpy changed(&session, &PomodoroSession::modeChanged);
         QVERIFY(!session.pomodoroMode());
 
@@ -544,7 +543,7 @@ private Q_SLOTS:
         QVERIFY(connectAccount(f));
         StandInTimer timer;
         timer.chosen = {11, true};
-        PomodoroSession session(&f.clock, &timer, &f.client, &f.store);
+        PomodoroSession session(f.clock, timer, f.client, f.store);
 
         QCOMPARE(session.activate(), PomodoroSession::Activation::Handled);
         QCOMPARE(timer.toggles, 1);
@@ -580,7 +579,7 @@ private Q_SLOTS:
         Fixture f(false);
         StandInTimer timer;
         StandInState state(&f.clock);
-        PomodoroSession session(&f.clock, &timer, &state, &f.store);
+        PomodoroSession session(f.clock, timer, state, f.store);
         QVERIFY(!session.isActive());
 
         const std::optional<QJsonValue> json = parseJsonBody(f.state(work(f.clock.now())));
@@ -907,6 +906,27 @@ private Q_SLOTS:
         f.respond(next, f.state(shortRest(f.serverNow(), f.serverNow().addSecs(-65))));
         QCOMPARE(f.session->phase(), QStringLiteral("shortRest"));
         QVERIFY(f.session->endSession());
+    }
+
+    // A wake the platform reports past the planned end rings at once,
+    // before the next tick, and the state is read once for it.
+    void ringsOnAWakeBeforeTheNextTick()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f, f.state(work(f.serverNow()))));
+        QCOMPARE(f.session->countdownText(), QStringLiteral("1:00"));
+        const qsizetype reads = f.find("GET", statePath).size();
+
+        f.clock.current = f.clock.current.addSecs(90);
+        f.client.resumed();
+        QVERIFY(f.session->isRinging());
+        QCOMPARE(f.session->countdownText(), QStringLiteral("+0:30"));
+        QCOMPARE(f.find("GET", statePath).size(), reads + 1);
+
+        // The late tick of the same sleep reads nothing more.
+        f.tick(1);
+        QCOMPARE(f.find("GET", statePath).size(), reads + 1);
+        QCOMPARE(f.session->countdownText(), QStringLiteral("+0:31"));
     }
 
     void keepsCountingWhileOffline()

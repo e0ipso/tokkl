@@ -530,7 +530,7 @@ class MenuBarAppTest : public QObject
         // The settings windows of earlier fixtures, so this one's is told
         // apart.
         const QList<SettingsWindow *> earlierWindows = settingsWindows();
-        MenuBarApp app{&transport, &store, &item, &login, &player, &settings, &clock};
+        MenuBarApp app{&transport, &store, &item, &login, &player, settings, clock};
         // The app's settings window, a top-level widget of its own.
         SettingsWindow *settingsWindow = newSettingsWindow(earlierWindows);
 
@@ -1661,12 +1661,30 @@ private Q_SLOTS:
         f.clock.current = f.clock.current.addSecs(90);
         QCOMPARE(f.item.title, QStringLiteral("1:00"));
 
-        const qsizetype before = f.transport.requests.size();
+        const qsizetype reads = f.find("GET", "/app/timer").size();
         f.app.resumed();
         QCOMPARE(f.item.title, QStringLiteral("+0:30"));
         QVERIFY(appPart<PomodoroSession>(f.app)->isRinging());
-        // The state client reads the state again at once.
-        QVERIFY(f.waitFor("GET", "/app/timer", before - 1));
+        // The state client reads the state again at once, and the late tick
+        // of the same sleep reads nothing more.
+        QCOMPARE(f.find("GET", "/app/timer").size(), reads + 1);
+        f.advance(1);
+        QCOMPARE(f.find("GET", "/app/timer").size(), reads + 1);
+        QCOMPARE(f.item.title, QStringLiteral("+0:31"));
+    }
+
+    // When the late tick reports the wake first, the wake notification that
+    // follows reads nothing more.
+    void lateTickBeforeTheWakeNoticeReadsOnce()
+    {
+        Fixture f;
+        QVERIFY(f.connect(QByteArrayLiteral("null")));
+        const qsizetype before = f.find("GET", "/app/timer").size();
+        f.clock.current = f.clock.current.addSecs(2 * 3600);
+        f.advance(1);
+        QCOMPARE(f.find("GET", "/app/timer").size(), before + 1);
+        f.app.resumed();
+        QCOMPARE(f.find("GET", "/app/timer").size(), before + 1);
     }
 
     // The alarm: the sound chosen for the transition loops from the moment

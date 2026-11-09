@@ -35,8 +35,8 @@ namespace Tokkl
 // read at once and polled until a stream delivers again, and the next stream
 // opens after the next wait.
 // Until a stream delivers, the state is read every 30 s. A wake, through
-// resumed() or a tick more than 10 s late, reads the state and replaces the
-// stream at once.
+// resumed() or a tick more than 10 s late, reads the state, replaces the
+// stream at once and emits woke(). One wake that both report counts once.
 //
 // Actions go through the client so it adopts the state they return, the new
 // one or, on a 409, the server's current one. A start or Pomodoro start
@@ -75,13 +75,13 @@ public:
     static constexpr qsizetype maxEventBytes = 1024 * 1024;
 
     // Neither is owned; both must outlive the client.
-    TimerStateClient(Connection *connection, Clock *clock, QObject *parent = nullptr);
+    TimerStateClient(Connection &connection, Clock &clock, QObject *parent = nullptr);
     ~TimerStateClient() override;
 
     Connection *connection() const;
     // The clock the client was given; a timer or session built on the
-    // client can share it.
-    Clock *clock() const;
+    // client shares it.
+    Clock &clock() const;
     const std::optional<TimerState> &state() const override;
     bool streaming() const;
     bool settling() const override;
@@ -116,11 +116,14 @@ public:
 public Q_SLOTS:
     // Reads the state, after the read on its way if there is one.
     void refresh();
-    // The session woke from sleep: read the state and open a new stream.
+    // The platform reports a wake from sleep. It is the wake a late tick
+    // would report: a late tick after it, or a report within resumeGapMs of
+    // a late tick, does nothing more.
     void resumed();
 
 Q_SIGNALS:
-    // stateChanged(), settlingChanged() and accountReset() are SessionState's.
+    // stateChanged(), settlingChanged(), accountReset() and woke() are
+    // SessionState's.
     void streamingChanged();
     // serverOffsetMs() changed. A state that changes nothing else, such as
     // the same revision read again after this machine's clock was set, can
@@ -144,6 +147,8 @@ private:
     void onConnectionStateChanged();
     void onGenerationChanged();
     void onTick();
+    // Reads the state, replaces the stream and emits woke().
+    void wake(const QDateTime &now);
     void openStream();
     void closeStream();
     void scheduleReconnect();
@@ -167,9 +172,9 @@ private:
     void withRevision(const std::function<void(Connection &, qint64, ActionCallback)> &action, ActionCallback done);
     void refuseLater(const ActionCallback &done, const QString &message);
 
-    QPointer<Connection> m_connection;
-    QPointer<Clock> m_clock;
-    quint64 m_generation = 0;
+    Connection &m_connection;
+    Clock &m_clock;
+    quint64 m_generation;
     Connection::State m_lastState = Connection::Unconfigured;
     bool m_started = false; // read and streamed in this generation
 
@@ -183,6 +188,8 @@ private:
     quint64 m_settleAfter = 0;
     QDateTime m_nextPoll;
     QDateTime m_lastTick;
+    // The last wake; invalid before the first.
+    QDateTime m_wokeAt;
 
     QPointer<PendingStream> m_stream;
     quint64 m_streamSerial = 0; // changes whenever the stream is replaced or closed

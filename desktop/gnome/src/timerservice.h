@@ -3,13 +3,13 @@
 // The timer and the Pomodoro session of the shared core on D-Bus, as
 // org.tokkl.Timer1 (described in dbus/org.tokkl.Timer1.xml). The service
 // maps the core's properties onto the interface and forwards the methods;
-// the rules stay in the core. It builds none of the objects it serves:
-// main.cpp, the daemon's composition root, makes the connection, the timer
-// and its state client, the session, the preferences client, the sound
-// choices and the settings file they keep the per-device state in, and the
-// ConfigurationAdapter that answers Configure, then hands them over. The
-// alarm plays through a PomodoroAlarm that main.cpp builds on the same
-// session and sound choices.
+// the rules stay in the core. It builds none of the objects it serves.
+// main.cpp, the daemon's composition root, has the core's TimerStack build
+// the connection, the state client, the timer, the session and the
+// preferences client. It makes the settings file that keeps the per-device
+// state, the sound choices, the ConfigurationAdapter that answers Configure
+// and the PomodoroAlarm on the stack's session itself, then hands them all
+// over.
 
 #include <QDBusConnection>
 #include <QDBusContext>
@@ -17,7 +17,6 @@
 #include <QMap>
 #include <QMetaProperty>
 #include <QObject>
-#include <QPointer>
 #include <QString>
 #include <QVariantMap>
 
@@ -97,8 +96,9 @@ public:
     // User-Agent product too.
     static QString clientName();
 
-    // What the service serves, none of it owned. The session must be built
-    // on the timer's coordinator, and the alarm on the same session and
+    // What the service serves, none of it owned and none of it null. The
+    // session must be built on the timer's coordinator, and the alarm, which
+    // PreviewSound plays on and AlarmError follows, on the same session and
     // sound choices.
     struct Parts {
         TimerModel *timer = nullptr;
@@ -107,6 +107,7 @@ public:
         PomodoroPreferences *preferences = nullptr;
         SoundChoices *sounds = nullptr;
         ConfigurationAdapter *configuration = nullptr;
+        PomodoroAlarm *alarm = nullptr;
     };
 
     explicit TimerService(const Parts &parts, QObject *parent = nullptr);
@@ -116,10 +117,6 @@ public:
     // the bus refuses either, for example because another instance owns the
     // name.
     bool registerOn(QDBusConnection bus);
-
-    // The alarm PreviewSound plays on, which the service does not own.
-    // Without one, PreviewSound is refused. AlarmError follows its failure.
-    void setAlarm(PomodoroAlarm *alarm);
 
     bool running() const;
     // The server's start, which StartTime has always published.
@@ -164,7 +161,7 @@ public:
     QMap<QString, QMap<QString, int>> pomodoroLengthLimits() const;
     QMap<QString, QString> sounds() const;
     QList<QVariantMap> soundCatalogue() const;
-    // PomodoroAlarm::failure(), empty without an alarm.
+    // PomodoroAlarm::failure().
     QString alarmError() const;
     uint interfaceVersion() const;
 
@@ -212,9 +209,6 @@ private:
     {
         (connect(sender, signals, this, &TimerService::markChanged), ...);
     }
-    // Follows the offset of the timer's state client, which LocalStartTime
-    // reads and no model signal announces.
-    void followStateClient();
     // Every property's value, as the adaptor reads it.
     QVariantMap read() const;
     // Something a property reads may have changed: publishes the changes
@@ -238,10 +232,9 @@ private:
     PomodoroPreferences *m_preferences;
     SoundChoices *m_sounds;
     ConfigurationAdapter *m_configuration;
-    QPointer<PomodoroAlarm> m_alarm;
+    PomodoroAlarm *m_alarm;
     QDBusConnection m_bus;
     bool m_registered = false;
-    QMetaObject::Connection m_offsetWatch;
     // The property values the bus last saw.
     QVariantMap m_published;
     // Something changed since the last publish.

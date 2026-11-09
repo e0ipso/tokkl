@@ -9,7 +9,7 @@ namespace Tokkl
 KdeTimerState::KdeTimerState(QObject *parent)
     : QObject(parent)
     , m_transport(kdeClientName())
-    , m_stack(&m_transport, KWalletCredentialStore::shared(), &m_pomodoroStore, m_clock, kdeClientName())
+    , m_stack(&m_transport, KWalletCredentialStore::shared(), m_pomodoroStore, m_clock, kdeClientName())
 {
     connect(&m_pomodoroStore, &AppletPomodoroStore::appletChanged, this, &KdeTimerState::appletChanged);
 }

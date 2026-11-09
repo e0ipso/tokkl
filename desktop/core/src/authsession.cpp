@@ -27,6 +27,7 @@ bool refusesCredentials(const ApiError &error)
 AuthSession::AuthSession(Transport *transport, CredentialStore *store, const Clock &clock, QObject *parent)
     : QObject(parent)
     , m_credentials(store)
+    , m_cooldown(clock)
     , m_clock(clock)
     , m_api(transport, *this)
 {

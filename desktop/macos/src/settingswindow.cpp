@@ -147,6 +147,42 @@ SettingsWindow::SettingsWindow(Transport *transport,
 {
     setWindowTitle(tr("Tokkl Settings"));
 
+    auto *form = new QFormLayout;
+    buildConnectionRows(form);
+    buildLoginRows(form);
+
+    // The Pomodoro section: the account's lengths, then the sound of each
+    // transition with a button to hear it.
+    auto *pomodoro = new QGroupBox(tr("Pomodoro"));
+    auto *pomodoroForm = new QFormLayout(pomodoro);
+    buildPomodoroRows(pomodoroForm);
+    buildSoundRows(pomodoroForm);
+
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Close);
+    m_saveButton = buttons->button(QDialogButtonBox::Save);
+    m_saveError = noteLabel();
+    m_saveError->hide();
+
+    auto *layout = new QVBoxLayout(this);
+    layout->addLayout(form);
+    layout->addWidget(pomodoro);
+    layout->addWidget(m_saveError);
+    layout->addWidget(buttons);
+
+    nameFields();
+    connectFields(buttons);
+
+    m_storeError->hide();
+    // load() runs when the window opens, so nothing reads the store before.
+    updateFields();
+    updateLoginItem();
+    loadLengths(false);
+    loadSounds();
+    updatePomodoro();
+}
+
+void SettingsWindow::buildConnectionRows(QFormLayout *form)
+{
     m_urlField = new QLineEdit;
     m_urlField->setPlaceholderText(QStringLiteral("https://tokkl.example.com"));
     m_urlField->setInputMethodHints(Qt::ImhUrlCharactersOnly | Qt::ImhNoAutoUppercase);
@@ -179,12 +215,6 @@ SettingsWindow::SettingsWindow(Transport *transport,
     testRow->addWidget(m_testButton);
     testRow->addWidget(m_testResult, 1);
 
-    m_loginToggle = new QCheckBox(tr("Open Tokkl at login"));
-    m_loginNote = noteLabel();
-    m_monochromeToggle = new QCheckBox(tr("Use a monochrome menu bar icon"));
-    m_monochromeToggle->setToolTip(tr("Follows the menu bar's text color automatically."));
-
-    auto *form = new QFormLayout;
     form->addRow(tr("Instance URL:"), m_urlField);
     form->addRow(QString(), m_urlNote);
     form->addRow(tr("Sign in with:"), modeBox);
@@ -193,14 +223,22 @@ SettingsWindow::SettingsWindow(Transport *transport,
     form->addRow(QString(), storeNote);
     form->addRow(QString(), m_storeError);
     form->addRow(QString(), testRow);
+}
+
+void SettingsWindow::buildLoginRows(QFormLayout *form)
+{
+    m_loginToggle = new QCheckBox(tr("Open Tokkl at login"));
+    m_loginNote = noteLabel();
+    m_monochromeToggle = new QCheckBox(tr("Use a monochrome menu bar icon"));
+    m_monochromeToggle->setToolTip(tr("Follows the menu bar's text color automatically."));
+
     form->addRow(QString(), m_loginToggle);
     form->addRow(QString(), m_loginNote);
     form->addRow(QString(), m_monochromeToggle);
+}
 
-    // The Pomodoro section: the account's lengths, then the sound of each
-    // transition with a button to hear it.
-    auto *pomodoro = new QGroupBox(tr("Pomodoro"));
-    auto *pomodoroForm = new QFormLayout(pomodoro);
+void SettingsWindow::buildPomodoroRows(QFormLayout *form)
+{
     const std::array<QString, 4> lengthLabels{tr("Work:"), tr("Short rest:"), tr("Long rest:"), tr("Long rest every:")};
     for (const PomodoroField field : lengthFields) {
         QSpinBox *box = field == PomodoroField::LongRestEvery ? new PomodoroCountBox : new QSpinBox;
@@ -211,17 +249,20 @@ SettingsWindow::SettingsWindow(Transport *transport,
         error->hide();
         m_lengthBoxes.at(index(field)) = box;
         m_lengthErrors.at(index(field)) = error;
-        pomodoroForm->addRow(lengthLabels.at(index(field)), box);
-        pomodoroForm->addRow(QString(), error);
+        form->addRow(lengthLabels.at(index(field)), box);
+        form->addRow(QString(), error);
     }
     applyLimits();
     m_lengthsNote = noteLabel();
     m_lengthsNote->setText(tr("These are the lengths last read. Changing them needs a connection to the Tokkl server."));
-    pomodoroForm->addRow(QString(), m_lengthsNote);
+    form->addRow(QString(), m_lengthsNote);
     m_pomodoroError = noteLabel();
     m_pomodoroError->hide();
-    pomodoroForm->addRow(QString(), m_pomodoroError);
+    form->addRow(QString(), m_pomodoroError);
+}
 
+void SettingsWindow::buildSoundRows(QFormLayout *form)
+{
     const std::array<QString, 4> soundLabels{tr("Work → short rest:"), tr("Short rest → work:"), tr("Work → long rest:"), tr("Long rest → work:")};
     // Each selector and Preview button names its transition in words, as
     // a screen reader would read the arrow of the visible label.
@@ -248,14 +289,14 @@ SettingsWindow::SettingsWindow(Transport *transport,
         // here and points at the selector.
         auto *label = new QLabel(soundLabels.at(index(kind)));
         label->setBuddy(box);
-        pomodoroForm->addRow(label, row);
+        form->addRow(label, row);
         connect(button, &QPushButton::clicked, this, [this, kind] {
             preview(kind);
         });
     }
     m_soundError = noteLabel();
     m_soundError->hide();
-    pomodoroForm->addRow(QString(), m_soundError);
+    form->addRow(QString(), m_soundError);
     if (m_alarm) {
         const auto showFailure = [this] {
             const QString failure = m_alarm ? m_alarm->failure() : QString();
@@ -265,18 +306,10 @@ SettingsWindow::SettingsWindow(Transport *transport,
         connect(m_alarm, &PomodoroAlarm::failureChanged, this, showFailure);
         showFailure();
     }
+}
 
-    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Close);
-    m_saveButton = buttons->button(QDialogButtonBox::Save);
-    m_saveError = noteLabel();
-    m_saveError->hide();
-
-    auto *layout = new QVBoxLayout(this);
-    layout->addLayout(form);
-    layout->addWidget(pomodoro);
-    layout->addWidget(m_saveError);
-    layout->addWidget(buttons);
-
+void SettingsWindow::nameFields()
+{
     // Stable names, so automation finds each field whatever its label.
     const std::pair<QWidget *, QString> named[] = {
         {m_urlField, QStringLiteral("url")},
@@ -308,7 +341,10 @@ SettingsWindow::SettingsWindow(Transport *transport,
         m_soundBoxes.at(index(kind))->setObjectName(QStringLiteral("sound:") + transitionKindName(kind));
         m_previewButtons.at(index(kind))->setObjectName(QStringLiteral("preview:") + transitionKindName(kind));
     }
+}
 
+void SettingsWindow::connectFields(QDialogButtonBox *buttons)
+{
     // Load the stored secret for the account on screen once the user stops
     // typing.
     m_loadTimer.setSingleShot(true);
@@ -348,14 +384,6 @@ SettingsWindow::SettingsWindow(Transport *transport,
     connect(m_save, &SettingsSave::finished, this, &SettingsWindow::onSaveFinished);
     connect(buttons, &QDialogButtonBox::accepted, this, &SettingsWindow::save);
     connect(buttons, &QDialogButtonBox::rejected, this, &QWidget::close);
-
-    m_storeError->hide();
-    // load() runs when the window opens, so nothing reads the store before.
-    updateFields();
-    updateLoginItem();
-    loadLengths(false);
-    loadSounds();
-    updatePomodoro();
 }
 
 SettingsWindow::~SettingsWindow() = default;

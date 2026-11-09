@@ -20,9 +20,7 @@ namespace Tokkl
 // every platform: the connection, the one TimerStateClient that reads the
 // server's timer state, the timer controller on that client, the Pomodoro
 // preferences client, and the Pomodoro session, which reads and acts
-// through the timer's client. All of them run on the one clock given. The
-// timer has its client before the session is built, as the session reads
-// the timer's state when it starts.
+// through the timer's client. All of them run on the one clock given.
 //
 // The objects are children of the stack and live as long as it does. They
 // go in the reverse order: the session before the timer it acts through,
@@ -33,12 +31,11 @@ class TimerStack : public QObject
 
 public:
     // Nothing given is owned, and all of it must outlive the stack.
-    // pomodoroStore keeps the Pomodoro mode across restarts; without one the
-    // mode is not kept. clientName goes into the created_with field of the
-    // entries the connection starts.
+    // pomodoroStore keeps the Pomodoro mode across restarts. clientName goes
+    // into the created_with field of the entries the connection starts.
     TimerStack(Transport *transport,
                CredentialStore *credentials,
-               PomodoroStore *pomodoroStore,
+               PomodoroStore &pomodoroStore,
                Clock &clock,
                const QString &clientName,
                QObject *parent = nullptr);
@@ -51,10 +48,6 @@ public:
     PomodoroSession *session();
 
 private:
-    // Gives the timer its client and returns its coordinator, for the
-    // session.
-    TimerCoordinator *boundTimer();
-
     Connection m_connection;
     TimerStateClient m_stateClient;
     TimerController m_timer;

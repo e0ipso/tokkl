@@ -1,5 +1,6 @@
 // Cooldown::waitMs on its own: the wait a Retry-After value asks for,
-// clamped to the bounds, for every value a server can send.
+// clamped to the bounds, for every value a server can send. A date counts
+// from the time given.
 
 #include "cooldown.h"
 
@@ -32,13 +33,15 @@ private Q_SLOTS:
         QTest::newRow("garbage") << QByteArray("soon") << qint64(Cooldown::defaultMs);
         QTest::newRow("date long past") << QByteArray("Mon, 01 Jan 1990 00:00:00 +0000") << Cooldown::minMs;
         QTest::newRow("date far ahead") << QByteArray("Fri, 01 Jan 9999 00:00:00 +0000") << Cooldown::maxMs;
+        QTest::newRow("date two minutes ahead") << QByteArray("Fri, 16 Oct 2026 09:02:00 +0000") << qint64(120000);
     }
 
     void waitFollowsTheHeader()
     {
         QFETCH(QByteArray, header);
         QFETCH(qint64, expected);
-        QCOMPARE(Cooldown::waitMs(header), expected);
+        const QDateTime now(QDate(2026, 10, 16), QTime(9, 0), QTimeZone::UTC);
+        QCOMPARE(Cooldown::waitMs(header, now), expected);
     }
 };
 

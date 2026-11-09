@@ -57,7 +57,7 @@ class TimerStackTest : public QObject
         FakeTransport transport;
         FakeCredentialStore credentials;
         FakeClock clock;
-        TimerStack stack{&transport, &credentials, &pomodoroStore, clock, testClientName()};
+        TimerStack stack{&transport, &credentials, pomodoroStore, clock, testClientName()};
 
         Fixture()
         {
@@ -81,7 +81,7 @@ private Q_SLOTS:
         TimerStateClient *client = f.stack.timer()->stateClient();
         QVERIFY(client);
         QCOMPARE(client->connection(), f.stack.connection());
-        QCOMPARE(client->clock(), &f.clock);
+        QCOMPARE(&client->clock(), &f.clock);
         QCOMPARE(f.stack.timer()->connection(), f.stack.connection());
 
         QVERIFY(f.stack.session()->setPomodoroMode(true));

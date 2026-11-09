@@ -240,15 +240,14 @@ class TimerControllerTest : public QObject
         FakeCredentialStore store;
         FakeClock clock;
         Connection connection{&transport, &store, clock, testClientName()};
-        TimerStateClient state{&connection, &clock};
-        TimerController timer{&clock};
+        TimerStateClient state{connection, clock};
+        TimerController timer{state};
         QSet<qsizetype> answered;
         qint64 revision = 0; // of the last state built
 
         Fixture()
         {
             transport.status = FakeTransport::currentStatus();
-            timer.setStateClient(&state);
         }
 
         // Requests whose path ends with the given text.
@@ -587,23 +586,50 @@ private Q_SLOTS:
 
         // Two hours asleep: the next tick arrives late.
         const qsizetype streams = f.transport.streams.size();
+        const qsizetype catalogReads = f.transport.catalogRequests.size();
         f.clock.advance(2 * 3600 * 1000);
         QCOMPARE(f.timer.elapsedSeconds(), 2 * 3600 + 66);
         QCOMPARE(f.timer.elapsedText(), QStringLiteral("2:01"));
-        // The state client reads the state and replaces the stream at once.
+        // The state client reads the state and replaces the stream at once,
+        // and the timer asks whether the projects changed.
         QCOMPARE(f.transport.requests.size(), requests + 1);
         QVERIFY(f.unanswered(f.last("GET", statePath)));
         QCOMPARE(f.transport.streams.size(), streams + 1);
+        QCOMPARE(f.transport.catalogRequests.size(), catalogReads + 1);
+
+        // The platform's wake notice for the same sleep adds nothing.
+        f.state.resumed();
+        QCOMPARE(f.transport.requests.size(), requests + 1);
+        QCOMPARE(f.transport.streams.size(), streams + 1);
+        QCOMPARE(f.transport.catalogRequests.size(), catalogReads + 1);
 
         // The web app stopped the timer meanwhile.
         QVERIFY(f.answerState("null"));
         QVERIFY(!f.timer.isRunning());
         QCOMPARE(f.timer.elapsedText(), QStringLiteral("0:00"));
+    }
 
-        // The explicit hook asks whether the projects changed too.
+    // A wake the platform reports before the late tick reads the state and
+    // checks the projects once; the tick that follows adds nothing.
+    void wakeNoticeBeforeTheLateTickCountsOnce()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f));
+        f.clock.advance(1000);
+        const qsizetype requests = f.transport.requests.size();
+        const qsizetype streams = f.transport.streams.size();
         const qsizetype catalogReads = f.transport.catalogRequests.size();
-        f.timer.resumed();
+
+        f.clock.current = f.clock.current.addSecs(2 * 3600);
+        f.state.resumed();
+        QCOMPARE(f.transport.requests.size(), requests + 1);
         QVERIFY(f.unanswered(f.last("GET", statePath)));
+        QCOMPARE(f.transport.streams.size(), streams + 1);
+        QCOMPARE(f.transport.catalogRequests.size(), catalogReads + 1);
+
+        f.clock.advance(1000);
+        QCOMPARE(f.transport.requests.size(), requests + 1);
+        QCOMPARE(f.transport.streams.size(), streams + 1);
         QCOMPARE(f.transport.catalogRequests.size(), catalogReads + 1);
     }
 
@@ -2027,7 +2053,7 @@ private Q_SLOTS:
         for (int i = 0; i < 30; ++i) {
             f.clock.advance(1000);
         }
-        f.respond(f.last("GET", statePath), FakeTransport::answer(429, "\"Too many requests\"", "1"));
+        f.respond(f.last("GET", statePath), FakeTransport::answer(429, "\"Too many requests\"", "60"));
         QCOMPARE(f.timer.connectionState(), Connection::RateLimited);
         QVERIFY(!f.timer.canWrite());
         QVERIFY(!f.timer.errorString().isEmpty());
@@ -2037,16 +2063,17 @@ private Q_SLOTS:
         for (int i = 0; i < 31; ++i) {
             f.clock.advance(1000);
         }
-        f.timer.resumed();
+        f.state.resumed();
         QVERIFY(!f.timer.start());
         QCOMPARE(f.transport.requests.size(), requests);
 
-        // The connection's cooldown runs on real time; its end reads again.
-        QVERIFY(QTest::qWaitFor(
-            [&] {
-                return f.timer.connectionState() == Connection::Connected;
-            },
-            5000));
+        // The cooldown runs on the clock; the tick that ends it reads again.
+        for (int i = 0; i < 28; ++i) {
+            f.clock.advance(1000);
+        }
+        QCOMPARE(f.timer.connectionState(), Connection::RateLimited);
+        f.clock.advance(1000);
+        QCOMPARE(f.timer.connectionState(), Connection::Connected);
         QVERIFY(f.unanswered(f.last("GET", statePath)));
         QVERIFY(f.transport.requests.size() > requests);
     }
@@ -2059,11 +2086,8 @@ private Q_SLOTS:
         f.respond(f.last("POST", startPath), FakeTransport::answer(429, "\"Too many requests\"", "1"));
         QVERIFY(!f.timer.isBusy());
         QVERIFY(!f.timer.canWrite());
-        QVERIFY(QTest::qWaitFor(
-            [&] {
-                return f.timer.connectionState() == Connection::Connected;
-            },
-            5000));
+        f.clock.advance(1000);
+        QCOMPARE(f.timer.connectionState(), Connection::Connected);
         QVERIFY(f.timer.canWrite());
         QCOMPARE(f.find("POST", startPath).size(), 1);
     }
@@ -2134,7 +2158,7 @@ private Q_SLOTS:
         for (int i = 0; i < 95; ++i) {
             f.clock.advance(1000);
         }
-        f.timer.resumed();
+        f.state.resumed();
         f.timer.refreshProjects();
         QVERIFY(!f.timer.start());
         QVERIFY(!f.timer.stop());
@@ -2732,7 +2756,7 @@ private Q_SLOTS:
         QSignalSpy changed(&f.timer, &TimerController::projectsChanged);
         f.timer.refreshProjects();
         QTest::qWait(20);
-        f.timer.resumed();
+        f.state.resumed();
         QVERIFY(f.answerState(current));
         QTest::qWait(20);
         QCOMPARE(f.transport.catalogRequests.size(), 3);
@@ -2804,40 +2828,6 @@ private Q_SLOTS:
         f.timer.refreshProjects();
         QVERIFY(f.answerList(projectsBody(7)));
         QCOMPARE(f.find("GET", "/projects").size(), 3);
-    }
-
-    void stateClientCanBeReplaced()
-    {
-        Fixture f;
-        QVERIFY(connectAccount(f, instanceA, 3, 7, "null"));
-        poll(f);
-        const qsizetype poll = f.last("GET", statePath);
-        QVERIFY(f.unanswered(poll));
-
-        FakeTransport otherTransport;
-        FakeCredentialStore otherStore;
-        Connection other(&otherTransport, &otherStore, f.clock, testClientName());
-        TimerStateClient otherState(&other, &f.clock);
-        f.timer.setStateClient(&otherState);
-        QCOMPARE(f.timer.stateClient(), &otherState);
-        QCOMPARE(f.timer.connection(), &other);
-        QVERIFY(!f.timer.isRunning());
-        QVERIFY(!f.timer.isConnected());
-        // Replies to the first client no longer reach the controller.
-        f.respond(poll, f.stateAnswer(entryBody(5, 7, startedAt)));
-        QVERIFY(!f.timer.isRunning());
-        QVERIFY(otherTransport.requests.isEmpty());
-
-        // A client that goes away takes its connection with it.
-        {
-            TimerStateClient scoped(&f.connection, &f.clock);
-            f.timer.setStateClient(&scoped);
-            QCOMPARE(f.timer.connection(), &f.connection);
-        }
-        QVERIFY(!f.timer.stateClient());
-        QVERIFY(!f.timer.connection());
-        QVERIFY(!f.timer.canWrite());
-        QVERIFY(!f.timer.start());
     }
 };
 

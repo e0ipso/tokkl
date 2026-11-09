@@ -1,7 +1,6 @@
 #include "menubarapp.h"
 
 #include "alarmplayer.h"
-#include "clock.h"
 #include "connectionsettings.h"
 #include "pomodoroalarm.h"
 #include "pomodorostore.h"
@@ -40,22 +39,20 @@ MenuBarApp::MenuBarApp(Transport *transport,
                        StatusItem *statusItem,
                        LoginItem *loginItem,
                        AlarmPlayer *alarmPlayer,
-                       QSettings *settings,
-                       Clock *clock,
+                       QSettings &settings,
+                       Clock &clock,
                        QObject *parent)
     : QObject(parent)
     , m_statusItem(statusItem)
     , m_settings(settings)
-    , m_ownClock(clock ? nullptr : std::make_unique<SystemClock>())
-    , m_clock(clock ? clock : m_ownClock.get())
-    , m_pomodoroStore(settings ? new SettingsPomodoroStore(settings, this) : nullptr)
-    , m_stack(new TimerStack(transport, store, m_pomodoroStore, *m_clock, clientName(), this))
+    , m_pomodoroStore(new SettingsPomodoroStore(&settings, this))
+    , m_stack(new TimerStack(transport, store, *m_pomodoroStore, clock, clientName(), this))
     , m_connection(m_stack->connection())
     , m_timer(m_stack->timer())
     , m_preferences(m_stack->preferences())
     , m_session(m_stack->session())
 {
-    m_sounds = new SoundChoices(settings, &MenuBarApp::soundKey, this);
+    m_sounds = new SoundChoices(&settings, &MenuBarApp::soundKey, this);
     // The bundle's Contents/Resources/sounds, which the build fills from
     // TOKKL_POMODORO_SOUND_FILES.
     m_alarm = new PomodoroAlarm(m_session,
@@ -64,7 +61,7 @@ MenuBarApp::MenuBarApp(Transport *transport,
                                 QString(QCoreApplication::applicationDirPath() + QStringLiteral("/../Resources/sounds")),
                                 this);
     m_menu = new StatusMenu(m_timer, m_timer->coordinator(), m_session, m_alarm, this);
-    m_settingsWindow = std::make_unique<SettingsWindow>(transport, store, settings, loginItem, m_preferences, m_sounds, m_alarm);
+    m_settingsWindow = std::make_unique<SettingsWindow>(transport, store, &settings, loginItem, m_preferences, m_sounds, m_alarm);
 
     connect(m_menu, &StatusMenu::settingsRequested, this, &MenuBarApp::showSettings);
     connect(m_menu, &StatusMenu::openRequested, this, &MenuBarApp::openUrlRequested);
@@ -138,10 +135,7 @@ void MenuBarApp::showSettings()
 
 void MenuBarApp::applySettings()
 {
-    if (!m_settings) {
-        return;
-    }
-    ConnectionSettings::read(*m_settings).applyTo(*m_connection);
+    ConnectionSettings::read(m_settings).applyTo(*m_connection);
     updateItem();
 }
 
@@ -155,9 +149,7 @@ void MenuBarApp::activate()
 
 void MenuBarApp::resumed()
 {
-    // The timer forwards to the state client, which reads at once.
-    m_timer->resumed();
-    m_session->resumed();
+    m_timer->stateClient()->resumed();
 }
 
 void MenuBarApp::updateItem()
@@ -168,7 +160,7 @@ void MenuBarApp::updateItem()
     m_statusItem->setTitle(StatusWords::menuBarTitle(*m_timer, *m_session));
     m_statusItem->setToolTip(StatusWords::summary(*m_timer, *m_session));
     m_statusItem->setAccessibleName(StatusWords::itemName(*m_timer, *m_session));
-    const bool monochrome = m_settings && m_settings->value(SettingsSave::monochromeIconKey, false).toBool();
+    const bool monochrome = m_settings.value(SettingsSave::monochromeIconKey, false).toBool();
     m_statusItem->setImage(
         StatusImage::compose(ProjectIndicator::fromTimer(*m_timer, m_statusItem->reduceMotion()), monochrome, m_session->pomodoroMode()));
 }

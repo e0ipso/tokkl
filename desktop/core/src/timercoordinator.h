@@ -10,7 +10,6 @@
 #include "timerstateclient.h"
 
 #include <QObject>
-#include <QPointer>
 #include <QVariant>
 
 #include <optional>
@@ -100,14 +99,12 @@ class TimerCoordinator : public TimerActions, public TimerActivity
 
 public:
     // Reads model and changes it through roles, the same model's; it must
-    // outlive the coordinator. The clock is not owned.
-    TimerCoordinator(TimerModel *model, const TimerModelRoles &roles, Clock *clock, QObject *parent = nullptr);
+    // outlive the coordinator. Acts through client, the one the model reads,
+    // on its connection and clock; the client is not owned.
+    TimerCoordinator(TimerModel *model, const TimerModelRoles &roles, TimerStateClient &client, QObject *parent = nullptr);
     ~TimerCoordinator() override;
 
     TimerModel *model() const;
-
-    // Not owned. Null leaves the timer without a connection.
-    void setStateClient(TimerStateClient *client);
     TimerStateClient *stateClient() const;
 
     bool holdsEntry() const override;
@@ -142,15 +139,12 @@ public:
     bool chooseBillable(bool billable);
 
     // The user is about to see the projects, as when a panel opens its
-    // menu: reads the catalog's revision, and the whole list only when the
-    // revision moved since the list was read. Sends nothing while a read
-    // of them is on its way or the workspace cannot be read. The state is
-    // not read again: the state client follows it.
+    // menu, or the state client woke (TimerStateClient::woke()): reads the
+    // catalog's revision, and the whole list only when the revision moved
+    // since the list was read. Sends nothing while a read of them is on its
+    // way or the workspace cannot be read. The state is not read again: the
+    // state client follows it.
     void refreshProjects();
-    // The session woke from sleep: the state client reads the state and
-    // replaces its stream, and the projects are read as by
-    // refreshProjects(). Not resume().
-    void resumed();
     // Explicit reconnect: lifts a workspace block, revalidates the account
     // and reads the state and the projects again.
     void reconnect();
@@ -167,7 +161,6 @@ private:
     void onConnectionChanged();
     void onStateChanged();
     void onSettlingChanged();
-    void detach();
     void reset();
     void beginMutation();
     void refreshState();
@@ -186,7 +179,7 @@ private:
     NextStartSelection *m_selection;
     TimerCatalogUpdates *m_catalog;
     ProjectLoader *m_loader;
-    QPointer<Clock> m_clock;
+    TimerStateClient &m_client;
 
     // Advanced by reset(); callbacks from an earlier epoch do nothing.
     Epoch m_epoch;

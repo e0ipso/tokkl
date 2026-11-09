@@ -14,17 +14,16 @@ namespace
 using Outcome = TimerActionResult::Outcome;
 }
 
-TimerCoordinator::TimerCoordinator(TimerModel *model, const TimerModelRoles &roles, Clock *clock, QObject *parent)
+TimerCoordinator::TimerCoordinator(TimerModel *model, const TimerModelRoles &roles, TimerStateClient &client, QObject *parent)
     : TimerActions(parent)
     , m_model(model)
     , m_state(roles.state)
     , m_selection(roles.selection)
     , m_catalog(roles.catalog)
     , m_loader(new ProjectLoader(model, roles.catalog, this))
-    , m_clock(clock)
+    , m_client(client)
 {
     connect(m_model, &TimerModel::workspaceRefused, this, &TimerCoordinator::loseWorkspace);
-    m_state->bind(nullptr, m_clock);
     for (auto signal : {&TimerModel::contextChanged,
                         &TimerModel::statusChanged,
                         &TimerModel::currentEntryChanged,
@@ -33,6 +32,19 @@ TimerCoordinator::TimerCoordinator(TimerModel *model, const TimerModelRoles &rol
                         &TimerModel::choiceChanged}) {
         connect(m_model, signal, this, &TimerActions::changed);
     }
+    connect(&m_client, &TimerStateClient::stateChanged, this, &TimerCoordinator::onStateChanged);
+    connect(&m_client, &TimerStateClient::settlingChanged, this, &TimerCoordinator::onSettlingChanged);
+    // The client reads the state again on a wake; the projects have no
+    // stream, so their revision is checked here.
+    connect(&m_client, &TimerStateClient::woke, this, &TimerCoordinator::refreshProjects);
+    Connection *connection = m_client.connection();
+    connect(connection, &Connection::generationChanged, this, &TimerCoordinator::reset);
+    connect(connection, &Connection::stateChanged, this, &TimerCoordinator::onConnectionChanged);
+    connect(connection, &Connection::accountChanged, this, &TimerCoordinator::onConnectionChanged);
+    reset();
+    onConnectionChanged();
+    // A state the client already holds.
+    onStateChanged();
 }
 
 TimerCoordinator::~TimerCoordinator() = default;
@@ -44,7 +56,7 @@ TimerModel *TimerCoordinator::model() const
 
 TimerStateClient *TimerCoordinator::stateClient() const
 {
-    return m_model->stateClient();
+    return &m_client;
 }
 
 bool TimerCoordinator::holdsEntry() const
@@ -89,47 +101,6 @@ bool TimerCoordinator::workspaceLost() const
 
 // ----- connection lifetime -------------------------------------------------
 
-void TimerCoordinator::setStateClient(TimerStateClient *client)
-{
-    if (client == m_model->stateClient()) {
-        return;
-    }
-    detach();
-    m_state->bind(client, m_clock);
-    Connection *connection = m_model->connection();
-    if (client) {
-        connect(client, &TimerStateClient::stateChanged, this, &TimerCoordinator::onStateChanged);
-        connect(client, &TimerStateClient::settlingChanged, this, &TimerCoordinator::onSettlingChanged);
-        connect(client, &QObject::destroyed, this, [this] {
-            detach();
-            reset();
-            m_state->connectionReplaced();
-        });
-    }
-    if (connection) {
-        connect(connection, &Connection::generationChanged, this, &TimerCoordinator::reset);
-        connect(connection, &Connection::stateChanged, this, &TimerCoordinator::onConnectionChanged);
-        connect(connection, &Connection::accountChanged, this, &TimerCoordinator::onConnectionChanged);
-        connect(connection, &QObject::destroyed, this, &TimerCoordinator::reset);
-    }
-    reset();
-    m_state->connectionReplaced();
-    onConnectionChanged();
-    // A state the client already holds.
-    onStateChanged();
-}
-
-void TimerCoordinator::detach()
-{
-    if (TimerStateClient *client = m_model->stateClient()) {
-        disconnect(client, nullptr, this, nullptr);
-    }
-    if (Connection *connection = m_model->connection()) {
-        disconnect(connection, nullptr, this, nullptr);
-    }
-    m_state->bind(nullptr, m_clock);
-}
-
 void TimerCoordinator::onConnectionChanged()
 {
     const Connection::State state = m_model->connectionState();
@@ -145,7 +116,7 @@ void TimerCoordinator::onConnectionChanged()
 
 void TimerCoordinator::reset()
 {
-    // Another generation, account or client: nothing carries over, and the
+    // Another generation or account: nothing carries over, and the
     // answer to a write on its way never comes.
     const bool wasWriting = m_gate.running();
     m_epoch.advance();
@@ -171,12 +142,12 @@ bool TimerCoordinator::start()
     m_selection->started();
     const NextStartSelection::Choice choice = m_selection->choice();
     StartEntry entry;
-    entry.start = m_state->clock()->now().toUTC();
+    entry.start = m_client.clock().now().toUTC();
     entry.projectId = choice.projectId;
     entry.billable = choice.billable;
     beginMutation();
 
-    m_model->stateClient()->start(entry, m_epoch.guard(this, [this](const TimerActionResult &result) {
+    m_client.start(entry, m_epoch.guard(this, [this](const TimerActionResult &result) {
         finishMutation(result.outcome, result.error, true);
     }));
     return true;
@@ -192,7 +163,7 @@ bool TimerCoordinator::stop()
             return false;
         }
         beginMutation();
-        m_model->stateClient()->discard(m_epoch.guard(this, [this](const TimerActionResult &result) {
+        m_client.discard(m_epoch.guard(this, [this](const TimerActionResult &result) {
             finishMutation(result.outcome, result.error);
         }));
         return true;
@@ -202,7 +173,7 @@ bool TimerCoordinator::stop()
     }
     beginMutation();
 
-    m_model->stateClient()->stop(m_epoch.guard(this, [this](const TimerActionResult &result) {
+    m_client.stop(m_epoch.guard(this, [this](const TimerActionResult &result) {
         finishMutation(result.outcome, result.error);
     }));
     return true;
@@ -215,7 +186,7 @@ bool TimerCoordinator::pause()
     }
     beginMutation();
 
-    m_model->stateClient()->pause(m_epoch.guard(this, [this](const TimerActionResult &result) {
+    m_client.pause(m_epoch.guard(this, [this](const TimerActionResult &result) {
         finishMutation(result.outcome, result.error);
     }));
     return true;
@@ -229,7 +200,7 @@ bool TimerCoordinator::resume()
     m_selection->started();
     beginMutation();
 
-    m_model->stateClient()->resume(m_epoch.guard(this, [this](const TimerActionResult &result) {
+    m_client.resume(m_epoch.guard(this, [this](const TimerActionResult &result) {
         finishMutation(result.outcome, result.error, true);
     }));
     return true;
@@ -286,7 +257,7 @@ bool TimerCoordinator::updateEntry(const TimeEntryUpdate &update)
     // start, description, tags and the rest, and it keeps running.
     const qint64 entryId = m_model->currentEntry()->id;
     beginMutation();
-    m_model->stateClient()->edit(entryId, update, m_epoch.guard(this, [this](const TimerActionResult &result) {
+    m_client.edit(entryId, update, m_epoch.guard(this, [this](const TimerActionResult &result) {
         finishMutation(result.outcome, result.error);
     }));
     return true;
@@ -313,10 +284,9 @@ void TimerCoordinator::endMutation(Outcome outcome, const ApiError &error, bool 
     if (outcome != Outcome::Applied) {
         qCInfo(lcTimer) << "Timer change ended with" << outcome << error.message;
     }
-    TimerStateClient *client = m_model->stateClient();
     const MutationGate::Ending ending = m_gate.finish(outcome, error, start);
-    if (ending.settle && client && !client->settling()) {
-        client->settle();
+    if (ending.settle && !m_client.settling()) {
+        m_client.settle();
     }
     if (m_workspaceLost) {
         m_state->activityChanged();
@@ -343,16 +313,15 @@ void TimerCoordinator::endMutation(Outcome outcome, const ApiError &error, bool 
         loseWorkspace(error);
         return;
     }
-    if (ending.refresh && client) {
-        client->refresh();
+    if (ending.refresh) {
+        m_client.refresh();
     }
     m_state->activityChanged();
 }
 
 void TimerCoordinator::onStateChanged()
 {
-    // Without a state held (a new generation, or no client) the message
-    // stays.
+    // Without a state held (a new generation) the message stays.
     const bool held = m_state->heldState().has_value();
     if (held && !m_model->isBusy() && !m_keepError && !m_workspaceLost) {
         setError(QString());
@@ -387,10 +356,9 @@ void TimerCoordinator::loseWorkspace(const ApiError &error)
     m_state->forgetWorkspace();
     // The account may have another workspace now. Ask once; a different
     // default workspace starts a new generation, which lifts the block.
-    Connection *connection = m_model->connection();
-    if (connection && !m_rediscoveryUsed) {
+    if (!m_rediscoveryUsed) {
         m_rediscoveryUsed = true;
-        connection->fetchMe();
+        m_client.connection()->fetchMe();
     }
 }
 
@@ -403,26 +371,13 @@ void TimerCoordinator::refreshProjects()
 
 void TimerCoordinator::refreshState()
 {
-    TimerStateClient *client = m_model->stateClient();
-    if (client && m_catalog->readable()) {
-        client->refresh();
+    if (m_catalog->readable()) {
+        m_client.refresh();
     }
-}
-
-void TimerCoordinator::resumed()
-{
-    if (TimerStateClient *client = m_model->stateClient()) {
-        client->resumed();
-    }
-    m_loader->fetchProjects();
 }
 
 void TimerCoordinator::reconnect()
 {
-    Connection *connection = m_model->connection();
-    if (!connection) {
-        return;
-    }
     const bool wasLost = std::exchange(m_workspaceLost, false);
     m_rediscoveryUsed = false;
     m_selection->wantLastEntry();
@@ -434,7 +389,7 @@ void TimerCoordinator::reconnect()
     } else {
         m_state->activityChanged();
     }
-    connection->reconnect();
+    m_client.connection()->reconnect();
     if (m_model->isConnected()) {
         // The account stays bound through revalidation; no state change
         // would trigger the reload. The state that answers also replaces an
