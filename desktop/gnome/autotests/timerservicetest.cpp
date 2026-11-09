@@ -65,6 +65,14 @@ QByteArray json(const QJsonValue &value)
     return value.isArray() ? QJsonDocument(value.toArray()).toJson(QJsonDocument::Compact) : QJsonDocument(value.toObject()).toJson(QJsonDocument::Compact);
 }
 
+// A Configure call from the client bus for a token account, not waited for.
+QDBusPendingCall configureCall(const QString &url, const QString &secret)
+{
+    QDBusMessage message = QDBusMessage::createMethodCall(TimerService::serviceName, TimerService::objectPath, TimerService::interfaceName, QStringLiteral("Configure"));
+    message.setArguments({url, QStringLiteral("token"), QString(), secret});
+    return QDBusConnection(clientBus).asyncCall(message);
+}
+
 QJsonObject entryObject(qint64 id, qint64 project, bool running, bool billable = false)
 {
     const QDateTime begin = QDateTime::fromString(startedAt, Qt::ISODate);
@@ -1405,11 +1413,12 @@ private Q_SLOTS:
         FakeClock clock;
         const QString file = dir.filePath(QStringLiteral("tokkl-timerd.conf"));
         Daemon daemon(&transport, &store, file, &clock);
-        TimerService &service = daemon.service;
+        QVERIFY(daemon.service.registerOn(QDBusConnection(serviceBus)));
         const QString other = QStringLiteral("https://b.example.test");
-        service.Configure(instanceUrl, QStringLiteral("token"), QString(), QStringLiteral("tok-a"));
-        service.Configure(other, QStringLiteral("token"), QString(), QStringLiteral("tok-b"));
-        QCOMPARE(store.held.size(), 2);
+        QDBusPendingCall first = configureCall(instanceUrl, QStringLiteral("tok-a"));
+        QTRY_COMPARE(store.held.size(), 1);
+        QDBusPendingCall second = configureCall(other, QStringLiteral("tok-b"));
+        QTRY_COMPARE(store.held.size(), 2);
         const QString expected = parseInstanceUrl(other).base.toString();
 
         store.finish(1);
@@ -1418,9 +1427,10 @@ private Q_SLOTS:
         QCOMPARE(daemon.connection.instanceUrl(), expected);
         const QSettings settings(file, QSettings::IniFormat);
         QCOMPARE(settings.value(QStringLiteral("instanceUrl")).toString(), expected);
+        QTRY_VERIFY(first.isFinished() && second.isFinished());
     }
 
-    // Over the bus, the replaced call says so: its settings were never
+    // The replaced call says so: its settings were never
     // applied, so a client must not keep them as accepted.
     void replacedConfigureFailsAsSuperseded()
     {
@@ -1431,15 +1441,10 @@ private Q_SLOTS:
         FakeClock clock;
         Daemon daemon(&transport, &store, dir.filePath(QStringLiteral("tokkl-timerd.conf")), &clock);
         QVERIFY(daemon.service.registerOn(QDBusConnection(serviceBus)));
-        const auto configure = [](const QString &url, const QString &secret) {
-            QDBusMessage message = QDBusMessage::createMethodCall(TimerService::serviceName, TimerService::objectPath, TimerService::interfaceName, QStringLiteral("Configure"));
-            message.setArguments({url, QStringLiteral("token"), QString(), secret});
-            return QDBusConnection(clientBus).asyncCall(message);
-        };
         const QString other = QStringLiteral("https://b.example.test");
-        QDBusPendingCall first = configure(instanceUrl, QStringLiteral("tok-a"));
+        QDBusPendingCall first = configureCall(instanceUrl, QStringLiteral("tok-a"));
         QTRY_COMPARE(store.held.size(), 1);
-        QDBusPendingCall second = configure(other, QStringLiteral("tok-b"));
+        QDBusPendingCall second = configureCall(other, QStringLiteral("tok-b"));
         QTRY_COMPARE(store.held.size(), 2);
 
         store.finish(1);

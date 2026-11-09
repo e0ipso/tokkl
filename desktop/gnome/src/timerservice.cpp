@@ -510,13 +510,9 @@ bool TimerService::SetBillable(bool billable)
 
 void TimerService::Configure(const QString &instanceUrl, const QString &authMode, const QString &email, const QString &secret)
 {
-    std::optional<ConfigurationAdapter::Call> call;
-    if (calledFromDBus()) {
-        // The adapter answers once the credential store has.
-        setDelayedReply(true);
-        call = ConfigurationAdapter::Call{message(), QDBusContext::connection()};
-    }
-    m_configuration->configure(instanceUrl, authMode, email, secret, call);
+    // The adapter answers once the credential store has.
+    setDelayedReply(true);
+    m_configuration->configure(instanceUrl, authMode, email, secret, ConfigurationAdapter::Call{message(), QDBusContext::connection()});
     publishChanges();
 }
 
