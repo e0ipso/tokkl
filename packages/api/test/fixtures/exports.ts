@@ -1,10 +1,21 @@
 import type { Repositories } from '../../src/domain/ports.ts';
 import { runExportJob, type ExportAssemblyJob, type ExportSource } from '../../src/services/exportJobs.ts';
-import type { assembleJsonExport } from './exportOracle.ts';
+import type { Client, Project, Tag, Task, TimeEntry, Workspace } from '@tokkl/types';
 
 /** Anything that opens a read snapshot over the transfer repository. */
 export interface ExportRunner {
   readSnapshot<T>(work: (repositories: Pick<Repositories, 'transfers'>) => Promise<T>): Promise<T>;
+}
+
+/** The JSON export file, as far as the tests read it. */
+interface JsonExport {
+  [key: string]: unknown;
+  workspaces: Workspace[];
+  clients: Client[];
+  projects: Project[];
+  tasks: Task[];
+  tags: Tag[];
+  time_entries: TimeEntry[];
 }
 
 /** The export projection, read the way the export routes read it: in one snapshot. */
@@ -23,7 +34,7 @@ export async function exportBody(source: ExportSource, userId: number, assembly:
 
 export async function buildJsonExport(source: ExportSource, userId: number, exportedAt = new Date().toISOString()) {
   const body = await exportBody(source, userId, { kind: 'export-json', exportedAt, filename: 'tokkl.json' });
-  return JSON.parse(body) as ReturnType<typeof assembleJsonExport>;
+  return JSON.parse(body) as JsonExport;
 }
 
 export function buildCsvExport(source: ExportSource, userId: number, range: { from?: string; to?: string }) {

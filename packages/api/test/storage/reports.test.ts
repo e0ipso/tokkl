@@ -21,7 +21,7 @@ import expectedReports from './support/report-expected.json' with { type: 'json'
 import type { PhysicalDatabase } from '../../src/storage/physical.ts';
 import type { Backend } from '../../src/storage/config.ts';
 
-import { answerJob, range, jobs } from './support/report-jobs.ts';
+import { answerJob, range, jobs, type AnyReportJob } from './support/report-jobs.ts';
 for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
   test(
     `${backend}: bounded report projections and every envelope match legacy reports`,
@@ -222,6 +222,58 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
       assert.equal(new Set(projections.map(p => p.id)).size, 1205);
       assert.equal(count, 2 * Math.ceil(1205 / REPORT_BATCH_SIZE));
       assert.equal(formatReportEntries(projections, seeded.user, seeded.ws, range).length, 1205);
+      // Golden answers past a read batch: tied starts page in id order and every row counts.
+      const history: ReportFilter = { ...range, description: 'history' };
+      const answer = (job: AnyReportJob) =>
+        answerJob(operations, { userId: seeded.user.id, workspaceId: seeded.ws.id, job });
+      const page = JSON.parse(
+        (
+          await answer({
+            kind: 'v3-search',
+            filter: history,
+            orderBy: 'date',
+            orderDir: 'ASC',
+            pageSize: 50,
+            firstRow: 1001,
+          })
+        ).body,
+      ) as Array<{ description: string }>;
+      const entries = JSON.parse(
+        (
+          await answer({
+            kind: 'app-entries',
+            filter: history,
+            orderBy: 'description',
+            orderDir: 'DESC',
+            pageSize: 500,
+            page: 3,
+          })
+        ).body,
+      ) as { total: number; entries: Array<{ description: string }> };
+      const totals = JSON.parse(
+        (await answer({ kind: 'v3-totals', filter: history, granularity: 'week', withGraph: false })).body,
+      );
+      const csv = (
+        await answer({
+          kind: 'app-detailed-csv',
+          filter: history,
+          orderBy: 'date',
+          orderDir: 'DESC',
+          durationFormat: 'decimal',
+        })
+      ).body.split('\n');
+      assert.deepEqual(
+        [page.length, page[0]!.description, page.at(-1)!.description],
+        [50, 'history 1000', 'history 1049'],
+      );
+      assert.deepEqual(
+        [entries.total, entries.entries.length, entries.entries[0]!.description, entries.entries.at(-1)!.description],
+        [1201, 201, 'history 1178', 'history 0'],
+      );
+      assert.equal(totals.seconds, 1201 * 3600);
+      const row = (n: number) =>
+        `reports,reports@example.test,ACME,Changed project,,history ${n},No,2026-10-01,02:00:00,2026-10-01,03:00:00,1.00 h,\r`;
+      assert.deepEqual([csv.length, csv[1], csv.at(-2)], [1203, row(1200), row(0)]);
       assert.equal((await sql`select count(*) as n from storage_migrations`.execute(connection.db)).rows.length, 1);
     },
   );

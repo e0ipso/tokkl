@@ -4,8 +4,7 @@ import { storageFor } from './fixtures/database.ts';
 import { corruptRecord } from './fixtures/physical.ts';
 import { setup, type TestContext } from './helpers.ts';
 import { createCatalogQueries, type TaskSearch } from '../src/domain/queries.ts';
-import type { TaskSummary } from '../src/domain/model.ts';
-import { NAMES, oracle, SEARCHES } from './fixtures/taskSearchOracle.ts';
+import { GOLDEN, NAMES } from './fixtures/taskSearchGolden.ts';
 import { serializeTask } from '../src/presenters/toggl.ts';
 
 async function seed(ctx: TestContext) {
@@ -35,46 +34,21 @@ async function seed(ctx: TestContext) {
   return projects;
 }
 
-test('the workspace task search answers exactly what the in-memory search answered', async () => {
+test('the workspace task search answers its golden pages', async () => {
   const ctx = await setup();
   const projects = await seed(ctx);
   const ws = (await storageFor(ctx.db).workspaces.get(ctx.wid))!;
-  const read = <T>(work: (queries: ReturnType<typeof createCatalogQueries>) => Promise<T>) =>
-    storageFor(ctx.db).readSnapshot(r => work(createCatalogQueries(r)));
-  const all = await read(queries => queries.workspaceTasks(ws));
-  assert.equal(all.length, NAMES.length);
-  const body = (tasks: TaskSummary[]) => JSON.stringify(tasks.map(serializeTask));
-
-  let compared = 0;
-  for (const sortField of ['name', 'created_at'] as const)
-    for (const sortOrder of ['ASC', 'DESC'] as const)
-      for (const search of SEARCHES)
-        for (const active of [undefined, true, false])
-          for (const projectId of [undefined, projects[1]!])
-            for (const changedSince of [undefined, '2026-10-12T09:00:00.000Z']) {
-              const query: TaskSearch = { projectId, active, changedSince, search, sortField, sortOrder };
-              for (const window of [
-                { page: 1, perPage: 200 },
-                { page: 2, perPage: 3 },
-                { page: 1.5, perPage: 2.5 },
-                { page: 9, perPage: 3 },
-              ]) {
-                const expected = oracle(all, query, window);
-                const actual = await read(queries => queries.searchTasks(ws, query, window));
-                const label = JSON.stringify({ query, window });
-                assert.equal(actual.totalCount, expected.totalCount, label);
-                assert.equal(body(actual.tasks), body(expected.tasks), label);
-                compared++;
-              }
-            }
-  assert.ok(compared > 1000);
+  for (const [{ project, ...search }, window, names, total] of GOLDEN) {
+    const query: TaskSearch = { ...search, projectId: project === undefined ? undefined : projects[project] };
+    const actual = await storageFor(ctx.db).readSnapshot(r => createCatalogQueries(r).searchTasks(ws, query, window));
+    assert.deepEqual([actual.tasks.map(task => task.name), actual.totalCount], [names, total], JSON.stringify(query));
+  }
 });
 
 test('the paged task envelope over HTTP carries the same page', async () => {
   const ctx = await setup();
   await seed(ctx);
   const ws = (await storageFor(ctx.db).workspaces.get(ctx.wid))!;
-  const all = await storageFor(ctx.db).readSnapshot(r => createCatalogQueries(r).workspaceTasks(ws));
   for (const [sortField, search] of [
     ['created_at', undefined],
     ['name', 'A'],
@@ -89,7 +63,10 @@ test('the paged task envelope over HTTP carries the same page', async () => {
     if (search) params.set('search', search);
     const reply = await ctx.json('GET', `/api/v9/workspaces/${ctx.wid}/tasks?${params}`);
     assert.equal(reply.status, 200);
-    const expected = oracle(all, { search, sortField, sortOrder: 'DESC' }, { page: 2, perPage: 4 });
+    const query: TaskSearch = { search, sortField, sortOrder: 'DESC' };
+    const expected = await storageFor(ctx.db).readSnapshot(r =>
+      createCatalogQueries(r).searchTasks(ws, query, { page: 2, perPage: 4 }),
+    );
     assert.deepEqual(reply.body, {
       data: JSON.parse(JSON.stringify(expected.tasks.map(serializeTask))),
       page: 2,

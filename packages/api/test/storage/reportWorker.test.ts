@@ -10,8 +10,7 @@ import type { JobSource } from '../../src/services/reportExecution.ts';
 import { mkdtempSync, existsSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { collectAccountExport } from '../fixtures/exports.ts';
-import { oracleExportBody } from '../fixtures/exportOracle.ts';
+import { exportBody } from '../fixtures/exports.ts';
 import { createTransferRepositories } from '../../src/storage/repositories/transfers.ts';
 import { answerJob, answerOnRunner, jobs } from './support/report-jobs.ts';
 import { Worker } from 'node:worker_threads';
@@ -99,12 +98,11 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
           await answerOnRunner(runner, user.id, wid, request),
           await answerJob(operations, { userId: user.id, workspaceId: wid, job: request }),
         );
-      const exported = await collectAccountExport(operations, user.id);
       for (const assembly of [
         { kind: 'export-json', exportedAt: '2026-10-30T12:00:00.000Z', filename: 'tokkl.json' },
         { kind: 'export-csv', range: {}, filename: 'tokkl.csv' },
       ] as ExportAssemblyJob[])
-        assert.equal(await streamedExport(runner, user.id, assembly), oracleExportBody(exported, assembly));
+        assert.equal(await streamedExport(runner, user.id, assembly), await exportBody(operations, user.id, assembly));
       // Every job so far ran in the two workers the runner started: the reports' first, then the downloads'.
       assert.equal(workers.started.length, 2);
       const worker = workers.started[0]!;
@@ -269,14 +267,13 @@ test('memory SQLite stays inline; reader startup never creates or migrates a fil
     await runReportJob(operations, { userId: user.id, workspaceId: user.defaultWorkspaceId, job }),
   );
   assert.equal(workers.started.length, 0);
-  const exported = await collectAccountExport(operations, user.id);
   const assembly: ExportAssemblyJob = {
     kind: 'export-json',
     exportedAt: '2026-10-30T12:00:00.000Z',
     filename: 'tokkl.json',
   };
   const body = await streamedExport(runner, user.id, assembly);
-  assert.equal(body, oracleExportBody(exported, assembly));
+  assert.equal(body, await exportBody(operations, user.id, assembly));
   // The export reads the account in its own snapshot; no credential reaches the output.
   assert.equal(body.includes(user.apiToken), false);
   await c.db.deleteFrom('workspace_users').where('user_id', '=', user.id).execute();

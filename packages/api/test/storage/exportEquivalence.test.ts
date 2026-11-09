@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { setImmediate } from 'node:timers/promises';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createTransactionRunner } from '../../src/storage/transactions.ts';
@@ -18,8 +19,7 @@ import {
   runExportJob,
   type ExportAssemblyJob,
 } from '../../src/services/exportJobs.ts';
-import { collectAccountExport, exportBody } from '../fixtures/exports.ts';
-import { oracleExportBody } from '../fixtures/exportOracle.ts';
+import { exportBody } from '../fixtures/exports.ts';
 import { entryAccount, entryTimerFactory } from './support/entry-timer.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 
@@ -138,7 +138,12 @@ async function seedAccount(
       .insertInto('time_entries')
       .values(rows.slice(i, i + 100))
       .execute();
-  const ids = await connection.db.selectFrom('time_entries').select('id').where('user_id', '=', user.id).execute();
+  const ids = await connection.db
+    .selectFrom('time_entries')
+    .select('id')
+    .where('user_id', '=', user.id)
+    .orderBy('id')
+    .execute();
   const labels = ids.flatMap(({ id }) =>
     seeded.tags.filter(() => rand.next() < 0.3).map(tag => ({ time_entry_id: Number(id), tag_id: tag.id })),
   );
@@ -159,8 +164,38 @@ async function streamed(runner: ReportRunner, userId: number, assembly: ExportAs
   return chunks.join('');
 }
 
+/** A body's entry count (CSV lines, or JSON entries) and the digest of its entries. */
+function summary(assembly: ExportAssemblyJob, body: string): [number, string] {
+  const digest = (text: string) => createHash('sha256').update(text).digest('hex').slice(0, 16);
+  if (assembly.kind === 'export-csv') return [body.split('\n').length, digest(body)];
+  const entries: unknown[] = JSON.parse(body).time_entries;
+  return [entries.length, digest(JSON.stringify(entries))];
+}
+
+/** `summary` of each export in `ASSEMBLIES`, per seeded account. */
+const EMPTY_CSV: [number, string] = [2, 'be347ca408e155f0'];
+const GOLDEN: Array<Array<[number, string]>> = [
+  [
+    [1097, 'e23f99350e519dc2'],
+    [1208, '4e507c26cb65a00e'],
+    [630, '780dfec2287a871d'],
+    [368, 'e3980bb3b1e0547f'],
+    [258, '400ded47aac294e3'],
+    EMPTY_CSV,
+  ],
+  [
+    [3, '35a54e8d50e3bc39'],
+    [6, '73ed752176431cff'],
+    [4, '27da61eecc82bc69'],
+    [6, '3e14a7c688bdf83f'],
+    EMPTY_CSV,
+    EMPTY_CSV,
+  ],
+  [[0, '4f53cda18c2baa0c'], EMPTY_CSV, EMPTY_CSV, EMPTY_CSV, EMPTY_CSV, EMPTY_CSV],
+];
+
 for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
-  test(`${backend}: streamed exports write the bytes of the whole-projection exports`, { timeout: 900000 }, async t => {
+  test(`${backend}: worker and inline exports write the golden bytes`, { timeout: 900000 }, async t => {
     const fixture = await disposableBackend(backend);
     t.after(() => fixture.cleanup());
     const connection = await initializeDatabase(fixture.config);
@@ -174,15 +209,17 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
     // The worker reads through its own reader; the inline job reads on this connection.
     const runner = createReportRunner(fixture.config, operations);
     t.after(() => runner.close());
+    const actual = [];
     for (const user of users) {
-      const projection = await collectAccountExport(operations, user.id);
+      const row = [];
       for (const assembly of ASSEMBLIES) {
-        const expected = oracleExportBody(projection, assembly);
-        const label = `${user.fullName} ${JSON.stringify(assembly)}`;
-        assert.equal(await exportBody(operations, user.id, assembly), expected, `inline ${label}`);
-        assert.equal(await streamed(runner, user.id, assembly), expected, `worker ${label}`);
+        const inline = await exportBody(operations, user.id, assembly);
+        assert.equal(await streamed(runner, user.id, assembly), inline, `${user.fullName} ${JSON.stringify(assembly)}`);
+        row.push(summary(assembly, inline));
       }
+      actual.push(row);
     }
+    assert.deepEqual(actual, GOLDEN);
   });
 }
 
@@ -221,7 +258,7 @@ test('a worker export waits for its output to take what it sent', { timeout: 120
   const long = 'x'.repeat(2000);
   const user = await seedAccount(connection, operations, 'export-big', 'UTC', 2000, 11, () => long);
   const assembly: ExportAssemblyJob = { kind: 'export-json', exportedAt: '2026-11-01T09:00:00.000Z', filename: 'x' };
-  const expected = oracleExportBody(await collectAccountExport(operations, user.id), assembly);
+  const expected = await exportBody(operations, user.id, assembly);
   assert.ok(Buffer.byteLength(expected) > 3 * EXPORT_BYTES_AHEAD);
 
   const runner = createReportRunner(fixture.config, operations);
