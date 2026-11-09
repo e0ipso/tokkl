@@ -1,7 +1,7 @@
 /**
  * The Pomodoro session: work phases separated by short rests, with a long rest after every few work
- * phases. Unlike the timer-tied cycle in pomodoro.ts, a phase changes only when the user confirms
- * Next phase. Confirming before the planned end skips the rest of the phase, and a phase confirmed
+ * phases. A phase changes only when the user confirms Next phase, not when its planned
+ * end passes. Confirming before the planned end skips the rest of the phase, and a phase confirmed
  * after its planned end has run overtime. The user can end the session at any time.
  *
  * These functions read no clock, keep no state and know nothing about stored preferences. The
