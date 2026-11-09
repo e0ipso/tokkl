@@ -22,25 +22,8 @@
 namespace Tokkl
 {
 
-// The API of one configured instance and account, for QML and the
-// companions.
-//
-// The settings name the instance, the sign-in mode and, for passwords, the
-// email; the secret comes from the credential store. GET /api/v9/me
-// validates them and binds the account and its default workspace to the
-// current generation. Before the first /me of a generation, GET
-// /api/app/status reads what the server announces. An account binds only on
-// a server at ServerFloor or newer; an older one, or one that announces
-// nothing, leaves the state Error with a message that asks for a server
-// update. A status read that fails as /me can (no answer, a timeout, a 5xx
-// or a 429) fails the validation the same way, without sending /me.
-//
-// Changing a setting or the stored secret starts a new generation: the
-// account is cleared at once, requests in flight are aborted, and replies
-// issued under an older generation are dropped. When the store refuses to
-// write a secret for this account, the account goes and the state is
-// WalletError. The typed operations all use the bound account's default
-// workspace.
+// One instance and account: its settings, secret, validation through /me on
+// a server at ServerFloor or newer, generation and the typed operations.
 class Connection : public QObject, public ApiSession
 {
     Q_OBJECT

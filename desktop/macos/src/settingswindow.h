@@ -61,14 +61,8 @@ class SettingsWindow : public QWidget
     Q_OBJECT
 
 public:
-    // Uses the given transport, store, settings, login item, preferences,
-    // sound choices and alarm; the window owns none of them.
-    // Its fields have object names: url, urlNote, token, password, email,
-    // secret, storeError, saveError, test, testResult, login, monochrome,
-    // loginNote, save, lengthsNote, pomodoroError and soundError, and per
-    // length length:<key> and lengthError:<key> (pomodoroPreferenceKey()),
-    // per transition sound:<name> and preview:<name> (transitionKindName()).
-    // Its ConnectionSetup is a child.
+    // Owns none of the parts but its ConnectionSetup. The fields' object
+    // names are set in the constructor.
     SettingsWindow(Transport *transport,
                    CredentialStore *store,
                    QSettings &settings,

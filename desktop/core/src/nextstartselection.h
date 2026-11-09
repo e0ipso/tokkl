@@ -15,15 +15,8 @@ namespace Tokkl
 class Connection;
 class ProjectCatalog;
 
-// The project and billable flag of the next start, and the automatic
-// defaults that set them. The choice goes with the context: reset(), as for
-// another account, and a new connection clear it.
-//
-// After a stop the next start uses the stopped entry's project; when a
-// context starts with nothing running it uses the project of the account's
-// newest entry. Only an active project of the workspace counts, and
-// any other gives no project. A pick by the user wins over both until the
-// next start or stop. A TimerModel owns the selection; its TimerController picks through it.
+// The next start's project and billable flag: a pick, or the active project
+// of the stopped or newest entry; a pick wins until the next start or stop.
 class NextStartSelection : public QObject
 {
     Q_OBJECT

@@ -60,9 +60,8 @@ public:
     // "tokkl-macos/<Tokkl version>". The caller owns it.
     static Transport *createTransport(QObject *parent = nullptr);
 
-    // Uses the given parts; the app owns none of them. The settings keep
-    // the connection, the Pomodoro mode and the alarm sounds, whose files
-    // are in soundsDirectory.
+    // Owns none of the parts. The settings keep the connection, the Pomodoro
+    // mode and the sound choices; the sound files are in soundsDirectory.
     MenuBarApp(Transport *transport,
                CredentialStore *store,
                StatusItem &statusItem,
