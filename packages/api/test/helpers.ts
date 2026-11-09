@@ -29,6 +29,15 @@ export interface TestContext {
 
 export const PASSWORD = 'correct horse battery';
 
+/** Waits until `condition` holds, checking every 20 ms, and fails after `ms`. */
+export async function until(condition: () => boolean | Promise<boolean>, what = 'the condition', ms = 10_000) {
+  const deadline = performance.now() + ms;
+  while (!(await condition())) {
+    if (performance.now() > deadline) throw new Error(`Timed out waiting for ${what}`);
+    await new Promise(resolve => setTimeout(resolve, 20));
+  }
+}
+
 /** A request without the API token, as a logged-out browser sends it. */
 export const anonymous = (
   ctx: TestContext,

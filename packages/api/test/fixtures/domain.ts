@@ -47,9 +47,6 @@ export const addWorkspaceMember = (db: FixtureDatabase, wid: number, uid: number
   transaction(db, ctx => ctx.workspaces.addMember({ workspaceId: wid, userId: uid, role }));
 export const isWorkspaceMember = async (db: FixtureDatabase, uid: number, wid: number) =>
   !!(await storageFor(db).workspaces.forMember(uid, wid));
-export const getWorkspaceRole = (db: FixtureDatabase, uid: number, wid: number) =>
-  storageFor(db).workspaces.getRole(uid, wid);
-export const countWorkspaceMembers = (db: FixtureDatabase, wid: number) => storageFor(db).workspaces.countMembers(wid);
 export const listTimeEntries = (db: FixtureDatabase, uid: number) => storageFor(db).entries.list(uid);
 export const listDeletedEntries = (db: FixtureDatabase, uid: number) => storageFor(db).entries.listDeleted(uid);
 export const createTimeEntry = (db: FixtureDatabase, user: User, wid: number, body: Record<string, unknown>) =>

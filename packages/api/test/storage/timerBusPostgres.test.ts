@@ -13,14 +13,7 @@ import { postgresOptions } from '../../src/storage/connections.ts';
 import { startTimerBus, TIMER_BUS_APPLICATION, TIMER_BUS_CHANNEL } from '../../src/storage/timerBus.ts';
 import { silentLogger } from '../../src/lib/logger.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
-
-async function until(condition: () => boolean | Promise<boolean>, what: string, ms = 10000): Promise<void> {
-  const deadline = performance.now() + ms;
-  while (!(await condition())) {
-    if (performance.now() > deadline) throw new Error(`Timed out waiting for ${what}`);
-    await sleep(20);
-  }
-}
+import { until } from '../helpers.ts';
 
 /** Collects everything written through console while the test runs. */
 function captureConsole(t: TestContext): () => string {

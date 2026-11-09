@@ -15,7 +15,7 @@ import { systemClock } from '../src/lib/clock.ts';
 import { ReportRunner, type ReportExecutor } from '../src/services/reportRunner.ts';
 import { createReportRunner } from '../src/reportRunners.ts';
 import { composeApp } from './fixtures/app.ts';
-import { testConfig, testServer } from './helpers.ts';
+import { testConfig, testServer, until } from './helpers.ts';
 import { runReport, runExport } from './fixtures/reportRunner.ts';
 import { fakeReportWorkers, postedJobs } from './fixtures/fakeReportWorker.ts';
 import type { JobSource } from '../src/services/reportExecution.ts';
@@ -395,13 +395,6 @@ test('a lane starts one worker at a time, and a crash fails only the job on that
   assert.equal(await second, undefined);
 });
 
-/** Waits until `ready()` holds, for at most `ms`, and says whether it did. */
-async function until(ready: () => boolean, ms = 5000): Promise<boolean> {
-  const end = Date.now() + ms;
-  while (!ready() && Date.now() < end) await new Promise(resolve => setTimeout(resolve, 5));
-  return ready();
-}
-
 test('a report request the client abandons gives back its place, queued or running', async t => {
   const db = await openSQLiteDatabase();
   const user = await insertAccount(db, {
@@ -464,16 +457,16 @@ test('a report request the client abandons gives back its place, queued or runni
   await reading(1);
   const queued = new AbortController();
   answers.push(post(queued.signal));
-  assert.ok(await until(() => submitted === 2), 'the second report was queued');
+  await until(() => submitted === 2, 'the second report was queued');
   assert.equal(await free(1), false, 'both places are taken');
 
   queued.abort();
-  assert.ok(await until(() => signals[1]!.aborted), 'the server saw the queued request close');
+  await until(() => signals[1]!.aborted, 'the server saw the queued request close');
   assert.equal(await free(1), true, 'the queued request gave back its place');
   assert.equal(await free(2), false, 'the running request still holds its place');
 
   running.abort();
-  assert.ok(await until(() => signals[0]!.aborted), 'the server saw the running request close');
+  await until(() => signals[0]!.aborted, 'the server saw the running request close');
   assert.equal(await free(2), true, 'the running request gave back its place');
   assert.deepEqual(await Promise.all(answers), ['aborted', 'aborted']);
 });

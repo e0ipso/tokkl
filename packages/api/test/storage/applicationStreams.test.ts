@@ -16,6 +16,7 @@ import {
   type StreamCredentialResult,
 } from '../../src/services/timerStreams.ts';
 import { gate } from './support/invariantHttp.ts';
+import { until } from '../helpers.ts';
 const state = (revision: number): TimerState => ({
   revision,
   server_time: '2026-10-30T12:00:00.000Z',
@@ -187,9 +188,6 @@ async function streamServer(
   });
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/`;
   return { base, arrived: () => arrived };
-}
-async function until(condition: () => boolean): Promise<void> {
-  while (!condition()) await new Promise(r => setTimeout(r, 5));
 }
 test('a burst over the per-user cap checks and builds only the streams it keeps', { timeout: 10000 }, async t => {
   const release = gate();

@@ -1,11 +1,5 @@
-import type { Repositories } from '../../src/domain/ports.ts';
 import { runExportJob, type ExportAssemblyJob, type ExportSource } from '../../src/services/exportJobs.ts';
 import type { Client, Project, Tag, Task, TimeEntry, Workspace } from '@tokkl/types';
-
-/** Anything that opens a read snapshot over the transfer repository. */
-export interface ExportRunner {
-  readSnapshot<T>(work: (repositories: Pick<Repositories, 'transfers'>) => Promise<T>): Promise<T>;
-}
 
 /** The JSON export file, as far as the tests read it. */
 interface JsonExport {
@@ -16,11 +10,6 @@ interface JsonExport {
   tasks: Task[];
   tags: Tag[];
   time_entries: TimeEntry[];
-}
-
-/** The export projection, read the way the export routes read it: in one snapshot. */
-export function collectAccountExport(runner: ExportRunner, userId: number) {
-  return runner.readSnapshot(repositories => repositories.transfers.exportAccount(userId));
 }
 
 /** The body the export routes write for `assembly`, streamed by the production export job. */
