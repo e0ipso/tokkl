@@ -297,10 +297,11 @@ private Q_SLOTS:
 
         // Pomodoro mode: the session reaches the panel and the tooltip, and
         // the alarm follows it with the configured sounds.
-        auto *pomodoro = item->property("pomodoro").value<QObject *>();
-        QVERIFY(pomodoro);
-        auto *session = pomodoro->property("session").value<QObject *>();
+        auto *timerState = item->property("timerState").value<QObject *>();
+        QVERIFY(timerState);
+        auto *session = item->property("session").value<QObject *>();
         QVERIFY(session);
+        QCOMPARE(timerState->property("session").value<QObject *>(), session);
         QCOMPARE(panel->property("session").value<QObject *>(), session);
         auto *alarm = item->property("alarm").value<QObject *>();
         QVERIFY(alarm);
