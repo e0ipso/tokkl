@@ -30,7 +30,7 @@ A write does not wait for its stream delivery. The commit's after-commit hook ha
 
 A slow client does not end its stream at the first full socket. When `res.write` returns false the stream waits for `drain` for up to 30 s (`drainTimeoutMs`) and ends only if the socket is still full then. While it waits, keep-alives are skipped and timer events are still written, but a stream may hold at most 64 KiB unsent (`maxBufferedBytes`): a write that would pass that ends the stream. A first write into an empty buffer always goes out, whatever its size.
 
-Operators must keep reverse proxies from buffering this response and give it a read timeout well above 25 s; the README shows an nginx block. A proxy that closes silent connections early makes web and desktop clients fall back to polling every 30 s. A stream that stays open but delivers nothing for 60 s, as behind a buffering proxy, counts as down on both: the web `connectTimerStream` closes and reopens its source, and the desktop `NetworkStream` idle timer ends the stream.
+Operators must keep reverse proxies from buffering this response and give it a read timeout well above 25 s; the README shows an nginx block. A proxy that closes silent connections early makes web and desktop clients fall back to polling every 30 s. A stream that stays open but delivers nothing for 60 s, as behind a buffering proxy, counts as down on both: the web `connectTimerStream` closes its source and opens a new one after the same backoff as an error (`retryDelay`), and the desktop `NetworkStream` idle timer ends the stream.
 
 <!-- kk:related:start -->
 # Related
