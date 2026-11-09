@@ -1,9 +1,9 @@
 import { keepPreviousData, queryOptions, useQuery } from '@tanstack/react-query';
 import { api, download } from './client.ts';
+import { object } from './decode.ts';
 import { keys } from './keys.ts';
 import { APP } from './paths.ts';
-import { detailedReportReply, reportReply, weeklyReportReply } from './replies.ts';
-import type { ReportQuery } from '@tokkl/types';
+import type { DetailedReportPage, Report, ReportQuery, WeeklyReport } from '@tokkl/types';
 
 /**
  * The app's report endpoints under /api/app/report. Each keeps the last result on screen while the
@@ -34,7 +34,7 @@ export type ReportFilterBody = Pick<
 export function reportOptions(query: ReportQuery | null) {
   return queryOptions({
     queryKey: [...keys.report, query],
-    queryFn: ({ signal }) => api.post(`${APP}/report`, query, { kind: 'read', signal, decode: reportReply }),
+    queryFn: ({ signal }) => api.post<Report>(`${APP}/report`, query, { kind: 'read', signal, decode: object }),
     enabled: query !== null,
     placeholderData: keepPreviousData,
     // The summary and the other tabs ask for different groupings; going back to the summary
@@ -55,7 +55,7 @@ export function detailedEntriesOptions(filters: ReportFilterBody, order: Detaile
   return queryOptions({
     queryKey: [...keys.report, 'entries', body],
     queryFn: ({ signal }) =>
-      api.post(`${APP}/report/entries`, body, { kind: 'read', signal, decode: detailedReportReply }),
+      api.post<DetailedReportPage>(`${APP}/report/entries`, body, { kind: 'read', signal, decode: object }),
     placeholderData: keepPreviousData,
   });
 }
@@ -70,7 +70,7 @@ export function weeklyReportOptions(filters: ReportFilterBody, rows: 'projects' 
   return queryOptions({
     queryKey: [...keys.report, 'weekly', body],
     queryFn: ({ signal }) =>
-      api.post(`${APP}/report/weekly`, body, { kind: 'read', signal, decode: weeklyReportReply }),
+      api.post<WeeklyReport>(`${APP}/report/weekly`, body, { kind: 'read', signal, decode: object }),
     placeholderData: keepPreviousData,
   });
 }

@@ -201,7 +201,7 @@ test('a write that got no reply, a 5xx, or a 2xx that does not parse or decode m
     new ApiError(502, 'Bad Gateway'),
     new ApiError(503, 'Unavailable'),
     new UnparsableReplyError('PUT', '/api/v9/workspaces/1/time_entries/7', new SyntaxError('Unexpected token <')),
-    new DecodeError('reply.id', 'a whole number'),
+    new DecodeError(),
     new UnreadableTimerStateError(),
   ];
   for (const error of unknown) assert.equal(isOutcomeUnknown(error), true, error.message);

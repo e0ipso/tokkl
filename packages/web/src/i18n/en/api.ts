@@ -5,14 +5,6 @@ export const api = {
   requestFailed: 'Request failed ({status})',
   /** A request that got no whole reply within its deadline (`DEADLINE_MS` in api/client.ts). */
   timedOut: 'The server took too long to answer. Try again.',
-  /** A reply field of the wrong kind, such as "reply[3].tags is not a list". */
-  unreadableReply: 'The server sent an unreadable reply: {at} is not {expected}.',
-  expectText: 'text',
-  expectNumber: 'a number',
-  expectInteger: 'a whole number',
-  expectInstant: 'a date and time with a time zone',
-  expectBoolean: 'true or false',
-  expectOneOf: 'one of {values}',
-  expectList: 'a list',
-  expectObject: 'an object',
+  /** A reply of the wrong kind, such as a list where an object belongs. */
+  unreadableReply: 'The server sent an unreadable reply.',
 } as const satisfies MessageGroup;

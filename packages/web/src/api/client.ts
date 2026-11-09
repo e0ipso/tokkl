@@ -121,25 +121,14 @@ export interface RequestOptions<T> {
   signal?: AbortSignal;
   /** Which deadline applies (see `DEADLINE_MS`). By default it follows from the method and body (`requestKind`). */
   kind?: RequestKind;
-  /**
-   * Checks the reply (see decode.ts). Every request passes one: a write whose reply nothing reads
-   * passes `ignoreReply` and gets nothing back, so no reply reaches a view or the cache unchecked.
-   */
-  decode: Decoder<T>;
+  /** Checks the reply (see decode.ts). A write whose reply nothing reads passes none. */
+  decode?: Decoder<T>;
   /**
    * Sent as the `Idempotency-Key` header of a create, so a repeat of the same request with the same
    * key answers the record the first one made instead of making another (see idempotency.ts).
    */
   idempotencyKey?: string;
 }
-
-declare const checked: unique symbol;
-
-/**
- * A reply its decoder checked. Every request returns one, so code that writes a reply into the
- * cache asks for `Checked<T>` and cannot be handed a value from anywhere else.
- */
-export type Checked<T> = T & { readonly [checked]: true };
 
 function isDeadline(error: unknown, deadline: AbortSignal): boolean {
   return deadline.aborted && error instanceof DOMException && error.name === 'TimeoutError';
@@ -208,14 +197,14 @@ async function send(
 }
 
 /** Sends a request and returns its reply, checked by `options.decode`. */
-export async function request<T>(method: Method, path: string, options: RequestOptions<T>): Promise<Checked<T>> {
+export async function request<T = void>(method: Method, path: string, options: RequestOptions<T> = {}): Promise<T> {
   const ms = DEADLINE_MS[requestKind(method, options.body, options.kind)];
   const text = await withDeadline(ms, { method, path }, options.signal, async signal => {
     const response = await send(method, path, options.body, signal, options.idempotencyKey);
     return response.text();
   });
-  // The decoder checked every field `T` names; the brand records that for the compiler.
-  return options.decode(parseReply(text, method, path)) as Checked<T>;
+  const value = parseReply(text, method, path);
+  return options.decode ? options.decode(value) : (value as T);
 }
 
 /**
@@ -282,17 +271,12 @@ export async function download(path: string, filename: string, request: Download
 
 type Options<T> = Omit<RequestOptions<T>, 'body'>;
 
-/**
- * A write. It checks its reply like a read, or says it reads none (`ignoreReply`), so a reply the
- * app shows or caches is never trusted unchecked.
- */
 const write =
   (method: Exclude<Method, 'GET'>) =>
-  <T>(path: string, body: unknown, options: Options<T>): Promise<Checked<T>> =>
+  <T = void>(path: string, body?: unknown, options: Options<T> = {}): Promise<T> =>
     request<T>(method, path, { ...options, body });
 
 export const api = {
-  /** A read. Every GET feeds a query, and so the cache. */
   get: <T>(path: string, options: Options<T>) => request<T>('GET', path, options),
   post: write('POST'),
   put: write('PUT'),

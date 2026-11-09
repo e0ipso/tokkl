@@ -1,6 +1,7 @@
 import { api, download, rawBody } from './client.ts';
+import { object } from './decode.ts';
 import { APP } from './paths.ts';
-import { importResultReply, jsonRestoreResultReply } from './replies.ts';
+import type { ImportResult, JsonRestoreResult } from '@tokkl/types';
 
 /** Exports, the Toggl CSV import and the Tokkl JSON restore. Pass `stale.imported` after a real import. */
 
@@ -21,11 +22,15 @@ export const transferRequests = {
   export: (kind: 'json' | 'csv', filename: string, signal?: AbortSignal) =>
     download(`${APP}/export.${kind}`, filename, { signal }),
   importTogglCsv: (text: string, dryRun: boolean, users: readonly string[]) =>
-    api.post(`${APP}/import/toggl-csv${importQuery(dryRun, users)}`, rawBody(text, 'text/csv'), {
-      decode: importResultReply,
+    api.post<ImportResult>(`${APP}/import/toggl-csv${importQuery(dryRun, users)}`, rawBody(text, 'text/csv'), {
+      decode: object,
     }),
   restoreJson: (text: string, dryRun: boolean) =>
-    api.post(`${APP}/import/json${dryRun ? '?dry_run=true' : ''}`, rawBody(text, 'application/json'), {
-      decode: jsonRestoreResultReply,
-    }),
+    api.post<JsonRestoreResult>(
+      `${APP}/import/json${dryRun ? '?dry_run=true' : ''}`,
+      rawBody(text, 'application/json'),
+      {
+        decode: object,
+      },
+    ),
 };

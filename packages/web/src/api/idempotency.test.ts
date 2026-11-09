@@ -2,7 +2,6 @@ import { test, type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { ApiError, RequestTimeoutError } from './client.ts';
 import { clientRequests } from './clients.ts';
-import { ignoreReply } from './decode.ts';
 import { entryRequests } from './entries.ts';
 import { postCreate, sendCreate } from './idempotency.ts';
 import { projectRequests } from './projects.ts';
@@ -115,20 +114,17 @@ test('the same request sent again during the wait reuses the key', async t => {
 test('a refused create is not sent again', async t => {
   const { fetch, sent } = answering({ status: 400, body: 'Name taken' });
   t.mock.method(globalThis, 'fetch', fetch);
-  await assert.rejects(
-    postCreate('/api/v9/workspaces/1/tags', { name: 'refused' }, { decode: ignoreReply }),
-    (error: unknown) => {
-      return error instanceof ApiError && error.status === 400;
-    },
-  );
+  await assert.rejects(postCreate('/api/v9/workspaces/1/tags', { name: 'refused' }), (error: unknown) => {
+    return error instanceof ApiError && error.status === 400;
+  });
   assert.equal(sent.length, 1);
 });
 
 test('a new intent gets a new key, even for the same request', async t => {
   const { fetch, sent } = answering({ status: 200, body: { id: 1 } }, { status: 200, body: { id: 2 } });
   t.mock.method(globalThis, 'fetch', fetch);
-  await postCreate('/api/v9/workspaces/1/tags', { name: 'twice' }, { decode: ignoreReply });
-  await postCreate('/api/v9/workspaces/1/tags', { name: 'twice' }, { decode: ignoreReply });
+  await postCreate('/api/v9/workspaces/1/tags', { name: 'twice' });
+  await postCreate('/api/v9/workspaces/1/tags', { name: 'twice' });
   assert.deepEqual(sent[1]?.body, sent[0]?.body);
   assert.notEqual(sent[1]?.key, sent[0]?.key);
 });

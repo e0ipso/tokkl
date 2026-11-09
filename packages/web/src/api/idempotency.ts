@@ -1,4 +1,4 @@
-import { request, type Checked, type RequestOptions } from './client.ts';
+import { request, type RequestOptions } from './client.ts';
 import { isOutcomeUnknown } from './timerState.ts';
 
 /**
@@ -90,7 +90,7 @@ export async function sendCreate<T>(request: string, send: (key: string) => Prom
 type CreateOptions<T> = Omit<RequestOptions<T>, 'body' | 'idempotencyKey'>;
 
 /** POSTs a create with an `Idempotency-Key` (`sendCreate`), its reply checked by `options.decode`. */
-export function postCreate<T>(path: string, body: unknown, options: CreateOptions<T>): Promise<Checked<T>> {
+export function postCreate<T = void>(path: string, body: unknown, options: CreateOptions<T> = {}): Promise<T> {
   return sendCreate(`POST ${path} ${JSON.stringify(body)}`, idempotencyKey =>
     request<T>('POST', path, { ...options, body, idempotencyKey }),
   );

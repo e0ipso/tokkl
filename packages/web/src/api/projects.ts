@@ -1,12 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useWid } from './account.ts';
 import { api } from './client.ts';
-import { ignoreReply } from './decode.ts';
+import { list, object } from './decode.ts';
 import { postCreate } from './idempotency.ts';
 import { invalidate } from './invalidate.ts';
 import { keys, stale } from './keys.ts';
 import { V9, wsPath } from './paths.ts';
-import { projectListReply, projectReply, taskListReply, taskReply } from './replies.ts';
 import type { Project, Task } from '@tokkl/types';
 
 /** Projects and their tasks. */
@@ -15,7 +14,7 @@ export function useProjects() {
   const wid = useWid();
   return useQuery({
     queryKey: keys.projects,
-    queryFn: ({ signal }) => api.get(`${wsPath(wid, 'projects')}?active=both`, { signal, decode: projectListReply }),
+    queryFn: ({ signal }) => api.get<Project[]>(`${wsPath(wid, 'projects')}?active=both`, { signal, decode: list }),
     enabled: wid > 0,
   });
 }
@@ -25,7 +24,7 @@ export function useTasks() {
   const wid = useWid();
   return useQuery({
     queryKey: keys.tasks,
-    queryFn: ({ signal }) => api.get(`${V9}/me/tasks?include_not_active=true`, { signal, decode: taskListReply }),
+    queryFn: ({ signal }) => api.get<Task[]>(`${V9}/me/tasks?include_not_active=true`, { signal, decode: list }),
     enabled: wid > 0,
   });
 }
@@ -39,7 +38,7 @@ export function useProjectTasks(projectId: number | null) {
   return useQuery({
     queryKey: [...keys.tasks, 'project', projectId],
     queryFn: ({ signal }) =>
-      api.get(`${wsPath(wid, 'projects', projectId ?? 0, 'tasks')}?active=both`, { signal, decode: taskListReply }),
+      api.get<Task[]>(`${wsPath(wid, 'projects', projectId ?? 0, 'tasks')}?active=both`, { signal, decode: list }),
     enabled: wid > 0 && projectId !== null,
   });
 }
@@ -70,17 +69,17 @@ export type ProjectDeletionMode = 'unassign' | 'delete';
  */
 export const projectRequests = {
   create: (wid: number, body: Partial<Project> & { name: string }) =>
-    postCreate(wsPath(wid, 'projects'), body, { decode: projectReply }),
+    postCreate<Project>(wsPath(wid, 'projects'), body, { decode: object }),
   update: (wid: number, id: number, body: Partial<ProjectBody> & { active?: boolean }) =>
-    api.put(wsPath(wid, 'projects', id), body, { decode: projectReply }),
+    api.put<Project>(wsPath(wid, 'projects', id), body, { decode: object }),
   remove: (wid: number, id: number, mode: ProjectDeletionMode) =>
-    api.delete(`${wsPath(wid, 'projects', id)}?teDeletionMode=${mode}`, undefined, { decode: ignoreReply }),
+    api.delete(`${wsPath(wid, 'projects', id)}?teDeletionMode=${mode}`),
   createTask: (wid: number, projectId: number, name: string) =>
-    postCreate(wsPath(wid, 'projects', projectId, 'tasks'), { name }, { decode: ignoreReply }),
+    postCreate(wsPath(wid, 'projects', projectId, 'tasks'), { name }),
   updateTask: (wid: number, projectId: number, id: number, changes: Partial<Pick<Task, 'name' | 'active'>>) =>
-    api.put(wsPath(wid, 'projects', projectId, 'tasks', id), changes, { decode: taskReply }),
+    api.put<Task>(wsPath(wid, 'projects', projectId, 'tasks', id), changes, { decode: object }),
   removeTask: (wid: number, projectId: number, id: number) =>
-    api.delete(wsPath(wid, 'projects', projectId, 'tasks', id), undefined, { decode: ignoreReply }),
+    api.delete(wsPath(wid, 'projects', projectId, 'tasks', id)),
 };
 
 /** Creates a project from a picker, with no toast: the picker shows the new project picked. */
