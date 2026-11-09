@@ -49,7 +49,8 @@ struct Fixture {
     QTemporaryDir dir;
     FakeTransport transport;
     FakeCredentialStore store;
-    Connection connection{&transport, &store, testClientName()};
+    FakeClock clock;
+    Connection connection{&transport, &store, clock, testClientName()};
     QSettings settings{dir.filePath(QStringLiteral("tokkl-timerd.conf")), QSettings::IniFormat};
     ServiceSettings service{&settings, &connection, &store};
 
@@ -166,7 +167,8 @@ private Q_SLOTS:
         blocker.close();
         FakeTransport transport;
         FakeCredentialStore store;
-        Connection connection(&transport, &store, testClientName());
+        FakeClock clock;
+        Connection connection(&transport, &store, clock, testClientName());
         QSettings settings(dir.filePath(QStringLiteral("blocker/tokkl-timerd.conf")), QSettings::IniFormat);
         ServiceSettings service(&settings, &connection, &store);
         std::optional<ServiceSettings::Outcome> outcome;
@@ -186,7 +188,8 @@ private Q_SLOTS:
         QVERIFY(dir.isValid());
         FakeTransport transport;
         HeldStore store;
-        Connection connection(&transport, &store, testClientName());
+        FakeClock clock;
+        Connection connection(&transport, &store, clock, testClientName());
         QSettings settings(dir.filePath(QStringLiteral("tokkl-timerd.conf")), QSettings::IniFormat);
         ServiceSettings service(&settings, &connection, &store);
         QList<Kind> outcomes;
@@ -213,7 +216,8 @@ private Q_SLOTS:
         QVERIFY(dir.isValid());
         FakeTransport transport;
         HeldStore store;
-        Connection connection(&transport, &store, testClientName());
+        FakeClock clock;
+        Connection connection(&transport, &store, clock, testClientName());
         QSettings settings(dir.filePath(QStringLiteral("tokkl-timerd.conf")), QSettings::IniFormat);
         ServiceSettings service(&settings, &connection, &store);
         QList<ServiceSettings::Outcome> outcomes;

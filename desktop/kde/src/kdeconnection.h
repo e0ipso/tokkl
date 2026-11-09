@@ -10,7 +10,9 @@ namespace Tokkl
 {
 
 class NetworkTransport;
+class SystemClock;
 
+// Owns its transport and its system clock.
 class KdeConnection : public Connection
 {
     Q_OBJECT
@@ -19,7 +21,7 @@ public:
     explicit KdeConnection(QObject *parent = nullptr);
 
 private:
-    KdeConnection(NetworkTransport *transport, QObject *parent);
+    KdeConnection(NetworkTransport *transport, SystemClock *clock, QObject *parent);
 };
 
 class KdeConnectionSetup : public ConnectionSetup

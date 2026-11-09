@@ -63,14 +63,11 @@ public:
     using Callback = ApiClient::Callback<T>;
     using ActionCallback = ApiClient::ActionCallback;
 
-    // Uses the given transport and store; the connection does not own them.
-    // clientName goes into the created_with field of the entries it starts.
-    Connection(Transport *transport, CredentialStore *store, const QString &clientName, QObject *parent = nullptr);
-
-    // The clock whose jitter spreads the retry waits of the account's
-    // validation and of a start's resend; not owned. Without one the
-    // system's randomness does.
-    void setClock(Clock *clock);
+    // Uses the given transport, store and clock, which the connection does
+    // not own and which must outlive it. The clock's jitter spreads the retry
+    // waits of the account's validation and of a start's resend. clientName
+    // goes into the created_with field of the entries it starts.
+    Connection(Transport *transport, CredentialStore *store, const Clock &clock, const QString &clientName, QObject *parent = nullptr);
 
     QString instanceUrl() const;
     void setInstanceUrl(const QString &url);

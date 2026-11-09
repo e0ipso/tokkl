@@ -50,13 +50,13 @@ public:
         return true;
     }
 
-    const Clock *clock() const override
+    const Clock &clock() const override
     {
         return sessionClock;
     }
 
     quint64 currentGeneration = 1;
-    const Clock *sessionClock = nullptr;
+    FakeClock sessionClock;
     std::optional<ApiError> refuse;
     bool endGenerationOnFailure = false;
     mutable QList<ApiAccess> asked;
@@ -273,17 +273,15 @@ private Q_SLOTS:
     void theResendWaitTakesTheSessionClocksJitter()
     {
         FakeTransport transport;
-        FakeClock clock;
-        clock.jitter = retryMinMs;
         ScriptedSession session;
-        session.sessionClock = &clock;
+        session.sessionClock.jitter = retryMinMs;
         ApiClient client(&transport, session);
         constexpr int actions = 5;
         for (int i = 0; i < actions; ++i) {
             client.keyedAction(testUrl, "{}", ApiClient::newIdempotencyKey(), {});
             transport.respondLast(FakeTransport::failure(HttpResponse::Outcome::Timeout));
         }
-        QCOMPARE(retryWaitMs(retryMinMs, &clock), retryMinMs + retryMinMs / retryJitterDivisor - 1);
+        QCOMPARE(retryWaitMs(retryMinMs, session.sessionClock), retryMinMs + retryMinMs / retryJitterDivisor - 1);
         // A timer may fire up to 5 % early.
         QTest::qWait(retryMinMs + retryMinMs / 8);
         QCOMPARE(transport.requests.size(), actions);
@@ -344,7 +342,7 @@ private Q_SLOTS:
         } else {
             client.reset();
         }
-        QTest::qWait(retryWaitMs(retryMinMs, nullptr) + retryMinMs);
+        QTest::qWait(retryWaitMs(retryMinMs, session.sessionClock) + retryMinMs);
         QCOMPARE(transport.requests.size(), 1);
         QVERIFY(!called);
     }
@@ -373,13 +371,15 @@ private Q_SLOTS:
     void theRetryWaitAddsUpToAQuarter()
     {
         FakeClock clock;
-        QCOMPARE(retryWaitMs(1000, &clock), 1000);
+        QCOMPARE(retryWaitMs(1000, clock), 1000);
         clock.jitter = 249;
-        QCOMPARE(retryWaitMs(1000, &clock), 1249);
+        QCOMPARE(retryWaitMs(1000, clock), 1249);
         clock.jitter = 5000;
-        QCOMPARE(retryWaitMs(1000, &clock), 1249);
+        QCOMPARE(retryWaitMs(1000, clock), 1249);
+        // The system clock's jitter stays below the bound too.
+        const SystemClock system;
         for (int i = 0; i < 20; ++i) {
-            const int wait = retryWaitMs(retryMinMs, nullptr);
+            const int wait = retryWaitMs(retryMinMs, system);
             QVERIFY(wait >= retryMinMs && wait < retryMinMs + retryMinMs / retryJitterDivisor);
         }
     }

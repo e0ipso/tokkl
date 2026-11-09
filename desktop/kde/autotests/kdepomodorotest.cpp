@@ -95,7 +95,7 @@ class KdePomodoroTest : public QObject
         FakeTransport transport;
         FakeCredentialStore credentials;
         FakeClock clock;
-        Connection connection{&transport, &credentials, testClientName()};
+        Connection connection{&transport, &credentials, clock, testClientName()};
         TimerStateClient client{&connection, &clock};
         TimerController timer{&clock};
 

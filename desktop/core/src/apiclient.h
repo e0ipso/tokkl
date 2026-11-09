@@ -45,8 +45,8 @@ public:
     // whoever waits for the answer is gone too.
     virtual bool absorbFailure(const HttpResponse &response, const ApiError &error, ApiAccess access) = 0;
     // The clock whose jitter spreads the client's retry waits
-    // (retryWaitMs()); null leaves it to the system's randomness.
-    virtual const Clock *clock() const = 0;
+    // (retryWaitMs()).
+    virtual const Clock &clock() const = 0;
 };
 
 // Sends the API requests of one session through a transport. It asks the

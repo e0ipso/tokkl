@@ -423,7 +423,7 @@ QString bundled(const QString &soundId)
 struct Daemon {
     Daemon(Transport *transport, CredentialStore *store, const QString &settingsFile, Clock *clock)
         : settings(settingsFile, QSettings::IniFormat)
-        , connection(transport, store, TimerService::clientName())
+        , connection(transport, store, *clock, TimerService::clientName())
         , timer(clock)
         , client(&connection, clock)
         , pomodoroStore(&settings)
@@ -434,7 +434,6 @@ struct Daemon {
         , configuration(&connectionSettings)
         , service({&timer, timer.coordinator(), &session, &preferences, &sounds, &configuration})
     {
-        connection.setClock(clock);
         connectionSettings.load();
     }
 

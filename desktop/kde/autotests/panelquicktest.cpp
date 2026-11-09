@@ -240,7 +240,7 @@ private:
     qsizetype m_heldCatalogFrom = 0;
     FakeCredentialStore m_store;
     FakeClock m_clock;
-    Connection m_connection{&m_transport, &m_store, testClientName()};
+    Connection m_connection{&m_transport, &m_store, m_clock, testClientName()};
     TimerStateClient m_client{&m_connection, &m_clock};
     TimerController m_timer{&m_clock};
     QTemporaryDir m_dir;
@@ -255,7 +255,8 @@ private:
 };
 
 // The transport and store behind every TokklConnectionSetup the Configure
-// page makes. They live as long as the process.
+// page makes, and the clock of the Pomodoro page's connection. They live as
+// long as the process.
 FakeTransport *setupTransport()
 {
     static auto *transport = [] {
@@ -270,6 +271,12 @@ FakeCredentialStore *setupStore()
 {
     static auto *store = new FakeCredentialStore;
     return store;
+}
+
+FakeClock *setupClock()
+{
+    static auto *clock = new FakeClock;
+    return clock;
 }
 
 // The page's TokklConnectionSetup, created from QML as the widget's is.
@@ -298,7 +305,7 @@ class FakePomodoroLengths : public PomodoroLengthsClient
 
 public:
     explicit FakePomodoroLengths(QObject *parent = nullptr)
-        : PomodoroLengthsClient(new Connection(setupTransport(), setupStore(), testClientName()), parent)
+        : PomodoroLengthsClient(new Connection(setupTransport(), setupStore(), *setupClock(), testClientName()), parent)
     {
     }
 };

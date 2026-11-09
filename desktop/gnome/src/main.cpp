@@ -106,8 +106,7 @@ int main(int argc, char **argv)
     QSettings settings(QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) + QStringLiteral("/tokkl/tokkl-timerd.conf"),
                        QSettings::IniFormat);
     Tokkl::SystemClock clock;
-    Tokkl::Connection connection(&transport, &store, Tokkl::TimerService::clientName());
-    connection.setClock(&clock);
+    Tokkl::Connection connection(&transport, &store, clock, Tokkl::TimerService::clientName());
     // The timer and the session are the server's, read through one state
     // client; the session reads and acts through the timer's.
     Tokkl::TimerController timer(&clock);

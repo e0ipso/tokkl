@@ -7,10 +7,10 @@
 namespace Tokkl
 {
 
-Connection::Connection(Transport *transport, CredentialStore *store, const QString &clientName, QObject *parent)
+Connection::Connection(Transport *transport, CredentialStore *store, const Clock &clock, const QString &clientName, QObject *parent)
     : QObject(parent)
     , m_clientName(clientName)
-    , m_session(transport, store)
+    , m_session(transport, store, clock)
 {
     connect(&m_session, &AuthSession::instanceTextChanged, this, &Connection::instanceUrlChanged);
     connect(&m_session, &AuthSession::authModeChanged, this, &Connection::authModeChanged);
@@ -18,11 +18,6 @@ Connection::Connection(Transport *transport, CredentialStore *store, const QStri
     connect(&m_session, &AuthSession::stateChanged, this, &Connection::stateChanged);
     connect(&m_session, &AuthSession::accountChanged, this, &Connection::accountChanged);
     connect(&m_session, &AuthSession::generationChanged, this, &Connection::generationChanged);
-}
-
-void Connection::setClock(Clock *clock)
-{
-    m_session.setClock(clock);
 }
 
 QString Connection::instanceUrl() const

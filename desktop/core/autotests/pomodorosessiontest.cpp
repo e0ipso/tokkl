@@ -238,7 +238,7 @@ class PomodoroSessionTest : public QObject
         FakeCredentialStore credentials;
         FakeClock clock;
         SettingsPomodoroStore store{&settings};
-        Connection connection{&transport, &credentials, testClientName()};
+        Connection connection{&transport, &credentials, clock, testClientName()};
         TimerStateClient client{&connection, &clock};
         TimerController timer{&clock};
         // Absent for a test that creates it later, as after a restart.

@@ -52,12 +52,11 @@ MenuBarApp::MenuBarApp(Transport *transport,
     , m_settings(settings)
     , m_ownClock(clock ? nullptr : std::make_unique<SystemClock>())
     , m_clock(clock ? clock : m_ownClock.get())
-    , m_connection(new Connection(transport, store, clientName(), this))
+    , m_connection(new Connection(transport, store, *m_clock, clientName(), this))
     , m_pomodoroStore(settings ? new SettingsPomodoroStore(settings, this) : nullptr)
     , m_stateClient(new TimerStateClient(m_connection, m_clock, this))
     , m_timer(new TimerController(m_clock, this))
 {
-    m_connection->setClock(m_clock);
     // The timer and the session read the same state client, so they agree
     // on the server's timer and session.
     m_timer->setStateClient(m_stateClient);

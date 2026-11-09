@@ -232,8 +232,8 @@ public:
 struct Session {
     FakeCredentialStore store;
     RecordingTransport transport;
-    Connection connection{&transport, &store, QStringLiteral("tokkl-kde")};
     FakeClock clock;
+    Connection connection{&transport, &store, clock, QStringLiteral("tokkl-kde")};
     TimerStateClient state{&connection, &clock};
     TimerController timer{&clock};
     MemoryPomodoroStore pomodoroStore;

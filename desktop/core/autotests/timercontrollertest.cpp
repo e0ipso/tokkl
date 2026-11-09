@@ -239,7 +239,7 @@ class TimerControllerTest : public QObject
         FakeTransport transport;
         FakeCredentialStore store;
         FakeClock clock;
-        Connection connection{&transport, &store, testClientName()};
+        Connection connection{&transport, &store, clock, testClientName()};
         TimerStateClient state{&connection, &clock};
         TimerController timer{&clock};
         QSet<qsizetype> answered;
@@ -2835,7 +2835,7 @@ private Q_SLOTS:
 
         FakeTransport otherTransport;
         FakeCredentialStore otherStore;
-        Connection other(&otherTransport, &otherStore, testClientName());
+        Connection other(&otherTransport, &otherStore, f.clock, testClientName());
         TimerStateClient otherState(&other, &f.clock);
         f.timer.setStateClient(&otherState);
         QCOMPARE(f.timer.stateClient(), &otherState);
