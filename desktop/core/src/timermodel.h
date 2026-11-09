@@ -249,19 +249,13 @@ public:
     // billable flag, or the choices for the next start when nothing runs.
     Q_PROPERTY(QVariant chosenProjectId READ chosenProjectId NOTIFY choiceChanged)
     Q_PROPERTY(bool chosenBillable READ chosenBillable NOTIFY choiceChanged)
-    // The running or paused entry's project as a project map, also when it is
-    // archived and so missing from projects; null without one or while
-    // unresolved. A project the instance no longer has is a map with an
-    // empty name.
-    Q_PROPERTY(QVariant entryProject READ entryProjectVariant NOTIFY entryProjectChanged)
-    // The project map the menu names for chosenProjectId: entryProject while
-    // an entry runs or a chain is paused and it is that project, otherwise
-    // the active project with that id; null for no project or one that is
-    // neither.
-    Q_PROPERTY(QVariant chosenProjectDetails READ chosenProjectDetails NOTIFY chosenProjectDetailsChanged)
-    // chosenProjectDetails as the parts every panel words its label from
-    // (ProjectLabelParts::toVariantMap()): kind "none" for no project and
-    // "unknown" for one that is neither held nor active.
+    // The parts every panel words the label of chosenProjectId from
+    // (ProjectLabelParts::toVariantMap()): the running or paused entry's
+    // project while one is held, also when it is archived and so missing
+    // from projects, otherwise the active project with that id. kind is
+    // "none" for no project, "unknown" for one that is neither held nor
+    // active or still unresolved, and "unavailable" for one the instance
+    // no longer has.
     Q_PROPERTY(QVariantMap chosenProjectLabel READ chosenProjectLabelVariant NOTIFY chosenProjectDetailsChanged)
     // The project behind chosenProjectId for the panel indicator, and its
     // colour as lowercase #rrggbb. The colour is empty outside the Project
@@ -321,9 +315,6 @@ public:
     // chosenProjectId as the id it holds; none for no project.
     std::optional<qint64> chosenProject() const;
     bool chosenBillable() const;
-    std::optional<Project> entryProject() const;
-    QVariant entryProjectVariant() const;
-    QVariant chosenProjectDetails() const;
     ProjectLabelParts chosenProjectLabel() const;
     QVariantMap chosenProjectLabelVariant() const;
     IndicatorState indicatorState() const;
@@ -347,7 +338,9 @@ Q_SIGNALS:
     void projectChoicesChanged();
     void selectionChanged();
     void choiceChanged();
+    // The held entry's project was resolved or changed.
     void entryProjectChanged();
+    // chosenProjectLabel may have changed.
     void chosenProjectDetailsChanged();
     void indicatorChanged();
 

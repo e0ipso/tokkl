@@ -440,21 +440,19 @@ private Q_SLOTS:
         QVERIFY(!shared.canWrite());
     }
 
-    // The menu's project details: none without a project, the running
+    // The menu's project label: none without a project, the running
     // entry's project, and the active project chosen for the next start.
-    void chosenProjectDetailsFollowTheChoice()
+    void chosenProjectLabelFollowsTheChoice()
     {
         Fixture f;
         QVERIFY(connectAccount(f, instanceA, 3, 7, entryBody(5, 7, startedAt, true, 11)));
-        QCOMPARE(f.timer.chosenProjectDetails().toMap().value(QStringLiteral("name")).toString(), QStringLiteral("Alpha"));
+        QCOMPARE(f.timer.chosenProjectLabel().name, QStringLiteral("Alpha"));
         QVERIFY(f.timer.stop());
         f.respond(f.last("POST", stopPath), FakeTransport::answer(200, entryBody(5, 7, startedAt, false, 11)));
         QVERIFY(f.answerState("null"));
         QVERIFY(f.timer.chooseProject(QVariant::fromValue(nullptr)));
-        QVERIFY(f.timer.chosenProjectDetails().isNull());
         QCOMPARE(f.timer.chosenProjectLabel(), ProjectLabelParts());
         QVERIFY(f.timer.chooseProject(11));
-        QCOMPARE(f.timer.chosenProjectDetails().toMap().value(QStringLiteral("id")).toLongLong(), 11);
         QCOMPARE(f.timer.chosenProjectLabel().name, QStringLiteral("Alpha"));
         QCOMPARE(f.timer.chosenProjectLabel().kind, ProjectLabelParts::Kind::Named);
         QCOMPARE(f.timer.chosenProjectLabelVariant().value(QStringLiteral("name")).toString(), QStringLiteral("Alpha"));
@@ -964,7 +962,7 @@ private Q_SLOTS:
         QCOMPARE(f.timer.chosenProjectId().toLongLong(), 11);
         QCOMPARE(f.timer.chosenBillable(), false);
         QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::Project);
-        QCOMPARE(f.timer.entryProject()->id, 11);
+        QCOMPARE(f.timer.chosenProjectLabel().name, QStringLiteral("Alpha"));
 
         const qsizetype requests = f.transport.requests.size();
         QVERIFY(!f.timer.chooseProject(QVariant::fromValue(nullptr)));
@@ -995,7 +993,7 @@ private Q_SLOTS:
         QVERIFY(f.timer.chosenProjectId().isNull());
         QVERIFY(f.timer.chooseBillable(true));
         QVERIFY(f.timer.chosenBillable());
-        QVERIFY(!f.timer.entryProject().has_value());
+        QCOMPARE(f.timer.chosenProjectLabel().kind, ProjectLabelParts::Kind::None);
         QCOMPARE(f.transport.requests.size(), requests + 1);
     }
 
@@ -2374,14 +2372,8 @@ private Q_SLOTS:
         QCOMPARE(f.timer.indicatorState(), TimerController::IndicatorState::None);
         QVERIFY(f.timer.indicatorColor().isEmpty());
         QCOMPARE(indicator.count(), 3);
+        // A running entry keeps the gone project's id without a name.
         QCOMPARE(f.timer.chosenProjectLabel().kind, running ? ProjectLabelParts::Kind::Unavailable : ProjectLabelParts::Kind::Unknown);
-        if (running) {
-            // entryProject keeps the id without a name, as before.
-            QCOMPARE(f.timer.entryProject()->id, 44);
-            QVERIFY(f.timer.entryProject()->name.isEmpty());
-        } else {
-            QVERIFY(!f.timer.entryProject());
-        }
         QCOMPARE(f.find("GET", "/projects/44").size(), 1);
     }
 
