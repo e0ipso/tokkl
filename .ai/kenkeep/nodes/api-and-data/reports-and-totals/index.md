@@ -17,8 +17,8 @@ _None._
 - Open [**Validate hourly rates with optionalRate and MAX_HOURLY_RATE**](practice-hourly-rates-go-through-optionalrate.md) to learn about: Workspace and project rates share optionalRate, capped at MAX_HOURLY_RATE (1e9); a finite check alone lets reports overflow. #server #validation #reports #money
 
 ## Components (what exists)
-- Open [**Web app report endpoints under /api/app/report**](map-app-report-endpoints.md) to learn about: Web app reports are built server-side by /api/app/report/* with workspace rounding; only the summary tab fetches groupings. #server #reports #api #web
 - Open [**Catalog revision and latest entry endpoints for caching clients**](map-catalog-revision-and-latest-entry-endpoints.md) to learn about: GET /api/app/workspaces/{wid}/catalog counts project-list writes in workspaces.catalog_revision; GET /api/app/time_entries/latest answers the newest entry by start. #server #projects #clients #desktop
+- Open [**Web app report endpoints under /api/app/report**](map-app-report-endpoints.md) to learn about: Web app reports are built server-side by /api/app/report/* with workspace rounding; only the summary tab fetches groupings. #server #reports #api #web
 
 ## By topic
 
@@ -27,8 +27,8 @@ _None._
 - Open [**Parse incoming timestamps with parseInstant**](../time-handling/practice-parse-api-timestamps-with-parseinstant.md) — Server input instants go through parseInstant: RFC 3339 with seconds and a zone, real dates only. Never new Date(String(x)).
 - Open [**Entry resolution at DST imports and reports**](../time-handling/stopped-entry-resolution/practice-entry-resolution-at-dst-imports-and-reports.md) — DST changes, report rounding and exact imports have distinct resolution behavior and shared fixture coverage.
 ### #clients
-- Open [**Deleting a client detaches its projects and never merges them**](practice-client-deletion-keeps-projects.md) — deleteClient runs in one transaction; projects lose the client and colliding names become "Name (Client)", then "Name (Client) N".
 - Open [**Catalog revision and latest entry endpoints for caching clients**](map-catalog-revision-and-latest-entry-endpoints.md) — GET /api/app/workspaces/{wid}/catalog counts project-list writes in workspaces.catalog_revision; GET /api/app/time_entries/latest answers the newest entry by start.
+- Open [**Deleting a client detaches its projects and never merges them**](practice-client-deletion-keeps-projects.md) — deleteClient runs in one transaction; projects lose the client and colliding names become "Name (Client)", then "Name (Client) N".
 ### #performance
 - Open [**Project and task totals rely on the live-entry partial indexes**](practice-live-entry-indexes-back-project-and-task-totals.md) — Migration 2 adds time_entries_project_live and time_entries_task_live; totals SQL must keep using them.
 - Open [**Validate write references with transaction-bound reference getters**](practice-write-paths-validate-refs-not-totals.md) — Entry and catalog writes use scoped getRef contracts; full projections compute totals and stay off validation paths.
