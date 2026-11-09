@@ -5,7 +5,6 @@
 #include "pomodoroalarm.h"
 #include "statuspresentation.h"
 #include "apitypes.h"
-#include "configurationadapter.h"
 #include "connection.h"
 #include "fakes.h"
 #include "instanceurl.h"
@@ -432,9 +431,8 @@ struct Daemon {
         , session(*stack.session())
         , sounds(&settings, &TimerService::soundKey)
         , connectionSettings(&settings, &connection, store)
-        , configuration(&connectionSettings)
         , alarm(&session, &output, &sounds, bundledSoundsDir())
-        , service({&timer, &session, stack.preferences(), &sounds, &configuration, &alarm})
+        , service({&timer, &session, stack.preferences(), &sounds, &connectionSettings, &alarm})
     {
         connectionSettings.load();
     }
@@ -448,7 +446,6 @@ struct Daemon {
     PomodoroSession &session;
     SoundChoices sounds;
     ServiceSettings connectionSettings;
-    ConfigurationAdapter configuration;
     FakeAlarmOutput output;
     PomodoroAlarm alarm;
     TimerService service;
@@ -1368,7 +1365,7 @@ private Q_SLOTS:
         f.store.failure = CredentialResult::Status::Unavailable;
         const QDBusMessage reply = f.timer(QStringLiteral("Configure"), {instanceUrl, QStringLiteral("token"), QString(), QStringLiteral("tok-1")});
         QCOMPARE(reply.type(), QDBusMessage::ErrorMessage);
-        QCOMPARE(reply.errorName(), ConfigurationAdapter::credentialStoreError);
+        QCOMPARE(reply.errorName(), TimerService::credentialStoreError);
         QCOMPARE(reply.errorMessage(), f.store.message(CredentialResult{CredentialResult::Status::Unavailable, QString()}));
         QVERIFY(!QFile::exists(f.settingsFile()));
         QCOMPARE(f.daemon->connection.instanceUrl(), QString());
@@ -1448,7 +1445,7 @@ private Q_SLOTS:
         QTRY_VERIFY(first.isFinished() && second.isFinished());
         QCOMPARE(second.reply().type(), QDBusMessage::ReplyMessage);
         QCOMPARE(first.reply().type(), QDBusMessage::ErrorMessage);
-        QCOMPARE(first.reply().errorName(), ConfigurationAdapter::supersededError);
+        QCOMPARE(first.reply().errorName(), TimerService::supersededError);
         QVERIFY(!first.reply().errorMessage().isEmpty());
         QCOMPARE(daemon.connection.instanceUrl(), parseInstanceUrl(other).base.toString());
     }

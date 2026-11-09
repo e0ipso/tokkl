@@ -7,7 +7,7 @@
 // main.cpp, the daemon's composition root, has the core's TimerStack build
 // the connection, the state client, the timer, the session and the
 // preferences client. It makes the settings file that keeps the per-device
-// state, the sound choices, the ConfigurationAdapter that answers Configure
+// state, the sound choices, the ServiceSettings that Configure saves through
 // and the PomodoroAlarm on the stack's session itself, then hands them all
 // over.
 
@@ -24,8 +24,8 @@
 
 namespace Tokkl
 {
-class ConfigurationAdapter;
 class PomodoroAlarm;
+class ServiceSettings;
 class PomodoroPreferences;
 class PomodoroSession;
 class SoundChoices;
@@ -82,6 +82,10 @@ public:
     static const QString serviceName;
     static const QString objectPath;
     static const QString interfaceName;
+    // The errors of a Configure call whose secret the credential store
+    // refused, and of one a later call replaced before it applied.
+    static const QString credentialStoreError;
+    static const QString supersededError;
     // The InterfaceVersion this service publishes. Raise it by one in a
     // release that adds members to org.tokkl.Timer1. 2 is the first
     // released version; 1 only existed in development builds.
@@ -104,7 +108,7 @@ public:
         PomodoroSession *session = nullptr;
         PomodoroPreferences *preferences = nullptr;
         SoundChoices *sounds = nullptr;
-        ConfigurationAdapter *configuration = nullptr;
+        ServiceSettings *settings = nullptr;
         PomodoroAlarm *alarm = nullptr;
     };
 
@@ -228,7 +232,7 @@ private:
     PomodoroSession *m_session;
     PomodoroPreferences *m_preferences;
     SoundChoices *m_sounds;
-    ConfigurationAdapter *m_configuration;
+    ServiceSettings *m_settings;
     PomodoroAlarm *m_alarm;
     QDBusConnection m_bus;
     bool m_registered = false;

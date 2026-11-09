@@ -12,8 +12,6 @@ qt_add_dbus_adaptor(_tokkl_adaptor_sources
     Timer1Adaptor)
 
 add_library(tokklgnome STATIC
-    configurationadapter.cpp
-    configurationadapter.h
     servicesettings.cpp
     servicesettings.h
     timerservice.cpp

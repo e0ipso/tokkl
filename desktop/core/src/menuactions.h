@@ -24,33 +24,6 @@ struct ActionState {
     QVariantMap toVariantMap() const;
 };
 
-// Where the panels' menus differ. Each companion names its own policy, so a
-// difference is written here rather than in one panel's copy of the rules.
-// What an action may do is the timer's rule, never a policy's: the policy
-// can only grey out more.
-struct MenuActionPolicy {
-    // What Start, Stop, Project and Billable wait for besides the timer's
-    // rule.
-    enum class WriteGate {
-        // Nothing more: TimerModel::canWrite(), canChooseProject() and
-        // canChooseBillable() alone.
-        CanWrite,
-        // Also status Ready, so the write items grey out whenever the
-        // status line shows something other than Connected: while the last
-        // action's message shows and while the data shown is stale.
-        Ready,
-    };
-    WriteGate writeGate = WriteGate::CanWrite;
-
-    // The KDE panel: the timer's rule alone.
-    static MenuActionPolicy plasma();
-    // The macOS menu bar app: the timer's rule alone.
-    static MenuActionPolicy macos();
-    // The GNOME menu, which has always followed the published Status: write
-    // items also wait for Ready.
-    static MenuActionPolicy gnome();
-};
-
 // Which timer and session actions a menu shows, which can be chosen, and the
 // keys of their texts. Every panel builds its menu from this; the timer and
 // the session still refuse what does not apply.
@@ -86,16 +59,16 @@ struct MenuActionStates {
 
     bool operator==(const MenuActionStates &other) const = default;
 
-    // A null session reads as Timer mode with no session.
-    static MenuActionStates of(const TimerModel &timer, const PomodoroSession *session, const MenuActionPolicy &policy);
+    // A null session reads as Timer mode with no session. waitForReady, the
+    // GNOME menu's rule, also greys out the write items until status Ready.
+    static MenuActionStates of(const TimerModel &timer, const PomodoroSession *session, bool waitForReady = false);
     // Each action's toVariantMap() under its name: run, startSession,
     // nextPhase, endSession, project, billable and mode.
     QVariantMap toVariantMap() const;
 };
 
 // MenuActionStates kept up to date for a timer and a session, for QML
-// (TokklMenuActions) and for a panel that wants to hear of changes. It uses
-// the KDE panel's policy unless given another.
+// (TokklMenuActions) and for a panel that wants to hear of changes.
 class MenuActions : public QObject
 {
     Q_OBJECT
@@ -108,7 +81,6 @@ class MenuActions : public QObject
 
 public:
     explicit MenuActions(QObject *parent = nullptr);
-    MenuActions(const MenuActionPolicy &policy, QObject *parent = nullptr);
 
     TimerModel *timer() const;
     void setTimer(TimerModel *timer);
@@ -127,7 +99,6 @@ Q_SIGNALS:
 private:
     void update();
 
-    MenuActionPolicy m_policy;
     QPointer<TimerModel> m_timer;
     QPointer<PomodoroSession> m_session;
     MenuActionStates m_states;

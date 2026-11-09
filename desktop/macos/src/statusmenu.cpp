@@ -185,7 +185,7 @@ void StatusMenu::onGenerationChanged()
 
 MenuActionStates StatusMenu::actions() const
 {
-    return MenuActionStates::of(*m_timer, m_session, MenuActionPolicy::macos());
+    return MenuActionStates::of(*m_timer, m_session);
 }
 
 void StatusMenu::refreshState()

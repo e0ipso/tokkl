@@ -466,6 +466,12 @@ private Q_SLOTS:
         QCOMPARE(f.timer.chosenProjectLabel().kind, ProjectLabelParts::Kind::Named);
         QCOMPARE(f.timer.chosenProjectLabelVariant().value(QStringLiteral("name")).toString(), QStringLiteral("Alpha"));
         QCOMPARE(f.timer.chosenProjectLabelVariant().value(QStringLiteral("kind")).toString(), QStringLiteral("named"));
+        // Only an active project of the list is a choice; 0 is no project.
+        for (const QVariant &refused : {QVariant(33), QVariant(-1), QVariant(QStringLiteral("eleven"))}) {
+            QVERIFY(!f.timer.chooseProject(refused));
+        }
+        QVERIFY(f.timer.chooseProject(0));
+        QVERIFY(f.timer.chosenProjectId().isNull());
     }
 
     void exposesContextAndEntry()

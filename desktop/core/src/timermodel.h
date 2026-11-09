@@ -19,8 +19,6 @@
 namespace Tokkl
 {
 
-class ChosenProject;
-
 // What a panel shows of the timer, derived from the one state the client
 // accepted; TimerController, its only subclass, acts and changes it.
 class TimerModel : public TimerActions
@@ -254,7 +252,10 @@ private:
     TimerView m_shown;
     // The workspace's projects and the one read on its own.
     ProjectCatalog *m_catalog;
-    ChosenProject *m_chosen;
+    // The running or paused entry's project, also when archived, and the
+    // indicator of the chosen project, as the catalog last knew them.
+    std::optional<Project> m_entryProject;
+    ProjectCatalog::Indicator m_indicator;
     qint64 m_elapsed = 0;
     // What projectChoices last announced.
     QVariantList m_projectChoices;

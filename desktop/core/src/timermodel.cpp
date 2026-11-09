@@ -1,6 +1,5 @@
 #include "timermodel.h"
 
-#include "chosenproject.h"
 #include "nextstartselection.h"
 #include "projectcatalog.h"
 
@@ -18,17 +17,13 @@ TimerModel::TimerModel(TimerStateClient &client, QObject *parent)
               return !workspaceAccessLost();
           },
           this))
-    , m_chosen(new ChosenProject(m_catalog, this))
-    , m_next(new NextStartSelection(m_catalog, this))
+    , m_next(new NextStartSelection(m_catalog, m_connection, this))
 {
-    m_next->setConnection(&m_connection);
     connect(&client.clock(), &Clock::ticked, this, &TimerModel::updateElapsed);
     connect(m_next, &NextStartSelection::changed, this, &TimerModel::selectionChanged);
     connect(m_catalog, &ProjectCatalog::listChanged, this, &TimerModel::projectsChanged);
     connect(m_catalog, &ProjectCatalog::listLoaded, m_next, &NextStartSelection::listLoaded);
     connect(m_catalog, &ProjectCatalog::readFailed, this, &TimerModel::onProjectReadFailed);
-    connect(m_chosen, &ChosenProject::entryProjectChanged, this, &TimerModel::entryProjectChanged);
-    connect(m_chosen, &ChosenProject::indicatorChanged, this, &TimerModel::indicatorChanged);
     connect(this, &TimerModel::selectionChanged, this, &TimerModel::choiceChanged);
     connect(this, &TimerModel::currentEntryChanged, this, &TimerModel::choiceChanged);
     connect(this, &TimerModel::chainChanged, this, &TimerModel::choiceChanged);
@@ -243,7 +238,7 @@ bool TimerModel::projectsIncomplete() const
 ProjectChoices TimerModel::projectChoices() const
 {
     const bool held = isRunning() || isPaused();
-    return ProjectChoices::build(m_catalog->projects(), m_catalog->incomplete(), chosenProject(), held ? m_chosen->entryProject() : std::nullopt, canChooseProject());
+    return ProjectChoices::build(m_catalog->projects(), m_catalog->incomplete(), chosenProject(), held ? m_entryProject : std::nullopt, canChooseProject());
 }
 
 QVariantList TimerModel::projectChoicesVariant() const
@@ -290,11 +285,20 @@ bool TimerModel::chosenBillable() const
 
 ProjectLabelParts TimerModel::chosenProjectLabel() const
 {
-    if (!chosenProject()) {
+    const std::optional<qint64> id = chosenProject();
+    if (!id) {
         return ProjectLabelParts();
     }
-    const std::optional<Project> project = m_chosen->details(chosenProject(), isRunning() || isPaused());
-    return project ? ProjectLabelParts::of(*project) : ProjectLabelParts::unknown();
+    // An archived project is named only on its entry.
+    if ((isRunning() || isPaused()) && m_entryProject && m_entryProject->id == *id) {
+        return ProjectLabelParts::of(*m_entryProject);
+    }
+    for (const Project &project : m_catalog->projects()) {
+        if (project.id == *id) {
+            return ProjectLabelParts::of(project);
+        }
+    }
+    return ProjectLabelParts::unknown();
 }
 
 QVariantMap TimerModel::chosenProjectLabelVariant() const
@@ -304,7 +308,7 @@ QVariantMap TimerModel::chosenProjectLabelVariant() const
 
 TimerModel::IndicatorState TimerModel::indicatorState() const
 {
-    switch (m_chosen->indicator().state) {
+    switch (m_indicator.state) {
     case ProjectCatalog::Indicator::State::None:
         break;
     case ProjectCatalog::Indicator::State::Pending:
@@ -317,7 +321,7 @@ TimerModel::IndicatorState TimerModel::indicatorState() const
 
 QString TimerModel::indicatorColor() const
 {
-    return m_chosen->indicator().color;
+    return m_indicator.color;
 }
 
 QString TimerModel::formatElapsed(qint64 seconds)
@@ -406,7 +410,17 @@ void TimerModel::readLastEntryIfWanted()
 
 void TimerModel::showChosenProject()
 {
-    m_chosen->show(chosenProject(), isRunning() || isPaused());
+    const std::optional<qint64> id = chosenProject();
+    const std::optional<Project> entryProject = id && (isRunning() || isPaused()) ? m_catalog->knownProject(*id) : std::nullopt;
+    if (entryProject != m_entryProject) {
+        m_entryProject = entryProject;
+        Q_EMIT entryProjectChanged();
+    }
+    const ProjectCatalog::Indicator indicator = m_catalog->indicatorFor(id);
+    if (indicator != m_indicator) {
+        m_indicator = indicator;
+        Q_EMIT indicatorChanged();
+    }
 }
 
 void TimerModel::onProjectReadFailed(const ApiError &error)

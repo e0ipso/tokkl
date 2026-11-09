@@ -413,20 +413,16 @@ private Q_SLOTS:
         QVERIFY(!store.stored);
     }
 
-    // The menus' actions come from one set of rules; the policies say where
-    // the panels differ: GNOME waits for Ready, and only KDE holds Project
-    // and Billable during a session.
+    // The menus' actions come from one set of rules; GNOME's write items
+    // also wait for Ready.
     void menuActionsFollowTheTimerAndTheSession()
     {
         Fixture f;
         const auto plasma = [&f] {
-            return MenuActionStates::of(f.timer, f.session.get(), MenuActionPolicy::plasma());
-        };
-        const auto macos = [&f] {
-            return MenuActionStates::of(f.timer, f.session.get(), MenuActionPolicy::macos());
+            return MenuActionStates::of(f.timer, f.session.get());
         };
         const auto gnome = [&f] {
-            return MenuActionStates::of(f.timer, f.session.get(), MenuActionPolicy::gnome());
+            return MenuActionStates::of(f.timer, f.session.get(), true);
         };
         MenuActions actions;
         actions.setTimer(&f.timer);
@@ -441,13 +437,13 @@ private Q_SLOTS:
         QVERIFY(!plasma().project.enabled && !plasma().billable.enabled);
         QVERIFY(plasma().mode.enabled);
         // Without a session the menu reads as Timer mode.
-        QVERIFY(MenuActionStates::of(f.timer, nullptr, MenuActionPolicy::plasma()).run.visible);
-        QVERIFY(!MenuActionStates::of(f.timer, nullptr, MenuActionPolicy::plasma()).mode.enabled);
+        QVERIFY(MenuActionStates::of(f.timer, nullptr).run.visible);
+        QVERIFY(!MenuActionStates::of(f.timer, nullptr).mode.enabled);
 
         QVERIFY(connectAccount(f));
         QVERIFY(!changes.isEmpty());
         QVERIFY(actions.states() == plasma());
-        for (const MenuActionStates &states : {plasma(), macos(), gnome()}) {
+        for (const MenuActionStates &states : {plasma(), gnome()}) {
             QVERIFY(states.run.enabled && states.project.enabled && states.billable.enabled);
             QCOMPARE(states.project.label, QStringLiteral("project"));
         }
@@ -460,7 +456,7 @@ private Q_SLOTS:
         f.respond(f.last("GET", statePath), f.state(std::nullopt));
         QCOMPARE(f.timer.status(), TimerModel::Error);
         QVERIFY(f.timer.canWrite());
-        QVERIFY(plasma().run.enabled && macos().run.enabled && plasma().project.enabled);
+        QVERIFY(plasma().run.enabled && plasma().project.enabled);
         QVERIFY(!gnome().run.enabled && !gnome().project.enabled && !gnome().billable.enabled);
         // A billable choice clears the kept message.
         QVERIFY(f.timer.chooseBillable(false));
@@ -479,14 +475,14 @@ private Q_SLOTS:
         QVERIFY(!plasma().startSession.enabled);
         f.respond(f.last("POST", startPath), f.state(work(f.serverNow())));
         QVERIFY(f.session->isActive());
-        for (const MenuActionStates &states : {plasma(), macos(), gnome()}) {
+        for (const MenuActionStates &states : {plasma(), gnome()}) {
             QVERIFY(!states.run.visible && !states.startSession.visible);
             QVERIFY(states.nextPhase.visible && states.nextPhase.enabled && states.endSession.visible && states.endSession.enabled);
             QCOMPARE(states.nextPhase.label, QStringLiteral("shortRest"));
             QVERIFY(!states.mode.enabled);
             QCOMPARE(states.mode.label, QStringLiteral("pomodoroModeLocked"));
         }
-        for (const MenuActionStates &states : {plasma(), macos(), gnome()}) {
+        for (const MenuActionStates &states : {plasma(), gnome()}) {
             QVERIFY(!states.project.enabled && !states.billable.enabled);
         }
         QVERIFY(!f.timer.canChooseProject() && !f.timer.canChooseBillable());

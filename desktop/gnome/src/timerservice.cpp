@@ -2,7 +2,6 @@
 
 #include "timer1adaptor.h"
 
-#include "configurationadapter.h"
 #include "connection.h"
 #include "menuactions.h"
 #include "pomodoroalarm.h"
@@ -10,6 +9,7 @@
 #include "pomodorosession.h"
 #include "pomodorosounds.h"
 #include "projectchoices.h"
+#include "servicesettings.h"
 #include "soundchoices.h"
 #include "statuspresentation.h"
 #include "timercontroller.h"
@@ -27,6 +27,8 @@ namespace Tokkl
 const QString TimerService::serviceName = QStringLiteral("org.tokkl.Timer1");
 const QString TimerService::objectPath = QStringLiteral("/org/tokkl/Timer1");
 const QString TimerService::interfaceName = QStringLiteral("org.tokkl.Timer1");
+const QString TimerService::credentialStoreError = QStringLiteral("org.tokkl.Timer1.Error.CredentialStore");
+const QString TimerService::supersededError = QStringLiteral("org.tokkl.Timer1.Error.Superseded");
 
 namespace
 {
@@ -63,7 +65,7 @@ TimerService::TimerService(const Parts &parts, QObject *parent)
     , m_session(parts.session)
     , m_preferences(parts.preferences)
     , m_sounds(parts.sounds)
-    , m_configuration(parts.configuration)
+    , m_settings(parts.settings)
     , m_alarm(parts.alarm)
     , m_bus(QString())
 {
@@ -324,7 +326,7 @@ QMap<QString, QVariantMap> TimerService::actions() const
     // GNOME's menu has always waited for Status ready before it offered a
     // write, and has left Project and Billable to the timer during a
     // session; the policy keeps both.
-    const QVariantMap states = MenuActionStates::of(*m_timer, m_session, MenuActionPolicy::gnome()).toVariantMap();
+    const QVariantMap states = MenuActionStates::of(*m_timer, m_session, true).toVariantMap();
     QMap<QString, QVariantMap> actions;
     for (auto it = states.cbegin(); it != states.cend(); ++it) {
         actions.insert(it.key(), it.value().toMap());
@@ -488,9 +490,27 @@ bool TimerService::SetBillable(bool billable)
 
 void TimerService::Configure(const QString &instanceUrl, const QString &authMode, const QString &email, const QString &secret)
 {
-    // The adapter answers once the credential store has.
+    // Answered once the credential store has, with the message for the user.
     setDelayedReply(true);
-    m_configuration->configure(instanceUrl, authMode, email, secret, ConfigurationAdapter::Call{message(), QDBusContext::connection()});
+    m_settings->configure(instanceUrl, authMode, email, secret, [call = message(), bus = QDBusContext::connection()](const ServiceSettings::Outcome &outcome) {
+        switch (outcome.kind) {
+        case ServiceSettings::Outcome::Kind::Saved:
+            bus.send(call.createReply());
+            break;
+        case ServiceSettings::Outcome::Kind::Invalid:
+            bus.send(call.createErrorReply(QDBusError::InvalidArgs, outcome.message));
+            break;
+        case ServiceSettings::Outcome::Kind::StoreRefused:
+            bus.send(call.createErrorReply(credentialStoreError, outcome.message));
+            break;
+        case ServiceSettings::Outcome::Kind::NotWritten:
+            bus.send(call.createErrorReply(QDBusError::Failed, outcome.message));
+            break;
+        case ServiceSettings::Outcome::Kind::Superseded:
+            bus.send(call.createErrorReply(supersededError, outcome.message));
+            break;
+        }
+    });
     publishChanges();
 }
 
