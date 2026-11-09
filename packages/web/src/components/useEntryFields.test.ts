@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import type { Project, TimeEntry } from '@tokkl/types';
+import type { TimeEntry } from '@tokkl/types';
 import {
   EMPTY_DRAFT,
   MAX_SUGGESTIONS,
@@ -12,29 +12,13 @@ import {
   useEntryFields,
   type EntryDraft,
 } from './useEntryFields.ts';
-import { STOPPED, timeEntry } from '../testFixtures.ts';
+import { project as testProject, STOPPED, timeEntry } from '../testFixtures.ts';
 
 let nextId = 1;
 
 const entry = (extra: Partial<TimeEntry> = {}) => timeEntry({ id: nextId++, ...STOPPED, description: '', ...extra });
 
-function project(id: number, billable: boolean): Project {
-  return {
-    id,
-    workspace_id: 1,
-    client_id: null,
-    client_name: null,
-    name: `Project ${id}`,
-    color: '#3366cc',
-    active: true,
-    billable,
-    estimated_hours: null,
-    rate: null,
-    currency: null,
-    actual_seconds: 0,
-    status: 'active',
-  };
-}
+const project = (id: number, billable: boolean) => testProject({ id, color: '#3366cc', billable });
 
 const PROJECTS = [project(1, true), project(2, false)];
 

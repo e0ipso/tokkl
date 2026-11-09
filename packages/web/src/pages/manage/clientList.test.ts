@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { Client, Project } from '@tokkl/types';
+import type { Client } from '@tokkl/types';
 import { archiveNotice, deleteNotice, projectCountsByClient, visibleClients } from './clientList.ts';
+import { project as testProject } from '../../testFixtures.ts';
 
 const client = (id: number, name: string, archived = false, notes: string | null = null): Client => ({
   id,
@@ -11,21 +12,8 @@ const client = (id: number, name: string, archived = false, notes: string | null
   archived,
 });
 
-const project = (id: number, clientId: number | null): Project => ({
-  id,
-  workspace_id: 1,
-  client_id: clientId,
-  client_name: null,
-  name: `P${id}`,
-  color: '#000000',
-  active: id % 2 === 0,
-  billable: false,
-  estimated_hours: null,
-  rate: null,
-  currency: null,
-  actual_seconds: 0,
-  status: 'active',
-});
+const project = (id: number, clientId: number | null) =>
+  testProject({ id, client_id: clientId, name: `P${id}`, active: id % 2 === 0 });
 
 test('project counts include archived projects and skip those without a client', () => {
   const counts = projectCountsByClient([project(1, 5), project(2, 5), project(3, null), project(4, 6)]);

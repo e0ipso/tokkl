@@ -47,6 +47,10 @@ export const anonymous = (
   headers: Record<string, string> = {},
 ) => ctx.request(method, path, body, { authorization: '', ...headers });
 
+/** A password login from a logged-out browser. */
+export const login = (ctx: TestContext, email: string, password = PASSWORD) =>
+  anonymous(ctx, 'POST', '/api/app/login', { email, password }, CSRF);
+
 /** Records the JSON lines loggers write to the console until the test ends. */
 export function recordLogs(t: NodeTestContext): Array<Record<string, unknown>> {
   const lines: Array<Record<string, unknown>> = [];

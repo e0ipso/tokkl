@@ -1,4 +1,4 @@
-import type { TimeEntry, TimerPomodoro, TimerState } from '@tokkl/types';
+import type { Project, TimeEntry, TimerPomodoro, TimerState } from '@tokkl/types';
 
 /** A test entry: entry 7, "Write", running since 2026-10-27 10:00 UTC, unless `overrides` say otherwise. */
 export function timeEntry(overrides: Partial<TimeEntry> = {}): TimeEntry {
@@ -55,3 +55,22 @@ export const POMODORO: TimerPomodoro = {
   entry_id: 7,
   pomodoro_start: '2026-10-27T10:00:00.000Z',
 };
+
+/** An active project without client, rate or estimate, unless `overrides` say otherwise. */
+export function project(overrides: Partial<Project> & Pick<Project, 'id'>): Project {
+  return {
+    workspace_id: 1,
+    client_id: null,
+    client_name: null,
+    name: `Project ${overrides.id}`,
+    color: '#000000',
+    active: true,
+    billable: false,
+    estimated_hours: null,
+    rate: null,
+    currency: null,
+    actual_seconds: 0,
+    status: 'active',
+    ...overrides,
+  };
+}

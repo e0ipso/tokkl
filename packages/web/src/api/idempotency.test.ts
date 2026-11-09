@@ -6,7 +6,7 @@ import { entryRequests } from './entries.ts';
 import { postCreate, sendCreate } from './idempotency.ts';
 import { projectRequests } from './projects.ts';
 import { tagRequests } from './tags.ts';
-import { timeEntry } from '../testFixtures.ts';
+import { project, timeEntry } from '../testFixtures.ts';
 
 /**
  * A fetch that answers each request with the next of `replies` (a status and JSON body, or an error
@@ -209,21 +209,7 @@ const created = [
     at: '2026-10-27T11:00:00+00:00',
   }),
   { id: 1, wid: 1, name: 'Client', notes: null, archived: false },
-  {
-    id: 2,
-    workspace_id: 1,
-    client_id: null,
-    client_name: null,
-    name: 'Project',
-    color: '#06aaf5',
-    active: true,
-    billable: false,
-    estimated_hours: null,
-    rate: null,
-    currency: null,
-    actual_seconds: 0,
-    status: 'active',
-  },
+  project({ id: 2, name: 'Project', color: '#06aaf5' }),
   { id: 1 },
   { id: 1, workspace_id: 1, name: 'Tag' },
 ];

@@ -1,25 +1,18 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { Project, Task } from '@tokkl/types';
+import type { Task } from '@tokkl/types';
 import { groupPickerProjects, pickerOptions } from './projectPickerOptions.ts';
+import { project as testProject } from '../testFixtures.ts';
 
-function project(id: number, name: string, client: string | null, active = true): Project {
-  return {
+const project = (id: number, name: string, client: string | null, active = true) =>
+  testProject({
     id,
-    workspace_id: 1,
     client_id: client ? id * 10 : null,
     client_name: client,
     name,
-    color: '#000000',
     active,
-    billable: false,
-    estimated_hours: null,
-    rate: null,
-    currency: null,
-    actual_seconds: 0,
     status: active ? 'active' : 'archived',
-  };
-}
+  });
 
 function task(id: number, projectId: number, name: string, active = true): Task {
   return { id, project_id: projectId, name, active, estimated_seconds: null, tracked_seconds: 0 };

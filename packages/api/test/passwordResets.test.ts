@@ -8,6 +8,7 @@ import {
   anonymous,
   CSRF,
   duringPasswordCheck,
+  login,
   PASSWORD,
   sessionCookie,
   setup,
@@ -29,9 +30,6 @@ const check = (ctx: TestContext, token: string) => anonymous(ctx, 'GET', `/api/a
 
 const use = (ctx: TestContext, token: string, password: unknown = NEW_PASSWORD) =>
   anonymous(ctx, 'POST', `/api/app/password-resets/${token}`, { password }, CSRF);
-
-const login = (ctx: TestContext, email: string, password: string) =>
-  anonymous(ctx, 'POST', '/api/app/login', { email, password }, CSRF);
 
 const meWith = (ctx: TestContext, cookie: string) => anonymous(ctx, 'GET', '/api/v9/me', undefined, { cookie });
 
