@@ -3,7 +3,6 @@
 #include "logging.h"
 #include "projectloader.h"
 
-#include <QCoreApplication>
 
 #include <utility>
 
@@ -13,13 +12,6 @@ namespace Tokkl
 namespace
 {
 using Outcome = TimerActionResult::Outcome;
-
-// The messages keep the context they had when the controller held them, so
-// a catalog made for it still applies.
-QString tr(const char *text)
-{
-    return QCoreApplication::translate("Tokkl::TimerController", text);
-}
 }
 
 TimerCoordinator::TimerCoordinator(TimerModel *model, const TimerModelRoles &roles, Clock *clock, QObject *parent)

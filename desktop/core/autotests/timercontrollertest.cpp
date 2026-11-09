@@ -8,11 +8,13 @@
 #include "timercontroller.h"
 #include "timerstateclient.h"
 
+#include <QCoreApplication>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSignalSpy>
 #include <QTest>
+#include <QTranslator>
 
 using namespace Tokkl;
 
@@ -201,6 +203,33 @@ QString clockText(const QDateTime &time)
     return time.toUTC().toString(Qt::ISODate);
 }
 }
+
+// Translates the messages of one context, as "[context] source", and no
+// others.
+class ContextTranslator : public QTranslator
+{
+public:
+    explicit ContextTranslator(const char *context)
+        : m_context(context)
+    {
+    }
+
+    QString translate(const char *context, const char *sourceText, const char *, int) const override
+    {
+        if (qstrcmp(context, m_context) != 0) {
+            return QString();
+        }
+        return QLatin1Char('[') + QLatin1String(context) + QStringLiteral("] ") + QString::fromUtf8(sourceText);
+    }
+
+    bool isEmpty() const override
+    {
+        return false;
+    }
+
+private:
+    const char *m_context;
+};
 
 class TimerControllerTest : public QObject
 {
@@ -764,6 +793,20 @@ private Q_SLOTS:
         // Nothing followed the stop: its answer was the state.
         QCOMPARE(f.find("POST", stopPath).size(), 1);
         QCOMPARE(f.stateReads(), reads);
+    }
+
+    // The messages are looked up in the coordinator's own context, where
+    // lupdate files the tr() calls of timercoordinator.cpp, so a catalog
+    // extracted from the sources translates them.
+    void messagesUseTheCoordinatorsContext()
+    {
+        ContextTranslator translator("Tokkl::TimerCoordinator");
+        QVERIFY(QCoreApplication::installTranslator(&translator));
+        Fixture f;
+        QVERIFY(connectAccount(f, instanceA, 3, 7, "null"));
+        QVERIFY(f.timer.start());
+        f.respond(f.last("POST", startPath), FakeTransport::answer(409, f.nextState(entryBody(30, 7, clockText(f.clock.now().addSecs(-4)), true, 11))));
+        QCOMPARE(f.timer.errorString(), QStringLiteral("[Tokkl::TimerCoordinator] The timer changed on another device first."));
     }
 
     // Another device started an entry this one has not seen yet. The start
