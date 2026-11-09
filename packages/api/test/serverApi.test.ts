@@ -1,6 +1,6 @@
 import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { AppStatus, ServerApi, ServerCapability, TimerState } from '@tokkl/types';
+import type { AppStatus, CatalogRevision, ServerApi, ServerCapability, TimerState } from '@tokkl/types';
 import { storageFor } from './fixtures/database.ts';
 import { SERVER_API, setup, testConfig, testServer, type TestContext } from './helpers.ts';
 import { createApp } from '../src/app.ts';
@@ -33,6 +33,13 @@ const PROBES: Record<ServerCapability, (ctx: TestContext) => Promise<number>> = 
   },
   'timer-edit-entry': async ctx =>
     (await ctx.json('POST', '/api/app/timer/edit', { entry_id: 999_999, billable: true })).status,
+  // An older server has neither route and answers 404.
+  'catalog-revision': async ctx => {
+    const catalog = await ctx.json<CatalogRevision>('GET', `/api/app/workspaces/${ctx.wid}/catalog`);
+    assert.ok(Number.isSafeInteger(catalog.body?.revision), 'the reply is { revision }');
+    return catalog.status;
+  },
+  'latest-entry': async ctx => (await ctx.json('GET', '/api/app/time_entries/latest')).status,
 };
 
 test('GET /api/app/status names the API version and the capabilities this server has', async () => {
@@ -49,6 +56,8 @@ test('GET /api/app/status names the API version and the capabilities this server
     'pause-revision',
     'timer-edit-entry',
     'idempotency-keys',
+    'catalog-revision',
+    'latest-entry',
   ]);
   const me = await ctx.json<Record<string, unknown>>('GET', '/api/v9/me');
   assert.equal('api_version' in me.body || 'capabilities' in me.body, false, 'the Toggl /me body stays as it was');
@@ -65,6 +74,8 @@ test('GET /api/app/status names the API version and the capabilities this server
     'pause-revision': 409,
     'timer-edit-entry': 409,
     'idempotency-keys': 200,
+    'catalog-revision': 200,
+    'latest-entry': 200,
   });
 });
 

@@ -231,6 +231,8 @@ for (const backend of backends.filter(b => !args[3] || b === args[3])) {
         'pause-revision',
         'timer-edit-entry',
         'idempotency-keys',
+        'catalog-revision',
+        'latest-entry',
       ],
       pomodoro_limits: POMODORO_LIMITS,
     });
@@ -368,6 +370,8 @@ for (const backend of backends.filter(b => !args[3] || b === args[3])) {
         'pause-revision',
         'timer-edit-entry',
         'idempotency-keys',
+        'catalog-revision',
+        'latest-entry',
       ],
       pomodoro_limits: POMODORO_LIMITS,
     });

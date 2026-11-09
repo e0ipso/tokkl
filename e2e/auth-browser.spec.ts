@@ -34,6 +34,8 @@ const FRESH_STATUS = {
     'pause-revision',
     'timer-edit-entry',
     'idempotency-keys',
+    'catalog-revision',
+    'latest-entry',
   ],
   pomodoro_limits: {
     work_minutes: { min: 1, max: 180, default: 25 },

@@ -3,6 +3,7 @@ import {
   boolean,
   instant,
   integer,
+  knownNames,
   nullable,
   number,
   object,
@@ -29,6 +30,7 @@ import type {
   Report,
   ReportEntry,
   ReportGroup,
+  ServerCapability,
   Tag,
   Task,
   TimeEntry,
@@ -52,22 +54,28 @@ const role = oneOf('admin', 'user');
 
 const pomodoroLimit = object<PomodoroLimit>({ min: integer, max: integer, default: integer });
 
-/** GET /api/app/status. */
-export const appStatusReply: Decoder<AppStatus> = object<AppStatus>({
+/**
+ * Every capability this app's server names. A newer server may name more, and the app keeps only
+ * these. A name added to `ServerCapability` must be added here too, or this does not compile.
+ */
+const KNOWN_CAPABILITIES: Readonly<Record<ServerCapability, true>> = {
+  'app-preferences': true,
+  'timer-actions': true,
+  'timer-edit': true,
+  'pomodoro-revision': true,
+  'pause-revision': true,
+  'timer-edit-entry': true,
+  'idempotency-keys': true,
+  'catalog-revision': true,
+  'latest-entry': true,
+};
+
+const capabilities = knownNames(KNOWN_CAPABILITIES);
+
+const appStatusFields = object<AppStatus>({
   setup_required: boolean,
-  // The web app ships with its server, so it knows every capability its server names.
   api_version: integer,
-  capabilities: array(
-    oneOf(
-      'app-preferences',
-      'timer-actions',
-      'timer-edit',
-      'pomodoro-revision',
-      'pause-revision',
-      'timer-edit-entry',
-      'idempotency-keys',
-    ),
-  ),
+  capabilities,
   pomodoro_limits: object<PomodoroLimits>({
     work_minutes: pomodoroLimit,
     short_rest_minutes: pomodoroLimit,
@@ -75,6 +83,16 @@ export const appStatusReply: Decoder<AppStatus> = object<AppStatus>({
     long_rest_every: pomodoroLimit,
   }),
 });
+
+/**
+ * GET /api/app/status. Its capabilities come back without the names this app does not know, so
+ * the status of a newer server that announces more still reads. A value that is not a list of
+ * names still fails.
+ */
+export const appStatusReply: Decoder<AppStatus> = (value, at) => {
+  const status = appStatusFields(value, at);
+  return { ...status, capabilities: capabilities(status.capabilities) };
+};
 
 /** GET /api/app/invites/:token: the role the invite grants. */
 export const inviteCheckReply = object<{ role: UserRole }>({ role });

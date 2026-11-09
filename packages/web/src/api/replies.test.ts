@@ -197,7 +197,14 @@ test('the status, invite and reset link checks and the admin lists decode their 
   };
   assert.deepEqual(appStatusReply(current), current);
   assert.throws(() => appStatusReply({ ...status, setup_required: 'no' }), at('reply.setup_required'));
-  assert.throws(() => appStatusReply({ ...status, capabilities: ['teleport'] }), at('reply.capabilities[0]'));
+  // A newer server may announce capabilities this app does not know: the status still reads,
+  // without them, and the reply itself is left as it came.
+  const newer = { ...status, capabilities: ['teleport', 'timer-actions', 'timer-edit', 'time-travel'] };
+  assert.deepEqual(appStatusReply(newer), status);
+  assert.deepEqual(newer.capabilities, ['teleport', 'timer-actions', 'timer-edit', 'time-travel']);
+  assert.throws(() => appStatusReply({ ...status, capabilities: 'timer-actions' }), at('reply.capabilities'));
+  assert.throws(() => appStatusReply({ ...status, capabilities: ['timer-actions', 7] }), at('reply.capabilities[1]'));
+  assert.throws(() => appStatusReply({ ...status, capabilities: null }), at('reply.capabilities'));
   const { pomodoro_limits: _, ...withoutLimits } = status;
   assert.throws(() => appStatusReply(withoutLimits), at('reply.pomodoro_limits'));
   assert.throws(

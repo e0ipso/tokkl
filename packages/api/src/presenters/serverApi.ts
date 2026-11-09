@@ -14,6 +14,8 @@ const CAPABILITIES: readonly ServerCapability[] = Object.freeze([
   'pause-revision',
   'timer-edit-entry',
   'idempotency-keys',
+  'catalog-revision',
+  'latest-entry',
 ]);
 
 /** Fresh on each call, so no reply shares an array another one could change. */

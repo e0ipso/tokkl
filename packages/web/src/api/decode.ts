@@ -72,6 +72,16 @@ export function array<T>(decode: Decoder<T>): Decoder<T[]> {
       : fail(at, t('api.expectList'));
 }
 
+/**
+ * A list of names that keeps the ones in `known` and drops the rest, such as the capabilities a
+ * newer server may add. The value must still be a list of strings.
+ */
+export function knownNames<K extends string>(known: Readonly<Record<K, true>>): Decoder<K[]> {
+  const names = array(string);
+  const isKnown = (name: string): name is K => Object.hasOwn(known, name);
+  return (value, at = ROOT) => names(value, at).filter(isKnown);
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

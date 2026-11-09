@@ -109,6 +109,10 @@ test('a cancelled read passes, but an aborted write fails the scenario', async (
   await login(page);
   await failFromPage(page, 'GET', '/api/app/status', 'aborted');
   await runtimeErrors.verify(testInfo);
+  // A report query is a POST that only reads, and the app cancels one the filters replaced.
+  await failFromPage(page, 'POST', '/api/app/report', 'aborted');
+  await failFromPage(page, 'POST', '/api/app/report/entries', 'aborted');
+  await runtimeErrors.verify(testInfo);
 
   await failFromPage(page, 'POST', '/api/v9/me/preferences', 'aborted');
   await expect(runtimeErrors.verify(testInfo)).rejects.toThrow(

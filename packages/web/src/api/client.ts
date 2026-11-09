@@ -115,7 +115,8 @@ export interface RequestOptions<T> {
   body?: unknown;
   /**
    * Cancels the request, such as the signal TanStack Query passes a query function. Forward it only
-   * for GETs: a cancelled write may still have reached the server.
+   * for reads, a GET or a report query sent as a POST with `kind: 'read'`: a cancelled write may
+   * still have reached the server.
    */
   signal?: AbortSignal;
   /** Which deadline applies (see `DEADLINE_MS`). By default it follows from the method and body (`requestKind`). */
