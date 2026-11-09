@@ -515,8 +515,6 @@ class MenuBarAppTest : public QObject
             : settings(settingsFile.isEmpty() ? dir.filePath(QStringLiteral("tokkl.ini")) : settingsFile, QSettings::IniFormat)
         {
             transport.status = FakeTransport::currentStatus();
-            // The sounds the bundle would hold in Contents/Resources/sounds.
-            appPart<PomodoroAlarm>(app)->setSoundsDirectory(QStringLiteral(TOKKL_SOUNDS_DIR));
         }
 
         QTemporaryDir dir;
@@ -530,7 +528,8 @@ class MenuBarAppTest : public QObject
         // The settings windows of earlier fixtures, so this one's is told
         // apart.
         const QList<SettingsWindow *> earlierWindows = settingsWindows();
-        MenuBarApp app{&transport, &store, item, login, player, settings, clock};
+        // The sounds the bundle would hold in Contents/Resources/sounds.
+        MenuBarApp app{&transport, &store, item, login, player, settings, clock, QStringLiteral(TOKKL_SOUNDS_DIR)};
         // The app's settings window, a top-level widget of its own.
         SettingsWindow *settingsWindow = newSettingsWindow(earlierWindows);
 

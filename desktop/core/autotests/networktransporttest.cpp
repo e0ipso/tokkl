@@ -319,9 +319,7 @@ private Q_SLOTS:
         LoopbackServer server;
         const QByteArray body = "\"" + QByteArray(size - 2, 'x') + "\"";
         server.response = httpResponse(statusLine, "", body);
-        NetworkTransport transport(clientName);
-        QCOMPARE(transport.maxResponseBytes(), NetworkTransport::defaultMaxResponseBytes);
-        transport.setMaxResponseBytes(1000);
+        NetworkTransport transport(clientName, nullptr, {.maxResponseBytes = 1000});
         const HttpResponse response = sendAndWait(transport, HttpRequest{"GET", server.url(QStringLiteral("/api/v9/me")), "Basic c2VjcmV0", {}});
         if (fits) {
             QVERIFY(response.outcome == HttpResponse::Outcome::Finished);
@@ -340,8 +338,7 @@ private Q_SLOTS:
     void unannouncedBodyOverLimit()
     {
         StreamServer server;
-        NetworkTransport transport(clientName);
-        transport.setMaxResponseBytes(1000);
+        NetworkTransport transport(clientName, nullptr, {.maxResponseBytes = 1000});
         std::optional<HttpResponse> result;
         PendingReply *reply = transport.send(HttpRequest{"GET", server.url(QStringLiteral("/api/v9/workspaces/1/projects")), "Basic eA==", {}});
         connect(reply, &PendingReply::finished, reply, [&result](const HttpResponse &response) {
@@ -363,8 +360,7 @@ private Q_SLOTS:
     void timeout()
     {
         LoopbackServer server; // reads the request, never answers
-        NetworkTransport transport(clientName);
-        transport.setTimeout(300);
+        NetworkTransport transport(clientName, nullptr, {.timeoutMs = 300});
         const HttpResponse response = sendAndWait(transport, HttpRequest{"GET", server.url(QStringLiteral("/api/v9/me")), "Basic eA==", {}});
         QVERIFY(response.outcome == HttpResponse::Outcome::Timeout);
         QCOMPARE(server.requests.size(), 1);
@@ -439,11 +435,7 @@ private Q_SLOTS:
     void streamIdleTimeout()
     {
         StreamServer server;
-        NetworkTransport transport(clientName);
-        // More than twice the 25 s between the server's keep-alive events.
-        QCOMPARE(transport.streamIdleTimeout(), 60000);
-        transport.setTimeout(100);
-        transport.setStreamIdleTimeout(1000);
+        NetworkTransport transport(clientName, nullptr, {.timeoutMs = 100, .streamIdleTimeoutMs = 1000});
         PendingStream *stream = transport.openStream(HttpRequest{"GET", server.url(QStringLiteral("/api/app/timer/events")), "Basic eA==", {}});
         StreamLog log(stream);
         QTRY_VERIFY(server.socket);
@@ -482,8 +474,7 @@ private Q_SLOTS:
     {
         LoopbackServer server;
         server.response = httpResponse("403 Forbidden", "", "\"" + QByteArray(2000, 'x') + "\"");
-        NetworkTransport transport(clientName);
-        transport.setMaxResponseBytes(1000);
+        NetworkTransport transport(clientName, nullptr, {.maxResponseBytes = 1000});
         PendingStream *stream = transport.openStream(HttpRequest{"GET", server.url(QStringLiteral("/api/app/timer/events")), "Basic eA==", {}});
         StreamLog log(stream);
         QTRY_COMPARE(log.finished.size(), 1);

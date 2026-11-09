@@ -93,6 +93,17 @@ public:
     virtual PendingStream *openStream(const HttpRequest &request) = 0;
 };
 
+struct TransportLimits {
+    // How long a request may go without finishing.
+    int timeoutMs = 15000;
+    // How long a stream may go without a byte, its head included: more than
+    // twice the 25 s between the server's keep-alive events.
+    int streamIdleTimeoutMs = 60000;
+    // A reply's body, or a refused stream's; more ends as a NetworkError.
+    // Far above any answer the companions read, it bounds a broken server.
+    qint64 maxResponseBytes = 16 * 1024 * 1024;
+};
+
 // QNetworkAccessManager without redirects, cookies or caching, with a
 // per-request timeout.
 class NetworkTransport : public Transport
@@ -101,41 +112,17 @@ class NetworkTransport : public Transport
 
 public:
     // Requests send the User-Agent "<clientName>/<Tokkl version>".
-    explicit NetworkTransport(const QString &clientName, QObject *parent = nullptr);
+    explicit NetworkTransport(const QString &clientName, QObject *parent = nullptr, const TransportLimits &limits = {});
 
     PendingReply *send(const HttpRequest &request) override;
     PendingStream *openStream(const HttpRequest &request) override;
-
-    // How long a request may go without finishing. 15 seconds by default.
-    int timeout() const;
-    void setTimeout(int ms);
-    // How long a stream may go without receiving a byte, the answer's head
-    // included; a stream has no overall timeout. 60 seconds by default, more
-    // than twice the 25 seconds between the server's keep-alive events.
-    int streamIdleTimeout() const;
-    void setStreamIdleTimeout(int ms);
-    // The most bytes an answer's body may have: the whole body of a reply,
-    // and the body of a stream that answers anything but a 2xx. An answer
-    // that announces or sends more is aborted while it arrives and finishes
-    // as a NetworkError without a body. A 2xx stream's data is not counted
-    // here; the stream's reader bounds each of its events. 16 MiB by
-    // default. A page of 200 projects takes tens of kilobytes. The largest
-    // answer the companions read is the last nine days of entries with their
-    // metadata, which the API does not page; at under a kilobyte an entry,
-    // the limit holds well over ten thousand of them, and it still bounds
-    // what a broken or hostile server can make the client hold.
-    qint64 maxResponseBytes() const;
-    void setMaxResponseBytes(qint64 bytes);
-    static constexpr qint64 defaultMaxResponseBytes = 16 * 1024 * 1024;
 
 private:
     QNetworkRequest networkRequest(const HttpRequest &request, const QByteArray &accept) const;
 
     QNetworkAccessManager *m_manager;
     QByteArray m_userAgent;
-    int m_timeoutMs = 15000;
-    int m_streamIdleTimeoutMs = 60000;
-    qint64 m_maxResponseBytes = defaultMaxResponseBytes;
+    const TransportLimits m_limits;
 };
 
 }

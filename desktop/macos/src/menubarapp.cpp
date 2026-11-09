@@ -13,7 +13,6 @@
 #include "timerstack.h"
 #include "transport.h"
 
-#include <QCoreApplication>
 #include <QSettings>
 
 namespace Tokkl
@@ -41,6 +40,7 @@ MenuBarApp::MenuBarApp(Transport *transport,
                        AlarmPlayer &alarmPlayer,
                        QSettings &settings,
                        Clock &clock,
+                       const QString &soundsDirectory,
                        QObject *parent)
     : QObject(parent)
     , m_statusItem(statusItem)
@@ -53,13 +53,7 @@ MenuBarApp::MenuBarApp(Transport *transport,
     , m_session(m_stack->session())
 {
     m_sounds = new SoundChoices(&settings, &MenuBarApp::soundKey, this);
-    // The bundle's Contents/Resources/sounds, which the build fills from
-    // TOKKL_POMODORO_SOUND_FILES.
-    m_alarm = new PomodoroAlarm(*m_session,
-                                alarmPlayer,
-                                *m_sounds,
-                                QString(QCoreApplication::applicationDirPath() + QStringLiteral("/../Resources/sounds")),
-                                this);
+    m_alarm = new PomodoroAlarm(*m_session, alarmPlayer, *m_sounds, soundsDirectory, this);
     m_menu = new StatusMenu(*m_timer, *m_session, *m_alarm, this);
     m_settingsWindow = std::make_unique<SettingsWindow>(transport, store, settings, loginItem, *m_preferences, *m_sounds, *m_alarm);
 

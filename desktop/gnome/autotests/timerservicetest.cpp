@@ -2056,7 +2056,6 @@ private Q_SLOTS:
         QVERIFY(f.start());
         QCOMPARE(f.get(QStringLiteral("AlarmError")).toString(), QString());
         FakeAlarmOutput &output = f.daemon->output;
-        PomodoroAlarm &alarm = f.daemon->alarm;
         QCOMPARE(f.result(QStringLiteral("PreviewSound"), {QStringLiteral("short-rest-to-work")}).toBool(), true);
         output.fail(QStringLiteral("Connection refused"));
         QCOMPARE(f.get(QStringLiteral("AlarmError")).toString(), QStringLiteral("No alarm sound: Connection refused"));
@@ -2069,11 +2068,10 @@ private Q_SLOTS:
         // A file that is not there plays nothing and says so.
         QTemporaryDir empty;
         QVERIFY(empty.isValid());
-        alarm.setSoundsDirectory(empty.path());
-        QCOMPARE(f.result(QStringLiteral("PreviewSound"), {QStringLiteral("work-to-long-rest")}).toBool(), true);
+        PomodoroAlarm elsewhere(f.daemon->session, output, f.daemon->sounds, empty.path());
+        QVERIFY(!elsewhere.preview(QStringLiteral("work-to-long-rest")));
         QCOMPARE(output.calls.size(), 2);
-        const QString missing = f.get(QStringLiteral("AlarmError")).toString();
-        QVERIFY2(missing.startsWith(QStringLiteral("No alarm sound: ")) && missing.contains(empty.path()), qPrintable(missing));
+        QVERIFY2(elsewhere.failure().startsWith(QStringLiteral("No alarm sound: ")) && elsewhere.failure().contains(empty.path()), qPrintable(elsewhere.failure()));
     }
 
     // The alarm loops the file of the sound chosen for the ringing

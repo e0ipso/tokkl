@@ -16,7 +16,7 @@ class SoundChoices;
 // transition switches the loop. preview() plays a sound once on the same
 // output.
 //
-// The files are the four bundled WAVs in soundsDirectory(). A sound whose
+// The files are the four bundled WAVs in the sounds directory. A sound whose
 // file is not there plays nothing. That, and a sound the output reports it
 // could not play, is logged and shows in failure() for the panels to tell
 // the user.
@@ -29,12 +29,6 @@ public:
     // ringing starts at once.
     PomodoroAlarm(PomodoroSession &session, AlarmOutput &output, SoundChoices &choices, const QString &soundsDirectory, QObject *parent = nullptr);
     ~PomodoroAlarm() override;
-
-    QString soundsDirectory() const;
-    void setSoundsDirectory(const QString &directory);
-    // The file of a sound id in the directory, or empty when the id is not
-    // in the catalogue or the file is not there.
-    QString locate(const QString &soundId) const;
 
     // Plays the sound once. False, and nothing plays, for an id or file
     // that is not there.

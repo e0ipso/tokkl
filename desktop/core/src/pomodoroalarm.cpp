@@ -30,25 +30,6 @@ PomodoroAlarm::~PomodoroAlarm()
     m_output.setFailureHandler({});
 }
 
-QString PomodoroAlarm::soundsDirectory() const
-{
-    return m_directory;
-}
-
-void PomodoroAlarm::setSoundsDirectory(const QString &directory)
-{
-    if (directory == m_directory) {
-        return;
-    }
-    m_directory = directory;
-    update();
-}
-
-QString PomodoroAlarm::locate(const QString &soundId) const
-{
-    return soundFile(m_directory, soundId);
-}
-
 bool PomodoroAlarm::preview(const QString &soundId)
 {
     setFailure(QString());
@@ -76,7 +57,7 @@ void PomodoroAlarm::setFailure(const QString &failure)
 
 QString PomodoroAlarm::soundToPlay(const QString &soundId)
 {
-    const QString file = locate(soundId);
+    const QString file = soundFile(m_directory, soundId);
     if (file.isEmpty()) {
         qCWarning(lcAlarm) << "The sound" << soundId << "is not in" << m_directory;
         setFailure(tr("No alarm sound: the file for %1 is not in %2").arg(soundId, m_directory));
