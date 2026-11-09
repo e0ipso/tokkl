@@ -12,6 +12,7 @@ import {
   catalogTaskRefQuery,
 } from '../../src/storage/repositories/catalog-queries.ts';
 import { createCatalogRepositories } from '../../src/storage/repositories/catalogs.ts';
+import { createStorage } from '../fixtures/storageShortcuts.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 
 for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
@@ -424,4 +425,43 @@ async function explainCatalog(db: Kysely<PhysicalDatabase>, backend: Backend, pi
       assert.match(plan, new RegExp(`time_entries_${kind.startsWith('project') ? 'project' : 'task'}_live`));
     else assert.match(plan, /PRIMARY|INTEGER PRIMARY KEY|Index Scan|Index Only Scan|Bitmap Index Scan/i);
   }
+}
+
+for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
+  test(`${backend}: project and client writes and a new currency move the catalog revision`, async () => {
+    const fixture = await disposableBackend(backend);
+    const storage = createStorage(await initializeDatabase(fixture.config));
+    try {
+      const ws = await storage.transaction(ctx => ctx.workspaces.create('Revision'));
+      const other = await storage.transaction(ctx => ctx.workspaces.create('Other'));
+      const read = (id: number) => storage.readSnapshot(r => r.workspaces.catalogRevision(id));
+      assert.equal(await read(ws.id), 0);
+      const client = await storage.transaction(ctx =>
+        ctx.clients.create({ workspaceId: ws.id, name: 'Client', notes: null, archived: false }),
+      );
+      assert.equal(await read(ws.id), 1);
+      await storage.transaction(ctx => ctx.workspaces.update(ws.id, { name: 'Renamed', defaultCurrency: 'EUR' }));
+      assert.equal(await read(ws.id), 1, 'the same currency is no change');
+      await storage.transaction(ctx => ctx.workspaces.update(ws.id, { defaultCurrency: 'USD', rounding: 1 }));
+      assert.equal(await read(ws.id), 2);
+      assert.equal((await storage.readSnapshot(r => r.workspaces.get(ws.id)))!.defaultCurrency, 'USD');
+      await storage.transaction(ctx => ctx.clients.setArchived(ws.id, client.id, true));
+      await storage.transaction(ctx => ctx.clients.deleteAndDetachProjects(ws.id, client.id));
+      assert.equal(await read(ws.id), 4);
+      // A rolled-back write leaves the revision as it was.
+      await assert.rejects(
+        storage.transaction(async ctx => {
+          await ctx.clients.create({ workspaceId: ws.id, name: 'Rolled back', notes: null, archived: false });
+          throw new Error('roll back');
+        }),
+        /roll back/,
+      );
+      assert.equal(await read(ws.id), 4);
+      assert.equal(await read(other.id), 0);
+      assert.equal(await read(999_999), 0);
+    } finally {
+      await storage.close();
+      await fixture.cleanup();
+    }
+  });
 }

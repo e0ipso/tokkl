@@ -1,5 +1,6 @@
-import { sql, type RawBuilder } from 'kysely';
+import { sql, type Kysely, type RawBuilder } from 'kysely';
 import type { Backend } from '../config.ts';
+import type { PhysicalDatabase } from '../physical.ts';
 import { classifyConflict } from '../errors.ts';
 
 const asciiNameKey = (value: string): string => value.replace(/[A-Z]/g, char => char.toLowerCase());
@@ -28,6 +29,17 @@ export function catalogTotal(backend: Backend, kind: 'project' | 'task', now: st
   const ref = kind === 'project' ? sql.ref('p.id') : sql.ref('t.id');
   return sql<number>`coalesce((select sum(${epoch(backend, sql`coalesce(te.stop, ${now})`)} - ${epoch(backend, sql`te.start`)})
     from time_entries te where ${sql.ref(`te.${kind}_id`)} = ${ref} and te.deleted_at is null), 0)`;
+}
+/**
+ * Adds one to the workspace's catalog revision. Every project and client write calls it in its own
+ * transaction, which already holds the workspace's row lock, so the bump waits on nothing new.
+ */
+export async function bumpCatalogRevision(db: Kysely<PhysicalDatabase>, workspaceId: number): Promise<void> {
+  await db
+    .updateTable('workspaces')
+    .set({ catalog_revision: sql<number>`${sql.ref('catalog_revision')} + 1` })
+    .where('id', '=', workspaceId)
+    .execute();
 }
 export async function catalogWrite<T>(work: () => Promise<T>): Promise<T> {
   try {

@@ -13,7 +13,7 @@ import { streamDownload } from '../http/download.ts';
 import { getPreferences } from '../domain/accountValues.ts';
 import { parsePreferenceChanges } from '../commands/accounts.ts';
 import { presentPomodoroLimits, presentServerApi } from '../presenters/serverApi.ts';
-import type { AppStatus } from '@tokkl/types';
+import type { AppStatus, CatalogRevision } from '@tokkl/types';
 
 export type AppRouteDeps = Pick<
   Deps,
@@ -66,6 +66,15 @@ export function appRoutes(deps: AppRouteDeps): Router {
       second: serializeTimeEntry(second, presentation),
     });
   });
+  // A client that caches a workspace's project list reads it again only when this number changed.
+  app.get(
+    '/workspaces/:wid/catalog',
+    auth,
+    jsonRead(deps, async (req, res, queries): Promise<CatalogRevision> => {
+      const ws = await queries.workspace(res.locals.auth.user.id, parseId(req.params.wid));
+      return { revision: await queries.catalogRevision(ws) };
+    }),
+  );
   // The entry a client picks the next start's project from, as `/me/time_entries?meta=true` lists it.
   app.get(
     '/time_entries/latest',

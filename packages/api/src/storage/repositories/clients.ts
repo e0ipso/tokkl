@@ -5,7 +5,7 @@ import type { PhysicalDatabase } from '../physical.ts';
 import type { Repositories } from '../../domain/ports.ts';
 import { entityId } from '../conversion.ts';
 import { detachedProjectName } from './catalog-names.ts';
-import { catalogWrite, containsName, nameKey } from './catalog-sql.ts';
+import { bumpCatalogRevision, catalogWrite, containsName, nameKey } from './catalog-sql.ts';
 import { client, insertId, now, required } from './catalog-queries.ts';
 
 export function createClientRepository(
@@ -50,6 +50,7 @@ export function createClientRepository(
           created_at: at,
           updated_at: at,
         });
+        await bumpCatalogRevision(db, input.workspaceId);
         return required(await clients.get(input.workspaceId, id));
       });
     },
@@ -66,6 +67,7 @@ export function createClientRepository(
           .where('workspace_id', '=', wid)
           .where('id', '=', id)
           .execute();
+        await bumpCatalogRevision(db, wid);
         return required(await clients.get(wid, id));
       });
     },
@@ -91,6 +93,7 @@ export function createClientRepository(
         .where('workspace_id', '=', wid)
         .where('client_id', '=', id)
         .execute();
+      await bumpCatalogRevision(db, wid);
       return changed.map(r => entityId(r.id));
     },
     async restore(wid, id, ids, all) {
@@ -136,6 +139,7 @@ export function createClientRepository(
           await detach(p, name);
         }
       await db.deleteFrom('clients').where('workspace_id', '=', wid).where('id', '=', id).execute();
+      await bumpCatalogRevision(db, wid);
     },
   };
   return clients;

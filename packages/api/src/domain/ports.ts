@@ -97,6 +97,11 @@ export interface WorkspacesReader {
   getRole(userId: Id, workspaceId: Id): Promise<MembershipRole | undefined>;
   countMembers(workspaceId: Id): Promise<number>;
   listMembers(workspaceId: Id): Promise<WorkspaceMember[]>;
+  /**
+   * How many writes have changed the workspace's v9 project list: a project or client write, or a
+   * new default currency. 0 for a missing workspace.
+   */
+  catalogRevision(workspaceId: Id): Promise<number>;
 }
 export interface WorkspacesRepository extends WorkspacesReader {
   create(name: string): Promise<Workspace>;

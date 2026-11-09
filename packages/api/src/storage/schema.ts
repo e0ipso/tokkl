@@ -382,6 +382,8 @@ export function idempotencyDDL(backend: Backend): string[] {
 export const addedColumns: Record<string, Record<string, Column>> = {
   // The Pomodoro session entry the revision's state showed; settlement compares it with the next.
   timer_states: { session_entry_id: optional(integer) },
+  // Counts the writes that change the workspace's v9 project list; see `catalogRevisionDDL`.
+  workspaces: { catalog_revision: def(integer, '0') },
 };
 /**
  * Adds `timer_states.session_entry_id` and fills it from the stored fingerprints, whose
@@ -401,6 +403,17 @@ export function timerSessionEntryDDL(backend: Backend): string[] {
         ? `CASE WHEN ${f} IS JSON OBJECT THEN CASE WHEN jsonb_typeof(${f}::jsonb #> '{session,entryId}') = 'number' AND (${f}::jsonb #>> '{session,entryId}') ~ '^-?[0-9]{1,15}$' THEN (${f}::jsonb #>> '{session,entryId}')::bigint END END`
         : `CASE WHEN JSON_VALID(${f}) THEN CASE WHEN JSON_TYPE(JSON_EXTRACT(${f}, '$.session.entryId')) IN ('INTEGER', 'UNSIGNED INTEGER') THEN CAST(JSON_EXTRACT(${f}, '$.session.entryId') AS SIGNED) END END`;
   return [add, `UPDATE ${q('timer_states')} SET ${q(column)} = ${fill}`];
+}
+/**
+ * Adds `workspaces.catalog_revision`. Every project and client write, and a change of the default
+ * currency, adds one to it in the same transaction, so a client that caches the project list can
+ * tell whether to read it again. Existing workspaces start at 0.
+ */
+export function catalogRevisionDDL(backend: Backend): string[] {
+  const column = 'catalog_revision';
+  return [
+    `ALTER TABLE ${quote(backend, 'workspaces')} ADD COLUMN ${columnDDL(backend, column, addedColumns.workspaces![column]!)}`,
+  ];
 }
 export function rateLimitDDL(backend: Backend): string[] {
   return [

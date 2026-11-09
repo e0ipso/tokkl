@@ -5,7 +5,7 @@ import type { PhysicalDatabase } from '../physical.ts';
 import type { Repositories } from '../../domain/ports.ts';
 import { booleanValue, entityId, safeInteger } from '../conversion.ts';
 import { StorageConflict } from '../../domain/ports.ts';
-import { catalogWrite, containsName, nameKey } from './catalog-sql.ts';
+import { bumpCatalogRevision, catalogWrite, containsName, nameKey } from './catalog-sql.ts';
 import {
   catalogProjectQuery,
   catalogProjectRefQuery,
@@ -113,6 +113,7 @@ export function createProjectRepository(
           created_at: at,
           updated_at: at,
         });
+        await bumpCatalogRevision(db, input.workspaceId);
         return required(await projects.get(input.workspaceId, id));
       });
     },
@@ -126,6 +127,7 @@ export function createProjectRepository(
           .where('workspace_id', '=', wid)
           .where('id', '=', id)
           .execute();
+        await bumpCatalogRevision(db, wid);
         return required(await projects.get(wid, id));
       });
     },
@@ -142,6 +144,7 @@ export function createProjectRepository(
       if (mode === 'delete') q = q.where('deleted_at', 'is', null);
       await q.execute();
       await db.deleteFrom('projects').where('workspace_id', '=', wid).where('id', '=', id).execute();
+      await bumpCatalogRevision(db, wid);
     },
   };
   return projects;

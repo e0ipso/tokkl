@@ -49,7 +49,7 @@ export interface AccountReadRepositories {
 }
 /** Reads of the clients, projects, tasks and tags in the workspaces a user belongs to. */
 export interface CatalogReadRepositories {
-  workspaces: Pick<WorkspacesReader, 'listForUser'>;
+  workspaces: Pick<WorkspacesReader, 'listForUser' | 'catalogRevision'>;
   clients: Pick<ClientsReader, 'list' | 'get'>;
   projects: Pick<ProjectsReader, 'list' | 'get'>;
   tasks: Pick<TasksReader, 'list' | 'get' | 'listSortKeys' | 'listForMember'>;
@@ -191,6 +191,8 @@ export function createCatalogQueries(r: CatalogReadRepositories) {
       return range ? r.tasks.listForMember(userId, memberTaskFilter(filter), range) : [];
     },
     workspaceProjects: (ws: Workspace, filter?: ProjectFilter) => projectsOf(ws, filter),
+    /** Changes whenever the workspace's v9 project list may answer differently, totals and `status` aside. */
+    catalogRevision: (ws: Workspace): Promise<number> => r.workspaces.catalogRevision(ws.id),
     /** One page of `workspaceProjects`, read from the database as that page only. */
     async workspaceProjectsPage(ws: Workspace, filter: ProjectFilter, window: PageWindow): Promise<WorkspaceProject[]> {
       const range = pageRange(window);

@@ -9,6 +9,7 @@ import { openConnection, openReadConnection, type StorageConnection } from './co
 import type { PhysicalDatabase } from './physical.ts';
 import {
   baselineDDL,
+  catalogRevisionDDL,
   createTableDDL,
   idempotencyDDL,
   indexDDL,
@@ -56,6 +57,7 @@ export function migrations(backend: Backend): readonly Migration[] {
     { version: 5, name: 'rate_limits', statements: rateLimitDDL(backend) },
     { version: 6, name: 'timer_session_entry', statements: timerSessionEntryDDL(backend) },
     { version: 7, name: 'idempotency_keys', statements: idempotencyDDL(backend) },
+    { version: 8, name: 'catalog_revision', statements: catalogRevisionDDL(backend) },
   ];
 }
 const run = (db: Kysely<PhysicalDatabase>, statement: string) => sql.raw(statement).execute(db);

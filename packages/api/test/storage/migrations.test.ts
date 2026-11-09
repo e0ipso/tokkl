@@ -147,6 +147,42 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
   });
 }
 
+for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
+  test(`${backend}: the upgrade starts every workspace's catalog revision at 0`, async () => {
+    const fixture = await disposableBackend(backend);
+    try {
+      const connection = await openConnection<PhysicalDatabase>(fixture.config);
+      try {
+        const available = migrations(backend);
+        await migrate(
+          connection,
+          available.slice(
+            0,
+            available.findIndex(m => m.name === 'catalog_revision'),
+          ),
+        );
+        const times = { created_at: '2026-10-01T00:00:00.000Z', updated_at: '2026-10-01T00:00:00.000Z' };
+        for (const id of [1, 2]) await insert(connection.db, backend, 'workspaces', { id, name: `ws${id}`, ...times });
+        await migrate(connection);
+        assert.deepEqual(
+          (await rows(connection.db, backend, 'workspaces'))
+            .map(row => [Number(row.id), Number(row.catalog_revision)])
+            .sort((a, b) => a[0]! - b[0]!),
+          [
+            [1, 0],
+            [2, 0],
+          ],
+        );
+        await assertSchema(connection.db, backend);
+      } finally {
+        await connection.close();
+      }
+    } finally {
+      await fixture.cleanup();
+    }
+  });
+}
+
 test('supported engine lines are explicit and errors contain no supplied version text', async () => {
   const { assertSupportedEngine } = await import('../../src/storage/migrations.ts');
   for (const [backend, version] of [
