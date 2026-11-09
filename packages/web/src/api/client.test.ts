@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   ApiError,
   DEADLINE_MS,
+  DOWNLOAD_START_MS,
   RequestTimeoutError,
   api,
   download,
@@ -100,10 +101,20 @@ function streaming(pieces: string[], everyMs: number, end = true) {
 
 const exportPath = '/api/app/export.csv';
 
+const flush = () => new Promise(resolve => setImmediate(resolve));
+
 test('a download takes as long as its body keeps coming, past the deadline for its reply to start', async t => {
-  t.mock.method(globalThis, 'fetch', streaming(['a,', 'b,', 'c,', 'd,', 'e,', 'f'], 20));
-  // The body takes 140 ms, more than twice the 50 ms its reply had to start in.
-  const blob = await fetchDownload(exportPath, {}, 50);
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  // One piece every half deadline: the body takes three and a half times as long as the reply had to start in.
+  const every = DOWNLOAD_START_MS / 2;
+  t.mock.method(globalThis, 'fetch', streaming(['a,', 'b,', 'c,', 'd,', 'e,', 'f'], every));
+  let done = false;
+  const pending = fetchDownload(exportPath).finally(() => (done = true));
+  while (!done) {
+    await flush();
+    t.mock.timers.tick(every);
+  }
+  const blob = await pending;
   assert.equal(await blob.text(), 'a,b,c,d,e,f');
   assert.equal(blob.type, 'text/csv');
 });
@@ -119,13 +130,23 @@ test('a download whose body is cut off fails rather than saving a partial file',
     });
     return Promise.resolve(new Response(body, { headers: { 'Content-Type': 'text/csv' } }));
   });
-  await assert.rejects(fetchDownload(exportPath, {}, 1000), TypeError);
+  await assert.rejects(fetchDownload(exportPath), TypeError);
 });
 
-test('a download whose reply never starts fails as timed out', async t => {
+test('a download whose reply never starts fails as timed out once its deadline passes', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
   t.mock.method(globalThis, 'fetch', (_path: string, init: RequestInit) => hang(init.signal!));
+  let failed = false;
+  const pending = fetchDownload(exportPath, { method: 'POST', body: {} }).catch((error: unknown) => {
+    failed = true;
+    throw error;
+  });
+  t.mock.timers.tick(DOWNLOAD_START_MS - 1);
+  await flush();
+  assert.equal(failed, false);
+  t.mock.timers.tick(1);
   await assert.rejects(
-    fetchDownload(exportPath, { method: 'POST', body: {} }, 20),
+    pending,
     (error: unknown) => error instanceof RequestTimeoutError && error.request.method === 'POST',
   );
 });
@@ -145,7 +166,7 @@ const isAbort = (error: unknown) => error instanceof DOMException && error.name 
 test('a download cancelled before its reply starts fails with the cancel, not as timed out', async t => {
   t.mock.method(globalThis, 'fetch', (_path: string, init: RequestInit) => hang(init.signal!));
   const controller = new AbortController();
-  const pending = fetchDownload(exportPath, { method: 'POST', body: {}, signal: controller.signal }, 1000);
+  const pending = fetchDownload(exportPath, { method: 'POST', body: {}, signal: controller.signal });
   controller.abort();
   await assert.rejects(pending, isAbort);
 });
@@ -153,7 +174,7 @@ test('a download cancelled before its reply starts fails with the cancel, not as
 test('a download cancelled while its body arrives stops reading it', async t => {
   t.mock.method(globalThis, 'fetch', streaming(['a,', 'b,', 'c,', 'd'], 20));
   const controller = new AbortController();
-  const pending = fetchDownload(exportPath, { signal: controller.signal }, 1000);
+  const pending = fetchDownload(exportPath, { signal: controller.signal });
   setTimeout(() => controller.abort(), 30);
   await assert.rejects(pending, isAbort);
 });

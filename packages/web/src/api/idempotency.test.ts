@@ -1,10 +1,10 @@
-import { test } from 'node:test';
+import { test, type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { ApiError, RequestTimeoutError } from './client.ts';
 import { clientRequests } from './clients.ts';
 import { ignoreReply } from './decode.ts';
 import { entryRequests } from './entries.ts';
-import { newIdempotencyKey, postCreate, retryWaitMs, sendCreate, type RetryWait } from './idempotency.ts';
+import { newIdempotencyKey, postCreate, sendCreate } from './idempotency.ts';
 import { projectRequests } from './projects.ts';
 import { tagRequests } from './tags.ts';
 
@@ -25,6 +25,23 @@ function answering(...replies: Array<{ status: number; body?: unknown } | { fail
   return { fetch, sent };
 }
 
+const flush = () => new Promise(resolve => setImmediate(resolve));
+
+/** Awaits `pending`, firing every mocked timer it waits on. Mock the timers first. */
+async function runningTimers<T>(t: TestContext, pending: Promise<T>): Promise<T> {
+  let outcome: { value: T } | { error: unknown } | undefined;
+  pending.then(
+    value => (outcome = { value }),
+    (error: unknown) => (outcome = { error }),
+  );
+  while (!outcome) {
+    await flush();
+    t.mock.timers.runAll();
+  }
+  if ('error' in outcome) throw outcome.error;
+  return outcome.value;
+}
+
 test('a key is 32 hex characters, and each one is new', () => {
   const key = newIdempotencyKey();
   assert.match(key, /^[0-9a-f]{32}$/);
@@ -34,64 +51,42 @@ test('a key is 32 hex characters, and each one is new', () => {
 test('a create whose outcome is unknown goes out once more with the same request and key', async t => {
   const { fetch, sent } = answering({ status: 502, body: 'Bad Gateway' }, { status: 200, body: { id: 7 } });
   t.mock.method(globalThis, 'fetch', fetch);
-  assert.deepEqual(await postCreate('/api/v9/workspaces/1/tags', { name: 'retry' }, { decode: value => value }), {
-    id: 7,
-  });
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  assert.deepEqual(
+    await runningTimers(t, postCreate('/api/v9/workspaces/1/tags', { name: 'retry' }, { decode: value => value })),
+    { id: 7 },
+  );
   assert.equal(sent.length, 2);
   assert.ok(sent[0]?.key);
   assert.deepEqual(sent[1], sent[0]);
 });
 
-test('the second attempt waits one jittered step: 1 s plus up to a quarter of it', () => {
-  assert.equal(
-    retryWaitMs(() => 0),
-    1000,
-  );
-  assert.equal(
-    retryWaitMs(() => 0.5),
-    1125,
-  );
-  assert.equal(
-    retryWaitMs(() => 0.999_999),
-    1249,
-  );
-});
-
-/** A `RetryWait` whose sleeps end only when the test calls `wake`, recording each one's length. */
-function heldWait(random: number) {
-  const slept: number[] = [];
-  let wake = () => {};
-  const wait: RetryWait = {
-    random: () => random,
-    sleep: ms => {
-      slept.push(ms);
-      return new Promise(resolve => (wake = resolve));
-    },
-  };
-  return { wait, slept, wake: () => wake() };
-}
-
-test('a create whose outcome is unknown goes out again only after the wait', async () => {
-  const keys: string[] = [];
-  const replies = [() => Promise.reject(new RequestTimeoutError('POST', '/w')), () => Promise.resolve('made')];
-  const { wait, slept, wake } = heldWait(0.2);
-  const sent = sendCreate(
-    'POST /w {}',
-    key => {
+// The second attempt waits 1 s plus up to a quarter of it, as `Math.random` falls.
+for (const [share, waitMs] of [
+  [0, 1000],
+  [0.5, 1125],
+  [0.999_999, 1249],
+] as const)
+  test(`a create whose outcome is unknown goes out again only after the wait: ${waitMs} ms at ${share}`, async t => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    t.mock.method(Math, 'random', () => share);
+    const keys: string[] = [];
+    const replies = [() => Promise.reject(new RequestTimeoutError('POST', '/w')), () => Promise.resolve('made')];
+    const sent = sendCreate('POST /w {}', key => {
       keys.push(key);
       return replies.shift()!();
-    },
-    wait,
-  );
-  await new Promise(resolve => setImmediate(resolve));
-  assert.deepEqual(slept, [1050]);
-  assert.equal(keys.length, 1, 'nothing goes out during the wait');
-  wake();
-  assert.equal(await sent, 'made');
-  assert.deepEqual(keys, [keys[0], keys[0]]);
-});
+    });
+    await flush();
+    t.mock.timers.tick(waitMs - 1);
+    await flush();
+    assert.equal(keys.length, 1, 'nothing goes out during the wait');
+    t.mock.timers.tick(1);
+    assert.equal(await sent, 'made');
+    assert.deepEqual(keys, [keys[0], keys[0]]);
+  });
 
-test('the same request sent again during the wait reuses the key', async () => {
+test('the same request sent again during the wait reuses the key', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
   const keys: string[] = [];
   const replies = [
     () => Promise.reject(new RequestTimeoutError('POST', '/d')),
@@ -102,16 +97,14 @@ test('the same request sent again during the wait reuses the key', async () => {
     keys.push(key);
     return replies.shift()!();
   };
-  const { wait, wake } = heldWait(0);
-  const first = sendCreate('POST /d {}', send, wait);
-  await new Promise(resolve => setImmediate(resolve));
-  assert.equal(await sendCreate('POST /d {}', send, wait), 'replayed by the user');
-  wake();
-  assert.equal(await first, 'replayed by the retry');
+  const first = sendCreate('POST /d {}', send);
+  await flush();
+  assert.equal(await sendCreate('POST /d {}', send), 'replayed by the user');
+  assert.equal(await runningTimers(t, first), 'replayed by the retry');
   assert.deepEqual(keys, [keys[0], keys[0], keys[0]]);
   // Both settled the intent: the same request again is a new one.
   replies.push(() => Promise.resolve('new'));
-  await sendCreate('POST /d {}', send, wait);
+  await sendCreate('POST /d {}', send);
   assert.notEqual(keys[3], keys[0]);
 });
 
@@ -136,10 +129,8 @@ test('a new intent gets a new key, even for the same request', async t => {
   assert.notEqual(sent[1]?.key, sent[0]?.key);
 });
 
-/** A `RetryWait` that waits no time. */
-const noWait: RetryWait = { random: () => 0, sleep: () => Promise.resolve() };
-
-test('a create still unknown after its retry keeps its key for the same request sent again, and only for it', async () => {
+test('a create still unknown after its retry keeps its key for the same request sent again, and only for it', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
   const keys: string[] = [];
   const answer = (reply: () => Promise<string>) => (key: string) => {
     keys.push(key);
@@ -147,7 +138,7 @@ test('a create still unknown after its retry keeps its key for the same request 
   };
   const lost = answer(() => Promise.reject(new RequestTimeoutError('POST', '/x')));
   await assert.rejects(
-    sendCreate('POST /x {"a":1}', lost, noWait),
+    runningTimers(t, sendCreate('POST /x {"a":1}', lost)),
     (error: unknown) => error instanceof RequestTimeoutError,
   );
   assert.equal(keys.length, 2);
@@ -168,7 +159,7 @@ test('a create still unknown after its retry keeps its key for the same request 
   );
   assert.notEqual(keys[3], keys[0]);
   // Another request never reuses a kept key.
-  await assert.rejects(sendCreate('POST /x {"a":2}', lost, noWait));
+  await assert.rejects(runningTimers(t, sendCreate('POST /x {"a":2}', lost)));
   await sendCreate(
     'POST /x {"a":3}',
     answer(() => Promise.resolve('other')),

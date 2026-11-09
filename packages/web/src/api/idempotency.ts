@@ -34,27 +34,15 @@ export function newIdempotencyKey(): string {
 }
 
 /** The shortest wait before a create whose outcome is unknown goes out again, as the desktop app waits. */
-export const RETRY_MIN_MS = 1000;
+const RETRY_MIN_MS = 1000;
 
 /**
  * The wait before the second attempt: `RETRY_MIN_MS` plus a random part of up to a quarter of it,
- * so tabs that one outage failed together do not all come back in the same instant. `random` gives
- * a number from 0 (included) to 1 (excluded), as `Math.random` does.
+ * so tabs that one outage failed together do not all come back in the same instant.
  */
-export function retryWaitMs(random: () => number): number {
-  return RETRY_MIN_MS + Math.floor(random() * (RETRY_MIN_MS / 4));
+function retryWaitMs(): number {
+  return RETRY_MIN_MS + Math.floor(Math.random() * (RETRY_MIN_MS / 4));
 }
-
-/** How `sendCreate` waits before its second attempt: the random source and the timer. */
-export interface RetryWait {
-  random: () => number;
-  sleep: (ms: number) => Promise<void>;
-}
-
-const realWait: RetryWait = {
-  random: Math.random,
-  sleep: ms => new Promise(resolve => setTimeout(resolve, ms)),
-};
 
 /** The kept key of an unsettled create of `request`, or a new one. */
 function intentOf(request: string, now: number): { key: string; since: number } {
@@ -75,17 +63,13 @@ function settle(request: string, intent: { key: string }): void {
  * part of the same write, which, like any write, is never cancelled once sent, because the first
  * attempt may have landed.
  */
-export async function sendCreate<T>(
-  request: string,
-  send: (key: string) => Promise<T>,
-  wait: RetryWait = realWait,
-): Promise<T> {
+export async function sendCreate<T>(request: string, send: (key: string) => Promise<T>): Promise<T> {
   const intent = intentOf(request, Date.now());
   try {
     const reply = await send(intent.key).catch(async (error: unknown) => {
       if (!isOutcomeUnknown(error)) throw error;
       unsettled.set(request, intent);
-      await wait.sleep(retryWaitMs(wait.random));
+      await new Promise(resolve => setTimeout(resolve, retryWaitMs()));
       return send(intent.key);
     });
     settle(request, intent);

@@ -229,22 +229,24 @@ export interface DownloadRequest {
 }
 
 /**
- * Sends a download request and reads the whole reply. The reply must start within `startMs`; the
- * body then takes as long as it takes. A refusal, such as a 503 from a full download lane or a 403
+ * Sends a download request and reads the whole reply. The reply must start within
+ * `DOWNLOAD_START_MS`; the body then takes as long as it takes. A refusal, such as a 503 from a full download lane or a 403
  * for a lost session, fails with its `ApiError` and the server's message. A cancel by `signal`, at
  * any point, fails with the signal's reason, never as timed out.
  */
 export async function fetchDownload(
   path: string,
   { method = 'GET', body, signal }: DownloadRequest = {},
-  startMs: number = DOWNLOAD_START_MS,
 ): Promise<Blob> {
   signal?.throwIfAborted();
   // A controller the body read outlives: an AbortSignal.timeout would cut the body off later.
   const controller = new AbortController();
   const cancel = () => controller.abort(signal?.reason);
   signal?.addEventListener('abort', cancel, { once: true });
-  const timer = setTimeout(() => controller.abort(new DOMException('No reply in time', 'TimeoutError')), startMs);
+  const timer = setTimeout(
+    () => controller.abort(new DOMException('No reply in time', 'TimeoutError')),
+    DOWNLOAD_START_MS,
+  );
   try {
     let response: Response;
     try {
