@@ -131,9 +131,13 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         },
       );
       await t.test(
-        'workspace changes preserve member permissions, rounding validation and currency normalization',
+        "workspace changes are the owner's, with rounding validation and currency normalization",
         async () => {
-          const updated = await operations.updateWorkspace(bob.id, admin.defaultWorkspaceId, {
+          await assert.rejects(
+            operations.updateWorkspace(bob.id, admin.defaultWorkspaceId, { name: 'Member' }),
+            error(403, 'Only the workspace owner can change its settings.'),
+          );
+          const updated = await operations.updateWorkspace(admin.id, admin.defaultWorkspaceId, {
             name: ' Shared ',
             default_currency: 'usd',
             default_hourly_rate: 12.5,
@@ -148,7 +152,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
             error(403, 'User does not have access to this resource.'),
           );
           await assert.rejects(
-            operations.updateWorkspace(bob.id, admin.defaultWorkspaceId, { rounding: 2 }),
+            operations.updateWorkspace(admin.id, admin.defaultWorkspaceId, { rounding: 2 }),
             error(400, 'Invalid rounding'),
           );
         },

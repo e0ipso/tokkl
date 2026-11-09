@@ -33,7 +33,7 @@ import type {
   Workspace,
   WorkspaceMember,
 } from './model.ts';
-import { memberWorkspace } from './membership.ts';
+import { memberWorkspace, ownedWorkspace } from './membership.ts';
 import { getInstanceSettings } from './instanceSettings.ts';
 import { getClient, getProject, getTask } from './catalogs.ts';
 import { getTimeEntry } from './entryAccess.ts';
@@ -144,6 +144,8 @@ export function createAccountQueries(r: AccountReadRepositories, deploymentSessi
     instanceSettings: (): Promise<InstanceSettings> => getInstanceSettings(r, deploymentSessionDays),
     /** 403 unless the user is a member; a missing workspace looks the same. */
     workspace: (userId: Id, workspaceId: Id): Promise<Workspace> => memberWorkspace(r, userId, workspaceId),
+    /** 403 unless the user owns the workspace. */
+    ownedWorkspace: (userId: Id, workspaceId: Id): Promise<Workspace> => ownedWorkspace(r, userId, workspaceId),
     async memberWorkspace(userId: Id, workspaceId: Id): Promise<MemberWorkspace> {
       return withRole(userId, await memberWorkspace(r, userId, workspaceId));
     },
