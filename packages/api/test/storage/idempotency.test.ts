@@ -49,7 +49,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         };
         await runner.transaction(ctx => ctx.idempotencyKeys.insert(record));
         await assert.rejects(
-          runners[1]!.transaction(ctx => ctx.idempotencyKeys.insert(record), { maxAttempts: 1 }),
+          runners[1]!.transaction(ctx => ctx.idempotencyKeys.insert(record)),
           (error: unknown) => error instanceof StorageConflict && error.kind === 'serialization',
         );
       });

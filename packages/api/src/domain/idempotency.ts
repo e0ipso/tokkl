@@ -38,9 +38,9 @@ export async function idempotent<T>(
   userId: Id,
   claim: IdempotencyClaim | undefined,
   steps: IdempotentCreate<T>,
-  now = new Date(),
 ): Promise<T> {
   if (!claim) return steps.create();
+  const now = new Date();
   const cutoff = idempotencyCutoff(now);
   const keyHash = sha256(`${userId}\n${claim.key}`);
   const recorded = await ctx.idempotencyKeys.find(keyHash);

@@ -4,12 +4,7 @@ import { type Kysely } from 'kysely';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import type { PhysicalDatabase } from '../../src/storage/physical.ts';
 import { StorageConflict } from '../../src/domain/ports.ts';
-import {
-  createTransactionRunner,
-  RETRY_BASE_DELAY_MS,
-  RETRY_MAX_DELAY_MS,
-  retryDelay,
-} from '../../src/storage/transactions.ts';
+import { createTransactionRunner } from '../../src/storage/transactions.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 
 function repositoryFactory(db: Kysely<PhysicalDatabase>) {
@@ -156,57 +151,43 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
   );
 }
 
-test('sqlite: a conflicted attempt reruns after a bounded, jittered wait', async () => {
+test('sqlite: a conflicted attempt reruns twice, after jittered waits that double', async t => {
   const fixture = await disposableBackend('sqlite');
   const connection = await initializeDatabase(fixture.config);
-  const waits: number[] = [];
-  const shares = [0, 0.5, 0.999];
-  const runner = createTransactionRunner(connection, repositoryFactory, {
-    random: () => shares.shift()!,
-    async sleep(milliseconds) {
-      waits.push(milliseconds);
-    },
-  });
+  const runner = createTransactionRunner(connection, repositoryFactory);
+  const shares = [0, 0.5];
+  t.mock.method(Math, 'random', () => shares.shift() ?? 0);
+  const timeout = t.mock.method(globalThis, 'setTimeout');
+  const waits = () => timeout.mock.calls.map(call => call.arguments[1]);
   try {
     let attempts = 0;
-    await runner.transaction(
-      async ctx => {
-        await ctx.settings.put(`retry-${attempts}`, 'yes');
-        if (++attempts < 4) throw new StorageConflict(attempts === 2 ? 'deadlock' : 'serialization');
-      },
-      { maxAttempts: 4 },
-    );
-    assert.equal(attempts, 4);
-    assert.deepEqual(waits, [RETRY_BASE_DELAY_MS / 2, RETRY_BASE_DELAY_MS * 1.5, RETRY_BASE_DELAY_MS * 4 * 0.9995]);
-    // A conflict that is not retryable, or one on the last attempt, fails without waiting.
+    await runner.transaction(async ctx => {
+      await ctx.settings.put(`retry-${attempts}`, 'yes');
+      if (++attempts < 3) throw new StorageConflict(attempts === 2 ? 'deadlock' : 'serialization');
+    });
+    assert.equal(attempts, 3);
+    // Half of a 10 ms ceiling plus no share, then half of 20 ms plus half the rest.
+    assert.deepEqual(waits(), [5, 15]);
+    // A conflict that is not retryable fails at once; a third retryable one fails without a wait.
     await assert.rejects(
       runner.transaction(async () => {
         throw new StorageConflict('unique');
       }),
+      (error: unknown) => error instanceof StorageConflict && error.kind === 'unique',
     );
+    assert.equal(waits().length, 2);
+    attempts = 0;
     await assert.rejects(
-      runner.transaction(
-        async () => {
-          throw new StorageConflict('serialization');
-        },
-        { maxAttempts: 1 },
-      ),
+      runner.transaction(async () => {
+        attempts++;
+        throw new StorageConflict('serialization');
+      }),
+      (error: unknown) => error instanceof StorageConflict && error.kind === 'serialization',
     );
-    assert.equal(waits.length, 3);
+    assert.equal(attempts, 3);
+    assert.equal(waits().length, 4);
   } finally {
     await connection.close();
     await fixture.cleanup();
-  }
-});
-
-test('retry waits double from the base and never pass the cap', () => {
-  for (let failed = 1; failed <= 10; failed++) {
-    const ceiling = Math.min(RETRY_MAX_DELAY_MS, RETRY_BASE_DELAY_MS * 2 ** (failed - 1));
-    assert.equal(
-      retryDelay(failed, () => 0),
-      ceiling / 2,
-    );
-    assert.ok(retryDelay(failed, () => 0.9999) < ceiling);
-    assert.ok(retryDelay(failed, () => 7) <= RETRY_MAX_DELAY_MS);
   }
 });
