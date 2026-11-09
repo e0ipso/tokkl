@@ -3,12 +3,13 @@
 // The timer and the Pomodoro session of the shared core on D-Bus, as
 // org.tokkl.Timer1 (described in dbus/org.tokkl.Timer1.xml). The service
 // maps the core's properties onto the interface and forwards the methods;
-// the rules stay in the core. It builds none of the objects it serves:
-// main.cpp, the daemon's composition root, makes the connection, the timer
-// and its state client, the session, the preferences client, the sound
-// choices and the settings file they keep the per-device state in, and the
-// ConfigurationAdapter that answers Configure, and the PomodoroAlarm on the
-// same session and sound choices, then hands them over.
+// the rules stay in the core. It builds none of the objects it serves.
+// main.cpp, the daemon's composition root, has the core's TimerStack build
+// the connection, the state client, the timer, the session and the
+// preferences client. It makes the settings file that keeps the per-device
+// state, the sound choices, the ConfigurationAdapter that answers Configure
+// and the PomodoroAlarm on the stack's session itself, then hands them all
+// over.
 
 #include <QDBusConnection>
 #include <QDBusContext>
