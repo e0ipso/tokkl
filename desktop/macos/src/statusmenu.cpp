@@ -34,7 +34,7 @@ StatusMenu::StatusMenu(TimerController &timer, PomodoroSession &session, Pomodor
 
     m_startStopAction = m_menu->addAction(QString());
     connect(m_startStopAction, &QAction::triggered, this, [this] {
-        if (m_timer.isRunning() || m_timer.isPaused()) {
+        if (actions().run.label == QLatin1String("stop")) {
             m_timer.stop();
         } else {
             m_timer.start();
