@@ -5,7 +5,7 @@ import type { Backend } from '../../src/storage/config.ts';
 import { createStorage } from '../../src/storage/index.ts';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createApp } from '../../src/app.ts';
-import { ReportRunner } from '../../src/services/reportRunner.ts';
+import { createReportRunner } from '../../src/reportRunners.ts';
 import { createAccountEntryEffects } from '../../src/domain/timerEffects.ts';
 import { withBodies } from '../fixtures/accountBodies.ts';
 import { createSessionAccountOperations } from '../../src/services/application.ts';
@@ -47,7 +47,7 @@ test('SQLite authenticated reads reject a replacement account with reused IDs', 
     storage,
     config: { ...testConfig(), storage: fixture.config },
     setup: { code: null },
-    reports: new ReportRunner(fixture.config, storage, { startWorker: workers.startWorker }),
+    reports: createReportRunner(fixture.config, storage, { startWorker: workers.startWorker }),
   });
   const server = await serveInvariant(app),
     services = app.locals.services;
@@ -130,7 +130,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
       storage,
       config: { ...testConfig(), storage: fixture.config },
       setup: { code: null },
-      reports: new ReportRunner(fixture.config, storage, { startWorker: workers.startWorker }),
+      reports: createReportRunner(fixture.config, storage, { startWorker: workers.startWorker }),
     });
     const server = await serveInvariant(app),
       services = app.locals.services;
@@ -217,7 +217,7 @@ test('SQLite queued HTTP reports reject a replacement account with reused IDs', 
     storage,
     config: { ...testConfig(), storage: fixture.config },
     setup: { code: null },
-    reports: new ReportRunner(fixture.config, storage, { startWorker: workers.startWorker }),
+    reports: createReportRunner(fixture.config, storage, { startWorker: workers.startWorker }),
   });
   const server = await serveInvariant(app),
     services = app.locals.services;

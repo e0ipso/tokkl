@@ -5,7 +5,7 @@
  */
 import type { Storage } from '../domain/ports.ts';
 import type { Id } from '../domain/model.ts';
-import type { TimerBus } from '../storage/timerBus.ts';
+import type { TimerBus } from '../domain/ports.ts';
 import { createTimerOperations } from '../domain/timers.ts';
 import { buildTimerView, type TimerView } from '../domain/timerView.ts';
 import type { Logger } from '../lib/logger.ts';

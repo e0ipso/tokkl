@@ -4,9 +4,8 @@
  * `app.ts` builds. Each operation opens its own transaction and binds what it publishes, so a route parses, calls one
  * operation and presents the answer. Framework-free; `app.ts` composes them with the HTTP adapters.
  */
-import type { Repositories, Storage } from '../domain/ports.ts';
+import type { Repositories, Storage, TimerBus } from '../domain/ports.ts';
 import type { Id, User } from '../domain/model.ts';
-import { createLocalTimerBus, type TimerBus } from '../storage/timerBus.ts';
 import type { InviteRequest, ProfileUpdate, SettingChanges } from '../domain/accountCommands.ts';
 import {
   createAccountOperations,
@@ -44,8 +43,8 @@ export interface ApplicationServiceOptions {
   /** Runs reports and export assemblies. The services close it when they close. */
   reports: ReportExecutor;
   streamOptions?: TimerStreamOptions;
-  /** Signals timer revisions to other processes. Defaults to the single-process bus. */
-  bus?: TimerBus;
+  /** Signals timer revisions to other processes. */
+  bus: TimerBus;
   logger?: Logger;
   /** The deployment's session length, used until an admin stores one. */
   sessionDays: number;
@@ -147,7 +146,7 @@ export function createApplicationServices({
   storage,
   reports,
   streamOptions,
-  bus = createLocalTimerBus(),
+  bus,
   logger = silentLogger,
   sessionDays,
   imports,

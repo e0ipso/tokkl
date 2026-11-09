@@ -1,12 +1,16 @@
+/**
+ * The entry point of a report worker thread: it opens its own read-only reader for the storage
+ * configuration in `workerData` and runs the jobs the runner posts, one at a time.
+ */
 import { parentPort, workerData } from 'node:worker_threads';
-import type { StorageConfig } from '../storage/config.ts';
-import { openReportReader } from '../storage/repositories/report-reader.ts';
-import type { ReportWork } from './reportExecution.ts';
-import { EXPORT_BYTES_AHEAD } from './exportJobs.ts';
-import { isDownload, runDownloadJob } from './downloadJobs.ts';
-import { runReportJob } from './reportJobs.ts';
-import { ApplicationError } from '../lib/errors.ts';
-import { redactedDiagnostic } from '../lib/logger.ts';
+import type { StorageConfig } from './storage/config.ts';
+import { openReportReader } from './storage/repositories/report-reader.ts';
+import type { ReportWork } from './services/reportExecution.ts';
+import { EXPORT_BYTES_AHEAD } from './services/exportJobs.ts';
+import { isDownload, runDownloadJob } from './services/downloadJobs.ts';
+import { runReportJob } from './services/reportJobs.ts';
+import { ApplicationError } from './lib/errors.ts';
+import { redactedDiagnostic } from './lib/logger.ts';
 
 export interface ReportRequest {
   id: number;

@@ -6,7 +6,8 @@ import type { Authentication } from '../src/domain/credentials.ts';
 import { parseStartTimer } from '../src/commands/timers.ts';
 import { ApplicationError } from '../src/lib/errors.ts';
 import { createApplicationServices } from '../src/services/application.ts';
-import { ReportRunner } from '../src/services/reportRunner.ts';
+import { createLocalTimerBus } from '../src/storage/timerBus.ts';
+import { createReportRunner } from '../src/reportRunners.ts';
 
 const INLINE = { backend: 'sqlite' as const, filename: ':memory:', busyTimeoutMs: 5000 };
 const refused = (error: unknown) =>
@@ -17,8 +18,8 @@ const refused = (error: unknown) =>
 async function signedIn(t: TestContext) {
   const db = await openSQLiteDatabase();
   const storage = storageFor(db);
-  const reports = new ReportRunner(INLINE, { readSnapshot: () => Promise.reject(new Error('unused')) });
-  const services = createApplicationServices({ storage, reports, sessionDays: 30 });
+  const reports = createReportRunner(INLINE, { readSnapshot: () => Promise.reject(new Error('unused')) });
+  const services = createApplicationServices({ storage, reports, bus: createLocalTimerBus(), sessionDays: 30 });
   t.after(() => services.close());
   const user = await insertAccount(db, {
     email: 'guarded@example.test',

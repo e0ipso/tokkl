@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import type { Request, Response } from 'express';
 import { errorHandler, errorReply } from '../src/http/errors.ts';
 import { redactedDiagnostic, type Logger } from '../src/lib/logger.ts';
-import { ReportRunner } from '../src/services/reportRunner.ts';
+import { createReportRunner } from '../src/reportRunners.ts';
 import { runReport } from './fixtures/reportRunner.ts';
 import {
   conflict,
@@ -115,7 +115,7 @@ test('a cancellation while the client is still connected answers as before', () 
 });
 
 test('the report runner refuses an aborted request with a cancellation, not a failure', async () => {
-  const runner = new ReportRunner(
+  const runner = createReportRunner(
     { backend: 'sqlite', filename: ':memory:', busyTimeoutMs: 5000 },
     {
       readSnapshot: () => Promise.reject(new Error('unused')),
@@ -159,7 +159,7 @@ test('an unexpected inline report failure is logged with its job, not its messag
     error: (message, fields) => lines.push({ message, fields }),
     child: () => logger,
   };
-  const runner = new ReportRunner(
+  const runner = createReportRunner(
     { backend: 'sqlite', filename: ':memory:', busyTimeoutMs: 5000 },
     { readSnapshot: () => Promise.reject(new Error('relation "time_entries" holds private rows')) },
     { logger },
