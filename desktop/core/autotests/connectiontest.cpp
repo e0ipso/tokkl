@@ -886,20 +886,25 @@ private Q_SLOTS:
         f.connection.setEmail(QStringLiteral("bea@example.test"));
         f.connection.setInstanceUrl(instance);
         QTRY_COMPARE(f.transport.requests.size(), 1);
-        f.transport.respondLast(FakeTransport::answer(429, "\"Too many failed login attempts, try again later\"", "1"));
+        f.transport.respondLast(FakeTransport::answer(429, "\"Too many failed login attempts, try again later\"", "120"));
         QCOMPARE(f.connection.state(), Connection::RateLimited);
-        QVERIFY(f.connection.rateLimitedUntil().isValid());
+        QCOMPARE(f.connection.rateLimitedUntil(), f.clock.now().addSecs(120));
         QVERIFY(f.connection.errorString().contains(QLatin1String("Too many")));
         QVERIFY(!f.connection.canWrite());
 
         // Nothing is sent during the cooldown, even on explicit reconnect.
+        // The wait runs on the connection's clock.
+        f.clock.advance(119000);
         f.connection.refreshAccount();
         f.connection.reconnect();
-        QTest::qWait(300);
+        QTest::qWait(10);
         QCOMPARE(f.transport.requests.size(), 1);
+        QCOMPARE(f.connection.state(), Connection::RateLimited);
 
         // Afterwards the connection validates again by itself.
-        QTRY_COMPARE_WITH_TIMEOUT(f.transport.requests.size(), 2, 3000);
+        f.clock.advance(1000);
+        QVERIFY(!f.connection.rateLimitedUntil().isValid());
+        QTRY_COMPARE(f.transport.requests.size(), 2);
         f.transport.respondLast(FakeTransport::answer(200, meBody(3, 7)));
         QCOMPARE(f.connection.state(), Connection::Connected);
         QVERIFY(!f.connection.rateLimitedUntil().isValid());
@@ -919,8 +924,7 @@ private Q_SLOTS:
         // The account stays; only requests wait.
         QVERIFY(f.connection.isConnected());
         QVERIFY(!f.connection.canWrite());
-        const qint64 wait = QDateTime::currentDateTimeUtc().msecsTo(f.connection.rateLimitedUntil());
-        QVERIFY2(wait > Cooldown::defaultMs - 5000 && wait <= Cooldown::defaultMs, qPrintable(QString::number(wait)));
+        QCOMPARE(f.clock.now().msecsTo(f.connection.rateLimitedUntil()), Cooldown::defaultMs);
 
         const qsizetype sent = f.transport.requests.size();
         std::optional<ApiResult<TimerState>> refused;
@@ -930,6 +934,22 @@ private Q_SLOTS:
         QTRY_VERIFY(refused.has_value());
         QVERIFY(refused->error.kind == ApiError::Kind::RateLimited);
         QCOMPARE(f.transport.requests.size(), sent);
+    }
+
+    // A clock set back so far that more than the longest wait remains ends
+    // the cooldown on the next tick, instead of blocking for the time it
+    // went back.
+    void rateLimitEndsWhenTheClockIsSetBack()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f));
+        f.connection.fetchProjects();
+        f.transport.respondLast(FakeTransport::answer(429, "\"Too many requests\"", "120"));
+        QCOMPARE(f.connection.state(), Connection::RateLimited);
+        f.clock.advance(-2 * Cooldown::maxMs);
+        QCOMPARE(f.connection.state(), Connection::Connected);
+        QVERIFY(!f.connection.rateLimitedUntil().isValid());
+        QVERIFY(f.connection.canWrite());
     }
 
     // A 503 that says when to come back starts the same cooldown as a 429:
@@ -949,8 +969,7 @@ private Q_SLOTS:
             QCOMPARE(f.connection.state(), Connection::RateLimited);
             QVERIFY(f.connection.isConnected());
             QVERIFY(!f.connection.canWrite());
-            const qint64 wait = QDateTime::currentDateTimeUtc().msecsTo(f.connection.rateLimitedUntil());
-            QVERIFY2(wait > 115000 && wait <= 120000, qPrintable(QString::number(wait)));
+            QCOMPARE(f.clock.now().msecsTo(f.connection.rateLimitedUntil()), 120000);
             const qsizetype sent = f.transport.requests.size();
             f.connection.fetchTimerState();
             QTest::qWait(10);
@@ -963,7 +982,8 @@ private Q_SLOTS:
             QTRY_COMPARE(f.transport.requests.size(), 1);
             f.transport.respondLast(FakeTransport::answer(503, QByteArray(), "1"));
             QCOMPARE(f.connection.state(), Connection::RateLimited);
-            QTRY_COMPARE_WITH_TIMEOUT(f.transport.requests.size(), 2, 3000);
+            f.clock.advance(1000);
+            QTRY_COMPARE(f.transport.requests.size(), 2);
             f.transport.respondLast(FakeTransport::answer(200, meBody(3, 7)));
             QCOMPARE(f.connection.state(), Connection::Connected);
         }

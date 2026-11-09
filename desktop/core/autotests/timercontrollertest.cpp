@@ -2026,7 +2026,7 @@ private Q_SLOTS:
         for (int i = 0; i < 30; ++i) {
             f.clock.advance(1000);
         }
-        f.respond(f.last("GET", statePath), FakeTransport::answer(429, "\"Too many requests\"", "1"));
+        f.respond(f.last("GET", statePath), FakeTransport::answer(429, "\"Too many requests\"", "60"));
         QCOMPARE(f.timer.connectionState(), Connection::RateLimited);
         QVERIFY(!f.timer.canWrite());
         QVERIFY(!f.timer.errorString().isEmpty());
@@ -2040,12 +2040,13 @@ private Q_SLOTS:
         QVERIFY(!f.timer.start());
         QCOMPARE(f.transport.requests.size(), requests);
 
-        // The connection's cooldown runs on real time; its end reads again.
-        QVERIFY(QTest::qWaitFor(
-            [&] {
-                return f.timer.connectionState() == Connection::Connected;
-            },
-            5000));
+        // The cooldown runs on the clock; the tick that ends it reads again.
+        for (int i = 0; i < 28; ++i) {
+            f.clock.advance(1000);
+        }
+        QCOMPARE(f.timer.connectionState(), Connection::RateLimited);
+        f.clock.advance(1000);
+        QCOMPARE(f.timer.connectionState(), Connection::Connected);
         QVERIFY(f.unanswered(f.last("GET", statePath)));
         QVERIFY(f.transport.requests.size() > requests);
     }
@@ -2058,11 +2059,8 @@ private Q_SLOTS:
         f.respond(f.last("POST", startPath), FakeTransport::answer(429, "\"Too many requests\"", "1"));
         QVERIFY(!f.timer.isBusy());
         QVERIFY(!f.timer.canWrite());
-        QVERIFY(QTest::qWaitFor(
-            [&] {
-                return f.timer.connectionState() == Connection::Connected;
-            },
-            5000));
+        f.clock.advance(1000);
+        QCOMPARE(f.timer.connectionState(), Connection::Connected);
         QVERIFY(f.timer.canWrite());
         QCOMPARE(f.find("POST", startPath).size(), 1);
     }
