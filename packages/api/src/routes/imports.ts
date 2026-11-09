@@ -57,11 +57,11 @@ function startJsonImport(deps: ImportRouteDeps, req: Request, res: Response) {
 }
 
 /**
- * The account imports under `/api/app`. `createApp` mounts this router before the API's 1 MB body
- * parser: each route authenticates, CSRF check included, and takes an import place sized by the
- * file's declared length before it reads its body, so only a signed-in user with a free place can
- * make the server hold a large one. A request that goes away cancels its import, which then rolls
- * back whole.
+ * The account imports under `/api/app`. `createHttpApp` in `app.ts` mounts this router before the
+ * API's 1 MB body parser: each route authenticates, CSRF check included, and takes an import place
+ * sized by the file's declared length before it reads its body, so only a signed-in user with a
+ * free place can make the server hold a large one. A request that goes away cancels its import,
+ * which then rolls back whole.
  */
 export function importRoutes(deps: ImportRouteDeps): Router {
   const api = createRouter();
