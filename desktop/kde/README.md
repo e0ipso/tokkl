@@ -438,7 +438,7 @@ pause chain and the session all come from it.
   no clear answer (no response, timeout, 5xx or an unreadable body)
   the timer stays busy until a read shows what the server did. Start and
   Start session carry an `Idempotency-Key`, a new one per click, and go out
-  once more at once with the same body and key, so a server that acted on
+  once more about a second later with the same body and key, so a server that acted on
   the first answers with what it did then. Nothing else is sent again. A 409 on a timer action adopts the state the server sent
   and shows "The timer changed on another device first."; any other refusal
   reads the state again.

@@ -1779,8 +1779,8 @@ private Q_SLOTS:
         }
     }
 
-    // A start whose outcome is unknown goes out once more at once, with the
-    // same body and Idempotency-Key, so the server answers what the first
+    // A start whose outcome is unknown goes out once more after one retry
+    // wait, with the same body and Idempotency-Key, so the server answers what the first
     // did if it acted. When that is unknown too, the timer stays busy until
     // a read shows the server's state, and nothing is sent again.
     void ambiguousStartGoesOutOnceMoreWithItsKey()
@@ -1801,7 +1801,8 @@ private Q_SLOTS:
         };
         f.respond(post, responses[failure]);
         QVERIFY(f.timer.isBusy());
-        QCOMPARE(f.find("POST", startPath).size(), 2);
+        QCOMPARE(f.find("POST", startPath).size(), 1);
+        QTRY_COMPARE(f.find("POST", startPath).size(), 2);
         const qsizetype again = f.last("POST", startPath);
         QCOMPARE(f.transport.requests.at(again).body, first.body);
         QCOMPARE(f.transport.requests.at(again).idempotencyKey, first.idempotencyKey);
@@ -1843,8 +1844,8 @@ private Q_SLOTS:
         QVERIFY(f.timer.start());
         const qsizetype post = f.last("POST", startPath);
         f.respond(post, FakeTransport::failure(HttpResponse::Outcome::Timeout));
+        QTRY_VERIFY(f.last("POST", startPath) != post);
         const qsizetype again = f.last("POST", startPath);
-        QVERIFY(again != post);
         f.respond(again, f.stateAnswer(entryBody(30, 7, clockText(f.clock.now()))));
         QVERIFY(!f.timer.isBusy());
         QVERIFY(f.timer.isRunning());

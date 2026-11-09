@@ -46,7 +46,7 @@ class ProjectLoader;
 // the running entry, so a change elsewhere that leaves it running does not
 // refuse it; it gets a 409 only once that entry stopped. Each start carries
 // an Idempotency-Key of its own, and one whose outcome is unknown goes out
-// once more with it. A failure that leaves the outcome unknown (no answer,
+// once more with it after a short wait. A failure that leaves the outcome unknown (no answer,
 // timeout, 5xx, unreadable answer) keeps the timer busy while the client
 // settles it, until a read sent after the failure brings a state. Nothing
 // else is ever sent again.

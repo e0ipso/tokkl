@@ -30,6 +30,17 @@ Q_SIGNALS:
     void ticked();
 };
 
+// The first wait of a retry, and the share of a wait a retry may add at
+// random.
+inline constexpr int retryMinMs = 1000;
+inline constexpr int retryJitterDivisor = 4;
+
+// The wait of a retry: baseMs plus up to a quarter of it more, at random, so
+// that devices that lost the server at the same moment do not all come back
+// at the same moment. The random part is the clock's jitter, or the
+// system's without a clock.
+int retryWaitMs(int baseMs, const Clock *clock);
+
 // The system clock. Each tick is aimed just past the next whole second, so
 // the timer does not drift away from the second boundary.
 class SystemClock : public Clock

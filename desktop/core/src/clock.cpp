@@ -5,6 +5,20 @@
 namespace Tokkl
 {
 
+namespace
+{
+int randomBelow(int boundMs)
+{
+    return boundMs > 0 ? int(QRandomGenerator::global()->bounded(boundMs)) : 0;
+}
+}
+
+int retryWaitMs(int baseMs, const Clock *clock)
+{
+    const int boundMs = baseMs / retryJitterDivisor;
+    return baseMs + (clock ? clock->jitterMs(boundMs) : randomBelow(boundMs));
+}
+
 SystemClock::SystemClock(QObject *parent)
     : Clock(parent)
 {
@@ -24,7 +38,7 @@ QDateTime SystemClock::now() const
 
 int SystemClock::jitterMs(int boundMs) const
 {
-    return boundMs > 0 ? int(QRandomGenerator::global()->bounded(boundMs)) : 0;
+    return randomBelow(boundMs);
 }
 
 void SystemClock::schedule()

@@ -134,7 +134,8 @@ public:
     // outcome. Pause, resume, discard, next phase, end and a Pomodoro start
     // apply only to the state at revision, the one the user saw. A Pomodoro
     // start carries an Idempotency-Key of its own, and one whose outcome is
-    // unknown goes out once more with it (ApiClient::keyedAction()).
+    // unknown goes out once more with it after a short wait
+    // (ApiClient::keyedAction()).
     void pauseTimer(qint64 revision, ActionCallback done = {});
     void resumeTimer(qint64 revision, ActionCallback done = {});
     void discardPause(qint64 revision, ActionCallback done = {});

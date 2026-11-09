@@ -3,10 +3,13 @@
 // it drops. connectiontest covers the same paths through AuthSession.
 
 #include "apiclient.h"
+#include "clock.h"
 #include "fakes.h"
 
 #include <QSignalSpy>
 #include <QTest>
+
+#include <memory>
 
 using namespace Tokkl;
 
@@ -221,9 +224,9 @@ private Q_SLOTS:
         QCOMPARE(session.failures.first().second, ApiAccess::Write);
     }
 
-    // A keyed action whose outcome is unknown goes out once more at once,
-    // with the same body and key, and the second answer is the one
-    // reported. A plain action carries no key and is never sent again.
+    // A keyed action whose outcome is unknown goes out once more after one
+    // retry wait, with the same body and key, and the second answer is the
+    // one reported. A plain action carries no key and is never sent again.
     void aKeyedActionWithoutAnAnswerGoesOutOnceMore()
     {
         FakeTransport transport;
@@ -238,7 +241,10 @@ private Q_SLOTS:
         QCOMPARE(transport.requests.first().idempotencyKey, key);
         transport.respondLast(FakeTransport::answer(502, "\"Bad gateway\""));
         QVERIFY(received.isEmpty());
-        QCOMPARE(transport.requests.size(), 2);
+        // Not at once: the same failure would likely answer.
+        QTest::qWait(retryMinMs / 2);
+        QCOMPARE(transport.requests.size(), 1);
+        QTRY_COMPARE(transport.requests.size(), 2);
         QCOMPARE(transport.requests.last().body, QByteArray(R"({"revision":3})"));
         QCOMPARE(transport.requests.last().idempotencyKey, key);
         transport.respondLast(FakeTransport::failure(HttpResponse::Outcome::Timeout));
@@ -282,6 +288,71 @@ private Q_SLOTS:
         QCOMPARE(transport.requests.size(), 3);
         QCOMPARE(received.size(), 3);
         QCOMPARE(received.last().outcome, TimerActionResult::Outcome::Unknown);
+    }
+
+    // The wait before the second send ends with the generation or the
+    // client: nothing goes out, and done never runs.
+    void theResendWaitEndsWithTheGenerationOrTheClient_data()
+    {
+        QTest::addColumn<bool>("newGeneration");
+        QTest::newRow("new generation") << true;
+        QTest::newRow("client gone") << false;
+    }
+
+    void theResendWaitEndsWithTheGenerationOrTheClient()
+    {
+        QFETCH(bool, newGeneration);
+        FakeTransport transport;
+        ScriptedSession session;
+        auto client = std::make_unique<ApiClient>(&transport, session);
+        bool called = false;
+        client->keyedAction(testUrl, "{}", "k1", [&called](const TimerActionResult &) {
+            called = true;
+        });
+        transport.respondLast(FakeTransport::failure(HttpResponse::Outcome::Timeout));
+        if (newGeneration) {
+            ++session.currentGeneration;
+        } else {
+            client.reset();
+        }
+        QTest::qWait(retryWaitMs(retryMinMs, nullptr) + retryMinMs);
+        QCOMPARE(transport.requests.size(), 1);
+        QVERIFY(!called);
+    }
+
+    // The session may refuse by the time the wait ends, as during a
+    // cooldown: the first answer is reported.
+    void aRefusalAfterTheWaitReportsTheFirstAnswer()
+    {
+        FakeTransport transport;
+        ScriptedSession session;
+        ApiClient client(&transport, session);
+        std::optional<TimerActionResult> received;
+        client.keyedAction(testUrl, "{}", "k1", [&received](const TimerActionResult &result) {
+            received = result;
+        });
+        transport.respondLast(FakeTransport::failure(HttpResponse::Outcome::Timeout));
+        QVERIFY(!received);
+        session.refuse = ApiError{ApiError::Kind::RateLimited, 0, QStringLiteral("wait")};
+        QTRY_VERIFY(received.has_value());
+        QCOMPARE(received->outcome, TimerActionResult::Outcome::Unknown);
+        QCOMPARE(transport.requests.size(), 1);
+    }
+
+    // One retry wait: retryMinMs plus up to a quarter more from the clock's
+    // jitter, the same rule as the state client's reconnect.
+    void theRetryWaitAddsUpToAQuarter()
+    {
+        FakeClock clock;
+        QCOMPARE(retryWaitMs(1000, &clock), 1000);
+        clock.jitter = 249;
+        QCOMPARE(retryWaitMs(1000, &clock), 1249);
+        clock.jitter = 5000;
+        QCOMPARE(retryWaitMs(1000, &clock), 1249);
+        for (int i = 0; i < 20; ++i) {
+            const int wait = retryWaitMs(retryMinMs, nullptr);
+            QVERIFY(wait >= retryMinMs && wait < retryMinMs + retryMinMs / retryJitterDivisor);
+        }
     }
 
     void newIdempotencyKeysAreDistinctHex()

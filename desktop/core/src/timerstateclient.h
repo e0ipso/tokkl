@@ -1,6 +1,7 @@
 #pragma once
 
 #include "apitypes.h"
+#include "clock.h"
 #include "connection.h"
 #include "sessionstate.h"
 
@@ -14,8 +15,6 @@
 
 namespace Tokkl
 {
-
-class Clock;
 
 // The account's timer state as the server holds it, shared by every desktop
 // companion.
@@ -42,10 +41,10 @@ class Clock;
 // Actions go through the client so it adopts the state they return, the new
 // one or, on a 409, the server's current one. A start or Pomodoro start
 // whose outcome is unknown goes out once more with the same Idempotency-Key
-// (Connection::startTimer()); after an unknown outcome the client sends
-// nothing again: it is settling until a read sent after the outcome brings
-// a state. A read already on its way does not count, as the
-// server may have answered it before the action. While settling, a failed
+// after a short wait (Connection::startTimer()); after an unknown outcome
+// the client sends nothing again: it is settling until a read sent after
+// the outcome brings a state. A read already on its way does not count, as
+// the server may have answered it before the action. While settling, a failed
 // read is tried again every 30 s, also while the stream delivers.
 //
 // A Pomodoro session reads it as a SessionState. A new generation emits
@@ -65,13 +64,11 @@ public:
     static constexpr int pollIntervalMs = 30000;
     // A tick this late means the machine slept or the clock jumped.
     static constexpr int resumeGapMs = 10000;
-    static constexpr int reconnectMinMs = 1000;
+    static constexpr int reconnectMinMs = retryMinMs;
     static constexpr int reconnectMaxMs = 60000;
-    // A reconnect waits up to this share of its backoff longer, at random.
-    static constexpr int reconnectJitterDivisor = 4;
-    // The longest wait for a reconnect; a later one means the clock was set
-    // back.
-    static constexpr int reconnectLongestMs = reconnectMaxMs + reconnectMaxMs / reconnectJitterDivisor;
+    // The longest wait for a reconnect (retryWaitMs()); a later one means
+    // the clock was set back.
+    static constexpr int reconnectLongestMs = reconnectMaxMs + reconnectMaxMs / retryJitterDivisor;
     // More than any state. A stream that sends more for one event, counted
     // from the end of the last one as the bytes arrive, is dropped before
     // the event is read.

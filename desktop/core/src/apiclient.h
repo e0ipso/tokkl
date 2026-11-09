@@ -97,10 +97,12 @@ public:
     // 409 with the server's state, nothing changed, and an unknown outcome.
     void action(const QUrl &url, const QByteArray &body, ActionCallback done);
     // An action that creates something, sent with idempotencyKey. When its
-    // outcome is unknown it goes out once more at once, with the same body
-    // and key, so the server answers what the first one did if it acted,
-    // and acts now if it did not. done gets the second answer, or the first
-    // when the session refuses the second.
+    // outcome is unknown it goes out once more after one retry wait
+    // (retryWaitMs() from retryMinMs), with the same body and key, so the
+    // server answers what the first one did if it acted, and acts now if it
+    // did not. done gets the second answer, or the first when the session
+    // refuses the second. A new generation during the wait drops it, and
+    // done never runs, like an answer of an earlier generation.
     void keyedAction(const QUrl &url, const QByteArray &body, const QByteArray &idempotencyKey, ActionCallback done);
 
     // A new Idempotency-Key: 32 random hex digits. One stands for one user
@@ -127,8 +129,9 @@ private:
     void request(const QByteArray &method, const QUrl &url, const QByteArray &body, ApiAccess access, BodyReader read, Completion finish);
     // Sends a timer action without asking the session.
     void sendAction(const QUrl &url, const QByteArray &body, const QByteArray &idempotencyKey, ActionCallback done);
-    // Runs f from the event loop, unless the generation changes first.
-    void later(std::function<void()> f);
+    // Runs f from the event loop after delayMs, unless the generation
+    // changes or the client goes first.
+    void later(std::function<void()> f, int delayMs = 0);
 
     QPointer<Transport> m_transport;
     ApiSession &m_session;
