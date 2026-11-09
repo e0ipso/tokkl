@@ -67,7 +67,7 @@ To upgrade, install the new zip, then log out and in. To remove it, run `gnome-e
 
 ### Supported service versions
 
-The extension updates from extensions.gnome.org and the service from a package, so a new extension often talks to an older `tokkl-timerd`. The oldest service it supports is InterfaceVersion 2, the first `tokkl-timerd` after 2.1.0 and the first released version: version 1 only ever existed in development builds. `OLDEST_SUPPORTED_INTERFACE_VERSION` in `extension/timer1.js` states the same floor. Against an older service, or one without the `InterfaceVersion` property, the menu shows "This timer service is too old; update tokkl-timerd." with nothing to choose, the extension settings show the same line with their rows insensitive, and neither calls any of its methods. The service in turn needs a Tokkl server from the first release after 2.1.0, and says so in its `ErrorString` against an older one.
+The extension updates from extensions.gnome.org and the service from a package, so a new extension often talks to an older `tokkl-timerd`. The oldest service it supports is InterfaceVersion 2, the first `tokkl-timerd` after 2.1.0 (`InterfaceVersion` in `dbus/org.tokkl.Timer1.xml` has the version history). `OLDEST_SUPPORTED_INTERFACE_VERSION` in `extension/timer1.js` states the same floor. Against an older service, or one without the `InterfaceVersion` property, the menu shows "This timer service is too old; update tokkl-timerd." with nothing to choose, the extension settings show the same line with their rows insensitive, and neither calls any of its methods. The service in turn needs a Tokkl server from the first release after 2.1.0, and says so in its `ErrorString` against an older one.
 
 ## Connect to Tokkl
 

@@ -55,8 +55,11 @@
     <!-- The name of ChosenProject, also when the running entry's project is
          archived and so missing from Projects. Empty for no project, while
          the project is still being read, and for a project the instance no
-         longer has. -->
-    <property name="ChosenProjectName" type="s" access="read"/>
+         longer has. Kept for third-party callers; ChosenProjectLabel
+         replaces it, and the extension does not read it. -->
+    <property name="ChosenProjectName" type="s" access="read">
+      <annotation name="org.freedesktop.DBus.Deprecated" value="true"/>
+    </property>
     <!-- What a client words the label of ChosenProject from, as the core
          decides it for every panel: kind (s), which words the label takes,
          and for a named project name (s), client (s) and archived (b), the
@@ -186,26 +189,22 @@
          "project", "connection", "detail", "pomodoroMode" and "message";
          and mark (s), how the button's time ends: "none", "pending",
          "alert" or "unconfigured". A client turns the keys into its own
-         words and leaves out a part it has no words for. A service from
-         before this property has none: a client then decides the parts as
-         it did before. -->
+         words and leaves out a part it has no words for. -->
     <property name="Presentation" type="a{sv}" access="read">
       <annotation name="org.qtproject.QtDBus.QtTypeName" value="QVariantMap"/>
     </property>
     <!-- Why the last alarm sound did not play, a ring's or a
          PreviewSound's, in words for the user: a missing file, or a sound
          server that refused it. Empty when it played. It stays after the
-         ring ends, until the next ring or preview starts. A service from
-         before this property has none. -->
+         ring ends, until the next ring or preview starts. -->
     <property name="AlarmError" type="s" access="read"/>
     <!-- The version of this interface the service implements. Version 2 is
          the first released one, and it publishes every member described
          here. Version 1 was never released: only development builds
          published it, without ChosenProjectLabel.
          The version goes up by one with each release that adds members;
-         members are never removed or changed. A service from before this
-         property has none: a client then tells what it publishes by which
-         properties are there. -->
+         members are never removed or changed. A service without this
+         property is older than version 2. -->
     <property name="InterfaceVersion" type="u" access="read"/>
 
     <!-- Start a new entry on ChosenProject with Billable. Returns false
@@ -214,18 +213,21 @@
          Pomodoro mode is on. -->
     <method name="Start">
       <arg name="sent" type="b" direction="out"/>
+      <annotation name="org.freedesktop.DBus.Deprecated" value="true"/>
     </method>
     <!-- Stop the running entry and end the chain. While paused it asks the
          server to discard the chain, which needs a connection. Returns false
          when nothing was sent, also while a session is active. -->
     <method name="Stop">
       <arg name="sent" type="b" direction="out"/>
+      <annotation name="org.freedesktop.DBus.Deprecated" value="true"/>
     </method>
     <!-- Stop the running entry and keep the chain paused, so Resume can
          continue it. Returns false when nothing was sent, also while a
          session is active. -->
     <method name="Pause">
       <arg name="sent" type="b" direction="out"/>
+      <annotation name="org.freedesktop.DBus.Deprecated" value="true"/>
     </method>
     <!-- Start a clone of the paused entry: its description, project, task,
          tags and billable flag. Returns false when nothing was sent, also
@@ -233,13 +235,15 @@
          paused. -->
     <method name="Resume">
       <arg name="sent" type="b" direction="out"/>
+      <annotation name="org.freedesktop.DBus.Deprecated" value="true"/>
     </method>
     <!-- Start, Stop, Pause and Resume as requests a caller can follow to
          their end. Each does what the method of the same action does and
          returns the request's id, or 0 when nothing was sent, for the same
          reasons as that method. RequestFinished carries the id once the
          server has answered. Ids are never reused while the service runs.
-         The methods without Request keep their meaning. -->
+         They replace Start, Stop, Pause and Resume, which keep their
+         meaning for third-party callers; the extension calls only these. -->
     <method name="RequestStart">
       <arg name="request" type="t" direction="out"/>
     </method>
