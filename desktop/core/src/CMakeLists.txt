@@ -15,8 +15,6 @@ add_library(tokklcore STATIC
     apitimer.cpp
     apitypes.cpp
     apitypes.h
-    authsession.cpp
-    authsession.h
     chosenproject.cpp
     chosenproject.h
     clock.cpp

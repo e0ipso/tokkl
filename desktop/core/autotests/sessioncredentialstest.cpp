@@ -1,6 +1,6 @@
 // SessionCredentials on its own: which settings name the account, the
 // secret read for them, and a write the store refused. connectiontest
-// covers it through AuthSession.
+// covers it through Connection.
 
 #include "fakes.h"
 #include "sessioncredentials.h"

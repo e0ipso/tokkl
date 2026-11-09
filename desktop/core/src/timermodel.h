@@ -56,7 +56,7 @@ public:
     Q_PROPERTY(bool connected READ isConnected NOTIFY contextChanged)
     Q_PROPERTY(QVariantMap account READ account NOTIFY contextChanged)
     Q_PROPERTY(qint64 workspaceId READ workspaceId NOTIFY contextChanged)
-    Q_PROPERTY(Tokkl::AuthSession::State connectionState READ connectionState NOTIFY statusChanged)
+    Q_PROPERTY(Tokkl::Connection::State connectionState READ connectionState NOTIFY statusChanged)
     // Shown data is the last known: the latest request failed transiently.
     Q_PROPERTY(bool stale READ isStale NOTIFY statusChanged)
     // A workspace operation answered 403; writes stay blocked until a new

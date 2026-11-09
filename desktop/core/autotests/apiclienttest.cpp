@@ -1,6 +1,6 @@
 // ApiClient against a scripted session and transport: what it asks the
 // session before a request, what it hands back after one, and which answers
-// it drops. connectiontest covers the same paths through AuthSession.
+// it drops. connectiontest covers the same paths through Connection.
 
 #include "apiclient.h"
 #include "clock.h"

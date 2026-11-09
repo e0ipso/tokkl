@@ -1297,7 +1297,7 @@ private Q_SLOTS:
     void accountRetriesBackOffWithTheClocksJitter()
     {
         FakeClock clock;
-        RetryBackoff retry(AuthSession::retryBaseMs, AuthSession::retryMaxMs);
+        RetryBackoff retry(Connection::retryBaseMs, Connection::retryMaxMs);
         QCOMPARE(retry.next(clock), 30000);
         QCOMPARE(retry.next(clock), 60000);
         QCOMPARE(retry.next(clock), 120000);
