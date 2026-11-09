@@ -166,7 +166,6 @@ private:
     void reset();
     void beginMutation();
     void refreshState();
-    void fetchProjects();
     bool updateEntry(const TimeEntryUpdate &update);
     // start is true for a start or resume.
     void finishMutation(TimerActionResult::Outcome outcome, const ApiError &error, bool start = false);

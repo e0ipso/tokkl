@@ -147,7 +147,7 @@ void TimerCoordinator::onConnectionChanged()
     // cooldown. The state client reads the state itself.
     if (m_model->isConnected() && (!m_loaded || (state == Connection::Connected && m_lastState != Connection::Connected))) {
         m_loaded = true;
-        fetchProjects();
+        m_loader->fetchProjects();
     }
     m_lastState = state;
     m_state->contextUpdated();
@@ -409,7 +409,7 @@ void TimerCoordinator::loseWorkspace(const ApiError &error)
 void TimerCoordinator::refresh()
 {
     refreshState();
-    fetchProjects();
+    m_loader->fetchProjects();
 }
 
 void TimerCoordinator::refreshState()
@@ -425,7 +425,7 @@ void TimerCoordinator::resumed()
     if (TimerStateClient *client = m_model->stateClient()) {
         client->resumed();
     }
-    fetchProjects();
+    m_loader->fetchProjects();
 }
 
 void TimerCoordinator::reconnect()
@@ -451,13 +451,8 @@ void TimerCoordinator::reconnect()
         // would trigger the reload. The state that answers also replaces an
         // automatic next-start default with the last entry's project.
         refreshState();
-        fetchProjects();
+        m_loader->fetchProjects();
     }
-}
-
-void TimerCoordinator::fetchProjects()
-{
-    m_loader->fetchProjects();
 }
 
 void TimerCoordinator::setError(const QString &error)
