@@ -4,7 +4,7 @@ import { ignoreReply } from './decode.ts';
 import { keys } from './keys.ts';
 import { APP } from './paths.ts';
 import { appStatusReply, inviteCheckReply, resetCheckReply } from './replies.ts';
-import type { AppStatus } from './types.ts';
+import type { AppStatus } from '@tokkl/types';
 
 /** Signing in and out, first-run setup, and the one-time invite and password reset links. */
 

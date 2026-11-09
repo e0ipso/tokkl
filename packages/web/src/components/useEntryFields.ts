@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import type { Project, TimeEntry } from '../api/types.ts';
+import type { Project, TimeEntry } from '@tokkl/types';
 
 /** What the entry fields edit: the parts of an entry a user picks before or while it runs. */
 export interface EntryDraft {

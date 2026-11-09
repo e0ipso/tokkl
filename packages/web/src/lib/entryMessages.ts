@@ -1,4 +1,4 @@
-import type { BulkPatchResult } from '../api/types.ts';
+import type { BulkPatchResult } from '@tokkl/types';
 import { t } from '../i18n/messages.ts';
 
 /** Toast texts for edits and deletes of several entries at once. */

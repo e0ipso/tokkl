@@ -2,7 +2,7 @@ import { useRef, useState, type FormEvent } from 'react';
 import { useWid } from '../api/account.ts';
 import { stale } from '../api/keys.ts';
 import { tagRequests, useTags } from '../api/tags.ts';
-import type { Tag } from '../api/types.ts';
+import type { Tag } from '@tokkl/types';
 import { useFieldErrors } from '../components/FieldError.tsx';
 import { Icon } from '../components/Icon.tsx';
 import { closeModalThen } from '../components/Overlay.tsx';

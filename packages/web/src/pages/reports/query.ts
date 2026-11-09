@@ -1,5 +1,5 @@
 import type { ReportFilterBody } from '../../api/reports.ts';
-import type { ReportQuery } from '../../api/types.ts';
+import type { ReportQuery } from '@tokkl/types';
 import type { ReportState } from './urlState.ts';
 
 function idFilter(ids: ReportState['projects'], negated: boolean, include: string, exclude: string) {

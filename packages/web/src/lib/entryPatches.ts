@@ -1,4 +1,4 @@
-import type { Favorite, PatchOperation } from '../api/types.ts';
+import type { Favorite, PatchOperation } from '@tokkl/types';
 
 /** The bulk-edit operations the entry list and the bulk bar send, one builder per field. */
 export const entryPatch = {

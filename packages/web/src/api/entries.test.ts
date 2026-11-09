@@ -12,7 +12,7 @@ import {
   markTimerUnknown,
   settleOtherWrites,
 } from './timerState.ts';
-import type { TimeEntry, TimerState } from './types.ts';
+import type { TimeEntry, TimerState } from '@tokkl/types';
 
 const entry = (id: number, description: string): TimeEntry => ({
   id,

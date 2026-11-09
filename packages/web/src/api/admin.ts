@@ -12,7 +12,7 @@ import {
   inviteListReply,
   passwordResetLinkReply,
 } from './replies.ts';
-import type { InstanceSettings, UserRole } from './types.ts';
+import type { InstanceSettings, UserRole } from '@tokkl/types';
 
 /**
  * Instance administration under /api/app/admin. The server answers 403 to anyone but an admin,

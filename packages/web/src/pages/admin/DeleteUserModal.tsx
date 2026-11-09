@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { adminRequests } from '../../api/admin.ts';
 import { stale } from '../../api/keys.ts';
-import type { AdminAccount } from '../../api/types.ts';
+import type { AdminAccount } from '@tokkl/types';
 import { useFieldErrors } from '../../components/FieldError.tsx';
 import { useAction } from '../../components/useAction.ts';
 import { ConfirmModal } from '../manage/ui.tsx';

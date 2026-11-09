@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { TimerPomodoro } from '../api/types.ts';
+import type { TimerPomodoro } from '@tokkl/types';
 import { phaseAlarm } from './pomodoroSessionAlarm.ts';
 
 const pomodoro: TimerPomodoro = {

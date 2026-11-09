@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { canonicalTimeZone } from '@tokkl/common/time';
 import { accountRequests, type ProfileChanges } from '../../../api/account.ts';
 import { stale } from '../../../api/keys.ts';
-import type { Me } from '../../../api/types.ts';
+import type { Me } from '@tokkl/types';
 import { useFieldErrors } from '../../../components/FieldError.tsx';
 import { useAction } from '../../../components/useAction.ts';
 import { SettingsCard } from './SettingsCard.tsx';

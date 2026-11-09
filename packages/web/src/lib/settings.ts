@@ -1,4 +1,4 @@
-import type { DurationFormat, Me, Preferences } from '../api/types.ts';
+import type { DurationFormat, Me, Preferences } from '@tokkl/types';
 import { browserTimeZone } from './browserTimeZone.ts';
 
 /** The account and preference values the views format and compute with. */

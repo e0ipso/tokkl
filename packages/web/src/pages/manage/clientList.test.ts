@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { Client, Project } from '../../api/types.ts';
+import type { Client, Project } from '@tokkl/types';
 import { archiveNotice, deleteNotice, projectCountsByClient, visibleClients } from './clientList.ts';
 
 const client = (id: number, name: string, archived = false, notes: string | null = null): Client => ({

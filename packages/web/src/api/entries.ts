@@ -18,7 +18,7 @@ import {
 } from './replies.ts';
 import { attemptTimerRequest, editRunningEntry, timerWrite, type RunningEntryChanges } from './timerHooks.ts';
 import { MOVES_TIMER } from './timerState.ts';
-import type { PatchOperation, TimeEntry, TimeEntryInput, TimerState } from './types.ts';
+import type { PatchOperation, TimeEntry, TimeEntryInput, TimerState } from '@tokkl/types';
 
 /** Time entries: lists, writes and the trash. The running entry comes from the timer state (timerHooks.ts). */
 

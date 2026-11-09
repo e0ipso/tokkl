@@ -1,5 +1,5 @@
 import { isTimerState } from './timerState.ts';
-import type { TimerState } from './types.ts';
+import type { TimerState } from '@tokkl/types';
 
 /** The part of `EventSource` the stream uses, so it can be driven without a browser. */
 export interface TimerEventSource {

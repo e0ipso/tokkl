@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useSettings } from '../api/settings.ts';
-import type { TimeEntry } from '../api/types.ts';
+import type { TimeEntry } from '@tokkl/types';
 import { overlappingIds } from '../lib/entryOverlap.ts';
 import {
   entriesByDay,

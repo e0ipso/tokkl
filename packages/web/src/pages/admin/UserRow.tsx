@@ -1,6 +1,6 @@
 import { adminRequests, type AccountChange } from '../../api/admin.ts';
 import { stale } from '../../api/keys.ts';
-import type { AdminAccount, PasswordResetLink } from '../../api/types.ts';
+import type { AdminAccount, PasswordResetLink } from '@tokkl/types';
 import { useFieldErrors } from '../../components/FieldError.tsx';
 import { Icon } from '../../components/Icon.tsx';
 import { useAction } from '../../components/useAction.ts';

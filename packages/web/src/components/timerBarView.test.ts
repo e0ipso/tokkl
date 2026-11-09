@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { TimeEntry, TimerPause, TimerPomodoro, TimerState } from '../api/types.ts';
+import type { TimeEntry, TimerPause, TimerPomodoro, TimerState } from '@tokkl/types';
 import { descriptionPlaceholder, pauseAnnouncement, timerBarClass, timerBarView } from './timerBarView.ts';
 
 const entry: TimeEntry = {

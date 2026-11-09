@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { AdminAccount } from '../../api/types.ts';
+import type { AdminAccount } from '@tokkl/types';
 import { changeField, changeMessage, deleteConfirmError } from './accountChange.ts';
 
 const account: AdminAccount = {

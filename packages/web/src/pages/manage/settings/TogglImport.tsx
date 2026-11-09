@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { invalidate } from '../../../api/invalidate.ts';
 import { stale } from '../../../api/keys.ts';
 import { transferRequests } from '../../../api/transfer.ts';
-import type { ImportResult } from '../../../api/types.ts';
+import type { ImportResult } from '@tokkl/types';
 import { Icon } from '../../../components/Icon.tsx';
 import { useToast } from '../../../components/Toast.tsx';
 import { useAction } from '../../../components/useAction.ts';

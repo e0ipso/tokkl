@@ -1,6 +1,6 @@
 import { useState, type ComponentPropsWithRef } from 'react';
 import { formatDuration, parseDuration } from '@tokkl/common/duration';
-import type { DurationFormat } from '../api/types.ts';
+import type { DurationFormat } from '@tokkl/types';
 import { t } from '../i18n/messages.ts';
 
 /**

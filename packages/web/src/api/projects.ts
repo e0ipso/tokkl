@@ -7,7 +7,7 @@ import { invalidate } from './invalidate.ts';
 import { keys, stale } from './keys.ts';
 import { V9, wsPath } from './paths.ts';
 import { projectListReply, projectReply, taskListReply, taskReply } from './replies.ts';
-import type { Project, Task } from './types.ts';
+import type { Project, Task } from '@tokkl/types';
 
 /** Projects and their tasks. */
 

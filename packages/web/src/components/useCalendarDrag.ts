@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent, type RefObject } from 'react';
 import { useCreateEntry, useUpdateEntry, useUpdateRunningEntry } from '../api/entries.ts';
-import type { TimeEntry } from '../api/types.ts';
+import type { TimeEntry } from '@tokkl/types';
 import { dragStep } from '../lib/calendarDay.ts';
 import { dropChange } from '../lib/calendarDrop.ts';
 import {

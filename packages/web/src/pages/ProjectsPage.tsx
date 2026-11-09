@@ -3,7 +3,7 @@ import { useWid, useWorkspace } from '../api/account.ts';
 import { useClients } from '../api/clients.ts';
 import { stale } from '../api/keys.ts';
 import { projectRequests, useProjects, type ProjectDeletionMode } from '../api/projects.ts';
-import type { Project } from '../api/types.ts';
+import type { Project } from '@tokkl/types';
 import { Icon } from '../components/Icon.tsx';
 import { closeModalThen } from '../components/Overlay.tsx';
 import { ProjectDot } from '../components/ProjectLabel.tsx';

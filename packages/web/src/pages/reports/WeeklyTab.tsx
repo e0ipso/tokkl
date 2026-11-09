@@ -4,7 +4,7 @@ import { duration, shortDate, weekdayName } from '../../lib/format.ts';
 import { type Settings } from '../../lib/settings.ts';
 import { Segmented } from '../manage/ui.tsx';
 import { useWeeklyReport, type ReportFilterBody } from '../../api/reports.ts';
-import type { WeeklyReport } from '../../api/types.ts';
+import type { WeeklyReport } from '@tokkl/types';
 import type { ReportPatch, WeeklyRows } from './urlState.ts';
 import { t } from '../../i18n/messages.ts';
 

@@ -1,6 +1,6 @@
 import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import type { TimerState } from './types.ts';
+import type { TimerState } from '@tokkl/types';
 import { DEFAULT_RETRY, connectTimerStream, retryDelay, type TimerEventSource } from './timerStream.ts';
 
 class FakeSource implements TimerEventSource {

@@ -1,4 +1,4 @@
-import type { DurationFormat, PomodoroLimits, Preferences } from '../../../api/types.ts';
+import type { DurationFormat, PomodoroLimits, Preferences } from '@tokkl/types';
 import { t, type MessageKey } from '../../../i18n/messages.ts';
 
 /** The preferences form's options, its draft shape and the rules that turn a draft into a save. */

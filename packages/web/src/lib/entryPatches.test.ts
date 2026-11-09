@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { Favorite } from '../api/types.ts';
+import type { Favorite } from '@tokkl/types';
 import { MAX_FAVORITES, entryPatch, withFavorite } from './entryPatches.ts';
 
 test('a project change replaces the task with it', () => {

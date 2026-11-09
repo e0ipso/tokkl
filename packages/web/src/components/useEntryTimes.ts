@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { formatDuration, parseDuration } from '@tokkl/common/duration';
 import { snapDuration } from '@tokkl/common/snap';
 import { parseTimeOfDay } from '@tokkl/common/timeOfDay';
-import type { TimeEntry, TimeEntryInput } from '../api/types.ts';
+import type { TimeEntry, TimeEntryInput } from '@tokkl/types';
 import { instantAt, localDay, resolveRange, unreadableTime } from '../lib/entryTime.ts';
 import { formatTime, minutesOfDay } from '../lib/format.ts';
 import { noTimeSeconds } from '../lib/noTimeDuration.ts';

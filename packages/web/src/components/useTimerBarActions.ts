@@ -4,7 +4,7 @@ import { useAddTypedEntry, useDiscardRunningEntry, useRestoreEntry, useUpdateRun
 import { getClockOffset, serverNow } from '../api/serverClock.ts';
 import { useSettings } from '../api/settings.ts';
 import { useDiscardPause, usePauseTimer, useResumeTimer, useStartTimer, useStopTimer } from '../api/timerHooks.ts';
-import type { TimeEntry } from '../api/types.ts';
+import type { TimeEntry } from '@tokkl/types';
 import { entrySeconds, snappedSeconds } from '../lib/snapping.ts';
 import type { EntryFieldsHandle } from './EntryFields.tsx';
 import { useFieldErrors } from './FieldError.tsx';

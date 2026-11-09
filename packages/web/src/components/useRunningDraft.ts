@@ -1,7 +1,7 @@
 import { useEffect, useEffectEvent, useRef, useState, type RefObject } from 'react';
 import { useUpdateRunningEntry } from '../api/entries.ts';
 import type { RunningEntryChanges } from '../api/timerHooks.ts';
-import type { TimeEntry } from '../api/types.ts';
+import type { TimeEntry } from '@tokkl/types';
 import type { EntryFieldsHandle } from './EntryFields.tsx';
 import { useToast } from './Toast.tsx';
 import { followRunningEntry, type OwnStart } from './runningDraftSync.ts';

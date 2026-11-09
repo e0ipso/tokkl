@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import { useSearchParams } from 'wouter';
-import type { Grouping } from '../../api/types.ts';
+import type { Grouping } from '@tokkl/types';
 import { isDateKey, isPreset, presetRange, type DateRange, type Preset } from './range.ts';
 
 export const TABS = ['summary', 'detailed', 'weekly'] as const;

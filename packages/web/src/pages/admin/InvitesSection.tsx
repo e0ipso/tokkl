@@ -1,7 +1,7 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { adminRequests, useAdminInvites } from '../../api/admin.ts';
 import { stale } from '../../api/keys.ts';
-import type { CreatedInvite, Invite, UserRole } from '../../api/types.ts';
+import type { CreatedInvite, Invite, UserRole } from '@tokkl/types';
 import { EmptyState } from '../../components/EmptyState.tsx';
 import { useFieldErrors } from '../../components/FieldError.tsx';
 import { LoadError, Loading } from '../../components/PageState.tsx';

@@ -5,7 +5,7 @@ import { keys } from './keys.ts';
 import { V9, wsPath } from './paths.ts';
 import { createPreferenceSaves, type PreferenceSaves } from './preferenceSaves.ts';
 import { meReply, preferencesReply, workspaceReply } from './replies.ts';
-import type { Me, Preferences, Workspace } from './types.ts';
+import type { Me, Preferences, Workspace } from '@tokkl/types';
 
 /** The signed-in account: /me, its preferences and its workspace. */
 

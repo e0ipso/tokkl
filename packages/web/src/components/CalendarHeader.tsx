@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import type { TimeEntry } from '../api/types.ts';
+import type { TimeEntry } from '@tokkl/types';
 import { duration, shortDate, weekdayName } from '../lib/format.ts';
 import type { Settings } from '../lib/settings.ts';
 import { entrySeconds } from '../lib/snapping.ts';

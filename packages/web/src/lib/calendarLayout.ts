@@ -1,5 +1,5 @@
 import { clockSpanOnDay } from '@tokkl/common/time';
-import type { TimeEntry } from '../api/types.ts';
+import type { TimeEntry } from '@tokkl/types';
 import { assignLanes, heightClearingMarkers } from './calendarLanes.ts';
 import { localDay } from './entryTime.ts';
 import { entrySeconds } from './snapping.ts';

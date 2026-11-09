@@ -1,4 +1,4 @@
-import type { Preferences } from './types.ts';
+import type { Preferences } from '@tokkl/types';
 
 /** One preference save in progress: the fields it changes. */
 export interface PendingSave {

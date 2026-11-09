@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import type { PomodoroLimits, Preferences, TimeEntry } from '../../api/types.ts';
+import type { PomodoroLimits, Preferences, TimeEntry } from '@tokkl/types';
 import { EntryFields } from '../../components/EntryFields.tsx';
 import { LengthStepper, LengthStepperGrid } from '../../components/LengthStepper.tsx';
 import { usePomodoroSession } from '../../components/PomodoroSessionProvider.tsx';

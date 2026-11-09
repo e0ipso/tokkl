@@ -8,7 +8,7 @@ import {
 } from '../api/entries.ts';
 import { useProjects } from '../api/projects.ts';
 import { useSettings } from '../api/settings.ts';
-import type { TimeEntry } from '../api/types.ts';
+import type { TimeEntry } from '@tokkl/types';
 import { useNow } from '../lib/clock.ts';
 import { duplicateInput } from '../lib/duplicateEntry.ts';
 import { localDay } from '../lib/entryTime.ts';

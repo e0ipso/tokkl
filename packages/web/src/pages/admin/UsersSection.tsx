@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import type { AdminAccount } from '../../api/types.ts';
+import type { AdminAccount } from '@tokkl/types';
 import { closeModalThen } from '../../components/Overlay.tsx';
 import type { Settings } from '../../lib/settings.ts';
 import { focusPastRow, rowAction } from '../manage/rowFocus.ts';

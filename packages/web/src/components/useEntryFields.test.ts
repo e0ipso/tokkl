@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import type { Project, TimeEntry } from '../api/types.ts';
+import type { Project, TimeEntry } from '@tokkl/types';
 import {
   EMPTY_DRAFT,
   MAX_SUGGESTIONS,

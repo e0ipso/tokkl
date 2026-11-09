@@ -1,5 +1,5 @@
 import type { PomodoroSessionConfig } from '@tokkl/common/pomodoroSession';
-import type { PomodoroLimits, Preferences } from '../../api/types.ts';
+import type { PomodoroLimits, Preferences } from '@tokkl/types';
 import type { MessageKey } from '../../i18n/messages.ts';
 import { stepperStatus } from '../../components/lengthStepper.ts';
 

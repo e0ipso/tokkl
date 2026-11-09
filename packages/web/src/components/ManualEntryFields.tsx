@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { formatDuration } from '@tokkl/common/duration';
 import { useCreateEntry } from '../api/entries.ts';
-import type { TimeEntryInput } from '../api/types.ts';
+import type { TimeEntryInput } from '@tokkl/types';
 import { useClockSelector } from '../lib/clock.ts';
 import { localDay, resolveRange, unreadableTime } from '../lib/entryTime.ts';
 import { formatTime, minutesOfDay, today } from '../lib/format.ts';

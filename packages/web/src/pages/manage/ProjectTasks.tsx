@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useWid } from '../../api/account.ts';
 import { stale } from '../../api/keys.ts';
-import type { Project, Task } from '../../api/types.ts';
+import type { Project, Task } from '@tokkl/types';
 import { EmptyState } from '../../components/EmptyState.tsx';
 import { useFieldErrors } from '../../components/FieldError.tsx';
 import { Icon } from '../../components/Icon.tsx';

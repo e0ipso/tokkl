@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useSavePreferences } from '../../../api/account.ts';
 import { keys } from '../../../api/keys.ts';
 import { useSettings } from '../../../api/settings.ts';
-import type { PomodoroLimits, Preferences } from '../../../api/types.ts';
+import type { PomodoroLimits, Preferences } from '@tokkl/types';
 import { useFieldErrors } from '../../../components/FieldError.tsx';
 import { useToast } from '../../../components/Toast.tsx';
 import { useServerDraft } from '../../../components/useServerDraft.ts';

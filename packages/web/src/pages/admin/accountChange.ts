@@ -1,5 +1,5 @@
 import type { AccountChange } from '../../api/admin.ts';
-import type { AdminAccount } from '../../api/types.ts';
+import type { AdminAccount } from '@tokkl/types';
 import { t } from '../../i18n/messages.ts';
 
 /** The rules behind the Users table's account changes and the delete confirmation. */

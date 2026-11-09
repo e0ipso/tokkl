@@ -3,7 +3,7 @@ import { api, download } from './client.ts';
 import { keys } from './keys.ts';
 import { APP } from './paths.ts';
 import { detailedReportReply, reportReply, weeklyReportReply } from './replies.ts';
-import type { ReportQuery } from './types.ts';
+import type { ReportQuery } from '@tokkl/types';
 
 /**
  * The app's report endpoints under /api/app/report. Each keeps the last result on screen while the

@@ -18,7 +18,7 @@ import {
   settleOtherWrites,
 } from './timerState.ts';
 import { useTimerStreaming } from './timerStreaming.ts';
-import type { TimeEntry, TimeEntryInput, TimerState } from './types.ts';
+import type { TimeEntry, TimeEntryInput, TimerState } from '@tokkl/types';
 import { useNow } from '../lib/clock.ts';
 
 const POLL_MS = 30_000;
