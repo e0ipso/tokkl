@@ -127,6 +127,11 @@ export interface TokensRepository extends TokensReader {
   revokeInvite(id: Id): Promise<boolean>;
   revokeInvitesCreatedBy(userId: Id): Promise<void>;
   revokeUnusedPasswordResets(userId: Id): Promise<void>;
+  /**
+   * Deletes up to a batch of used or expired links, which nothing reads again, skipping rows other
+   * writes hold, and returns how many it deleted.
+   */
+  deleteSpent(now: UtcInstant): Promise<number>;
 }
 export interface SessionsReader {
   find(tokenHash: string): Promise<Session | undefined>;
@@ -135,6 +140,10 @@ export interface SessionsRepository extends SessionsReader {
   create(session: Session): Promise<void>;
   delete(tokenHash: string): Promise<void>;
   deleteForUser(userId: Id, keepTokenHash?: string): Promise<void>;
+  /**
+   * Deletes up to a batch of sessions that expired before `now`, skipping rows other writes hold,
+   * and returns how many it deleted. An expired session that is still stored never signs in.
+   */
   deleteExpired(now: UtcInstant): Promise<number>;
 }
 /** A hashed limiter key and the failures it allows per window. */
@@ -150,8 +159,8 @@ export type RateLimitReservation =
   /** No counter is at its limit, but live reservations fill at least one. */
   | { ok: false; reason: 'slots' };
 /**
- * Callers supply `now`. A counter whose window has ended has no failures. Each write also deletes
- * expired reservations, and expired counters that no live reservation holds.
+ * Callers supply `now`. A counter whose window has ended has no failures, and an expired
+ * reservation holds no slot, so stale rows never change an answer. `deleteExpired` removes them.
  */
 export interface RateLimitsRepository {
   /**
@@ -174,7 +183,14 @@ export interface RateLimitsRepository {
   ): Promise<void>;
   /** Clears failures. Live reservations keep their slots. */
   reset(keyHashes: readonly string[], now: UtcInstant): Promise<void>;
+  /**
+   * Deletes up to a batch of expired reservations, and of expired counters that no live reservation
+   * holds, skipping rows other writes hold. Returns how many rows it deleted.
+   */
+  deleteExpired(now: UtcInstant): Promise<number>;
 }
+/** What a password check uses; cleanup is the maintenance job's. */
+export type RateLimitChecks = Pick<RateLimitsRepository, 'reserve' | 'release' | 'reset'>;
 export interface ClientFilter {
   status?: 'active' | 'archived' | 'both';
   name?: string;

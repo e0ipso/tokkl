@@ -42,6 +42,19 @@ export async function idempotencyKeyCount(handle: FixtureDatabase): Promise<numb
     .executeTakeFirstOrThrow();
   return Number(row.n);
 }
+/** Rows in the rate limiter's tables, expired ones included. */
+export async function rateLimitRowCounts(handle: FixtureDatabase): Promise<{ reservations: number; counters: number }> {
+  const count = async (table: 'rate_limit_reservations' | 'rate_limit_counters') =>
+    Number(
+      (
+        await physical(handle)
+          .selectFrom(table)
+          .select(({ fn }) => fn.countAll().as('n'))
+          .executeTakeFirstOrThrow()
+      ).n,
+    );
+  return { reservations: await count('rate_limit_reservations'), counters: await count('rate_limit_counters') };
+}
 export async function sessionCount(handle: FixtureDatabase, userId?: number): Promise<number> {
   let q = physical(handle)
     .selectFrom('sessions')

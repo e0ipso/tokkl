@@ -2,8 +2,11 @@
 import type { Kysely } from 'kysely';
 import type { Backend } from '../config.ts';
 import type { PhysicalDatabase } from '../physical.ts';
-import { entityId, safeInteger, utcInstant } from '../conversion.ts';
+import { entityId, utcInstant } from '../conversion.ts';
 import { accountToken, generatedId, nullableInstant, type AccountRepositories } from './account-rows.ts';
+
+/** Most rows one cleanup call deletes. The maintenance job calls again for the rest. */
+const CLEANUP_BATCH = 100;
 
 export function createTokenRepository(db: Kysely<PhysicalDatabase>, backend: Backend): AccountRepositories['tokens'] {
   return {
@@ -91,10 +94,24 @@ export function createTokenRepository(db: Kysely<PhysicalDatabase>, backend: Bac
         .where('used_at', 'is', null)
         .execute();
     },
+    async deleteSpent(at) {
+      let spent = db
+        .selectFrom('account_tokens')
+        .select('id')
+        .where(eb => eb.or([eb('used_at', 'is not', null), eb('expires_at', '<=', utcInstant(at))]))
+        .limit(CLEANUP_BATCH);
+      if (backend !== 'sqlite') spent = spent.forUpdate().skipLocked();
+      const ids = (await spent.execute()).map(row => row.id);
+      if (ids.length) await db.deleteFrom('account_tokens').where('id', 'in', ids).execute();
+      return ids.length;
+    },
   };
 }
 
-export function createSessionRepository(db: Kysely<PhysicalDatabase>): AccountRepositories['sessions'] {
+export function createSessionRepository(
+  db: Kysely<PhysicalDatabase>,
+  backend: Backend,
+): AccountRepositories['sessions'] {
   return {
     async create(input) {
       await db
@@ -129,10 +146,15 @@ export function createSessionRepository(db: Kysely<PhysicalDatabase>): AccountRe
       await query.execute();
     },
     async deleteExpired(at) {
-      return safeInteger(
-        (await db.deleteFrom('sessions').where('expires_at', '<', utcInstant(at)).executeTakeFirstOrThrow())
-          .numDeletedRows,
-      );
+      let expired = db
+        .selectFrom('sessions')
+        .select('token_hash')
+        .where('expires_at', '<', utcInstant(at))
+        .limit(CLEANUP_BATCH);
+      if (backend !== 'sqlite') expired = expired.forUpdate().skipLocked();
+      const hashes = (await expired.execute()).map(row => row.token_hash);
+      if (hashes.length) await db.deleteFrom('sessions').where('token_hash', 'in', hashes).execute();
+      return hashes.length;
     },
   };
 }

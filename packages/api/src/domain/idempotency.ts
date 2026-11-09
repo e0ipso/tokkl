@@ -20,26 +20,8 @@ import { IDEMPOTENCY_KEY_HEADER, type IdempotencyClaim } from '../lib/idempotenc
 /** How long a key answers with its original result. An older key is forgotten and may be used again. */
 export const IDEMPOTENCY_RETENTION_MS = 24 * 60 * 60 * 1000;
 
-/** Opens the write transactions the maintenance job forgets expired keys in. A `Storage` is one. */
-export interface IdempotencyTransactions {
-  transaction<T>(work: (context: { idempotencyKeys: IdempotencyKeysRepository }) => Promise<T>): Promise<T>;
-}
-
-const retentionCutoff = (now: Date) => new Date(now.getTime() - IDEMPOTENCY_RETENTION_MS).toISOString();
-
-/**
- * Deletes every record past the retention, a batch per transaction so no create waits long behind
- * it, and returns how many it deleted. Records another write holds stay for a later run.
- */
-export async function forgetExpiredIdempotencyKeys(runner: IdempotencyTransactions, now = new Date()) {
-  const cutoff = retentionCutoff(now);
-  let total = 0;
-  for (;;) {
-    const deleted = await runner.transaction(ctx => ctx.idempotencyKeys.deleteExpired(cutoff));
-    if (!deleted) return total;
-    total += deleted;
-  }
-}
+/** Records created before this instant are past the retention. */
+export const idempotencyCutoff = (now: Date) => new Date(now.getTime() - IDEMPOTENCY_RETENTION_MS).toISOString();
 
 /** How one kind of create runs, names its result, and answers again for a recorded one. */
 export interface IdempotentCreate<T> {
@@ -59,7 +41,7 @@ export async function idempotent<T>(
   now = new Date(),
 ): Promise<T> {
   if (!claim) return steps.create();
-  const cutoff = retentionCutoff(now);
+  const cutoff = idempotencyCutoff(now);
   const keyHash = sha256(`${userId}\n${claim.key}`);
   const recorded = await ctx.idempotencyKeys.find(keyHash);
   if (recorded && recorded.createdAt >= cutoff) {

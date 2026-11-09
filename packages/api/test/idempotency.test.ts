@@ -5,8 +5,8 @@ import { listDeletedEntries, listTimeEntries } from './fixtures/domain.ts';
 import { storageFor } from './fixtures/database.ts';
 import { corruptRecord, idempotencyKeyCount } from './fixtures/physical.ts';
 import { addUser, setup, type TestContext } from './helpers.ts';
-import { forgetExpiredIdempotencyKeys, IDEMPOTENCY_RETENTION_MS } from '../src/domain/idempotency.ts';
-import { startMaintenance } from '../src/services/maintenance.ts';
+import { IDEMPOTENCY_RETENTION_MS } from '../src/domain/idempotency.ts';
+import { runMaintenance, startMaintenance } from '../src/services/maintenance.ts';
 
 interface Reply {
   status: number;
@@ -221,9 +221,9 @@ test('a create leaves expired keys to the maintenance job, which deletes them al
   assert.equal((await send(ctx, `${ws(ctx)}/time_entries`, body(ctx.wid), 'mine')).status, 200);
   assert.equal(await idempotencyKeyCount(ctx.db), 4, 'the create deleted no other record');
 
-  assert.equal(await forgetExpiredIdempotencyKeys(storageFor(ctx.db)), 3);
+  assert.equal((await runMaintenance(storageFor(ctx.db))).idempotencyKeys, 3);
   assert.equal(await idempotencyKeyCount(ctx.db), 1);
-  assert.equal(await forgetExpiredIdempotencyKeys(storageFor(ctx.db)), 0);
+  assert.equal((await runMaintenance(storageFor(ctx.db))).idempotencyKeys, 0);
 });
 
 test('the maintenance job runs on its interval until it is closed', async () => {

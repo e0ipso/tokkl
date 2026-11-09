@@ -40,7 +40,6 @@ export function createSessionOperations<R extends AccountRepositories>(
           expiresAt: expires.toISOString(),
           userAgent,
         });
-        await ctx.sessions.deleteExpired(at);
         return { token, expires };
       });
     },

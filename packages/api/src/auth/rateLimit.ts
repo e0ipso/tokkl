@@ -1,4 +1,4 @@
-import type { RateLimitCounter, RateLimitsRepository } from '../domain/ports.ts';
+import type { RateLimitChecks, RateLimitCounter } from '../domain/ports.ts';
 import { sha256 } from '../lib/crypto.ts';
 import { normalizeEmail } from '../domain/accountValues.ts';
 import type { PasswordAttemptResult as AttemptResult } from '../domain/accounts.ts';
@@ -75,13 +75,13 @@ const RESERVATION_LEASE_MS = 60 * 1000;
  * attempt that finds every slot taken is refused at once, with nothing to wait for.
  */
 export class FailureLimiter {
-  private readonly limits: RateLimitsRepository;
+  private readonly limits: RateLimitChecks;
   private readonly namespace: LimiterNamespace;
   private readonly maxFailures: number;
   private readonly windowMs: number;
 
   /** `maxFailures` is the limit for plain string keys; counters carry their own. */
-  constructor(limits: RateLimitsRepository, namespace: LimiterNamespace, maxFailures: number, windowMs: number) {
+  constructor(limits: RateLimitChecks, namespace: LimiterNamespace, maxFailures: number, windowMs: number) {
     this.limits = limits;
     this.namespace = namespace;
     this.maxFailures = maxFailures;

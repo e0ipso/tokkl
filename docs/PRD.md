@@ -340,9 +340,9 @@ The web UI is a client of the same Toggl-compatible API it exposes. Every timer 
 All instants are UTC ISO 8601 strings; calendar days are computed in the user's timezone at query time. A stopped entry written through the API starts and stops on the instance time resolution grid (section 6.3).
 
 - `users`: email, name, scrypt password hash, API token, timezone, first day of week, preferences JSON (Toggl preference keys plus favorites), `role` (`admin` or `user`, default `user`), `disabled_at` (null while the account is active).
-- `sessions`: SHA-256 of the session token, expiry. The raw token exists only in the cookie.
+- `sessions`: SHA-256 of the session token, expiry. The raw token exists only in the cookie. An hourly maintenance job deletes expired sessions; until then an expired one signs nothing in.
 - `instance_settings`: key and JSON value for the settings an admin edits (`session_days`, `invite_days`, and `time_resolution_minutes`, a divisor of 60 that defaults to 5), with who changed them. A key with no row uses its default.
-- `account_tokens`: one-time invite and password-reset links. Only the SHA-256 of the token is stored, with its kind, the invited role or the target account, the creator, expiry and use time.
+- `account_tokens`: one-time invite and password-reset links. Only the SHA-256 of the token is stored, with its kind, the invited role or the target account, the creator, expiry and use time. The maintenance job deletes used and expired links, as it does expired idempotency keys and rate-limit rows.
 - `workspaces`: one private workspace per account. Default currency, default rate, report rounding.
 - `workspace_users`: workspace and user, with a `role` of `owner` or `member`. The primary key is the pair. Workspace settings stay with the owner.
 - `clients`, `projects`, `tasks`, `tags`: unique names per scope, case-insensitive.
