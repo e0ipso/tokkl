@@ -70,7 +70,7 @@ test("a query's cancel signal reaches fetch, and the deadline rides along", asyn
   await assert.rejects(pending, (error: unknown) => error instanceof DOMException && error.name === 'AbortError');
 
   // Without a caller signal, fetch still gets one: the deadline's.
-  void api.post('/api/app/timer/pause').catch(() => {});
+  void api.post('/api/app/timer/pause', undefined, { decode: value => value }).catch(() => {});
   assert.ok(seen[1] instanceof AbortSignal);
 });
 

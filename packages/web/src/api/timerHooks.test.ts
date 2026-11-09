@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { QueryClient, type QueryKey } from '@tanstack/react-query';
 import { keys, stale } from './keys.ts';
 import { ApiError, UnparsableReplyError, api } from './client.ts';
+import { ignoreReply } from './decode.ts';
 import {
   acceptTimerState,
   attemptTimerRequest,
@@ -229,7 +230,9 @@ test('a Start answered twice with a 5xx keeps its message, and the next timer wr
   await assert.rejects(startTimer(qc, { description: 'Write' }), (error: unknown) => isApiErrorWith(error, 502));
   // A duration typed into the bar, which the bar still showed idle, is not sent on top of the landed Start.
   await assert.rejects(
-    attemptTimerRequest(qc, () => api.post('/api/v9/workspaces/1/time_entries', { description: 'Typed' })),
+    attemptTimerRequest(qc, () =>
+      api.post('/api/v9/workspaces/1/time_entries', { description: 'Typed' }, { decode: ignoreReply }),
+    ),
     (error: unknown) => error instanceof TimerActionError && error.kind === 'conflict',
   );
   assert.deepEqual(
@@ -253,7 +256,7 @@ test('after an unknown outcome a read that finds the state unchanged lets the wr
   );
   t.mock.method(globalThis, 'fetch', fetch);
   const edit = (description: string) =>
-    timerWrite(qc, () => api.put('/api/v9/workspaces/1/time_entries/5', { description }));
+    timerWrite(qc, () => api.put('/api/v9/workspaces/1/time_entries/5', { description }, { decode: ignoreReply }));
   await assert.rejects(edit('First'), (error: unknown) => error instanceof UnparsableReplyError);
   await edit('Second');
   await edit('Third');

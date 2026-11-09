@@ -2,8 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ApiError, RequestTimeoutError } from './client.ts';
 import { clientRequests } from './clients.ts';
+import { ignoreReply } from './decode.ts';
 import { entryRequests } from './entries.ts';
-import { newIdempotencyKey, postCreate, sendCreate } from './idempotency.ts';
+import { newIdempotencyKey, postCreate, retryWaitMs, sendCreate, type RetryWait } from './idempotency.ts';
 import { projectRequests } from './projects.ts';
 import { tagRequests } from './tags.ts';
 
@@ -33,29 +34,110 @@ test('a key is 32 hex characters, and each one is new', () => {
 test('a create whose outcome is unknown goes out once more with the same request and key', async t => {
   const { fetch, sent } = answering({ status: 502, body: 'Bad Gateway' }, { status: 200, body: { id: 7 } });
   t.mock.method(globalThis, 'fetch', fetch);
-  assert.deepEqual(await postCreate('/api/v9/workspaces/1/tags', { name: 'retry' }), { id: 7 });
+  assert.deepEqual(await postCreate('/api/v9/workspaces/1/tags', { name: 'retry' }, { decode: value => value }), {
+    id: 7,
+  });
   assert.equal(sent.length, 2);
   assert.ok(sent[0]?.key);
   assert.deepEqual(sent[1], sent[0]);
 });
 
+test('the second attempt waits one jittered step: 1 s plus up to a quarter of it', () => {
+  assert.equal(
+    retryWaitMs(() => 0),
+    1000,
+  );
+  assert.equal(
+    retryWaitMs(() => 0.5),
+    1125,
+  );
+  assert.equal(
+    retryWaitMs(() => 0.999_999),
+    1249,
+  );
+});
+
+/** A `RetryWait` whose sleeps end only when the test calls `wake`, recording each one's length. */
+function heldWait(random: number) {
+  const slept: number[] = [];
+  let wake = () => {};
+  const wait: RetryWait = {
+    random: () => random,
+    sleep: ms => {
+      slept.push(ms);
+      return new Promise(resolve => (wake = resolve));
+    },
+  };
+  return { wait, slept, wake: () => wake() };
+}
+
+test('a create whose outcome is unknown goes out again only after the wait', async () => {
+  const keys: string[] = [];
+  const replies = [() => Promise.reject(new RequestTimeoutError('POST', '/w')), () => Promise.resolve('made')];
+  const { wait, slept, wake } = heldWait(0.2);
+  const sent = sendCreate(
+    'POST /w {}',
+    key => {
+      keys.push(key);
+      return replies.shift()!();
+    },
+    wait,
+  );
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(slept, [1050]);
+  assert.equal(keys.length, 1, 'nothing goes out during the wait');
+  wake();
+  assert.equal(await sent, 'made');
+  assert.deepEqual(keys, [keys[0], keys[0]]);
+});
+
+test('the same request sent again during the wait reuses the key', async () => {
+  const keys: string[] = [];
+  const replies = [
+    () => Promise.reject(new RequestTimeoutError('POST', '/d')),
+    () => Promise.resolve('replayed by the user'),
+    () => Promise.resolve('replayed by the retry'),
+  ];
+  const send = (key: string) => {
+    keys.push(key);
+    return replies.shift()!();
+  };
+  const { wait, wake } = heldWait(0);
+  const first = sendCreate('POST /d {}', send, wait);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(await sendCreate('POST /d {}', send, wait), 'replayed by the user');
+  wake();
+  assert.equal(await first, 'replayed by the retry');
+  assert.deepEqual(keys, [keys[0], keys[0], keys[0]]);
+  // Both settled the intent: the same request again is a new one.
+  replies.push(() => Promise.resolve('new'));
+  await sendCreate('POST /d {}', send, wait);
+  assert.notEqual(keys[3], keys[0]);
+});
+
 test('a refused create is not sent again', async t => {
   const { fetch, sent } = answering({ status: 400, body: 'Name taken' });
   t.mock.method(globalThis, 'fetch', fetch);
-  await assert.rejects(postCreate('/api/v9/workspaces/1/tags', { name: 'refused' }), (error: unknown) => {
-    return error instanceof ApiError && error.status === 400;
-  });
+  await assert.rejects(
+    postCreate('/api/v9/workspaces/1/tags', { name: 'refused' }, { decode: ignoreReply }),
+    (error: unknown) => {
+      return error instanceof ApiError && error.status === 400;
+    },
+  );
   assert.equal(sent.length, 1);
 });
 
 test('a new intent gets a new key, even for the same request', async t => {
   const { fetch, sent } = answering({ status: 200, body: { id: 1 } }, { status: 200, body: { id: 2 } });
   t.mock.method(globalThis, 'fetch', fetch);
-  await postCreate('/api/v9/workspaces/1/tags', { name: 'twice' });
-  await postCreate('/api/v9/workspaces/1/tags', { name: 'twice' });
+  await postCreate('/api/v9/workspaces/1/tags', { name: 'twice' }, { decode: ignoreReply });
+  await postCreate('/api/v9/workspaces/1/tags', { name: 'twice' }, { decode: ignoreReply });
   assert.deepEqual(sent[1]?.body, sent[0]?.body);
   assert.notEqual(sent[1]?.key, sent[0]?.key);
 });
+
+/** A `RetryWait` that waits no time. */
+const noWait: RetryWait = { random: () => 0, sleep: () => Promise.resolve() };
 
 test('a create still unknown after its retry keeps its key for the same request sent again, and only for it', async () => {
   const keys: string[] = [];
@@ -64,7 +146,10 @@ test('a create still unknown after its retry keeps its key for the same request 
     return reply();
   };
   const lost = answer(() => Promise.reject(new RequestTimeoutError('POST', '/x')));
-  await assert.rejects(sendCreate('POST /x {"a":1}', lost), (error: unknown) => error instanceof RequestTimeoutError);
+  await assert.rejects(
+    sendCreate('POST /x {"a":1}', lost, noWait),
+    (error: unknown) => error instanceof RequestTimeoutError,
+  );
   assert.equal(keys.length, 2);
   assert.equal(keys[1], keys[0]);
   // The user sends the same request again: the server answers the record the lost one made.
@@ -83,7 +168,7 @@ test('a create still unknown after its retry keeps its key for the same request 
   );
   assert.notEqual(keys[3], keys[0]);
   // Another request never reuses a kept key.
-  await assert.rejects(sendCreate('POST /x {"a":2}', lost));
+  await assert.rejects(sendCreate('POST /x {"a":2}', lost, noWait));
   await sendCreate(
     'POST /x {"a":3}',
     answer(() => Promise.resolve('other')),
@@ -91,9 +176,46 @@ test('a create still unknown after its retry keeps its key for the same request 
   assert.notEqual(keys[6], keys[4]);
 });
 
+/** What each create answers, in the order the test below sends them: the record it made, or for a task nothing read. */
+const created = [
+  {
+    id: 1,
+    workspace_id: 1,
+    project_id: null,
+    task_id: null,
+    billable: false,
+    start: '2026-10-27T10:00:00+00:00',
+    stop: '2026-10-27T11:00:00+00:00',
+    duration: 3600,
+    description: 'Entry',
+    tags: [],
+    tag_ids: [],
+    at: '2026-10-27T11:00:00+00:00',
+    server_deleted_at: null,
+    all_day: false,
+  },
+  { id: 1, wid: 1, name: 'Client', notes: null, archived: false },
+  {
+    id: 2,
+    workspace_id: 1,
+    client_id: null,
+    client_name: null,
+    name: 'Project',
+    color: '#06aaf5',
+    active: true,
+    billable: false,
+    estimated_hours: null,
+    rate: null,
+    currency: null,
+    actual_seconds: 0,
+    status: 'active',
+  },
+  { id: 1 },
+  { id: 1, workspace_id: 1, name: 'Tag' },
+];
+
 test('every create the server keys sends an Idempotency-Key', async t => {
-  const replies = Array.from({ length: 5 }, () => ({ status: 200, body: { id: 1 } }));
-  const { fetch, sent } = answering(...replies);
+  const { fetch, sent } = answering(...created.map(body => ({ status: 200, body })));
   t.mock.method(globalThis, 'fetch', fetch);
   await entryRequests.create(1, { description: 'Entry' });
   await clientRequests.create(1, { name: 'Client' });

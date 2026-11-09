@@ -133,7 +133,7 @@ export function ProjectTasks({ project }: { project: Project }) {
   // else the previous one's, else the new task field, or the heading when the project is archived.
   const deleted = (id: number) => keepFocusPastRow(list.current, id, 'delete', newTask.current ?? heading.current);
 
-  const create = useAction<string, Task>({
+  const create = useAction<string>({
     mutationFn: name => projectRequests.createTask(wid, project.id, name),
     invalidate: stale.tasks,
     onSuccess: () => setNewName(''),

@@ -201,8 +201,8 @@ async function postAction(
 
 /**
  * A `postAction` that starts an entry, sent as a create with an `Idempotency-Key` (`postCreate` in
- * idempotency.ts). A start whose reply was lost goes out again at once with the same body and key,
- * and a start that did land answers the current state instead of starting a second entry.
+ * idempotency.ts). A start whose reply was lost goes out again after a short wait with the same body
+ * and key, and a start that did land answers the current state instead of starting a second entry.
  */
 async function postStart(qc: QueryClient, path: string, body: () => Promise<Record<string, unknown>>) {
   return attemptTimerRequest(qc, async () =>

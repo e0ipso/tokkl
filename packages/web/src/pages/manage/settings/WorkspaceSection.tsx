@@ -32,7 +32,7 @@ export function WorkspaceSection({ workspace }: { workspace: Workspace }) {
   const [rounding, setRounding] = useState(workspace.rounding);
   const [roundingMinutes, setRoundingMinutes] = useState(workspace.rounding_minutes);
 
-  const save = useAction<WorkspaceChanges, Workspace>({
+  const save = useAction<WorkspaceChanges>({
     mutationFn: body => accountRequests.saveWorkspace(wid, body),
     invalidate: stale.workspace,
     success: t('settings.workspaceSaved'),

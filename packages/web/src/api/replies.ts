@@ -15,14 +15,20 @@ import {
 import type {
   AdminAccount,
   AppStatus,
+  BulkPatchResult,
   Client,
+  CreatedInvite,
   DetailedReportPage,
   DiscardedPomodoro,
   EntryBounds,
   Favorite,
+  ImportResult,
+  ImportUser,
   InstanceSettings,
   Invite,
+  JsonRestoreResult,
   Me,
+  PasswordResetLink,
   PomodoroLimit,
   PomodoroLimits,
   Preferences,
@@ -38,15 +44,16 @@ import type {
   TimerPomodoro,
   TimerPomodoroPhase,
   TimerState,
+  TrashTotal,
   UserRole,
   WeeklyReport,
   Workspace,
 } from './types.ts';
 
 /**
- * Decoders for every reply a GET reads and every write reply kept in the cache: the account and its
- * preferences, the catalogs, entries, the timer state, reports, the instance status and the admin
- * lists. Ids, revisions, counts and page numbers are safe integers (`integer`), other numbers
+ * Decoders for every reply a GET reads and every write reply the app reads: the account and its
+ * preferences, the catalogs, entries, the timer state, reports, the instance status, the admin
+ * lists, and what a create, an import or a bulk edit answers. Ids, revisions, counts and page numbers are safe integers (`integer`), other numbers
  * finite (`number`), and timestamps RFC 3339 instants (`instant`); calendar days stay `string`.
  */
 
@@ -340,27 +347,77 @@ export const weeklyReportReply: Decoder<WeeklyReport> = object<WeeklyReport>({
   total: number,
 });
 
-export const adminAccountListReply: Decoder<AdminAccount[]> = array(
-  object<AdminAccount>({
-    id: integer,
-    email: string,
-    fullname: string,
-    role,
-    created_at: instant,
-    disabled_at: nullable(instant),
-  }),
-);
+/** One account of the admin list, and the reply of PATCH /api/app/admin/users/:id. */
+export const adminAccountReply: Decoder<AdminAccount> = object<AdminAccount>({
+  id: integer,
+  email: string,
+  fullname: string,
+  role,
+  created_at: instant,
+  disabled_at: nullable(instant),
+});
 
-export const inviteListReply: Decoder<Invite[]> = array(
-  object<Invite>({
-    id: integer,
-    role,
-    note: nullable(string),
-    created_by: nullable(integer),
-    created_at: instant,
-    expires_at: instant,
-  }),
-);
+export const adminAccountListReply: Decoder<AdminAccount[]> = array(adminAccountReply);
+
+const inviteFields = {
+  id: integer,
+  role,
+  note: nullable(string),
+  created_by: nullable(integer),
+  created_at: instant,
+  expires_at: instant,
+};
+
+export const inviteListReply: Decoder<Invite[]> = array(object<Invite>(inviteFields));
+
+/** POST /api/app/admin/invites: the new invite and its link. */
+export const createdInviteReply: Decoder<CreatedInvite> = object<CreatedInvite>({ ...inviteFields, url: string });
+
+/** POST /api/app/admin/users/:id/password-reset: the new link. */
+export const passwordResetLinkReply: Decoder<PasswordResetLink> = object<PasswordResetLink>({
+  url: string,
+  expires_at: instant,
+});
+
+/** GET /api/app/trash/total: how many entries the trash holds, and how many of them the trash list shows at most. */
+export const trashTotalReply: Decoder<TrashTotal> = object<TrashTotal>({ total: integer, limit: integer });
+
+/** DELETE /api/app/trash: how many entries were deleted for good. */
+export const trashEmptiedReply = object<{ deleted: number }>({ deleted: integer });
+
+/** PATCH of several entries: the ids that changed, and why the others did not. */
+export const bulkPatchResultReply: Decoder<BulkPatchResult> = object<BulkPatchResult>({
+  success: array(integer),
+  failure: array(object<BulkPatchResult['failure'][number]>({ id: integer, message: string })),
+});
+
+/** POST /api/app/import/toggl-csv, a dry run or the import. */
+export const importResultReply: Decoder<ImportResult> = object<ImportResult>({
+  dry_run: boolean,
+  rows: integer,
+  created: integer,
+  skipped_duplicates: integer,
+  created_projects: array(string),
+  created_clients: array(string),
+  errors: array(object<ImportResult['errors'][number]>({ row: integer, message: string })),
+  users: array(object<ImportUser>({ key: string, user: string, email: string, rows: integer })),
+  skipped: array(object<ImportResult['skipped'][number]>({ rows: integer, reason: string })),
+});
+
+/** The id an error of a JSON restore names: whatever the file held there, shown as it is. */
+const fileId: Decoder<unknown> = value => value;
+
+/** POST /api/app/import/json, a dry run or the restore. */
+export const jsonRestoreResultReply: Decoder<JsonRestoreResult> = object<JsonRestoreResult>({
+  dry_run: boolean,
+  clients: integer,
+  projects: integer,
+  tasks: integer,
+  tags: integer,
+  time_entries: integer,
+  skipped_duplicates: integer,
+  errors: array(object<JsonRestoreResult['errors'][number]>({ entity: string, id: fileId, message: string })),
+});
 
 /** GET and PUT /api/app/admin/settings. */
 export const instanceSettingsReply: Decoder<InstanceSettings> = object<InstanceSettings>({

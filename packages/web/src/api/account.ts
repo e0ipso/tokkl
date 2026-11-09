@@ -1,5 +1,6 @@
 import { mutationOptions, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { api, type Checked } from './client.ts';
+import { ignoreReply } from './decode.ts';
 import { keys } from './keys.ts';
 import { V9, wsPath } from './paths.ts';
 import { createPreferenceSaves, type PreferenceSaves } from './preferenceSaves.ts';
@@ -93,10 +94,14 @@ export type WorkspaceChanges = Pick<
   'name' | 'default_currency' | 'default_hourly_rate' | 'rounding' | 'rounding_minutes'
 >;
 
-/** Account writes. Pass them to a mutation together with the matching `stale` list. */
+/**
+ * Account writes. Pass them to a mutation together with the matching `stale` list, whose refetch
+ * shows what changed: none of them reads its reply, the new token included.
+ */
 export const accountRequests = {
-  saveProfile: (changes: ProfileChanges) => api.put<Me>(`${V9}/me`, changes),
-  changePassword: (body: { current_password: string; password: string }) => api.put(`${V9}/me`, body),
-  resetApiToken: () => api.post<string>(`${V9}/me/reset_token`),
-  saveWorkspace: (wid: number, changes: WorkspaceChanges) => api.put<Workspace>(wsPath(wid), changes),
+  saveProfile: (changes: ProfileChanges) => api.put(`${V9}/me`, changes, { decode: ignoreReply }),
+  changePassword: (body: { current_password: string; password: string }) =>
+    api.put(`${V9}/me`, body, { decode: ignoreReply }),
+  resetApiToken: () => api.post(`${V9}/me/reset_token`, undefined, { decode: ignoreReply }),
+  saveWorkspace: (wid: number, changes: WorkspaceChanges) => api.put(wsPath(wid), changes, { decode: ignoreReply }),
 };

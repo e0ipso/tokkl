@@ -1,20 +1,28 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { DecodeError } from './decode.ts';
+import { DecodeError, ignoreReply } from './decode.ts';
 import {
   adminAccountListReply,
+  adminAccountReply,
   appStatusReply,
+  bulkPatchResultReply,
+  createdInviteReply,
   detailedReportReply,
   entryListReply,
+  importResultReply,
   instanceSettingsReply,
   inviteCheckReply,
   inviteListReply,
+  jsonRestoreResultReply,
   meReply,
+  passwordResetLinkReply,
   preferencesReply,
   projectListReply,
   reportReply,
   resetCheckReply,
   runningEntryReply,
+  trashEmptiedReply,
+  trashTotalReply,
   weeklyReportReply,
 } from './replies.ts';
 
@@ -240,4 +248,85 @@ test('the status, invite and reset link checks and the admin lists decode their 
   const settings = { session_days: 30, invite_days: 7, time_resolution_minutes: 5 };
   assert.deepEqual(instanceSettingsReply(settings), settings);
   assert.throws(() => instanceSettingsReply({ ...settings, invite_days: 1.5 }), at('reply.invite_days'));
+});
+
+test('the admin write replies the views read decode, and a broken one names its field', () => {
+  const account = {
+    id: 1,
+    email: 'a@example.com',
+    fullname: 'A',
+    role: 'admin',
+    created_at: '2026-10-27T10:00:00+00:00',
+    disabled_at: null,
+  };
+  assert.deepEqual(adminAccountReply(account), account);
+  assert.throws(() => adminAccountReply({ ...account, role: 'owner' }), at('reply.role'));
+  const invite = {
+    id: 2,
+    role: 'user',
+    note: 'For B',
+    created_by: 1,
+    created_at: '2026-10-27T10:00:00+00:00',
+    expires_at: '2026-11-03T10:00:00+00:00',
+    url: '/invite/abc',
+  };
+  assert.deepEqual(createdInviteReply(invite), invite);
+  const { url: _, ...withoutUrl } = invite;
+  assert.throws(() => createdInviteReply(withoutUrl), at('reply.url'));
+  const link = { url: '/reset-password/abc', expires_at: '2026-10-28T10:00:00+00:00' };
+  assert.deepEqual(passwordResetLinkReply(link), link);
+  assert.throws(() => passwordResetLinkReply({ ...link, expires_at: 'tomorrow' }), at('reply.expires_at'));
+});
+
+test('the trash total decodes, and a count that is not a whole number fails', () => {
+  assert.deepEqual(trashTotalReply({ total: 1500, limit: 1000 }), { total: 1500, limit: 1000 });
+  assert.throws(() => trashTotalReply({ total: 1500 }), at('reply.limit'));
+  assert.throws(() => trashTotalReply({ total: 1.5, limit: 1000 }), at('reply.total'));
+});
+
+test('the entry write replies the views read decode: emptied trash and a bulk edit', () => {
+  assert.deepEqual(trashEmptiedReply({ deleted: 3 }), { deleted: 3 });
+  assert.throws(() => trashEmptiedReply({ deleted: '3' }), at('reply.deleted'));
+  const bulk = { success: [1, 2], failure: [{ id: 3, message: 'Entry not found' }] };
+  assert.deepEqual(bulkPatchResultReply(bulk), bulk);
+  assert.throws(() => bulkPatchResultReply({ ...bulk, failure: [{ id: 3 }] }), at('reply.failure[0].message'));
+  assert.throws(() => bulkPatchResultReply({ success: null, failure: [] }), at('reply.success'));
+});
+
+test('import and restore results decode, the file id of a restore error as it came', () => {
+  const imported = {
+    dry_run: true,
+    rows: 4,
+    created: 2,
+    skipped_duplicates: 1,
+    created_projects: ['Site'],
+    created_clients: [],
+    errors: [{ row: 3, message: 'Invalid start' }],
+    users: [{ key: 'k1', user: 'A', email: 'a@example.com', rows: 4 }],
+    skipped: [{ rows: 2, reason: 'Not selected' }],
+  };
+  assert.deepEqual(importResultReply(imported), imported);
+  assert.throws(() => importResultReply({ ...imported, users: [{ key: 'k1' }] }), at('reply.users[0].user'));
+  assert.throws(() => importResultReply({ ...imported, created: '2' }), at('reply.created'));
+  const restored = {
+    dry_run: false,
+    clients: 1,
+    projects: 2,
+    tasks: 0,
+    tags: 3,
+    time_entries: 10,
+    skipped_duplicates: 0,
+    errors: [
+      { entity: 'project', id: 'p-7', message: 'Missing name' },
+      { entity: 'time_entry', id: null, message: 'Missing start' },
+    ],
+  };
+  assert.deepEqual(jsonRestoreResultReply(restored), restored);
+  assert.throws(() => jsonRestoreResultReply({ ...restored, errors: [{ id: 1 }] }), at('reply.errors[0].entity'));
+});
+
+test('a write whose reply nothing reads gets nothing, whatever came back', () => {
+  assert.equal(ignoreReply({ id: 1 }), undefined);
+  assert.equal(ignoreReply(null), undefined);
+  assert.equal(ignoreReply('token'), undefined);
 });

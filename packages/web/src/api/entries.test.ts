@@ -2,8 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { QueryClient } from '@tanstack/react-query';
 import { dropChange } from '../lib/calendarDrop.ts';
-import { updateEntry, updateRunningEntry } from './entries.ts';
-import { keys } from './keys.ts';
+import { trashTotalOptions, updateEntry, updateRunningEntry } from './entries.ts';
+import { invalidate } from './invalidate.ts';
+import { keys, stale } from './keys.ts';
 import {
   TIMER_CONFLICT_MESSAGE,
   TimerActionError,
@@ -85,9 +86,9 @@ test('edits of one entry go out one at a time, in the order made; edits of anoth
     'the second edit of entry 7 waits for the first',
   );
   requests[1]!.answer();
-  assert.equal((await other).description, 'Other');
+  await other;
   requests[0]!.answer();
-  assert.equal((await first).description, 'Wri');
+  await first;
   await tick();
   assert.deepEqual(
     requests.map(request => request.body.description),
@@ -232,4 +233,17 @@ test('a timer action waits for an edit queued behind another edit of the same en
   requests[1]!.answer();
   await second;
   assert.equal(await waiting, true);
+});
+
+test('the trash total is read and decoded, and refreshes with the trash', async t => {
+  const paths: string[] = [];
+  t.mock.method(globalThis, 'fetch', (path: string) => {
+    paths.push(path);
+    return Promise.resolve(new Response(JSON.stringify({ total: 1500, limit: 1000 })));
+  });
+  const qc = new QueryClient();
+  assert.deepEqual(await qc.fetchQuery(trashTotalOptions), { total: 1500, limit: 1000 });
+  assert.deepEqual(paths, ['/api/app/trash/total']);
+  await invalidate(qc, stale.trash);
+  assert.equal(qc.getQueryState(trashTotalOptions.queryKey)?.isInvalidated, true);
 });

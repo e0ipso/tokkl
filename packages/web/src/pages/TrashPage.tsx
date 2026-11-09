@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { entryRequests, useRestoreEntry, useTrash } from '../api/entries.ts';
+import { entryRequests, useRestoreEntry, useTrash, useTrashTotal } from '../api/entries.ts';
 import { stale } from '../api/keys.ts';
 import type { TimeEntry } from '../api/types.ts';
 import { EmptyState } from '../components/EmptyState.tsx';
@@ -13,6 +13,7 @@ import { type Settings } from '../lib/settings.ts';
 import { entrySeconds } from '../lib/snapping.ts';
 import { useAction } from '../components/useAction.ts';
 import { ConfirmModal } from './manage/ui.tsx';
+import { trashLimitNotice } from './trashLimit.ts';
 import { t } from '../i18n/messages.ts';
 
 function TrashRow({ entry, settings }: { entry: TimeEntry; settings: Settings }) {
@@ -78,6 +79,7 @@ function TrashRow({ entry, settings }: { entry: TimeEntry; settings: Settings })
 export function TrashPage() {
   const settings = useSettings();
   const { data: entries, isLoading, error, refetch } = useTrash();
+  const limitNotice = trashLimitNotice(useTrashTotal().data);
   const [confirmEmpty, setConfirmEmpty] = useState(false);
 
   const empty = useAction<void, { deleted: number }>({
@@ -136,7 +138,7 @@ export function TrashPage() {
           </table>
         </div>
       ) : null}
-      {entries && entries.length >= 1000 ? <p className="hint manage-footnote">{t('manage.trashLimit')}</p> : null}
+      {entries && limitNotice ? <p className="hint manage-footnote">{limitNotice}</p> : null}
 
       {confirmEmpty && entries ? (
         <ConfirmModal
