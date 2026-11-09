@@ -5,7 +5,7 @@ import { syncBuiltinESMExports } from 'node:module';
 import express, { type ErrorRequestHandler } from 'express';
 import type { AccountEntryEffects } from '../../src/domain/accounts.ts';
 import type { Authentication } from '../../src/domain/credentials.ts';
-import type { RateLimitsRepository } from '../../src/domain/ports.ts';
+import type { RateLimitChecks } from '../../src/domain/ports.ts';
 import type { FailureLimiter as Limiter, Keys } from '../../src/auth/rateLimit.ts';
 
 // Hold a real scrypt result while a second real connection commits a credential change.
@@ -73,7 +73,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       const operations = createAccountOperations(runner, security),
         competing = createAccountOperations(second, security);
       // Each limiter call runs in its own transaction, as the storage facade's rateLimits does.
-      const limits: RateLimitsRepository = {
+      const limits: RateLimitChecks = {
         reserve: (...args) => runner.transaction(r => r.rateLimits.reserve(...args)),
         release: (...args) => runner.transaction(r => r.rateLimits.release(...args)),
         reset: (...args) => runner.transaction(r => r.rateLimits.reset(...args)),

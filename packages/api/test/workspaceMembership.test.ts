@@ -53,7 +53,7 @@ test('SQLite legacy schema version 2 is refused without modifying its data', asy
 
 test('a fresh database has no memberships until setup creates the first admin, who owns its workspace', async () => {
   const db = await openDatabase();
-  assert.equal(await completedMigrations(db), 7);
+  assert.equal(await completedMigrations(db), 8);
   assert.deepEqual(await memberships(db), []);
 
   const app = testServer(
@@ -253,6 +253,29 @@ test("workspace and organization flags come from the caller's membership, not us
   const exported = await member.json('GET', '/api/app/export.json');
   assert.equal(exported.status, 200);
   assert.equal(exported.body.workspaces.find((ws: any) => ws.id === owner.wid).admin, false);
+});
+
+test('only the owner changes workspace settings; members get 403 before the body is read', async () => {
+  const owner = await setup();
+  const member = await addUser(owner, { email: 'member@example.com', role: 'admin' });
+  const outsider = await addUser(owner, { email: 'outsider@example.com', role: 'user' });
+  await addWorkspaceMember(owner.db, owner.wid, member.user.id, 'member');
+  const path = `/api/v9/workspaces/${owner.wid}`;
+  const before = (await owner.json('GET', path)).body.name;
+
+  const refused = await member.json('PUT', path, { name: 'Taken' });
+  assert.equal(refused.status, 403);
+  assert.equal(refused.body, 'Only the workspace owner can change its settings.');
+  assert.equal((await member.json('PUT', path, { rounding: 2 })).status, 403, 'a bad body from a member is still 403');
+  const outside = await outsider.json('PUT', path, { name: 'Taken' });
+  assert.equal(outside.status, 403);
+  assert.equal(outside.body, 'User does not have access to this resource.');
+  assert.equal((await owner.json('GET', path)).body.name, before, 'a refused change changes nothing');
+
+  const renamed = await owner.json('PUT', path, { name: 'Renamed', default_currency: 'usd' });
+  assert.equal(renamed.status, 200);
+  assert.equal(renamed.body.name, 'Renamed');
+  assert.equal((await member.json('GET', path)).body.name, 'Renamed', 'the member still reads the settings');
 });
 
 test('GET /workspaces/:wid/users lists the workspace members and refuses non-members', async () => {

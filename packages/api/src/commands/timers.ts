@@ -33,7 +33,7 @@ function readLengths(body: JsonBody): Partial<PomodoroSessionConfig> {
  * without one acts on whatever runs, so clients from before the capability keep working.
  *
  * Planned: a later release requires `revision` on these actions too, as every other timer action
- * does. The timer routes log each user agent that omits it, at debug level and at most hourly per
+ * does. The timer routes log each user agent that omits it, at info level and at most hourly per
  * action, so operators can tell when no client in use still does. Then parse it with
  * `parseRevision` in `parseStartPomodoro` and `parsePauseTimer`, make it required in
  * `StartPomodoro` and `TimerOperations.pauseTimer`, drop that log and remove this table. The

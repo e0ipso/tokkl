@@ -9,6 +9,7 @@ import { openConnection, openReadConnection, type StorageConnection } from './co
 import type { PhysicalDatabase } from './physical.ts';
 import {
   baselineDDL,
+  catalogRevisionDDL,
   createTableDDL,
   idempotencyDDL,
   indexDDL,
@@ -56,6 +57,7 @@ export function migrations(backend: Backend): readonly Migration[] {
     { version: 5, name: 'rate_limits', statements: rateLimitDDL(backend) },
     { version: 6, name: 'timer_session_entry', statements: timerSessionEntryDDL(backend) },
     { version: 7, name: 'idempotency_keys', statements: idempotencyDDL(backend) },
+    { version: 8, name: 'catalog_revision', statements: catalogRevisionDDL(backend) },
   ];
 }
 const run = (db: Kysely<PhysicalDatabase>, statement: string) => sql.raw(statement).execute(db);
@@ -279,7 +281,6 @@ async function applyPending(
   db: Kysely<PhysicalDatabase>,
   backend: Backend,
   available: readonly Migration[],
-  afterStatement: (() => Promise<void>) | undefined,
 ): Promise<void> {
   const version = await history(db, backend, available);
   if (!version) await run(db, createTableDDL(backend, 'storage_migrations', ledgerColumns));
@@ -296,10 +297,7 @@ async function applyPending(
         schema_hash: null,
       })
       .execute();
-    for (const statement of migration.statements) {
-      await run(db, statement);
-      await afterStatement?.();
-    }
+    for (const statement of migration.statements) await run(db, statement);
     const fingerprint = await schemaFingerprint(db, backend);
     await db
       .updateTable('storage_migrations')
@@ -309,11 +307,13 @@ async function applyPending(
   }
 }
 
-/** Not exported through application contracts. Explicit history override supports upgrade/fault fixtures. */
+/**
+ * Not exported through application contracts. `available` is the history to apply, all of
+ * `migrations` unless an upgrade or fault test needs a prefix of it or a probe after it.
+ */
 export async function migrate(
   connection: StorageConnection<PhysicalDatabase>,
   available = migrations(connection.backend),
-  afterStatement?: () => Promise<void>,
 ): Promise<void> {
   if (connection.readOnly) throw new StorageMigrationError('reader');
   const backend = connection.backend;
@@ -325,7 +325,7 @@ export async function migrate(
       const lock: MigrationLock = { name: await migrationLockName(db, backend), locked: false };
       try {
         await lockMigrations(db, backend, lock);
-        await applyPending(db, backend, available, afterStatement);
+        await applyPending(db, backend, available);
         if (!serverDDL(backend)) await run(db, 'COMMIT');
       } catch (error) {
         if (lock.locked && !serverDDL(backend)) await run(db, 'ROLLBACK').catch(() => {});

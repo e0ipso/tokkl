@@ -30,7 +30,7 @@ import { createInviteOperations, createPasswordResetOperations } from './account
 import { getPreferences, normalizeEmail } from './accountValues.ts';
 import { currentCredentialUser, isActiveAdmin, isActiveUser, type AccountCredential } from './credentials.ts';
 import { getInstanceSettings } from './instanceSettings.ts';
-import { memberWorkspace, noWorkspaceAccess } from './membership.ts';
+import { noWorkspaceAccess, ownedWorkspace } from './membership.ts';
 import { createSessionOperations } from './sessions.ts';
 
 /** An attempt either ran its check, or was refused unchecked with the seconds to wait. */
@@ -204,7 +204,7 @@ function createProfileOperations<R extends AccountRepositories>(
         if (!(await ctx.workspaces.get(workspaceId))) throw noWorkspaceAccess();
         await ctx.lockWorkspaces([workspaceId]);
         if (!isActiveUser(await ctx.users.get(userId))) throw refused();
-        const ws = await memberWorkspace(ctx, userId, workspaceId);
+        const ws = await ownedWorkspace(ctx, userId, workspaceId);
         return ctx.workspaces.update(workspaceId, {
           name: changes.name ?? ws.name,
           defaultCurrency: (changes.defaultCurrency ?? ws.defaultCurrency).toUpperCase(),

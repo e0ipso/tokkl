@@ -1,5 +1,5 @@
 /** Workspaces and their members. */
-import type { Kysely } from 'kysely';
+import { sql, type Kysely } from 'kysely';
 import type { Backend } from '../config.ts';
 import type { PhysicalDatabase } from '../physical.ts';
 import { entityId, safeInteger } from '../conversion.ts';
@@ -43,10 +43,24 @@ export function createWorkspaceRepository(
           : await generatedId(query);
       return (await getWorkspace(db, id))!;
     },
+    async catalogRevision(workspaceId) {
+      const row = await db
+        .selectFrom('workspaces')
+        .select('catalog_revision')
+        .where('id', '=', entityId(workspaceId))
+        .executeTakeFirst();
+      return row ? safeInteger(row.catalog_revision) : 0;
+    },
     async update(id, changes) {
       await db
         .updateTable('workspaces')
         .set({
+          // First: MySQL assigns left to right, and the comparison must read the old currency.
+          ...(changes.defaultCurrency === undefined
+            ? {}
+            : {
+                catalog_revision: sql<number>`case when ${sql.ref('default_currency')} <> ${changes.defaultCurrency} then ${sql.ref('catalog_revision')} + 1 else ${sql.ref('catalog_revision')} end`,
+              }),
           ...(changes.name === undefined ? {} : { name: changes.name }),
           ...(changes.defaultCurrency === undefined ? {} : { default_currency: changes.defaultCurrency }),
           ...(changes.defaultHourlyRate === undefined ? {} : { default_hourly_rate: changes.defaultHourlyRate }),

@@ -31,6 +31,7 @@ export interface WorkspacesRow {
   rounding_minutes: DefaultInt;
   created_at: string;
   updated_at: string;
+  catalog_revision: DefaultInt;
 }
 
 export interface SessionsRow {

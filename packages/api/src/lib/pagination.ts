@@ -9,11 +9,6 @@ export function slicePage<T>(items: readonly T[], { page, perPage }: PageWindow)
   return items.slice((page - 1) * perPage, page * perPage);
 }
 
-/** `limit` items from the 0-based `offset`. */
-export function sliceOffset<T>(items: readonly T[], offset: number, limit: number): T[] {
-  return items.slice(offset, offset + limit);
-}
-
 /** Rows `offset` to `offset + limit` of an ordered query, for SQL `OFFSET` and `LIMIT`. */
 export interface RowRange {
   offset: number;
@@ -33,7 +28,8 @@ export function pageRange({ page, perPage }: PageWindow): RowRange | undefined {
 }
 
 /**
- * The rows `sliceOffset` keeps, as a range a query can apply, or undefined when there are none.
+ * Rows `offset` to `offset + limit` of a list, as a range a query can apply, or undefined when
+ * there are none.
  * Without a `limit` the range runs to the last row. Bounds truncate as in `pageRange`.
  */
 export function offsetRange(offset: number, limit = Infinity): RowRange | undefined {

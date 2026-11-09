@@ -48,6 +48,6 @@ export function createAccountRepositories(db: Kysely<PhysicalDatabase>, backend:
       },
     },
     tokens: createTokenRepository(db, backend),
-    sessions: createSessionRepository(db),
+    sessions: createSessionRepository(db, backend),
   };
 }

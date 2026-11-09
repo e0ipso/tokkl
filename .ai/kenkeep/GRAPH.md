@@ -1,11 +1,11 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:ff2bdeadd716934c681cf66ebc198ddb3768a011596be154808c46ade768bcad'
-node_count: 112
+nodes_hash: 'sha256:a83c2788e6599777026ef70e699a58d7f581e1691aa74b942bdf093a0503bfb5'
+node_count: 114
 ---
 # kenkeep Graph
 
-Total nodes: 112
+Total nodes: 114
 
 ## map-admin-user-management-api-and-the-last-active-admin-rule
 
@@ -32,6 +32,14 @@ Total nodes: 112
 - **tags:** web, navigation, brand, mobile, wordmark
 - **relates_to:** practice-playwright-gotchas-in-the-e2e-specs, practice-contrast-tables-and-project-colours, practice-phone-layout-css-gotchas, practice-visual-screenshot-baselines, map-app-icons-script, practice-section-hues-data-section-maps-each-nav-section-to-a-hue
 - **derived_from:** 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:map:0
+
+## map-catalog-revision-and-latest-entry-endpoints
+
+- **kind:** map
+- **title:** Catalog revision and latest entry endpoints for caching clients
+- **path:** api-and-data/reports-and-totals/map-catalog-revision-and-latest-entry-endpoints.md
+- **tags:** server, projects, clients, desktop
+- **relates_to:** practice-client-deletion-keeps-projects, practice-write-paths-validate-refs-not-totals
 
 ## map-container-image-ghcr-io-e0ipso-tokkl
 
@@ -938,6 +946,14 @@ Total nodes: 112
 - **path:** web-ui-styling-and-layout/calendar/practice-week-calendar-hour-height-agrees-in-three-places.md
 - **tags:** web, calendar, css, e2e
 - **relates_to:** practice-ui-time-math-uses-wall-clock-helpers, practice-contrast-tables-and-project-colours
+
+## practice-workspace-task-search-keeps-javascript-order
+
+- **kind:** practice
+- **title:** The workspace task search keeps JavaScript's case folding and name order
+- **path:** api-and-data/reports-and-totals/practice-workspace-task-search-keeps-javascript-order.md
+- **tags:** server, tasks, toggl
+- **relates_to:** map-catalog-revision-and-latest-entry-endpoints
 
 ## practice-write-paths-validate-refs-not-totals
 

@@ -44,7 +44,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           events.push(state.revision);
           assert.equal((await runner.readSnapshot(ctx => ctx.timers.getRevision(id)))?.revision, state.revision);
         });
-        const timer = entries.bodyTimers(presentTimerOperations(createTimerOperations(runner, publish)));
+        const timer = entries.bodyTimers(id => presentTimerOperations(createTimerOperations(runner, { id }, publish)));
         assert.equal((await timer.getTimerState(user.id, at('09:00:00'))).revision, 0);
         const entry = await runner.transaction(ctx =>
           entries.createTimeEntry(

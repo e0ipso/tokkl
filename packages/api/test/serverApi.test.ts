@@ -125,14 +125,15 @@ test('only the actions listed as optional-revision act without a revision, each 
   assert.equal((await ctx.json('POST', '/api/app/pomodoro', {})).status, 200);
 });
 
-test('an optional-revision action sent without one is logged at debug, hourly per user agent and action', async t => {
+test('an optional-revision action sent without one is logged at info, hourly per user agent and action', async t => {
   const ctx = await setup();
   const lines: Array<Record<string, unknown>> = [];
   const app = createApp({
     storage: storageFor(ctx.db),
     config: testConfig(ctx.db),
     setup: { code: null },
-    logger: createLogger({ level: 'debug', sink: line => lines.push(JSON.parse(line)) }),
+    // The default level, so operators see these lines without turning on debug.
+    logger: createLogger({ level: 'info', sink: line => lines.push(JSON.parse(line)) }),
   });
   after(() => app.locals.close());
   const server = testServer(app);
@@ -146,7 +147,7 @@ test('an optional-revision action sent without one is logged at debug, hourly pe
       .filter(line => line.msg === 'Timer action without revision')
       .map(({ level, action, capability, userAgent }) => ({ level, action, capability, userAgent }));
   const line = (action: keyof typeof OPTIONAL_REVISION_ACTIONS, userAgent: string) => ({
-    level: 'debug',
+    level: 'info',
     action,
     capability: OPTIONAL_REVISION_ACTIONS[action],
     userAgent,

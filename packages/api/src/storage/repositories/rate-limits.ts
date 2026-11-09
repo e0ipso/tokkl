@@ -5,7 +5,7 @@ import type { RateLimitCounterKey, RateLimitReservation, RateLimitsRepository } 
 import type { PhysicalDatabase } from '../physical.ts';
 import { safeInteger, utcInstant } from '../conversion.ts';
 
-/** Most rows one write deletes from each table. Later writes take the rest. */
+/** Most rows one cleanup call deletes from each table. The maintenance job calls again for the rest. */
 const CLEANUP_BATCH = 500;
 const later = (now: string, ms: number) => new Date(Date.parse(now) + ms).toISOString();
 
@@ -38,7 +38,7 @@ function refusalFor(
 
 /**
  * Every write locks its counters by primary key in ascending key order, so overlapping counter sets
- * cannot deadlock. Cleanup runs last and skips rows other writes hold, so it never waits.
+ * cannot deadlock. Cleanup runs apart from the writes and skips rows they hold, so it never waits.
  */
 export function createRateLimitRepository(db: Kysely<PhysicalDatabase>, backend: Backend): RateLimitsRepository {
   const server = backend !== 'sqlite';
@@ -87,7 +87,7 @@ export function createRateLimitRepository(db: Kysely<PhysicalDatabase>, backend:
       .where('key_hash', '=', keyHash)
       .execute();
   }
-  async function cleanup(now: string): Promise<void> {
+  async function deleteExpired(now: string): Promise<number> {
     let reservations = db
       .selectFrom('rate_limit_reservations')
       .select('id')
@@ -106,6 +106,7 @@ export function createRateLimitRepository(db: Kysely<PhysicalDatabase>, backend:
     if (server) counters = counters.forUpdate().skipLocked();
     const idle = (await counters.execute()).map(row => row.key_hash);
     if (idle.length) await db.deleteFrom('rate_limit_counters').where('key_hash', 'in', idle).execute();
+    return expired.length + idle.length;
   }
   /** Locks every counter in key order and reads its window and live reservations under the lock. */
   async function lockAll(
@@ -175,7 +176,6 @@ export function createRateLimitRepository(db: Kysely<PhysicalDatabase>, backend:
         reservations: await addReservations(counters, now, leaseMs),
       };
       if (!result.ok) await dropIdle(counters, now);
-      await cleanup(now);
       return result;
     },
     async release(reservations, counters, failed, at, windowMs) {
@@ -186,11 +186,10 @@ export function createRateLimitRepository(db: Kysely<PhysicalDatabase>, backend:
           .where('id', 'in', [...reservations])
           .execute();
       if (failed) for (const { keyHash } of ordered(counters)) await addFailure(keyHash, now, windowMs);
-      await cleanup(now);
     },
     async reset(keyHashes, at) {
       const now = utcInstant(at);
-      // Ending the window now lets cleanup drop the counter once no reservation holds it.
+      // Ending the window now lets the cleanup drop the counter once no reservation holds it.
       for (const { keyHash } of ordered([...new Set(keyHashes)].map(keyHash => ({ keyHash })))) {
         await db
           .updateTable('rate_limit_counters')
@@ -198,7 +197,7 @@ export function createRateLimitRepository(db: Kysely<PhysicalDatabase>, backend:
           .where('key_hash', '=', keyHash)
           .execute();
       }
-      await cleanup(now);
     },
+    deleteExpired: at => deleteExpired(utcInstant(at)),
   };
 }

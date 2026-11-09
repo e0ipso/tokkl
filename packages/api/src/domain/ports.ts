@@ -97,6 +97,11 @@ export interface WorkspacesReader {
   getRole(userId: Id, workspaceId: Id): Promise<MembershipRole | undefined>;
   countMembers(workspaceId: Id): Promise<number>;
   listMembers(workspaceId: Id): Promise<WorkspaceMember[]>;
+  /**
+   * How many writes have changed the workspace's v9 project list: a project or client write, or a
+   * new default currency. 0 for a missing workspace.
+   */
+  catalogRevision(workspaceId: Id): Promise<number>;
 }
 export interface WorkspacesRepository extends WorkspacesReader {
   create(name: string): Promise<Workspace>;
@@ -127,6 +132,11 @@ export interface TokensRepository extends TokensReader {
   revokeInvite(id: Id): Promise<boolean>;
   revokeInvitesCreatedBy(userId: Id): Promise<void>;
   revokeUnusedPasswordResets(userId: Id): Promise<void>;
+  /**
+   * Deletes up to a batch of used or expired links, which nothing reads again, skipping rows other
+   * writes hold, and returns how many it deleted.
+   */
+  deleteSpent(now: UtcInstant): Promise<number>;
 }
 export interface SessionsReader {
   find(tokenHash: string): Promise<Session | undefined>;
@@ -135,6 +145,10 @@ export interface SessionsRepository extends SessionsReader {
   create(session: Session): Promise<void>;
   delete(tokenHash: string): Promise<void>;
   deleteForUser(userId: Id, keepTokenHash?: string): Promise<void>;
+  /**
+   * Deletes up to a batch of sessions that expired before `now`, skipping rows other writes hold,
+   * and returns how many it deleted. An expired session that is still stored never signs in.
+   */
   deleteExpired(now: UtcInstant): Promise<number>;
 }
 /** A hashed limiter key and the failures it allows per window. */
@@ -150,8 +164,8 @@ export type RateLimitReservation =
   /** No counter is at its limit, but live reservations fill at least one. */
   | { ok: false; reason: 'slots' };
 /**
- * Callers supply `now`. A counter whose window has ended has no failures. Each write also deletes
- * expired reservations, and expired counters that no live reservation holds.
+ * Callers supply `now`. A counter whose window has ended has no failures, and an expired
+ * reservation holds no slot, so stale rows never change an answer. `deleteExpired` removes them.
  */
 export interface RateLimitsRepository {
   /**
@@ -174,7 +188,14 @@ export interface RateLimitsRepository {
   ): Promise<void>;
   /** Clears failures. Live reservations keep their slots. */
   reset(keyHashes: readonly string[], now: UtcInstant): Promise<void>;
+  /**
+   * Deletes up to a batch of expired reservations, and of expired counters that no live reservation
+   * holds, skipping rows other writes hold. Returns how many rows it deleted.
+   */
+  deleteExpired(now: UtcInstant): Promise<number>;
 }
+/** What a password check uses; cleanup is the maintenance job's. */
+export type RateLimitChecks = Pick<RateLimitsRepository, 'reserve' | 'release' | 'reset'>;
 export interface ClientFilter {
   status?: 'active' | 'archived' | 'both';
   name?: string;
@@ -221,6 +242,13 @@ export interface ProjectsRepository extends ProjectsReader {
 export type TaskInput = Omit<Task, 'id' | 'createdAt' | 'updatedAt'>;
 /** What the workspace task search filters and sorts on, read without the tracked totals. */
 export type TaskSortKey = Pick<Task, 'id' | 'name' | 'createdAt' | 'updatedAt'>;
+/** The workspace task search's filters that SQL applies exactly. */
+export interface TaskSearchFilter {
+  projectId?: Id;
+  active?: boolean;
+  /** Keeps tasks updated at or after this instant. */
+  changedSince?: UtcInstant;
+}
 export interface TasksReader {
   getMetadata(workspaceId: Id, id: Id): Promise<Task | undefined>;
   /** Ordered by folded name, then id. `ids` keeps only those tasks. */
@@ -228,7 +256,25 @@ export interface TasksReader {
     workspaceId: Id,
     filter?: { projectId?: Id; active?: boolean; name?: string; ids?: readonly Id[] },
   ): Promise<TaskSummary[]>;
-  listSortKeys(workspaceId: Id, filter: { projectId?: Id; active?: boolean }): Promise<TaskSortKey[]>;
+  /**
+   * The sort keys of the tasks `filter` keeps, in id order. With `nameCandidates`, a lower-cased
+   * search, it also drops every task whose JavaScript-lower-cased name cannot contain it: an ASCII
+   * name is kept only when it does, and a name with other characters is always kept, for the caller
+   * to test.
+   */
+  listSortKeys(workspaceId: Id, filter: TaskSearchFilter & { nameCandidates?: string }): Promise<TaskSortKey[]>;
+  /** How many tasks `filter` keeps. */
+  count(workspaceId: Id, filter: TaskSearchFilter): Promise<number>;
+  /**
+   * The `range` rows of the tasks `filter` keeps, ordered by creation instant, then id, both
+   * ascending or both descending.
+   */
+  listByCreation(
+    workspaceId: Id,
+    filter: TaskSearchFilter,
+    order: 'ASC' | 'DESC',
+    range: RowRange,
+  ): Promise<TaskSummary[]>;
   /**
    * The tasks of every workspace the user belongs to, ordered by workspace id, folded name, then
    * id. A `range` keeps only those rows of that order.

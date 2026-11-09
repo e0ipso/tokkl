@@ -12,6 +12,11 @@ import {
   catalogTaskRefQuery,
 } from '../../src/storage/repositories/catalog-queries.ts';
 import { createCatalogRepositories } from '../../src/storage/repositories/catalogs.ts';
+import { createStorage } from '../fixtures/storageShortcuts.ts';
+import * as catalog from '../fixtures/catalogBodies.ts';
+import { NAMES, oracle, SEARCHES } from '../fixtures/taskSearchOracle.ts';
+import { createCatalogQueries } from '../../src/domain/queries.ts';
+import { serializeTask } from '../../src/presenters/toggl.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 
 for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
@@ -424,4 +429,96 @@ async function explainCatalog(db: Kysely<PhysicalDatabase>, backend: Backend, pi
       assert.match(plan, new RegExp(`time_entries_${kind.startsWith('project') ? 'project' : 'task'}_live`));
     else assert.match(plan, /PRIMARY|INTEGER PRIMARY KEY|Index Scan|Index Only Scan|Bitmap Index Scan/i);
   }
+}
+
+for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
+  test(`${backend}: project and client writes and a new currency move the catalog revision`, async () => {
+    const fixture = await disposableBackend(backend);
+    const storage = createStorage(await initializeDatabase(fixture.config));
+    try {
+      const ws = await storage.transaction(ctx => ctx.workspaces.create('Revision'));
+      const other = await storage.transaction(ctx => ctx.workspaces.create('Other'));
+      const read = (id: number) => storage.readSnapshot(r => r.workspaces.catalogRevision(id));
+      assert.equal(await read(ws.id), 0);
+      const client = await storage.transaction(ctx =>
+        ctx.clients.create({ workspaceId: ws.id, name: 'Client', notes: null, archived: false }),
+      );
+      assert.equal(await read(ws.id), 1);
+      await storage.transaction(ctx => ctx.workspaces.update(ws.id, { name: 'Renamed', defaultCurrency: 'EUR' }));
+      assert.equal(await read(ws.id), 1, 'the same currency is no change');
+      await storage.transaction(ctx => ctx.workspaces.update(ws.id, { defaultCurrency: 'USD', rounding: 1 }));
+      assert.equal(await read(ws.id), 2);
+      assert.equal((await storage.readSnapshot(r => r.workspaces.get(ws.id)))!.defaultCurrency, 'USD');
+      await storage.transaction(ctx => ctx.clients.setArchived(ws.id, client.id, true));
+      await storage.transaction(ctx => ctx.clients.deleteAndDetachProjects(ws.id, client.id));
+      assert.equal(await read(ws.id), 4);
+      // A rolled-back write leaves the revision as it was.
+      await assert.rejects(
+        storage.transaction(async ctx => {
+          await ctx.clients.create({ workspaceId: ws.id, name: 'Rolled back', notes: null, archived: false });
+          throw new Error('roll back');
+        }),
+        /roll back/,
+      );
+      assert.equal(await read(ws.id), 4);
+      assert.equal(await read(other.id), 0);
+      assert.equal(await read(999_999), 0);
+    } finally {
+      await storage.close();
+      await fixture.cleanup();
+    }
+  });
+}
+
+for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
+  test(`${backend}: the workspace task search answers what the in-memory search answered`, async () => {
+    const fixture = await disposableBackend(backend);
+    const connection = await initializeDatabase(fixture.config);
+    const storage = createStorage(connection);
+    try {
+      const ws = await storage.transaction(ctx => ctx.workspaces.create('Search'));
+      const projects: number[] = [];
+      for (const name of ['One', 'Two', 'Three'])
+        projects.push((await storage.transaction(ctx => catalog.createProject(ctx, ws.id, { name }))).id);
+      for (const [index, name] of NAMES.entries()) {
+        const task = await storage.transaction(ctx =>
+          catalog.createTask(ctx, ws.id, projects[index % 3]!, { name, active: index % 3 !== 0 }),
+        );
+        // Creation instants with ties, and update instants either side of the `since` below.
+        await connection.db
+          .updateTable('tasks')
+          .set({
+            created_at: `2026-10-0${(index % 4) + 1}T09:00:00.000Z`,
+            updated_at: `2026-10-${10 + (index % 5)}T09:00:00.000Z`,
+          })
+          .where('id', '=', task.id)
+          .execute();
+      }
+      const read = <T>(work: (queries: ReturnType<typeof createCatalogQueries>) => Promise<T>) =>
+        storage.readSnapshot(r => work(createCatalogQueries(r)));
+      const all = await read(queries => queries.workspaceTasks(ws));
+      const body = (tasks: Parameters<typeof serializeTask>[0][]) => JSON.stringify(tasks.map(serializeTask));
+      for (const sortField of ['name', 'created_at'] as const)
+        for (const sortOrder of ['ASC', 'DESC'] as const)
+          for (const search of SEARCHES)
+            for (const [active, projectId, changedSince] of [
+              [undefined, undefined, undefined],
+              [true, projects[1], '2026-10-12T09:00:00.000Z'],
+            ] as const)
+              for (const window of [
+                { page: 1, perPage: 200 },
+                { page: 2, perPage: 3 },
+              ]) {
+                const query = { projectId, active, changedSince, search, sortField, sortOrder };
+                const expected = oracle(all, query, window);
+                const actual = await read(queries => queries.searchTasks(ws, query, window));
+                const label = JSON.stringify({ query, window });
+                assert.equal(actual.totalCount, expected.totalCount, label);
+                assert.equal(body(actual.tasks), body(expected.tasks), label);
+              }
+    } finally {
+      await storage.close();
+      await fixture.cleanup();
+    }
+  });
 }

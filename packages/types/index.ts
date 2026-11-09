@@ -55,6 +55,14 @@ export interface ServerApi {
   capabilities: ServerCapability[];
 }
 
+/**
+ * Tokkl only, `GET /api/app/workspaces/{wid}/catalog`: grows with every write that changes the
+ * workspace's v9 project list, apart from tracked totals and the date-driven `status`.
+ */
+export interface CatalogRevision {
+  revision: number;
+}
+
 /** An account as GET /api/app/admin/users lists it. */
 export interface AdminAccount {
   id: number;

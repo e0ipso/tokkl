@@ -1,6 +1,6 @@
 import type { StorageConnection } from './connections.ts';
 import type { PhysicalDatabase } from './physical.ts';
-import type { RateLimitsRepository, ReadOnlyRepositories, Storage, TransactionContext } from '../domain/ports.ts';
+import type { RateLimitChecks, ReadOnlyRepositories, Storage, TransactionContext } from '../domain/ports.ts';
 import { createTransactionRunner } from './transactions.ts';
 import { createAccountRepositories } from './repositories/accounts.ts';
 import { createCatalogRepositories } from './repositories/catalogs.ts';
@@ -56,7 +56,7 @@ export function createStorage(connection: StorageConnection<PhysicalDatabase>): 
  * Rate limit counters outside any other unit of work: each call is its own short transaction, so a
  * password check never runs with a transaction open and every instance on the database sees it.
  */
-export function standaloneRateLimits(storage: Pick<Storage, 'transaction'>): RateLimitsRepository {
+export function standaloneRateLimits(storage: Pick<Storage, 'transaction'>): RateLimitChecks {
   return {
     reserve: (...args) => storage.transaction(ctx => ctx.rateLimits.reserve(...args)),
     release: (...args) => storage.transaction(ctx => ctx.rateLimits.release(...args)),

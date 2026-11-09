@@ -131,9 +131,13 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         },
       );
       await t.test(
-        'workspace changes preserve member permissions, rounding validation and currency normalization',
+        "workspace changes are the owner's, with rounding validation and currency normalization",
         async () => {
-          const updated = await operations.updateWorkspace(bob.id, admin.defaultWorkspaceId, {
+          await assert.rejects(
+            operations.updateWorkspace(bob.id, admin.defaultWorkspaceId, { name: 'Member' }),
+            error(403, 'Only the workspace owner can change its settings.'),
+          );
+          const updated = await operations.updateWorkspace(admin.id, admin.defaultWorkspaceId, {
             name: ' Shared ',
             default_currency: 'usd',
             default_hourly_rate: 12.5,
@@ -148,7 +152,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
             error(403, 'User does not have access to this resource.'),
           );
           await assert.rejects(
-            operations.updateWorkspace(bob.id, admin.defaultWorkspaceId, { rounding: 2 }),
+            operations.updateWorkspace(admin.id, admin.defaultWorkspaceId, { rounding: 2 }),
             error(400, 'Invalid rounding'),
           );
         },
@@ -515,6 +519,46 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           }
         },
       );
+      await t.test('spent link cleanup deletes used and expired links in batches and keeps usable ones', async () => {
+        const at = '2026-10-30T12:00:00.000Z';
+        const link = (name: string, expiresAt: string, usedAt: string | null = null) =>
+          runner.transaction(ctx =>
+            ctx.tokens.create({
+              tokenHash: sha256(`spent ${name}`),
+              kind: 'invite',
+              role: 'user',
+              note: null,
+              userId: null,
+              createdBy: admin.id,
+              createdAt: '2026-10-01T00:00:00.000Z',
+              expiresAt,
+              usedAt,
+            }),
+          );
+        for (let i = 0; i < 120; i++) await link(`expired ${i}`, at);
+        await link('used', '2026-11-30T00:00:00.000Z', '2026-10-02T00:00:00.000Z');
+        const usable = await link('usable', '2026-10-30T12:00:00.001Z');
+        const before = await runner.readSnapshot(ctx => ctx.tokens.listPendingInvites(at));
+        let total = 0;
+        for (let deleted = -1; deleted; total += deleted) {
+          deleted = await runner.transaction(ctx => ctx.tokens.deleteSpent(at));
+          assert.ok(deleted <= 100, 'one call deletes one batch');
+        }
+        // Earlier tests left used invites of their own.
+        assert.ok(total >= 121, `deleted ${total}`);
+        const left = await connection!.db.selectFrom('account_tokens').select(['used_at', 'expires_at']).execute();
+        assert.ok(left.length > 0);
+        assert.ok(left.every(row => row.used_at === null && row.expires_at > at));
+        assert.deepEqual(
+          (await runner.readSnapshot(ctx => ctx.tokens.listPendingInvites(at))).map(row => row.id),
+          before.map(row => row.id),
+        );
+        assert.ok(before.some(row => row.id === usable.id));
+        assert.equal(
+          (await runner.readSnapshot(ctx => ctx.tokens.findUsable(sha256('spent usable'), 'invite', at)))!.id,
+          usable.id,
+        );
+      });
       await t.test(
         'last admin deletion, missing users and invalid setup timezone keep established errors',
         async () => {

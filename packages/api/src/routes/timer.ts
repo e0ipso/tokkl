@@ -22,8 +22,8 @@ const REVISIONLESS_AGENTS = 1000;
 const USER_AGENT_LENGTH = 255;
 
 /**
- * Logs a request to an `OPTIONAL_REVISION_ACTIONS` action that came without a revision, at debug
- * level and at most once per interval for each user agent and action, so operators can see which
+ * Logs a request to an `OPTIONAL_REVISION_ACTIONS` action that came without a revision, at info
+ * level (the default) and at most once per interval for each user agent and action, so operators can see which
  * clients still omit it before a release requires it. The user agent is the only header logged.
  */
 function revisionlessLogger() {
@@ -35,7 +35,7 @@ function revisionlessLogger() {
     const now = Date.now();
     if (last !== undefined && now - last < REVISIONLESS_LOG_INTERVAL_MS) return;
     lastLogged.set(key, now);
-    res.locals.log.debug('Timer action without revision', {
+    res.locals.log.info('Timer action without revision', {
       action,
       capability: OPTIONAL_REVISION_ACTIONS[action],
       userAgent,

@@ -142,14 +142,27 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           assert.deepEqual(await reserve([pair], at(3 * WINDOW)), { ok: false, reason: 'slots' });
         });
 
-        await t.test('writes delete expired reservations and idle expired counters', async () => {
+        await t.test('the cleanup deletes expired reservations and idle expired counters in batches', async () => {
+          const cleanAll = async (now: string) => {
+            let total = 0;
+            for (let deleted = -1; deleted; total += deleted) deleted = await limits(r => r.deleteExpired(now));
+            return total;
+          };
+          await cleanAll(at(5 * WINDOW));
           // A lease that outlives its window keeps the counter until the lease ends.
           const leased = counter('leased', 5);
           assert.equal((await reserve([leased], at(5 * WINDOW), 2 * WINDOW)).ok, true);
           await fail([counter('tick-1', 5)], at(6 * WINDOW));
+          assert.equal(await cleanAll(at(6 * WINDOW)), 0, 'nothing has expired yet');
+          await cleanAll(at(6 * WINDOW + WINDOW / 2));
           assert.ok(await counterRow(leased));
           assert.equal(await live(leased), 1);
           await fail([counter('tick-2', 5)], at(7 * WINDOW));
+          // More expired reservations than one batch deletes, on a counter whose window ends with them.
+          const many = counter('many', 1000);
+          for (let i = 0; i < 600; i++) assert.ok((await reserve([many], at(7 * WINDOW), LEASE, LEASE)).ok);
+          // The leased reservation and the 600, then the leased, tick-1 and many counters.
+          assert.equal(await cleanAll(at(7 * WINDOW + 2 * LEASE)), 601 + 3);
           const counters = (await connection.db.selectFrom('rate_limit_counters').select('key_hash').execute()).map(
             row => row.key_hash,
           );

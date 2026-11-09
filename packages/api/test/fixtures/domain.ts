@@ -1,6 +1,7 @@
 import { generateApiToken } from '../../src/lib/crypto.ts';
 import { createAccountOperations } from './accountBodies.ts';
-import { createTimerOperations } from '../../src/domain/timers.ts';
+import { createTimerOperations, type TimerRunner } from '../../src/domain/timers.ts';
+import type { Repositories } from '../../src/domain/ports.ts';
 import { settleTimer as settle } from '../../src/domain/timerSettlement.ts';
 import { createTimerPublication } from '../../src/services/timerPublication.ts';
 import { presentTimerOperations } from '../../src/services/timerReplies.ts';
@@ -55,14 +56,10 @@ export const settleTimer = (db: FixtureDatabase, uid: number) =>
   });
 function timers(db: FixtureDatabase) {
   const ctx = currentContext(db);
-  return entries.bodyTimers(
-    presentTimerOperations(
-      createTimerOperations(
-        ctx ? { transaction: work => work(ctx), readSnapshot: storageFor(db).readSnapshot } : storageFor(db),
-        publication(db),
-      ),
-    ),
-  );
+  const runner: TimerRunner<Repositories> = ctx
+    ? { transaction: work => work(ctx), readSnapshot: storageFor(db).readSnapshot }
+    : storageFor(db);
+  return entries.bodyTimers(id => presentTimerOperations(createTimerOperations(runner, { id }, publication(db))));
 }
 export const getTimerState = (db: FixtureDatabase, user: User, now?: Date) => timers(db).getTimerState(user.id, now);
 export const pauseTimer = (db: FixtureDatabase, user: User, now?: Date, revision?: number) =>
