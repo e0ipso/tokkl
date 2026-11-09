@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { ApiError, RequestTimeoutError } from './client.ts';
 import { clientRequests } from './clients.ts';
 import { entryRequests } from './entries.ts';
-import { newIdempotencyKey, postCreate, sendCreate } from './idempotency.ts';
+import { newIdempotencyKey, postCreate, retryWaitMs, sendCreate, type RetryWait } from './idempotency.ts';
 import { projectRequests } from './projects.ts';
 import { tagRequests } from './tags.ts';
 
@@ -39,6 +39,79 @@ test('a create whose outcome is unknown goes out once more with the same request
   assert.deepEqual(sent[1], sent[0]);
 });
 
+test('the second attempt waits one jittered step: 1 s plus up to a quarter of it', () => {
+  assert.equal(
+    retryWaitMs(() => 0),
+    1000,
+  );
+  assert.equal(
+    retryWaitMs(() => 0.5),
+    1125,
+  );
+  assert.equal(
+    retryWaitMs(() => 0.999_999),
+    1249,
+  );
+});
+
+/** A `RetryWait` whose sleeps end only when the test calls `wake`, recording each one's length. */
+function heldWait(random: number) {
+  const slept: number[] = [];
+  let wake = () => {};
+  const wait: RetryWait = {
+    random: () => random,
+    sleep: ms => {
+      slept.push(ms);
+      return new Promise(resolve => (wake = resolve));
+    },
+  };
+  return { wait, slept, wake: () => wake() };
+}
+
+test('a create whose outcome is unknown goes out again only after the wait', async () => {
+  const keys: string[] = [];
+  const replies = [() => Promise.reject(new RequestTimeoutError('POST', '/w')), () => Promise.resolve('made')];
+  const { wait, slept, wake } = heldWait(0.2);
+  const sent = sendCreate(
+    'POST /w {}',
+    key => {
+      keys.push(key);
+      return replies.shift()!();
+    },
+    wait,
+  );
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(slept, [1050]);
+  assert.equal(keys.length, 1, 'nothing goes out during the wait');
+  wake();
+  assert.equal(await sent, 'made');
+  assert.deepEqual(keys, [keys[0], keys[0]]);
+});
+
+test('the same request sent again during the wait reuses the key', async () => {
+  const keys: string[] = [];
+  const replies = [
+    () => Promise.reject(new RequestTimeoutError('POST', '/d')),
+    () => Promise.resolve('replayed by the user'),
+    () => Promise.resolve('replayed by the retry'),
+  ];
+  const send = (key: string) => {
+    keys.push(key);
+    return replies.shift()!();
+  };
+  const { wait, wake } = heldWait(0);
+  const first = sendCreate('POST /d {}', send, wait);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(await sendCreate('POST /d {}', send, wait), 'replayed by the user');
+  wake();
+  assert.equal(await first, 'replayed by the retry');
+  assert.deepEqual(keys, [keys[0], keys[0], keys[0]]);
+  // Both settled the intent: the same request again is a new one.
+  replies.push(() => Promise.resolve('new'));
+  await sendCreate('POST /d {}', send, wait);
+  assert.notEqual(keys[3], keys[0]);
+});
+
 test('a refused create is not sent again', async t => {
   const { fetch, sent } = answering({ status: 400, body: 'Name taken' });
   t.mock.method(globalThis, 'fetch', fetch);
@@ -57,6 +130,9 @@ test('a new intent gets a new key, even for the same request', async t => {
   assert.notEqual(sent[1]?.key, sent[0]?.key);
 });
 
+/** A `RetryWait` that waits no time. */
+const noWait: RetryWait = { random: () => 0, sleep: () => Promise.resolve() };
+
 test('a create still unknown after its retry keeps its key for the same request sent again, and only for it', async () => {
   const keys: string[] = [];
   const answer = (reply: () => Promise<string>) => (key: string) => {
@@ -64,7 +140,10 @@ test('a create still unknown after its retry keeps its key for the same request 
     return reply();
   };
   const lost = answer(() => Promise.reject(new RequestTimeoutError('POST', '/x')));
-  await assert.rejects(sendCreate('POST /x {"a":1}', lost), (error: unknown) => error instanceof RequestTimeoutError);
+  await assert.rejects(
+    sendCreate('POST /x {"a":1}', lost, noWait),
+    (error: unknown) => error instanceof RequestTimeoutError,
+  );
   assert.equal(keys.length, 2);
   assert.equal(keys[1], keys[0]);
   // The user sends the same request again: the server answers the record the lost one made.
@@ -83,7 +162,7 @@ test('a create still unknown after its retry keeps its key for the same request 
   );
   assert.notEqual(keys[3], keys[0]);
   // Another request never reuses a kept key.
-  await assert.rejects(sendCreate('POST /x {"a":2}', lost));
+  await assert.rejects(sendCreate('POST /x {"a":2}', lost, noWait));
   await sendCreate(
     'POST /x {"a":3}',
     answer(() => Promise.resolve('other')),
