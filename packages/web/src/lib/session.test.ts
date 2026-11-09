@@ -29,7 +29,7 @@ Object.assign(globalThis, {
   },
 });
 const { ApiError } = await import('../api/client.ts');
-const { endSession, logOut, takeLogoutFailure } = await import('./session.ts');
+const { endSession, logOut, onSignOut, takeLogoutFailure } = await import('./session.ts');
 
 const realFetch = globalThis.fetch;
 let qc: QueryClient;
@@ -103,4 +103,37 @@ test('logout sends only the logout request: a running Pomodoro session stays on 
   await logOut(qc);
   assert.deepEqual(requests, [{ url: '/api/app/logout', method: 'POST' }]);
   assertSessionEnded();
+});
+
+test('logging out closes what subscribed and cancels reads before the request goes out', async () => {
+  const order: string[] = [];
+  const unsubscribe = onSignOut(() => order.push('closed'));
+  let readSignal: AbortSignal | undefined;
+  void qc
+    .fetchQuery({
+      queryKey: ['timer'],
+      queryFn: ({ signal }) => {
+        readSignal = signal;
+        return new Promise(() => {});
+      },
+    })
+    .catch(() => {});
+  answerLogout(async () => {
+    order.push(readSignal?.aborted ? 'logout after the read was cancelled' : 'logout with the read in flight');
+    return new Response(null, { status: 200 });
+  });
+  try {
+    await logOut(qc);
+  } finally {
+    unsubscribe();
+  }
+  assert.deepEqual(order, ['closed', 'logout after the read was cancelled']);
+});
+
+test('an unsubscribed listener is not called', async () => {
+  let called = false;
+  onSignOut(() => (called = true))();
+  answerLogout(async () => new Response(null, { status: 200 }));
+  await logOut(qc);
+  assert.equal(called, false);
 });

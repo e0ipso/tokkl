@@ -31,12 +31,28 @@ export function endSession(qc: QueryClient): void {
   forgetLogoutFailure();
 }
 
+const signOutListeners = new Set<() => void>();
+
 /**
- * Revokes the cookie, then ends the session in this tab whether logout succeeded or not. A
- * Pomodoro session lives on the server and keeps running. A failed logout leaves a flag for
- * `takeLogoutFailure` and rejects after cleanup.
+ * Calls `listener` when this tab starts logging out, before the logout request goes out. The timer
+ * event stream closes here: the server ends it with the session, and a stream the server ended is
+ * otherwise followed by a timer read that the revoked cookie gets a 403 for. Returns the
+ * unsubscribe function.
+ */
+export function onSignOut(listener: () => void): () => void {
+  signOutListeners.add(listener);
+  return () => signOutListeners.delete(listener);
+}
+
+/**
+ * Revokes the cookie, then ends the session in this tab whether logout succeeded or not. Long-lived
+ * connections close and reads in flight are cancelled first, so nothing reaches the server with
+ * the cookie it is revoking. A Pomodoro session lives on the server and keeps running. A failed
+ * logout leaves a flag for `takeLogoutFailure` and rejects after cleanup; the caller then reloads.
  */
 export async function logOut(qc: QueryClient): Promise<void> {
+  for (const listener of [...signOutListeners]) listener();
+  await qc.cancelQueries();
   try {
     await authRequests.logout();
   } catch (error) {
