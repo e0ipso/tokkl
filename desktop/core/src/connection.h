@@ -3,7 +3,6 @@
 #include "apiclient.h"
 #include "apitypes.h"
 #include "authsession.h"
-#include "cooldown.h"
 #include "credentialstore.h"
 #include "transport.h"
 
@@ -167,8 +166,6 @@ public:
     // failure or another status changes nothing here.
     PendingStream *openTimerEvents();
 
-    // The cooldown after a 429 without Retry-After.
-    static constexpr int defaultCooldownMs = Cooldown::defaultMs;
     // Projects per page, the server's maximum, and the most pages read.
     static constexpr int projectPageSize = 200;
     static constexpr int maxProjectPages = 100;

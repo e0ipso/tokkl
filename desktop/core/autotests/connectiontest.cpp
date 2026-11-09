@@ -4,6 +4,7 @@
 #include "connection.h"
 #include "connectionsettings.h"
 #include "connectionsetup.h"
+#include "cooldown.h"
 #include "fakes.h"
 
 #include <QDir>
@@ -918,7 +919,7 @@ private Q_SLOTS:
         QVERIFY(f.connection.isConnected());
         QVERIFY(!f.connection.canWrite());
         const qint64 wait = QDateTime::currentDateTimeUtc().msecsTo(f.connection.rateLimitedUntil());
-        QVERIFY2(wait > Connection::defaultCooldownMs - 5000 && wait <= Connection::defaultCooldownMs, qPrintable(QString::number(wait)));
+        QVERIFY2(wait > Cooldown::defaultMs - 5000 && wait <= Cooldown::defaultMs, qPrintable(QString::number(wait)));
 
         const qsizetype sent = f.transport.requests.size();
         std::optional<ApiResult<TimerState>> refused;
