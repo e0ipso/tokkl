@@ -10,7 +10,6 @@ import {
   type ExecutionJob,
   type JobSource,
   type ReportExecution,
-  type ReportPhase,
   type ReportWork,
   type WorkerStarter,
 } from './reportExecution.ts';
@@ -67,7 +66,6 @@ export interface ReportRunnerOptions extends LaneLimits {
    * account, 3 running at once, 15 minutes each.
    */
   downloads?: DownloadLaneLimits;
-  onPhase?: (phase: ReportPhase) => void;
   /** Where unexpected report and worker failures are logged, as redacted diagnostics. */
   logger?: Logger;
   /** How the runner starts its worker threads. Defaults to `startReportWorker`. */
@@ -203,7 +201,7 @@ class Lane {
     config: StorageConfig,
     inline: JobSource,
     settings: LaneSettings,
-    options: { logger: Logger; onPhase?: (phase: ReportPhase) => void; startWorker?: WorkerStarter },
+    options: { logger: Logger; startWorker?: WorkerStarter },
   ) {
     this.settings = settings;
     const count = reportRunsInline(config) ? 1 : settings.concurrency;
@@ -420,7 +418,6 @@ export class ReportRunner implements ReportExecutor {
     );
     const execution = {
       logger: options.logger ?? silentLogger,
-      onPhase: options.onPhase,
       startWorker: options.startWorker,
     };
     this.reports = new Lane(config, inline, reports, execution);

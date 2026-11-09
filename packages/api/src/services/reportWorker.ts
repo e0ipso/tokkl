@@ -65,26 +65,19 @@ try {
         }
         const { id, work } = message;
         try {
-          port.postMessage({ id, phase: 'reading' });
-          const formatting = () => port.postMessage({ id, phase: 'formatting' });
           if (isDownload(work)) {
             const output = (credit = new OutputCredit(id));
-            await runDownloadJob(
-              reader,
-              work,
-              async chunk => {
-                const bytes = Buffer.byteLength(chunk);
-                port.postMessage({ id, chunk, bytes });
-                output.sent(bytes);
-                await output.within(EXPORT_BYTES_AHEAD);
-              },
-              formatting,
-            );
+            await runDownloadJob(reader, work, async chunk => {
+              const bytes = Buffer.byteLength(chunk);
+              port.postMessage({ id, chunk, bytes });
+              output.sent(bytes);
+              await output.within(EXPORT_BYTES_AHEAD);
+            });
             await output.within(0);
             port.postMessage({ id });
             return;
           }
-          const result = await runReportJob(reader, work, formatting);
+          const result = await runReportJob(reader, work);
           port.postMessage({ id, result });
         } catch (error) {
           // SQL/driver messages never leave this thread. An unexpected failure sends its redacted

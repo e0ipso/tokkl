@@ -171,30 +171,38 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
           .values(history.slice(i, i + 100))
           .execute();
       await runner.close();
+      const heavyWorkers = trackedWorkers();
+      const heavy = new ReportRunner(fixture.config, operations, { startWorker: heavyWorkers.startWorker });
+      t.after(() => heavy.close());
+      // The detailed CSV streams its header, then one piece per formatted batch: the second piece
+      // means the worker is formatting, and more batches follow.
       let formatted!: () => void;
       const formatting = new Promise<void>(resolve => {
         formatted = resolve;
       });
-      const heavyWorkers = trackedWorkers();
-      const heavy = new ReportRunner(fixture.config, operations, {
-        startWorker: heavyWorkers.startWorker,
-        onPhase: phase => {
-          if (phase === 'formatting') formatted();
-        },
-      });
-      t.after(() => heavy.close());
+      const pieces: string[] = [];
       let finished = false;
       const started = performance.now();
-      const result = answerOnRunner(heavy, user.id, wid, {
-        kind: 'app-detailed-csv',
-        filter: job.filter,
-        orderBy: 'description',
-        orderDir: 'ASC',
-        durationFormat: 'improved',
-      }).then(r => {
-        finished = true;
-        return r;
-      });
+      const result = heavy
+        .reserveDownload({ userId: user.id }, slot =>
+          slot.report(
+            wid,
+            {
+              kind: 'app-detailed-csv',
+              filter: job.filter,
+              orderBy: 'description',
+              orderDir: 'ASC',
+              durationFormat: 'improved',
+            },
+            async piece => {
+              pieces.push(piece);
+              if (pieces.length === 2) formatted();
+            },
+          ),
+        )
+        .then(() => {
+          finished = true;
+        });
       await formatting;
       const timerStarted = performance.now();
       await operations.transaction(r =>
@@ -210,8 +218,9 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
       assert.equal(state.running_entry?.description, 'live timer');
       const overlapped = !finished;
       const timerMs = performance.now() - timerStarted;
-      const body = await result;
-      assert.equal(body.body.split('\r\n').length, 18003);
+      await result;
+      assert.ok(pieces.length > 2, 'the report must be formatted in more than one batch');
+      assert.equal(pieces.join('').split('\r\n').length, 18003);
       console.log(
         JSON.stringify({
           backend,

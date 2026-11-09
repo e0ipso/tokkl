@@ -29,8 +29,6 @@ export interface ExecutionJob {
   output?: ExportEmitter;
 }
 
-export type ReportPhase = 'reading' | 'formatting';
-
 /** What an execution tells the runner. */
 export interface ExecutionEvents {
   /**
@@ -69,7 +67,6 @@ export const startReportWorker: WorkerStarter = config =>
 
 export interface ReportExecutionOptions {
   logger: Logger;
-  onPhase?: (phase: ReportPhase) => void;
   /** How a worker thread is started. Defaults to `startReportWorker`. */
   startWorker?: WorkerStarter;
 }
@@ -78,7 +75,6 @@ export interface ReportExecutionOptions {
 interface Reply {
   id?: number;
   ready?: boolean;
-  phase?: ReportPhase;
   /** One piece of an export's output and its size in UTF-8 bytes, which the reply acknowledges. */
   chunk?: string;
   bytes?: number;
@@ -242,14 +238,6 @@ class WorkerExecution implements ReportExecution {
       void job.output!(message.chunk).then(() => {
         if (this.worker === worker && this.current === job) worker.postMessage({ ack: { id, bytes } });
       });
-      return;
-    }
-    if (message.phase) {
-      try {
-        this.options.onPhase?.(message.phase);
-      } catch {
-        /* Observers do not own jobs. */
-      }
       return;
     }
     if (message.diagnostic)
