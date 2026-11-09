@@ -70,7 +70,7 @@ export function errorReply(error: unknown, options: ErrorReplyOptions = {}): Err
 
 /**
  * Mounted on `/api/app`, the web app's own API: its refusals carry the validation headers. The
- * Toggl-compatible API answers exactly as before.
+ * Toggl-compatible API never sends them, so its refusals match what Toggl clients expect.
  */
 export const validationHeaders: RequestHandler = (_req, res, next) => {
   res.locals.validationHeaders = true;

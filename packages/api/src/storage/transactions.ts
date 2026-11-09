@@ -1,4 +1,3 @@
-import { setTimeout as sleepFor } from 'node:timers/promises';
 import { sql, type Kysely } from 'kysely';
 import type { Backend } from './config.ts';
 import type { StorageConnection } from './connections.ts';
@@ -10,7 +9,6 @@ import { beginSqliteTransaction } from './sqliteBridge.ts';
 /** Internal only: construct ALL repositories using this exact connection-bound db. */
 export type RepositoryFactory<D, R extends object> = (db: Kysely<D>) => R;
 export interface TransactionOptions {
-  maxAttempts?: number;
   dryRun?: boolean;
 }
 export interface TransactionRunner<R extends object> {
@@ -18,28 +16,27 @@ export interface TransactionRunner<R extends object> {
   readSnapshot<T>(work: (repositories: R) => Promise<T>): Promise<T>;
 }
 export interface TransactionRunnerOptions {
-  /** Error details are deliberately omitted. Reporting must never fail an already committed write. */
-  publicationFailed?: () => void | Promise<void>;
-  /** A number in [0, 1) that spreads retries apart. Defaults to `Math.random`. */
-  random?: () => number;
-  /** Waits between attempts. Defaults to a timer. */
-  sleep?: (milliseconds: number) => Promise<void>;
+  /**
+   * Hears each after-commit callback that threw. The write has committed by then, so the failure is
+   * only reported; a reporter that throws is ignored.
+   */
+  afterCommitFailed?: (error: unknown) => void;
 }
 
-/** The longest wait before the first rerun of a conflicted attempt. Each later rerun doubles it. */
-export const RETRY_BASE_DELAY_MS = 10;
-/** The cap on any wait between attempts. */
-export const RETRY_MAX_DELAY_MS = 80;
+/** How many times a transaction runs when each attempt before the last hits a retryable conflict. */
+const MAX_ATTEMPTS = 3;
+/** The longest wait before the first rerun of a conflicted attempt. The second rerun's doubles it. */
+const RETRY_BASE_DELAY_MS = 10;
 
 /**
- * Wait before rerunning after attempt `failed` (1-based): half the doubled ceiling plus a random
- * share of the other half. Two transactions that conflicted then rerun apart instead of colliding
- * again at once, and no wait exceeds `RETRY_MAX_DELAY_MS`.
+ * Waits before rerunning after attempt `failed` (1-based): half the doubled ceiling plus a random
+ * share of the other half, so two transactions that conflicted rerun apart instead of colliding
+ * again at once. The first wait is 5 to 10 ms, the second 10 to 20 ms.
  */
-export function retryDelay(failed: number, random: () => number): number {
-  const ceiling = Math.min(RETRY_MAX_DELAY_MS, RETRY_BASE_DELAY_MS * 2 ** (failed - 1));
-  const share = Math.min(Math.max(random(), 0), 1);
-  return ceiling / 2 + (share * ceiling) / 2;
+function waitBeforeRetry(failed: number): Promise<void> {
+  const ceiling = RETRY_BASE_DELAY_MS * 2 ** (failed - 1);
+  const delay = ceiling / 2 + (Math.random() * ceiling) / 2;
+  return new Promise(resolve => setTimeout(resolve, delay));
 }
 
 type Hook = () => Promise<void>;
@@ -202,14 +199,17 @@ async function drainBeforeCommit(attempt: Attempt): Promise<void> {
   }
 }
 
-/** After-commit work runs once the connection is released. A failure never fails the commit. */
+/**
+ * After-commit work runs once the connection is released, each callback after the one before. A
+ * failure never fails the commit: it goes to `afterCommitFailed` and the next callback still runs.
+ */
 async function runAfterCommit(after: Hook[], options: TransactionRunnerOptions): Promise<void> {
-  for (const publish of after) {
+  for (const callback of after) {
     try {
-      await publish();
-    } catch {
+      await callback();
+    } catch (error) {
       try {
-        await options.publicationFailed?.();
+        options.afterCommitFailed?.(error);
       } catch {
         /* committed writes remain successful */
       }
@@ -282,8 +282,6 @@ export function createTransactionRunner<D, R extends object>(
   options: TransactionRunnerOptions = {},
 ): TransactionRunner<R> {
   const backend = connection.backend;
-  const random = options.random ?? Math.random;
-  const sleep = options.sleep ?? ((milliseconds: number) => sleepFor(milliseconds));
 
   /** One attempt on one checked-out connection. Reports whether it rolled back or reached COMMIT. */
   async function attemptOnce<T>(
@@ -346,9 +344,6 @@ export function createTransactionRunner<D, R extends object>(
   return {
     async transaction(work, settings = {}) {
       if (connection.readOnly) throw new Error('Write transaction requires a writable connection');
-      const attempts = settings.maxAttempts ?? 3;
-      if (!Number.isSafeInteger(attempts) || attempts < 1 || attempts > 5)
-        throw new Error('Invalid transaction attempt limit');
       for (let number = 1; ; number++) {
         const attempt: Attempt = {
           before: new Map(),
@@ -371,8 +366,8 @@ export function createTransactionRunner<D, R extends object>(
             outcome.rolledBack &&
             !!conflict &&
             (conflict.kind === 'deadlock' || conflict.kind === 'serialization');
-          if (!retryable || number >= attempts) throw error;
-          await sleep(retryDelay(number, random));
+          if (!retryable || number >= MAX_ATTEMPTS) throw error;
+          await waitBeforeRetry(number);
         }
       }
     },

@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { createStorage } from '../fixtures/storageShortcuts.ts';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { createAccountOperations } from '../fixtures/accountBodies.ts';
-import { createApp } from '../../src/app.ts';
+import { createApp, createApplication } from '../../src/app.ts';
 import { testConfig, testServer, setup, addUser } from '../helpers.ts';
 import { addWorkspaceMember } from '../fixtures/domain.ts';
 function gate() {
@@ -103,7 +103,11 @@ for (const backend of ['postgres', 'mysql', 'mariadb'] as const)
           );
         return out;
       });
-      const app = createApp({ storage, config: { ...testConfig(), storage: fixture.config }, setup: { code: null } });
+      const { app, services } = createApplication({
+        storage,
+        config: { ...testConfig(), storage: fixture.config },
+        setup: { code: null },
+      });
       t.after(() => app.locals.close());
       const { createTimeEntry } = await import('../fixtures/entryBodies.ts');
       const entered = gate(),
@@ -134,7 +138,7 @@ for (const backend of ['postgres', 'mysql', 'mariadb'] as const)
             owner,
             owner.defaultWorkspaceId,
             { start: '2026-10-30T12:00:00Z' },
-            app.locals.services.publish,
+            services.publish,
           )
         ).id;
         entered.resolve();

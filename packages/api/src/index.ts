@@ -1,7 +1,7 @@
 import { randomInt } from 'node:crypto';
 import type { Server } from 'node:http';
 import type { Express } from 'express';
-import { createApp } from './app.ts';
+import { createApplication } from './app.ts';
 import { ConfigurationError, loadConfig, type Config } from './config.ts';
 import { initializeDatabase } from './storage/migrations.ts';
 import { createStorage } from './storage/index.ts';
@@ -9,7 +9,7 @@ import { startTimerBus } from './storage/timerBus.ts';
 import type { TimerBus } from './storage/timerBus.ts';
 import type { Storage } from './domain/ports.ts';
 import { safeDestination } from './storage/config.ts';
-import { createLogger, type Logger } from './lib/logger.ts';
+import { createLogger, redactedDiagnostic, type Logger } from './lib/logger.ts';
 
 /** How long a graceful shutdown waits for open connections before it closes them. */
 const SHUTDOWN_GRACE_MS = 10_000;
@@ -76,7 +76,11 @@ async function main(): Promise<void> {
   const { config, notices } = loadConfig();
   const logger = createLogger({ level: config.logLevel });
   for (const notice of notices) logger.warn(notice);
-  const storage = createStorage(await initializeDatabase(config.storage));
+  const storage = createStorage(await initializeDatabase(config.storage), {
+    // The runner holds no request, so the line has no request id. The diagnostic leaves out the
+    // error's message, which may carry SQL or row values.
+    afterCommitFailed: error => logger.error('After-commit work failed', { diagnostic: redactedDiagnostic(error) }),
+  });
   let timerBus: TimerBus | undefined;
   try {
     const setup = {
@@ -87,7 +91,7 @@ async function main(): Promise<void> {
     };
     // A process must hear other instances' timer signals before it reports that it is listening.
     timerBus = await startTimerBus(config.storage, logger);
-    const app = createApp({ storage, config, setup, timerBus, logger });
+    const { app } = createApplication({ storage, config, setup, timerBus, logger });
     const server = app.listen(config.port, config.host);
     superviseServer({ server, app, timerBus, storage }, config, setup, logger);
   } catch (error) {

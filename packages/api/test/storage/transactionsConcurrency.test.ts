@@ -359,55 +359,24 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           const published: number[] = [];
           await Promise.all(
             [runner, second].map((r, index) =>
-              r.transaction(
-                async ctx => {
-                  counts[index]!++;
-                  const first = index + 1,
-                    next = 2 - index;
-                  await ctx.users.rename(first, `attempt${counts[index]}`);
-                  if (counts[index] === 1) {
-                    reached[index]!.resolve();
-                    await reached[1 - index]!.promise;
-                  }
-                  await ctx.users.rename(next, 'deadlock recovered');
-                  ctx.afterCommit(async () => {
-                    published.push(index);
-                  });
-                },
-                { maxAttempts: 2 },
-              ),
+              r.transaction(async ctx => {
+                counts[index]!++;
+                const first = index + 1,
+                  next = 2 - index;
+                await ctx.users.rename(first, `attempt${counts[index]}`);
+                if (counts[index] === 1) {
+                  reached[index]!.resolve();
+                  await reached[1 - index]!.promise;
+                }
+                await ctx.users.rename(next, 'deadlock recovered');
+                ctx.afterCommit(async () => {
+                  published.push(index);
+                });
+              }),
             ),
           );
           assert.deepEqual(counts.slice().sort(), [1, 2]);
           assert.deepEqual(published.sort(), [0, 1]);
-        });
-      if (backend !== 'sqlite')
-        await t.test('one-attempt policy exposes a real deadlock without retrying', async () => {
-          const reached = [gate(), gate()];
-          const counts = [0, 0];
-          let published = 0;
-          const results = await Promise.allSettled(
-            [runner, second].map((r, index) =>
-              r.transaction(
-                async ctx => {
-                  counts[index]!++;
-                  await ctx.users.rename(index + 1, 'bounded');
-                  reached[index]!.resolve();
-                  await reached[1 - index]!.promise;
-                  await ctx.users.rename(2 - index, 'winner');
-                  ctx.afterCommit(async () => {
-                    published++;
-                  });
-                },
-                { maxAttempts: 1 },
-              ),
-            ),
-          );
-          assert.deepEqual(counts, [1, 1]);
-          assert.equal(published, 1);
-          const failed = results.filter(r => r.status === 'rejected');
-          assert.equal(failed.length, 1);
-          assert.ok(failed[0]!.reason instanceof StorageConflict && failed[0]!.reason.kind === 'deadlock');
         });
       if (backend === 'postgres')
         await t.test('real serializable snapshot conflict retries after confirmed rollback', async () => {
@@ -435,21 +404,18 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           let published = 0;
           await Promise.all(
             [0, 1].map(index =>
-              r.transaction(
-                async ctx => {
-                  counts[index]!++;
-                  await ctx.users.name(3);
-                  if (counts[index] === 1) {
-                    reached[index]!.resolve();
-                    await reached[1 - index]!.promise;
-                  }
-                  await ctx.users.rename(3, `serial${index}`);
-                  ctx.afterCommit(async () => {
-                    published++;
-                  });
-                },
-                { maxAttempts: 2 },
-              ),
+              r.transaction(async ctx => {
+                counts[index]!++;
+                await ctx.users.name(3);
+                if (counts[index] === 1) {
+                  reached[index]!.resolve();
+                  await reached[1 - index]!.promise;
+                }
+                await ctx.users.rename(3, `serial${index}`);
+                ctx.afterCommit(async () => {
+                  published++;
+                });
+              }),
             ),
           );
           assert.deepEqual(counts.sort(), [1, 2]);

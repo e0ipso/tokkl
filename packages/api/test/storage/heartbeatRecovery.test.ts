@@ -8,7 +8,7 @@ import { createStorage } from '../fixtures/storageShortcuts.ts';
 import { openConnection } from '../../src/storage/connections.ts';
 import type { PhysicalDatabase } from '../../src/storage/physical.ts';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
-import { createApp } from '../../src/app.ts';
+import { createApplication } from '../../src/app.ts';
 import { testConfig } from '../helpers.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 import { gate, readTimerStream, serveInvariant } from './support/invariantHttp.ts';
@@ -74,20 +74,20 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       remote = countedReads(counted, () => statements);
     // Both instances use the default local bus, so B learns about A's commits only from its own tick.
     const apps = [
-      createApp({
+      createApplication({
         storage: local,
         config: { ...testConfig(), storage: config },
         setup: { code: null },
         timerStreamOptions: { keepAliveMs: 600000 },
       }),
-      createApp({
+      createApplication({
         storage: remote.storage,
         config: { ...testConfig(), storage: config },
         setup: { code: null },
         timerStreamOptions: { keepAliveMs: KEEP_ALIVE_MS },
       }),
     ];
-    const servers = await Promise.all(apps.map(serveInvariant));
+    const servers = await Promise.all(apps.map(application => serveInvariant(application.app)));
     const streams: Array<Awaited<ReturnType<typeof readTimerStream>>> = [];
     t.after(async () => {
       remote.release();
@@ -168,23 +168,34 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       const seen = onB.states.length,
         base = await revision();
       const entry = (await local.entries.running(u.id))!;
-      const published = t.mock.method(apps[1]!.locals.services.timerStreams, 'publish');
+      const published = t.mock.method(apps[1]!.services.timerStreams, 'publish');
       // Hold the next tick inside the stream's queue, before its credential check reads.
       const held = remote.hold();
       await held.entered.promise;
       const onBWrite = send(1, u, 'PUT', `${running}/${entry.id}`, { description: 'on B' });
-      // B's own commit is now waiting for the stream's queue, which the held tick occupies.
+      // B's own delivery is now waiting for the stream's queue, which the held tick occupies.
       const deadline = performance.now() + 5000;
       while (published.mock.callCount() === 0) {
         assert.ok(performance.now() < deadline, 'local publish reached the stream');
         await new Promise(r => setTimeout(r, 5));
       }
+      // The reply does not wait for that delivery.
+      let late: NodeJS.Timeout | undefined;
+      const replied = await Promise.race([
+        onBWrite,
+        new Promise<never>((_, reject) => {
+          late = setTimeout(() => {
+            held.release.resolve();
+            reject(new Error('the reply waited for the held keep-alive tick'));
+          }, 5000);
+        }),
+      ]).finally(() => clearTimeout(late));
+      await ok(replied);
       await ok(await send(0, u, 'PUT', `${running}/${entry.id}`, { description: 'on A' }));
       assert.equal(await revision(), base + 2);
       // The tick now reads base + 2, ahead of both the stream and B's pending base + 1.
       held.release.resolve();
       await onB.until(() => onB.events.includes(base + 2), { describe: () => JSON.stringify(onB.events) });
-      await ok(await onBWrite);
       assert.deepEqual(
         onB.states.slice(seen).map(s => s.revision),
         [base + 1, base + 2],

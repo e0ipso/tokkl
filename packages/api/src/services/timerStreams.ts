@@ -122,9 +122,9 @@ export class TimerStreams {
     return count;
   }
   /**
-   * Adds `stream` to the user's group within both caps, before anything checks or builds for it. The
-   * user's oldest streams past the per-user cap end, as they always have. When the process would
-   * still be over its cap, the new stream is refused and nothing changes.
+   * Adds `stream` to the user's group within both caps, before anything checks or builds for it.
+   * Past the per-user cap, the user's oldest streams end to make room for the new one. When the
+   * process would still be over its cap, the new stream is refused and nothing changes.
    */
   #join(id: number, stream: Stream): Group {
     const held = this.#users.get(id)?.streams.size ?? 0;

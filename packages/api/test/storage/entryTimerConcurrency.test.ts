@@ -33,7 +33,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       const factory = entryTimerFactory(backend);
       let failed = 0;
       const runner = createTransactionRunner(connection, factory, {
-        publicationFailed: async () => {
+        afterCommitFailed: () => {
           failed++;
         },
       });

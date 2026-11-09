@@ -37,7 +37,14 @@ export interface AppOptions {
   reports?: ReportExecutor;
 }
 
-export function createApp({
+/** The composed HTTP application and the services its routers share. */
+export interface Application {
+  /** Shut it down with `app.locals.close()`: new requests get a 503, running ones are aborted, then the services close. */
+  app: Express;
+  services: Deps;
+}
+
+export function createApplication({
   storage,
   config,
   setup,
@@ -45,7 +52,7 @@ export function createApp({
   timerBus = createLocalTimerBus(),
   logger = createLogger({ level: config.logLevel }),
   reports,
-}: AppOptions): Express {
+}: AppOptions): Application {
   const app = express();
   const rateLimits = standaloneRateLimits(storage);
   const loginLimiter = new FailureLimiter(rateLimits, 'password', ADDRESS_LIMIT, PASSWORD_WINDOW_MS);
@@ -98,7 +105,6 @@ export function createApp({
     });
     next();
   });
-  app.locals.services = deps;
   app.locals.close = async () => {
     closing = true;
     for (const controller of active) controller.abort();
@@ -126,5 +132,10 @@ export function createApp({
   app.use(webRootRoutes(config.webRoot));
 
   app.use(errorHandler(logger));
-  return app;
+  return { app, services: deps };
+}
+
+/** The Express app of `createApplication`, for callers that serve it and never call a service directly. */
+export function createApp(options: AppOptions): Express {
+  return createApplication(options).app;
 }

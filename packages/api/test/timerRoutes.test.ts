@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
 import type { TimerState } from '@tokkl/types';
 import { storageFor } from './fixtures/database.ts';
-import { createApp } from '../src/app.ts';
+import { createApplication } from '../src/app.ts';
 import { type TimerStreamOptions } from '../src/services/timerStreams.ts';
 import {
   CSRF,
@@ -296,13 +296,13 @@ test('opening one stream over the cap closes the oldest', STREAM_TEST, async t =
 
 test('closing every stream lets the server close', STREAM_TEST, async t => {
   const ctx = await setup();
-  const app = createApp({
+  const { app, services } = createApplication({
     storage: storageFor(ctx.db),
     config: testConfig(),
     setup: { code: null },
     timerStreamOptions: { keepAliveMs: SLOW_KEEP_ALIVE_MS },
   });
-  const streams = app.locals.services.timerStreams;
+  const streams = services.timerStreams;
   const listening = app.listen(0, '127.0.0.1');
   await new Promise(resolve => listening.once('listening', resolve));
   const port = (listening.address() as AddressInfo).port;
@@ -314,3 +314,46 @@ test('closing every stream lets the server close', STREAM_TEST, async t => {
   await new Promise<void>((resolve, reject) => listening.close(error => (error ? reject(error) : resolve())));
   await stream.ended();
 });
+
+test(
+  'a write replies before its delivery, and shutdown waits for that delivery to reach the stream',
+  STREAM_TEST,
+  async t => {
+    const ctx = await setup();
+    const { app, services } = createApplication({
+      storage: storageFor(ctx.db),
+      config: testConfig(),
+      setup: { code: null },
+      timerStreamOptions: { keepAliveMs: SLOW_KEEP_ALIVE_MS },
+    });
+    const listening = app.listen(0, '127.0.0.1');
+    await new Promise(resolve => listening.once('listening', resolve));
+    t.after(() => {
+      listening.closeAllConnections();
+      listening.close();
+    });
+    const port = (listening.address() as AddressInfo).port;
+    const server: TestServer = { request: (path, init) => fetch(`http://127.0.0.1:${port}${path}`, init) };
+    const stream = await openStream(t, server, basic(ctx.user));
+    const opened = await stream.nextState();
+
+    // Hold every delivery to the streams until released.
+    const release = Promise.withResolvers<void>();
+    const deliver = services.timerStreams.publish.bind(services.timerStreams);
+    t.mock.method(services.timerStreams, 'publish', async (id: number, state: TimerState) => {
+      await release.promise;
+      return deliver(id, state);
+    });
+    const started = await call(server, 'POST', '/api/app/timer/start', basic(ctx.user), { revision: opened.revision });
+    assert.equal(started.status, 200);
+
+    let closed = false;
+    const closing = app.locals.close().then(() => (closed = true));
+    await new Promise(resolve => setTimeout(resolve, 50));
+    assert.equal(closed, false, 'shutdown waits for the held delivery');
+    release.resolve();
+    assert.equal((await stream.nextState()).revision, started.body.revision);
+    await closing;
+    await stream.ended();
+  },
+);
