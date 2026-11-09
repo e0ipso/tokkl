@@ -62,10 +62,13 @@ public:
     };
     Q_ENUM(State)
 
-    // Delay before an automatic retry after a connectivity failure, plus up
-    // to retryJitterMs more at random.
-    static constexpr int retryDelayMs = 30000;
-    static constexpr int retryJitterMs = 10000;
+    // The waits of the automatic retries of a validation that failed for
+    // connectivity (RetryBackoff): 30 s, doubling with each failure in a
+    // row up to 2 min, each plus up to a quarter more from the clock's
+    // jitter. A bound account, new settings or a reconnect start again at
+    // 30 s.
+    static constexpr int retryBaseMs = 30000;
+    static constexpr int retryMaxMs = 120000;
 
     // Uses the given transport and store; the session does not own them.
     AuthSession(Transport *transport, CredentialStore *store, QObject *parent = nullptr);
@@ -174,6 +177,7 @@ private:
 
     Cooldown m_cooldown;
     QTimer m_retryTimer;
+    RetryBackoff m_retry{retryBaseMs, retryMaxMs};
     QPointer<Clock> m_clock;
     ApiClient m_api;
 };

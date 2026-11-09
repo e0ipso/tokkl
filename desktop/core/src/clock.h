@@ -41,6 +41,24 @@ inline constexpr int retryJitterDivisor = 4;
 // system's without a clock.
 int retryWaitMs(int baseMs, const Clock *clock);
 
+// The waits of one retry loop: the first is baseMs, each later one twice
+// the one before up to capMs, and each takes retryWaitMs()'s jitter from the
+// clock. reset() starts again at baseMs, as after a success.
+class RetryBackoff
+{
+public:
+    RetryBackoff(int baseMs, int capMs);
+
+    // The wait before the next retry.
+    int next(const Clock *clock);
+    void reset();
+
+private:
+    int m_baseMs;
+    int m_capMs;
+    int m_nextMs;
+};
+
 // The system clock. Each tick is aimed just past the next whole second, so
 // the timer does not drift away from the second boundary.
 class SystemClock : public Clock
