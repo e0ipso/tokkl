@@ -78,13 +78,12 @@ export function createTaskRepository(
     async listSortKeys(wid, filter) {
       const q = db
         .selectFrom('tasks as t')
-        .select(['t.id', 't.name', 't.created_at', 't.updated_at'])
+        .select(['t.id', 't.name', 't.created_at'])
         .where(searchScope(backend, wid, filter));
       return (await q.orderBy('t.id').execute()).map(r => ({
         id: entityId(r.id),
         name: r.name,
         createdAt: utcInstant(r.created_at),
-        updatedAt: utcInstant(r.updated_at),
       }));
     },
     async count(wid, filter) {

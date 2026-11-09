@@ -230,9 +230,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         const workspaceTasks = await runner.readSnapshot(r => r.tasks.list(1));
         assert.deepEqual(
           await runner.readSnapshot(r => r.tasks.listSortKeys(1, {})),
-          workspaceTasks
-            .map(({ id, name, createdAt, updatedAt }) => ({ id, name, createdAt, updatedAt }))
-            .sort((a, b) => a.id - b.id),
+          workspaceTasks.map(({ id, name, createdAt }) => ({ id, name, createdAt })).sort((a, b) => a.id - b.id),
         );
         const picked = [workspaceTasks[2]!.id, workspaceTasks[0]!.id];
         assert.deepEqual(await runner.readSnapshot(r => r.tasks.list(1, { ids: picked })), [

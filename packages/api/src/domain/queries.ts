@@ -201,8 +201,8 @@ export function createCatalogQueries(r: CatalogReadRepositories) {
      * One page of the workspace's tasks. SQL applies the project, state and `since` filters. With
      * no search, a creation-time order is SQL's too, with its count and page. The name order folds
      * case and compares as `localeCompare` does, which no engine repeats, and the search folds case
-     * as JavaScript does; those run on the names and times of the matching tasks only, and only the
-     * page's tasks are read in full.
+     * as JavaScript does, so both run in memory: on the ids, names and creation instants of the
+     * matching tasks only, and only the page's tasks are read in full.
      */
     async searchTasks(ws: Workspace, search: TaskSearch, window: PageWindow): Promise<TaskSearchPage> {
       const filter = { projectId: search.projectId, active: search.active, changedSince: search.changedSince };

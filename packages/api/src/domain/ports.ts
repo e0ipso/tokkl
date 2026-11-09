@@ -243,8 +243,8 @@ export interface ProjectsRepository extends ProjectsReader {
   delete(workspaceId: Id, id: Id, entryMode: 'detach' | 'delete'): Promise<void>;
 }
 export type TaskInput = Omit<Task, 'id' | 'createdAt' | 'updatedAt'>;
-/** What the workspace task search filters and sorts on, read without the tracked totals. */
-export type TaskSortKey = Pick<Task, 'id' | 'name' | 'createdAt' | 'updatedAt'>;
+/** What the workspace task search sorts and pages by in memory: id, name and creation instant. */
+export type TaskSortKey = Pick<Task, 'id' | 'name' | 'createdAt'>;
 /** The workspace task search's filters that SQL applies exactly. */
 export interface TaskSearchFilter {
   projectId?: Id;
