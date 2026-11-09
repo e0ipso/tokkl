@@ -120,6 +120,24 @@ public:
         m_transport.catalog = FakeTransport::catalogAt(++m_catalogRevision);
     }
 
+    // The network is down for the catalog checks too: they wait, unanswered,
+    // until failCatalogChecks().
+    Q_INVOKABLE void holdCatalogChecks()
+    {
+        m_transport.holdCatalog = true;
+        m_heldCatalogFrom = m_transport.catalogReplies.size();
+    }
+
+    // Fails every held catalog check as unreachable, then answers later ones
+    // again on their own.
+    Q_INVOKABLE void failCatalogChecks()
+    {
+        for (qsizetype i = m_heldCatalogFrom; i < m_transport.catalogReplies.size(); ++i) {
+            m_transport.respondCatalog(i, FakeTransport::failure(HttpResponse::Outcome::NetworkError, QStringLiteral("unreachable")));
+        }
+        m_transport.holdCatalog = false;
+    }
+
     // Stores a token for the instance and selects it, as the Configure page
     // would. The connection then reads the secret and asks for /me.
     Q_INVOKABLE void configure(const QString &url, const QString &token)
@@ -219,6 +237,7 @@ public:
 private:
     FakeTransport m_transport;
     qint64 m_catalogRevision = 1;
+    qsizetype m_heldCatalogFrom = 0;
     FakeCredentialStore m_store;
     FakeClock m_clock;
     Connection m_connection{&m_transport, &m_store, testClientName()};

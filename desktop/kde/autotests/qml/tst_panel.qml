@@ -519,7 +519,12 @@ TestCase {
         tryCompare(button.timer, "status", TokklTimer.Stale);
 
         // The discard is the server's, so the chain stays until it answers.
+        // Still offline: the project check the menu sends fails as well.
+        fixture.holdCatalogChecks();
+        const checks = fixture.catalogChecks;
         openMenu();
+        tryVerify(() => fixture.catalogChecks === checks + 1, 3000, "the menu checks the projects");
+        fixture.failCatalogChecks();
         verify(button.menu.runItem.enabled);
         keyClick(Qt.Key_Return);
         tryVerify(() => !button.menu.visible, 3000, "menu closes after Stop");
