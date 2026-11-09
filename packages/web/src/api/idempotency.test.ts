@@ -167,6 +167,36 @@ test('a create still unknown after its retry keeps its key for the same request 
   assert.notEqual(keys[6], keys[4]);
 });
 
+test('a new intent forgets the kept keys past their 23 hours, and only those', async t => {
+  const hour = 60 * 60 * 1000;
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: Date.parse('2026-11-01T00:00:00Z') });
+  // Each retry waits exactly 1 s, which the mocked clock moves on by.
+  t.mock.method(Math, 'random', () => 0);
+  const keys: Record<string, string[]> = {};
+  const answer = (request: string, reply: () => Promise<string>) =>
+    sendCreate(request, key => {
+      (keys[request] ??= []).push(key);
+      return reply();
+    });
+  const lost = () => Promise.reject(new RequestTimeoutError('POST', '/x'));
+  await assert.rejects(runningTimers(t, answer('POST /old {}', lost)));
+  t.mock.timers.tick(12 * hour);
+  await assert.rejects(runningTimers(t, answer('POST /recent {}', lost)));
+  const deleted = t.mock.method(Map.prototype, 'delete');
+  const forgotten = () =>
+    deleted.mock.calls.map(call => call.arguments[0]).filter(key => typeof key === 'string' && key.startsWith('POST '));
+  // The old key is 1 ms short of its 23 hours: a new intent keeps it.
+  t.mock.timers.tick(11 * hour - 2001);
+  await answer('POST /first {}', () => Promise.resolve('made'));
+  assert.deepEqual(forgotten(), []);
+  t.mock.timers.tick(1);
+  await answer('POST /second {}', () => Promise.resolve('made'));
+  assert.deepEqual(forgotten(), ['POST /old {}']);
+  // The recent key was kept: the same request again still uses it.
+  await answer('POST /recent {}', () => Promise.resolve('replayed'));
+  assert.equal(keys['POST /recent {}']![2], keys['POST /recent {}']![0]);
+});
+
 /** What each create answers, in the order the test below sends them: the record it made, or for a task nothing read. */
 const created = [
   {

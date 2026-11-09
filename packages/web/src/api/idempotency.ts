@@ -44,10 +44,16 @@ function retryWaitMs(): number {
   return RETRY_MIN_MS + Math.floor(Math.random() * (RETRY_MIN_MS / 4));
 }
 
-/** The kept key of an unsettled create of `request`, or a new one. */
+/**
+ * The kept key of an unsettled create of `request`, or a new one. Making a new one forgets every
+ * kept key past `KEPT_KEY_MS`, which no request may reuse any more, so the map does not grow with
+ * creates that were never sent again.
+ */
 function intentOf(request: string, now: number): { key: string; since: number } {
   const kept = unsettled.get(request);
-  return kept && now - kept.since < KEPT_KEY_MS ? kept : { key: newIdempotencyKey(), since: now };
+  if (kept && now - kept.since < KEPT_KEY_MS) return kept;
+  for (const [sent, { since }] of unsettled) if (now - since >= KEPT_KEY_MS) unsettled.delete(sent);
+  return { key: newIdempotencyKey(), since: now };
 }
 
 /** Forgets the kept key of `request` once `intent`, and not a later one, is settled. */
