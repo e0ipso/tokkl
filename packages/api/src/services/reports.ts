@@ -75,8 +75,6 @@ export interface ReportReader {
 }
 export interface ReportReadOptions {
   authentication?: Authentication;
-  /** Called once, when the report's first rows arrive. */
-  onRows?: () => void;
 }
 
 /** The orders the database applies. Descriptions sort by the runtime's collation instead. */
@@ -101,7 +99,7 @@ export function readReport<T>(
   options: ReportReadOptions,
   work: (report: ReportReader) => Promise<T>,
 ): Promise<T> {
-  const { authentication, onRows } = options;
+  const { authentication } = options;
   return source.readSnapshot(async repositories => {
     const found = authentication
       ? authentication.user.id === userId
@@ -129,14 +127,7 @@ export function readReport<T>(
       to: startOfDay(addDays(filter.endDate, 1), user.timezone).toISOString(),
     };
     const reports = repositories.reports;
-    let arrived = false;
-    const format = (rows: ReportEntryProjection[]): ReportEntry[] => {
-      if (!arrived) {
-        arrived = true;
-        onRows?.();
-      }
-      return formatReportEntries(rows, user, workspace, filter);
-    };
+    const format = (rows: ReportEntryProjection[]): ReportEntry[] => formatReportEntries(rows, user, workspace, filter);
     /** The entries of `ids`, read a batch at a time, in the order of `ids`. */
     async function* entriesOf(ids: readonly number[]): AsyncGenerator<ReportEntry[]> {
       for (let i = 0; i < ids.length; i += REPORT_BATCH_SIZE)

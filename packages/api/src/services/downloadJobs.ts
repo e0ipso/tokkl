@@ -23,12 +23,7 @@ export function downloadKind(work: DownloadWork): string {
   return 'assembly' in work ? work.assembly.kind : work.download.kind;
 }
 
-/** Runs `work`, handing each piece of its body to `emit`. `onRows` runs once the first piece is ready. */
-export function runDownloadJob(
-  source: DownloadSource,
-  work: DownloadWork,
-  emit: ExportEmitter,
-  onRows?: () => void,
-): Promise<void> {
-  return 'assembly' in work ? runExportJob(source, work, emit, onRows) : runCsvDownloadJob(source, work, emit, onRows);
+/** Runs `work`, handing each piece of its body to `emit`. */
+export function runDownloadJob(source: DownloadSource, work: DownloadWork, emit: ExportEmitter): Promise<void> {
+  return 'assembly' in work ? runExportJob(source, work, emit) : runCsvDownloadJob(source, work, emit);
 }

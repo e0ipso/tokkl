@@ -11,7 +11,9 @@ import { silentLogger } from '../src/lib/logger.ts';
 import { appReportRoutes, reportsV3Routes } from '../src/routes/reports.ts';
 import type { Deps } from '../src/routes/context.ts';
 import { createApplicationServices } from '../src/services/application.ts';
+import { createLocalTimerBus } from '../src/storage/timerBus.ts';
 import { ReportRunner, type ReportExecutor } from '../src/services/reportRunner.ts';
+import { createReportRunner } from '../src/reportRunners.ts';
 import { createApp } from '../src/app.ts';
 import { testConfig, testServer } from './helpers.ts';
 import { runReport, runExport } from './fixtures/reportRunner.ts';
@@ -41,7 +43,7 @@ function fullRunner(t: TestContext): ReportRunner {
       throw new Error('released');
     },
   };
-  const runner = new ReportRunner(INLINE, source, { maxQueue: 1, downloads: { maxQueue: 1 } });
+  const runner = createReportRunner(INLINE, source, { maxQueue: 1, downloads: { maxQueue: 1 } });
   const running = [
     runReport(runner, 1, 1, WEEKLY as never).catch(() => {}),
     runExport(runner, 1, EXPORT, async () => {}).catch(() => {}),
@@ -74,7 +76,7 @@ test('an export that holds its download place does not hold up reports', async t
       throw reported;
     },
   };
-  const runner = new ReportRunner(INLINE, source);
+  const runner = createReportRunner(INLINE, source);
   const exporting = runExport(runner, 1, EXPORT, async () => {}).catch(error => error);
   t.after(async () => {
     release();
@@ -98,7 +100,7 @@ test('a download that runs past its deadline is given up with a 503 and Retry-Af
       throw new Error('released');
     },
   };
-  const runner = new ReportRunner(INLINE, source, { downloads: { deadlineMs: 30 } });
+  const runner = createReportRunner(INLINE, source, { downloads: { deadlineMs: 30 } });
   t.after(async () => {
     release();
     await runner.close();
@@ -117,12 +119,15 @@ test('a download that runs past its deadline is given up with a 503 and Retry-Af
 
 test('the download lane limits must be valid', () => {
   const source: JobSource = { readSnapshot: () => Promise.reject(new Error('unused')) };
-  assert.throws(() => new ReportRunner(INLINE, source, { downloads: { maxQueue: 0 } }), /Invalid download queue/);
+  assert.throws(() => createReportRunner(INLINE, source, { downloads: { maxQueue: 0 } }), /Invalid download queue/);
   assert.throws(
-    () => new ReportRunner(INLINE, source, { downloads: { maxQueue: 4, maxPerUser: 5 } }),
+    () => createReportRunner(INLINE, source, { downloads: { maxQueue: 4, maxPerUser: 5 } }),
     /Invalid download share/,
   );
-  assert.throws(() => new ReportRunner(INLINE, source, { downloads: { deadlineMs: 0 } }), /Invalid download deadline/);
+  assert.throws(
+    () => createReportRunner(INLINE, source, { downloads: { deadlineMs: 0 } }),
+    /Invalid download deadline/,
+  );
 });
 
 /** Storage that counts its read snapshots. */
@@ -143,7 +148,12 @@ function countingReads(storage: Storage): { storage: Storage; reads: () => numbe
 test('a full download lane refuses an account export before reading it', async t => {
   const db = await openSQLiteDatabase();
   const counted = countingReads(storageFor(db));
-  const services = createApplicationServices({ storage: counted.storage, reports: fullRunner(t), sessionDays: 30 });
+  const services = createApplicationServices({
+    storage: counted.storage,
+    reports: fullRunner(t),
+    bus: createLocalTimerBus(),
+    sessionDays: 30,
+  });
   t.after(() => services.close());
   const user = await insertAccount(db, {
     email: 'export@example.test',
@@ -175,8 +185,13 @@ test('a full download lane refuses an account export before reading it', async t
 test('a cancelled account export reads nothing', async t => {
   const db = await openSQLiteDatabase();
   const counted = countingReads(storageFor(db));
-  const reports = new ReportRunner(INLINE, { readSnapshot: () => Promise.reject(new Error('unused')) });
-  const services = createApplicationServices({ storage: counted.storage, reports, sessionDays: 30 });
+  const reports = createReportRunner(INLINE, { readSnapshot: () => Promise.reject(new Error('unused')) });
+  const services = createApplicationServices({
+    storage: counted.storage,
+    reports,
+    bus: createLocalTimerBus(),
+    sessionDays: 30,
+  });
   t.after(() => services.close());
   const user = await insertAccount(db, {
     email: 'cancel@example.test',
@@ -240,7 +255,11 @@ test('a full report queue answers a report request before it reads the workspace
 });
 
 test('a reserved place counts toward the queue limit until its holder queues a job or gives up', async t => {
-  const runner = new ReportRunner(INLINE, { readSnapshot: () => Promise.reject(new Error('unused')) }, { maxQueue: 1 });
+  const runner = createReportRunner(
+    INLINE,
+    { readSnapshot: () => Promise.reject(new Error('unused')) },
+    { maxQueue: 1 },
+  );
   t.after(() => runner.close());
   let release!: () => void;
   const preparing = runner.reserve({ userId: 1 }, () => new Promise<void>(resolve => (release = resolve)));
@@ -294,7 +313,7 @@ function gatedSource() {
 
 test('one account cannot take more than its share of the report queue', async t => {
   const { source, reading, release } = gatedSource();
-  const runner = new ReportRunner(INLINE, source, { maxQueue: 8, maxPerUser: 3 });
+  const runner = createReportRunner(INLINE, source, { maxQueue: 8, maxPerUser: 3 });
   t.after(() => runner.close());
   const mine = [1, 2, 3].map(() => runReport(runner, 1, 1, WEEKLY as never).catch(error => error));
   await reading(1);
@@ -328,7 +347,7 @@ test('one account cannot take more than its share of the report queue', async t 
 
 test('queued reports take turns between accounts', async t => {
   const { source, order, reading, release } = gatedSource();
-  const runner = new ReportRunner(INLINE, source, { maxQueue: 16, maxPerUser: 4 });
+  const runner = createReportRunner(INLINE, source, { maxQueue: 16, maxPerUser: 4 });
   t.after(() => runner.close());
   const jobs = [
     ...[1, 1, 1, 1].map(user => runReport(runner, user, user, WEEKLY as never).catch(() => {})),
@@ -347,7 +366,7 @@ test('queued reports take turns between accounts', async t => {
 test('the per-account share must fit the queue', () => {
   const source: JobSource = { readSnapshot: () => Promise.reject(new Error('unused')) };
   for (const maxPerUser of [0, 1.5, 17])
-    assert.throws(() => new ReportRunner(INLINE, source, { maxQueue: 16, maxPerUser }), /Invalid report share/);
+    assert.throws(() => createReportRunner(INLINE, source, { maxQueue: 16, maxPerUser }), /Invalid report share/);
 });
 
 /** A database the fake workers never open; any file-backed config runs jobs in workers. */
@@ -356,7 +375,7 @@ const UNUSED: JobSource = { readSnapshot: () => Promise.reject(new Error('unused
 
 test('a slot queues work only for the account that reserved it', async t => {
   const { startWorker, posted } = fakeReportWorkers();
-  const runner = new ReportRunner(WORKER, UNUSED, { startWorker });
+  const runner = createReportRunner(WORKER, UNUSED, { startWorker });
   t.after(() => runner.close());
   const output = async () => {};
   const jobs = [
@@ -396,7 +415,7 @@ const quiet = async () => {
 
 test('a lane runs up to its concurrency at once, so one slow job holds only its own worker', async t => {
   const { startWorker, posted, workers } = fakeReportWorkers();
-  const runner = new ReportRunner(WORKER, UNUSED, { startWorker });
+  const runner = createReportRunner(WORKER, UNUSED, { startWorker });
   t.after(() => runner.close());
 
   const downloads = exportsFor(runner, [1, 2, 3, 4]);
@@ -432,7 +451,7 @@ test('a lane runs up to its concurrency at once, so one slow job holds only its 
 
 test('a freed worker goes to the account served longest ago, and shares still count running jobs', async t => {
   const { startWorker, posted } = fakeReportWorkers();
-  const runner = new ReportRunner(WORKER, UNUSED, { startWorker, maxQueue: 8, maxPerUser: 3, concurrency: 2 });
+  const runner = createReportRunner(WORKER, UNUSED, { startWorker, maxQueue: 8, maxPerUser: 3, concurrency: 2 });
   t.after(() => runner.close());
   const mine = reportsFor(runner, [1, 1, 1]);
   await postedJobs(posted, 2);
@@ -450,7 +469,7 @@ test('a freed worker goes to the account served longest ago, and shares still co
 
 test('a lane starts one worker at a time, and a crash fails only the job on that worker', async t => {
   const { startWorker, posted, workers } = fakeReportWorkers();
-  const runner = new ReportRunner(WORKER, UNUSED, { startWorker });
+  const runner = createReportRunner(WORKER, UNUSED, { startWorker });
   t.after(() => runner.close());
   const [first, second] = reportsFor(runner, [1, 2]);
   assert.equal(workers.length, 1, 'the second worker waits until the first is up');
@@ -464,13 +483,16 @@ test('a lane starts one worker at a time, and a crash fails only the job on that
 
 test('a lane runs at least one job and at most its queue at once', () => {
   for (const concurrency of [0, 1.5, 17])
-    assert.throws(() => new ReportRunner(INLINE, UNUSED, { maxQueue: 16, concurrency }), /Invalid report concurrency/);
+    assert.throws(
+      () => createReportRunner(INLINE, UNUSED, { maxQueue: 16, concurrency }),
+      /Invalid report concurrency/,
+    );
   assert.throws(
-    () => new ReportRunner(INLINE, UNUSED, { downloads: { maxQueue: 2, concurrency: 3 } }),
+    () => createReportRunner(INLINE, UNUSED, { downloads: { maxQueue: 2, concurrency: 3 } }),
     /Invalid download concurrency/,
   );
   // A short queue lowers the default instead of refusing it.
-  assert.doesNotThrow(() => new ReportRunner(INLINE, UNUSED, { maxQueue: 1, downloads: { maxQueue: 1 } }));
+  assert.doesNotThrow(() => createReportRunner(INLINE, UNUSED, { maxQueue: 1, downloads: { maxQueue: 1 } }));
 });
 
 /** Waits until `ready()` holds, for at most `ms`, and says whether it did. */
@@ -490,7 +512,7 @@ test('a report request the client abandons gives back its place, queued or runni
     role: 'user',
   });
   const { source, reading, release } = gatedSource();
-  const runner = new ReportRunner(INLINE, source, { maxQueue: 4, maxPerUser: 2 });
+  const runner = createReportRunner(INLINE, source, { maxQueue: 4, maxPerUser: 2 });
   // What each report request handed the runner, so the test knows when a job was queued and when
   // the server saw its request close.
   const signals: AbortSignal[] = [];

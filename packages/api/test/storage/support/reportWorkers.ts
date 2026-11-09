@@ -1,6 +1,6 @@
 import type { Worker } from 'node:worker_threads';
 import type { StorageConfig } from '../../../src/storage/config.ts';
-import { startReportWorker } from '../../../src/services/reportExecution.ts';
+import { startReportWorker } from '../../../src/reportRunners.ts';
 
 /**
  * A worker starter for a report runner that starts the real report worker and keeps each one it

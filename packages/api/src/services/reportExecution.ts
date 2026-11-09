@@ -3,9 +3,7 @@
  * application's own connection when the database is in-memory SQLite. An execution runs one job at
  * a time and knows nothing of queues, accounts or requests; `reportRunner.ts` owns those.
  */
-import { Worker } from 'node:worker_threads';
-import type { StorageConfig } from '../storage/config.ts';
-import { reportRunsInline } from '../storage/repositories/report-reader.ts';
+import type { Worker } from 'node:worker_threads';
 import { ApplicationError, RequestCancelled, type FailureKind } from '../lib/errors.ts';
 import { redactedDiagnostic, type ErrorDiagnostic, type Logger } from '../lib/logger.ts';
 import type { ReportRepositories } from './reports.ts';
@@ -28,8 +26,6 @@ export interface ExecutionJob {
   /** Where a download's pieces go, in order. Each resolves once the next may follow. */
   output?: ExportEmitter;
 }
-
-export type ReportPhase = 'reading' | 'formatting';
 
 /** What an execution tells the runner. */
 export interface ExecutionEvents {
@@ -60,25 +56,19 @@ export interface ReportExecution {
   close(): Promise<void>;
 }
 
-/** Starts a report worker thread, which opens its own reader for `config`. */
-export type WorkerStarter = (config: StorageConfig) => Worker;
+/** Starts a report worker thread, which opens its own reader. */
+export type WorkerStarter = () => Worker;
 
-/** The worker every report runner starts unless it is given another starter. */
-export const startReportWorker: WorkerStarter = config =>
-  new Worker(new URL('./reportWorker.ts', import.meta.url), { workerData: config });
-
-export interface ReportExecutionOptions {
-  logger: Logger;
-  onPhase?: (phase: ReportPhase) => void;
-  /** How a worker thread is started. Defaults to `startReportWorker`. */
-  startWorker?: WorkerStarter;
-}
+/**
+ * Where a runner's jobs run: in worker threads `startWorker` starts, or one at a time on `inline`,
+ * the application's own connection, when the database is one a worker cannot open.
+ */
+export type ReportPlacement = { startWorker: WorkerStarter } | { inline: JobSource };
 
 /** What a worker sends back. */
 interface Reply {
   id?: number;
   ready?: boolean;
-  phase?: ReportPhase;
   /** One piece of an export's output and its size in UTF-8 bytes, which the reply acknowledges. */
   chunk?: string;
   bytes?: number;
@@ -163,19 +153,19 @@ class InlineExecution implements ReportExecution {
  */
 class WorkerExecution implements ReportExecution {
   private worker: Worker | null = null;
-  private readonly config: StorageConfig;
+  private readonly startWorker: WorkerStarter;
   private readonly events: ExecutionEvents;
-  private readonly options: ReportExecutionOptions;
+  private readonly logger: Logger;
   private started = false;
   private startup: ReturnType<typeof setTimeout> | undefined;
   private current: ExecutionJob | undefined;
   /** A stopped worker, until it has exited. No replacement opens its reader before then. */
   private stopping: Promise<void> | undefined;
 
-  constructor(config: StorageConfig, events: ExecutionEvents, options: ReportExecutionOptions) {
-    this.config = config;
+  constructor(startWorker: WorkerStarter, events: ExecutionEvents, logger: Logger) {
+    this.startWorker = startWorker;
     this.events = events;
-    this.options = options;
+    this.logger = logger;
   }
   ready(): boolean {
     if (this.stopping) return false;
@@ -195,7 +185,7 @@ class WorkerExecution implements ReportExecution {
     if (this.worker) this.stop();
   }
   private start(): void {
-    const worker = (this.options.startWorker ?? startReportWorker)(this.config);
+    const worker = this.startWorker();
     this.worker = worker;
     const fail = () => {
       if (this.worker !== worker) return;
@@ -209,7 +199,7 @@ class WorkerExecution implements ReportExecution {
     });
     worker.on('error', error => {
       if (this.worker === worker)
-        this.options.logger.error('Report worker crashed', {
+        this.logger.error('Report worker crashed', {
           ...(this.current && jobFields(this.current)),
           diagnostic: redactedDiagnostic(error),
         });
@@ -217,13 +207,13 @@ class WorkerExecution implements ReportExecution {
     });
     worker.on('exit', fail);
     this.startup = setTimeout(() => {
-      if (this.worker === worker) this.options.logger.error('Report worker did not start in time');
+      if (this.worker === worker) this.logger.error('Report worker did not start in time');
       fail();
     }, WORKER_DEADLINE_MS);
   }
   private receive(worker: Worker, message: Reply): void {
     if (message.startupFailed) {
-      this.options.logger.error('Report worker failed to start', { diagnostic: message.startupFailed });
+      this.logger.error('Report worker failed to start', { diagnostic: message.startupFailed });
       return;
     }
     if (message.ready) {
@@ -244,16 +234,7 @@ class WorkerExecution implements ReportExecution {
       });
       return;
     }
-    if (message.phase) {
-      try {
-        this.options.onPhase?.(message.phase);
-      } catch {
-        /* Observers do not own jobs. */
-      }
-      return;
-    }
-    if (message.diagnostic)
-      this.options.logger.error('Report failed', { ...jobFields(job), diagnostic: message.diagnostic });
+    if (message.diagnostic) this.logger.error('Report failed', { ...jobFields(job), diagnostic: message.diagnostic });
     this.current = undefined;
     worker.unref();
     this.events.settled(
@@ -304,14 +285,13 @@ class WorkerExecution implements ReportExecution {
   }
 }
 
-/** The execution for `config`: inline for in-memory SQLite, a worker for everything else. */
+/** The execution for `placement`: inline on its source, or in a worker it starts. */
 export function createReportExecution(
-  config: StorageConfig,
-  inline: JobSource,
+  placement: ReportPlacement,
   events: ExecutionEvents,
-  options: ReportExecutionOptions,
+  logger: Logger,
 ): ReportExecution {
-  return reportRunsInline(config)
-    ? new InlineExecution(inline, events, options.logger)
-    : new WorkerExecution(config, events, options);
+  return 'inline' in placement
+    ? new InlineExecution(placement.inline, events, logger)
+    : new WorkerExecution(placement.startWorker, events, logger);
 }

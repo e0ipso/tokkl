@@ -4,9 +4,8 @@
  * `app.ts` builds. Each operation opens its own transaction and binds what it publishes, so a route parses, calls one
  * operation and presents the answer. Framework-free; `app.ts` composes them with the HTTP adapters.
  */
-import type { Repositories, Storage } from '../domain/ports.ts';
+import type { Repositories, Storage, TimerBus } from '../domain/ports.ts';
 import type { Id, User } from '../domain/model.ts';
-import { createLocalTimerBus, type TimerBus } from '../storage/timerBus.ts';
 import type { InviteRequest, ProfileUpdate, SettingChanges } from '../domain/accountCommands.ts';
 import {
   createAccountOperations,
@@ -15,6 +14,7 @@ import {
   type AccountOperations,
   type AccountPasswordAttempt,
 } from '../domain/accounts.ts';
+import type { AccountSecurityEffects } from '../domain/accountGuards.ts';
 import {
   authenticatedUser,
   isActiveAdmin,
@@ -36,15 +36,15 @@ import { credentialCheck, credentialKey } from './streamCredentials.ts';
 import { startMaintenance } from './maintenance.ts';
 import { createTimerDelivery } from './timerDelivery.ts';
 import { presentTimerOperations, type PresentedTimerOperations } from './timerReplies.ts';
-import type { EventStreamResponse, TimerStreamOptions } from './timerStreams.ts';
+import type { EventStreamResponse, TimerStreamOptions, TimerStreams } from './timerStreams.ts';
 
 export interface ApplicationServiceOptions {
   storage: Storage;
   /** Runs reports and export assemblies. The services close it when they close. */
   reports: ReportExecutor;
   streamOptions?: TimerStreamOptions;
-  /** Signals timer revisions to other processes. Defaults to the single-process bus. */
-  bus?: TimerBus;
+  /** Signals timer revisions to other processes. */
+  bus: TimerBus;
   logger?: Logger;
   /** The deployment's session length, used until an admin stores one. */
   sessionDays: number;
@@ -125,17 +125,34 @@ function boundAccountOperations(
 }
 export type SignedInAccountOperations = ReturnType<typeof boundAccountOperations>;
 
+/** A credential change rechecks the account's open timer streams. */
+const accountSecurity = (timerStreams: Pick<TimerStreams, 'recheck'>): AccountSecurityEffects => ({
+  recheckUser: id => timerStreams.recheck(id),
+});
+
+/**
+ * The account operations without a credential check, for the session handlers alone: setup,
+ * sign-in, invites and password resets run before the request has a credential. Routers get the
+ * guarded `accountsFor` instead.
+ */
+export function createSessionAccountOperations(
+  storage: Storage,
+  services: Pick<ApplicationServices, 'timerStreams'>,
+): AccountOperations<Repositories> {
+  return createAccountOperations(storage, accountSecurity(services.timerStreams));
+}
+
 export function createApplicationServices({
   storage,
   reports,
   streamOptions,
-  bus = createLocalTimerBus(),
+  bus,
   logger = silentLogger,
   sessionDays,
   imports,
 }: ApplicationServiceOptions) {
   const { timerStreams, publish, settled } = createTimerDelivery({ storage, bus, logger, streamOptions });
-  const security = { recheckUser: (id: number) => timerStreams.recheck(id) };
+  const security = accountSecurity(timerStreams);
   const streamCredentials = { check: (authentication: Authentication) => credentialCheck(storage, authentication) };
   const entryEffects = createAccountEntryEffects<Repositories>(publish);
   const maintenance = startMaintenance(storage, { logger });
@@ -153,7 +170,6 @@ export function createApplicationServices({
     });
   }
   return {
-    accounts: createAccountOperations(storage, security),
     timerStreams,
     publish,
     reports,

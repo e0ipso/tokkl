@@ -57,7 +57,7 @@ export interface CatalogReadRepositories {
 }
 /** Reads of one user's time entries. */
 export interface EntryReadRepositories {
-  entries: Pick<EntriesReader, 'list' | 'get' | 'running' | 'bounds' | 'listDeleted'>;
+  entries: Pick<EntriesReader, 'list' | 'get' | 'running' | 'bounds' | 'listDeleted' | 'countDeleted'>;
 }
 export type ReadQueryRepositories = AccountReadRepositories & CatalogReadRepositories & EntryReadRepositories;
 
@@ -162,8 +162,6 @@ export function createAccountQueries(r: AccountReadRepositories, deploymentSessi
         })),
       );
     },
-    workspaceRole: (userId: Id, workspaceId: Id): Promise<MembershipRole | undefined> =>
-      r.workspaces.getRole(userId, workspaceId),
     workspaceMembers: async (userId: Id, workspaceId: Id): Promise<WorkspaceMember[]> =>
       r.workspaces.listMembers((await memberWorkspace(r, userId, workspaceId)).id),
     accounts: (): Promise<User[]> => r.users.list(),
@@ -203,8 +201,8 @@ export function createCatalogQueries(r: CatalogReadRepositories) {
      * One page of the workspace's tasks. SQL applies the project, state and `since` filters. With
      * no search, a creation-time order is SQL's too, with its count and page. The name order folds
      * case and compares as `localeCompare` does, which no engine repeats, and the search folds case
-     * as JavaScript does; those run on the names and times of the matching tasks only, and only the
-     * page's tasks are read in full.
+     * as JavaScript does, so both run in memory: on the ids, names and creation instants of the
+     * matching tasks only, and only the page's tasks are read in full.
      */
     async searchTasks(ws: Workspace, search: TaskSearch, window: PageWindow): Promise<TaskSearchPage> {
       const filter = { projectId: search.projectId, active: search.active, changedSince: search.changedSince };
@@ -254,6 +252,7 @@ export function createEntryQueries(r: EntryReadRepositories) {
     timeEntry: (userId: Id, id: Id): Promise<EntryDetails> => getTimeEntry(r, userId, id),
     entryBounds: (userId: Id): Promise<EntryBounds> => r.entries.bounds(userId),
     trash: (userId: Id): Promise<EntryDetails[]> => r.entries.listDeleted(userId),
+    trashTotal: (userId: Id): Promise<number> => r.entries.countDeleted(userId),
   };
 }
 

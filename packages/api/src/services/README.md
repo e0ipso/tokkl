@@ -1,7 +1,10 @@
 # services
 
 Application services that are not HTTP: timer delivery to streams and other processes, the
-report runner and its worker, imports and exports. `application.ts` binds the domain to storage
+report runner, imports and exports. Services reach the database through the domain's ports only and
+never import `storage/`; `scripts/check-api-imports.ts` enforces it. `reportRunners.ts`, at the top
+of `src`, turns a storage configuration into the runner's placement (worker threads that run
+`reportWorker.ts`, or inline for in-memory SQLite), and `app.ts` passes in the timer bus. `application.ts` binds the domain to storage
 and checks the signed-in credential around each operation. `app.ts` builds the report runner and
 passes it in as a `ReportExecutor`. Reports and exports reserve a place in its queue before they
 read anything, and each account may hold only its share of the places. `reportRunner.ts` admits,

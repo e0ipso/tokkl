@@ -43,7 +43,11 @@ export function retryDelay(failed: number, random: () => number): number {
 }
 
 type Hook = () => Promise<void>;
-/** Before-commit hooks are keyed so repeated registration runs once; they may register more. */
+/**
+ * The most before-commit hooks one commit runs, those registered by hooks included, so hooks that
+ * keep registering each other fail the transaction instead of looping. Every hook counts, so a
+ * catalog write that touches more than this many running timers fails too.
+ */
 const MAX_BEFORE_COMMIT_HOOKS = 1000;
 /** Lock ranks: the instance guard, then workspaces, then users, each group in ascending id order. */
 const INSTANCE_RANK = '0';
@@ -158,11 +162,23 @@ class LockOrder<D> {
 
 /** One attempt's mutable state: hooks, guards and the flags commit and rollback decisions read. */
 interface Attempt {
+  /**
+   * Hooks that run before COMMIT, keyed so each runs once however often it is registered:
+   * `touchTimer` settles each user's timer after an entry or timer write, and a catalog write's
+   * `invalidate` settles the running timers it affects.
+   */
   before: Map<string, Hook>;
-  /** Reads that run after the last before-commit hook. */
+  /**
+   * Reads that run after the last before-commit hook: a timer action builds its reply from the
+   * settled state (`action` in domain/timers.ts), and an import checks for cancellation once more
+   * (`cancelBeforeCommit`).
+   */
   reads: Hook[];
+  /** Timer publication and stream credential rechecks, run after COMMIT and release. */
   after: Hook[];
+  /** A savepoint could not roll back, so the transaction must not commit. */
   rollbackOnly: boolean;
+  /** A savepoint is open: bulk entry patches and import rows each run in one. */
   savepointActive: boolean;
 }
 
@@ -172,7 +188,10 @@ async function readAtCommit(attempt: Attempt): Promise<void> {
   if (attempt.before.size || attempt.reads.length) throw new Error('A read at commit registered more work');
 }
 
-/** Runs before-commit hooks until none is left; a hook may register further hooks. */
+/**
+ * Runs before-commit hooks until none is left. A hook may register more, and they run too: a hook
+ * that writes an entry touches its user's timer again, and that settlement has to follow the write.
+ */
 async function drainBeforeCommit(attempt: Attempt): Promise<void> {
   let drained = 0;
   while (attempt.before.size) {

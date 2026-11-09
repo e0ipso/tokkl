@@ -262,15 +262,12 @@ export interface ReportJobWork {
   authentication?: Authentication;
 }
 
-/**
- * Reads and formats `work` in one read snapshot, a batch of entries at a time. `onRows` runs once,
- * when the first entries arrive and formatting begins.
- */
-export function runReportJob(source: ReportSource, work: ReportJobWork, onRows?: () => void): Promise<JobResult> {
+/** Reads and formats `work` in one read snapshot, a batch of entries at a time. */
+export function runReportJob(source: ReportSource, work: ReportJobWork): Promise<JobResult> {
   const { userId, workspaceId, job, authentication } = work;
   // The table is keyed by kind, so the formatter always matches the job.
   const format = FORMATTERS[job.kind] as JobFormatter<ReportJob['kind']>;
-  return readReport(source, userId, workspaceId, job.filter, { authentication, onRows }, report =>
+  return readReport(source, userId, workspaceId, job.filter, { authentication }, report =>
     format(job as never, report),
   );
 }
@@ -288,14 +285,9 @@ export interface CsvDownloadWork {
  * of each batch in report order. Nothing is emitted before the credential and the workspace are
  * checked, so those refusals keep their status. The pieces join to the body a whole answer had.
  */
-export function runCsvDownloadJob(
-  source: ReportSource,
-  work: CsvDownloadWork,
-  emit: ExportEmitter,
-  onRows?: () => void,
-): Promise<void> {
+export function runCsvDownloadJob(source: ReportSource, work: CsvDownloadWork, emit: ExportEmitter): Promise<void> {
   const { userId, workspaceId, download, authentication } = work;
-  return readReport(source, userId, workspaceId, download.filter, { authentication, onRows }, async report => {
+  return readReport(source, userId, workspaceId, download.filter, { authentication }, async report => {
     const writer = detailedCsvWriter(report.user, download.durationFormat);
     await emit(writer.header);
     await report.ordered({ orderBy: download.orderBy, direction: download.orderDir }, async batch => {

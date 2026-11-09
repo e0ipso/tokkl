@@ -13,7 +13,8 @@ import { streamDownload } from '../http/download.ts';
 import { getPreferences } from '../domain/accountValues.ts';
 import { parsePreferenceChanges } from '../commands/accounts.ts';
 import { presentPomodoroLimits, presentServerApi } from '../presenters/serverApi.ts';
-import type { AppStatus, CatalogRevision } from '@tokkl/types';
+import type { AppStatus, CatalogRevision, TrashTotal } from '@tokkl/types';
+import { TRASH_READ_LIMIT } from '../domain/ports.ts';
 
 export type AppRouteDeps = Pick<
   Deps,
@@ -104,6 +105,15 @@ export function appRoutes(deps: AppRouteDeps): Router {
         serializeTimeEntry(entry, { meta: true, user: res.locals.auth.user }),
       ),
     ),
+  );
+  // The trash read stops at the newest TRASH_READ_LIMIT entries; this says how many there are.
+  app.get(
+    '/trash/total',
+    auth,
+    jsonRead(deps, async (_req, res, queries): Promise<TrashTotal> => ({
+      total: await queries.trashTotal(res.locals.auth.user.id),
+      limit: TRASH_READ_LIMIT,
+    })),
   );
   app.delete('/trash', auth, async (_req, res) =>
     res.json({

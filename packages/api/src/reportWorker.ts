@@ -1,12 +1,16 @@
+/**
+ * The entry point of a report worker thread: it opens its own read-only reader for the storage
+ * configuration in `workerData` and runs the jobs the runner posts, one at a time.
+ */
 import { parentPort, workerData } from 'node:worker_threads';
-import type { StorageConfig } from '../storage/config.ts';
-import { openReportReader } from '../storage/repositories/report-reader.ts';
-import type { ReportWork } from './reportExecution.ts';
-import { EXPORT_BYTES_AHEAD } from './exportJobs.ts';
-import { isDownload, runDownloadJob } from './downloadJobs.ts';
-import { runReportJob } from './reportJobs.ts';
-import { ApplicationError } from '../lib/errors.ts';
-import { redactedDiagnostic } from '../lib/logger.ts';
+import type { StorageConfig } from './storage/config.ts';
+import { openReportReader } from './storage/repositories/report-reader.ts';
+import type { ReportWork } from './services/reportExecution.ts';
+import { EXPORT_BYTES_AHEAD } from './services/exportJobs.ts';
+import { isDownload, runDownloadJob } from './services/downloadJobs.ts';
+import { runReportJob } from './services/reportJobs.ts';
+import { ApplicationError } from './lib/errors.ts';
+import { redactedDiagnostic } from './lib/logger.ts';
 
 export interface ReportRequest {
   id: number;
@@ -65,26 +69,19 @@ try {
         }
         const { id, work } = message;
         try {
-          port.postMessage({ id, phase: 'reading' });
-          const formatting = () => port.postMessage({ id, phase: 'formatting' });
           if (isDownload(work)) {
             const output = (credit = new OutputCredit(id));
-            await runDownloadJob(
-              reader,
-              work,
-              async chunk => {
-                const bytes = Buffer.byteLength(chunk);
-                port.postMessage({ id, chunk, bytes });
-                output.sent(bytes);
-                await output.within(EXPORT_BYTES_AHEAD);
-              },
-              formatting,
-            );
+            await runDownloadJob(reader, work, async chunk => {
+              const bytes = Buffer.byteLength(chunk);
+              port.postMessage({ id, chunk, bytes });
+              output.sent(bytes);
+              await output.within(EXPORT_BYTES_AHEAD);
+            });
             await output.within(0);
             port.postMessage({ id });
             return;
           }
-          const result = await runReportJob(reader, work, formatting);
+          const result = await runReportJob(reader, work);
           port.postMessage({ id, result });
         } catch (error) {
           // SQL/driver messages never leave this thread. An unexpected failure sends its redacted

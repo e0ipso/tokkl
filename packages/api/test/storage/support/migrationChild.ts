@@ -1,5 +1,6 @@
 import { openConnection } from '../../../src/storage/connections.ts';
-import { initializeDatabase, migrate, migrations } from '../../../src/storage/migrations.ts';
+import { runMigrations } from '../../../src/storage/migrationRunner.ts';
+import { initializeDatabase, migrations } from '../../../src/storage/migrations.ts';
 import type { PhysicalDatabase } from '../../../src/storage/physical.ts';
 import type { StorageConfig } from '../../../src/storage/config.ts';
 import { afterStatements } from './statementHook.ts';
@@ -18,7 +19,7 @@ try {
       statements: ['CREATE TABLE interruption_probe (value INTEGER)'],
     };
     const connection = afterStatements(await openConnection<PhysicalDatabase>(config), probe.statements, hold);
-    await migrate(connection, [...migrations(config.backend), probe]);
+    await runMigrations(connection, [...migrations(config.backend), probe]);
   } else {
     process.send?.('ready');
     await new Promise<void>(resolve => process.once('message', () => resolve()));
@@ -37,7 +38,7 @@ try {
           },
         )
       : opened;
-    if (direct) await migrate(connection, available);
+    if (direct) await runMigrations(connection, available);
     await connection.close();
     process.send?.('complete');
   }

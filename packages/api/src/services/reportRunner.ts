@@ -1,5 +1,3 @@
-import type { StorageConfig } from '../storage/config.ts';
-import { reportRunsInline } from '../storage/repositories/report-reader.ts';
 import { RequestCancelled, unavailable } from '../lib/errors.ts';
 import { silentLogger, type Logger } from '../lib/logger.ts';
 import type { Authentication } from '../domain/credentials.ts';
@@ -8,14 +6,12 @@ import type { CsvDownloadJob, JobResult, ReportJob } from './reportJobs.ts';
 import {
   createReportExecution,
   type ExecutionJob,
-  type JobSource,
   type ReportExecution,
-  type ReportPhase,
+  type ReportPlacement,
   type ReportWork,
-  type WorkerStarter,
 } from './reportExecution.ts';
 
-export type { ReportWork };
+export type { ReportPlacement, ReportWork };
 
 /** A queued report usually finishes within a second or two, so a full queue asks for a short wait. */
 const QUEUE_FULL_RETRY_SECONDS = 2;
@@ -67,11 +63,8 @@ export interface ReportRunnerOptions extends LaneLimits {
    * account, 3 running at once, 15 minutes each.
    */
   downloads?: DownloadLaneLimits;
-  onPhase?: (phase: ReportPhase) => void;
   /** Where unexpected report and worker failures are logged, as redacted diagnostics. */
   logger?: Logger;
-  /** How the runner starts its worker threads. Defaults to `startReportWorker`. */
-  startWorker?: WorkerStarter;
 }
 interface Pending extends ExecutionJob {
   /** The account whose place this is. */
@@ -199,19 +192,13 @@ class Lane {
   private closed = false;
   private closing: Promise<void> | undefined;
 
-  constructor(
-    config: StorageConfig,
-    inline: JobSource,
-    settings: LaneSettings,
-    options: { logger: Logger; onPhase?: (phase: ReportPhase) => void; startWorker?: WorkerStarter },
-  ) {
+  constructor(placement: ReportPlacement, settings: LaneSettings, logger: Logger) {
     this.settings = settings;
-    const count = reportRunsInline(config) ? 1 : settings.concurrency;
+    const count = 'inline' in placement ? 1 : settings.concurrency;
     this.runners = Array.from({ length: count }, () => {
       const runner: Runner = {
         execution: createReportExecution(
-          structuredClone(config),
-          inline,
+          placement,
           {
             settled: (id, result, error) => {
               if (runner.active?.id === id) this.finish(runner, runner.active, result, error);
@@ -219,7 +206,7 @@ class Lane {
             available: () => this.pump(),
             failed: error => this.failAll(error, runner),
           },
-          options,
+          logger,
         ),
       };
       return runner;
@@ -406,8 +393,8 @@ export class ReportRunner implements ReportExecutor {
   private readonly downloads: Lane;
   private closing: Promise<void> | undefined;
 
-  /** `inline` runs the jobs when the database is in-memory SQLite, which a worker cannot open. */
-  constructor(config: StorageConfig, inline: JobSource, options: ReportRunnerOptions = {}) {
+  /** `placement` says where the jobs run: `reportRunners.ts` picks it for a storage configuration. */
+  constructor(placement: ReportPlacement, options: ReportRunnerOptions = {}) {
     const reports = laneSettings(
       'report',
       { maxQueue: options.maxQueue, maxPerUser: options.maxPerUser, concurrency: options.concurrency },
@@ -418,13 +405,9 @@ export class ReportRunner implements ReportExecutor {
       { deadlineMs: DEFAULT_DOWNLOAD_DEADLINE_MS, ...options.downloads },
       { maxQueue: DEFAULT_MAX_DOWNLOADS, concurrency: DEFAULT_DOWNLOAD_CONCURRENCY },
     );
-    const execution = {
-      logger: options.logger ?? silentLogger,
-      onPhase: options.onPhase,
-      startWorker: options.startWorker,
-    };
-    this.reports = new Lane(config, inline, reports, execution);
-    this.downloads = new Lane(config, inline, downloads, execution);
+    const logger = options.logger ?? silentLogger;
+    this.reports = new Lane(placement, reports, logger);
+    this.downloads = new Lane(placement, downloads, logger);
   }
   /** The slot runs work for the reservation's account only. */
   reserve<T>(options: ReportReservation, work: (slot: ReportSlot) => Promise<T>): Promise<T> {

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { storageFor } from './fixtures/database.ts';
 import { createApp } from '../src/app.ts';
-import { ReportRunner } from '../src/services/reportRunner.ts';
+import { createReportRunner } from '../src/reportRunners.ts';
 import { runReport } from './fixtures/reportRunner.ts';
 import type { JobSource } from '../src/services/reportExecution.ts';
 import { setup, testConfig, testServer } from './helpers.ts';
@@ -38,7 +38,7 @@ test('detailed CSV reports stream in the download lane while the report queue is
       return storage.readSnapshot(work);
     },
   };
-  const reports = new ReportRunner(testConfig(ctx.db).storage, source, { maxQueue: 1 });
+  const reports = createReportRunner(testConfig(ctx.db).storage, source, { maxQueue: 1 });
   const holding = runReport(reports, ctx.user.id, ctx.wid, {
     kind: 'v3-weekly',
     filter: { startDate: '2026-10-05', endDate: '2026-10-11' },

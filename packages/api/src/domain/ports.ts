@@ -33,6 +33,9 @@ import type {
 } from './model.ts';
 import type { RowRange } from '../lib/pagination.ts';
 
+/** The most trashed entries one trash read returns, so the read stays bounded. */
+export const TRASH_READ_LIMIT = 1000;
+
 export type StorageConflictKind = 'unique' | 'foreign-key' | 'serialization' | 'deadlock' | 'busy';
 /**
  * What a repository throws when the database refuses a write for a conflict, which the domain maps
@@ -240,8 +243,8 @@ export interface ProjectsRepository extends ProjectsReader {
   delete(workspaceId: Id, id: Id, entryMode: 'detach' | 'delete'): Promise<void>;
 }
 export type TaskInput = Omit<Task, 'id' | 'createdAt' | 'updatedAt'>;
-/** What the workspace task search filters and sorts on, read without the tracked totals. */
-export type TaskSortKey = Pick<Task, 'id' | 'name' | 'createdAt' | 'updatedAt'>;
+/** What the workspace task search sorts and pages by in memory: id, name and creation instant. */
+export type TaskSortKey = Pick<Task, 'id' | 'name' | 'createdAt'>;
 /** The workspace task search's filters that SQL applies exactly. */
 export interface TaskSearchFilter {
   projectId?: Id;
@@ -325,7 +328,10 @@ export interface EntriesReader {
   get(userId: Id, id: Id, includeDeleted?: boolean): Promise<EntryDetails | undefined>;
   running(userId: Id): Promise<EntryDetails | undefined>;
   bounds(userId: Id): Promise<EntryBounds>;
+  /** The user's newest `TRASH_READ_LIMIT` trashed entries, newest deletion first. */
   listDeleted(userId: Id): Promise<EntryDetails[]>;
+  /** How many trashed entries the user has, those `listDeleted` leaves out included. */
+  countDeleted(userId: Id): Promise<number>;
   /** Used for timezone reanchoring without fetching every entry's related labels. */
   listAllDay(userId: Id): Promise<TimeEntry[]>;
   findDuplicate(key: EntryDuplicateKey): Promise<Id | undefined>;
@@ -552,5 +558,15 @@ export interface Storage {
   transaction<T>(work: (context: TransactionContext) => Promise<T>, options?: { dryRun?: boolean }): Promise<T>;
   readSnapshot<T>(work: (repositories: ReadOnlyRepositories) => Promise<T>): Promise<T>;
   health(): Promise<void>;
+  close(): Promise<void>;
+}
+
+/** A hint that a user's committed timer revision changed. It never carries state. */
+export type TimerSignal = { userId: number; revision: number };
+/** Carries timer signals between API processes. A receiver rebuilds state from its own database read. */
+export interface TimerBus {
+  send(signal: TimerSignal): void;
+  /** Registers the single receiver. */
+  receive(handler: (signal: TimerSignal) => void): void;
   close(): Promise<void>;
 }

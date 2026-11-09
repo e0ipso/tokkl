@@ -10,6 +10,7 @@ import type { StorageConnection } from '../../src/storage/connections.ts';
 import type { PhysicalDatabase } from '../../src/storage/physical.ts';
 import { ApplicationError } from '../../src/lib/errors.ts';
 import { ReportRunner } from '../../src/services/reportRunner.ts';
+import { createReportRunner } from '../../src/reportRunners.ts';
 import { runExport } from '../fixtures/reportRunner.ts';
 import {
   EXPORT_BATCH_SIZE,
@@ -171,7 +172,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
       await seedAccount(connection, operations, 'export-empty', 'UTC', 0, 1),
     ];
     // The worker reads through its own reader; the inline job reads on this connection.
-    const runner = new ReportRunner(fixture.config, operations);
+    const runner = createReportRunner(fixture.config, operations);
     t.after(() => runner.close());
     for (const user of users) {
       const projection = await collectAccountExport(operations, user.id);
@@ -223,7 +224,7 @@ test('a worker export waits for its output to take what it sent', { timeout: 120
   const expected = oracleExportBody(await collectAccountExport(operations, user.id), assembly);
   assert.ok(Buffer.byteLength(expected) > 3 * EXPORT_BYTES_AHEAD);
 
-  const runner = new ReportRunner(fixture.config, operations);
+  const runner = createReportRunner(fixture.config, operations);
   t.after(() => runner.close());
   const chunks: string[] = [];
   const held: Array<() => void> = [];

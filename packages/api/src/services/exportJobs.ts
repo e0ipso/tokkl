@@ -60,14 +60,9 @@ async function* exportedEntries(
 /**
  * Checks the caller, then writes the export through `emit`, all in one read snapshot. Nothing is
  * emitted before the credential and the range are checked, so those failures still get their own
- * status. `onRows` runs once, when the first piece is ready.
+ * status.
  */
-export function runExportJob(
-  source: ExportSource,
-  work: ExportJobWork,
-  emit: ExportEmitter,
-  onRows?: () => void,
-): Promise<void> {
+export function runExportJob(source: ExportSource, work: ExportJobWork, emit: ExportEmitter): Promise<void> {
   const { userId, assembly, authentication } = work;
   return source.readSnapshot(async repositories => {
     const found = authentication
@@ -79,7 +74,6 @@ export function runExportJob(
     const head = await repositories.transfers.exportHead(userId);
     if (assembly.kind === 'export-json') {
       const writer = jsonExportWriter(head, assembly.exportedAt);
-      onRows?.();
       await emit(writer.opening);
       for await (const batch of exportedEntries(repositories.transfers, userId, 'newest'))
         await emit(writer.entries(batch));
@@ -87,7 +81,6 @@ export function runExportJob(
       return;
     }
     const writer = csvExportWriter(head.user, assembly.range, assembly.durationFormat);
-    onRows?.();
     await emit(writer.header);
     for await (const batch of exportedEntries(repositories.transfers, userId, 'oldest')) {
       const lines = writer.entries(batch);

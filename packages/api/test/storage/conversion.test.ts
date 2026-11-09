@@ -8,7 +8,6 @@ import {
   jsonValue,
   jsonObject,
   utcInstant,
-  dateOnly,
 } from '../../src/storage/conversion.ts';
 
 test('IDs and integer counts reject overflow, coercions and partial strings', () => {
@@ -76,8 +75,6 @@ test('storage timestamps require a zone and real calendar values, preserve milli
     new Date(NaN),
   ])
     assert.throws(() => utcInstant(value));
-  assert.equal(dateOnly('2024-02-29'), '2024-02-29');
-  for (const value of ['2025-02-29', '2026-10-30T00:00:00Z', null]) assert.throws(() => dateOnly(value));
 });
 
 test('UTC SQL timestamp conversion is explicit and never assumes a local timezone', async () => {

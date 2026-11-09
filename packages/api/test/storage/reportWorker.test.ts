@@ -21,6 +21,7 @@ import { initializeDatabase, migrations } from '../../src/storage/migrations.ts'
 import { createTransactionRunner } from '../../src/storage/transactions.ts';
 import { createReportRepositories } from '../../src/storage/repositories/reports.ts';
 import { ReportRunner } from '../../src/services/reportRunner.ts';
+import { createReportRunner } from '../../src/reportRunners.ts';
 import { runExport, runReport } from '../fixtures/reportRunner.ts';
 import { errorReply } from '../../src/http/errors.ts';
 import { runReportJob, type ReportJob } from '../../src/services/reportJobs.ts';
@@ -91,7 +92,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
         await reader.close();
       }
       const workers = trackedWorkers();
-      const runner = new ReportRunner(fixture.config, operations, {
+      const runner = createReportRunner(fixture.config, operations, {
         maxQueue: 2,
         maxPerUser: 2,
         startWorker: workers.startWorker,
@@ -171,30 +172,38 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
           .values(history.slice(i, i + 100))
           .execute();
       await runner.close();
+      const heavyWorkers = trackedWorkers();
+      const heavy = createReportRunner(fixture.config, operations, { startWorker: heavyWorkers.startWorker });
+      t.after(() => heavy.close());
+      // The detailed CSV streams its header, then one piece per formatted batch: the second piece
+      // means the worker is formatting, and more batches follow.
       let formatted!: () => void;
       const formatting = new Promise<void>(resolve => {
         formatted = resolve;
       });
-      const heavyWorkers = trackedWorkers();
-      const heavy = new ReportRunner(fixture.config, operations, {
-        startWorker: heavyWorkers.startWorker,
-        onPhase: phase => {
-          if (phase === 'formatting') formatted();
-        },
-      });
-      t.after(() => heavy.close());
+      const pieces: string[] = [];
       let finished = false;
       const started = performance.now();
-      const result = answerOnRunner(heavy, user.id, wid, {
-        kind: 'app-detailed-csv',
-        filter: job.filter,
-        orderBy: 'description',
-        orderDir: 'ASC',
-        durationFormat: 'improved',
-      }).then(r => {
-        finished = true;
-        return r;
-      });
+      const result = heavy
+        .reserveDownload({ userId: user.id }, slot =>
+          slot.report(
+            wid,
+            {
+              kind: 'app-detailed-csv',
+              filter: job.filter,
+              orderBy: 'description',
+              orderDir: 'ASC',
+              durationFormat: 'improved',
+            },
+            async piece => {
+              pieces.push(piece);
+              if (pieces.length === 2) formatted();
+            },
+          ),
+        )
+        .then(() => {
+          finished = true;
+        });
       await formatting;
       const timerStarted = performance.now();
       await operations.transaction(r =>
@@ -210,8 +219,9 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
       assert.equal(state.running_entry?.description, 'live timer');
       const overlapped = !finished;
       const timerMs = performance.now() - timerStarted;
-      const body = await result;
-      assert.equal(body.body.split('\r\n').length, 18003);
+      await result;
+      assert.ok(pieces.length > 2, 'the report must be formatted in more than one batch');
+      assert.equal(pieces.join('').split('\r\n').length, 18003);
       console.log(
         JSON.stringify({
           backend,
@@ -258,7 +268,7 @@ test('memory SQLite stays inline; reader startup never creates or migrates a fil
   }));
   const user = await operations.transaction(r => r.users.createAccount(entryAccount('inline')));
   const workers = trackedWorkers();
-  const runner = new ReportRunner(config, operations, { startWorker: workers.startWorker });
+  const runner = createReportRunner(config, operations, { startWorker: workers.startWorker });
   t.after(() => runner.close());
   assert.deepEqual(
     await runReport(runner, user.id, user.defaultWorkspaceId, job),
@@ -285,7 +295,7 @@ test('memory SQLite stays inline; reader startup never creates or migrates a fil
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const filename = join(dir, 'missing', 'db.sqlite');
   const startupLog = recordedLog();
-  const missing = new ReportRunner({ ...config, filename }, operations, { logger: startupLog.logger });
+  const missing = createReportRunner({ ...config, filename }, operations, { logger: startupLog.logger });
   t.after(() => missing.close());
   await assert.rejects(runReport(missing, user.id, user.defaultWorkspaceId, job), /Report worker stopped/);
   assert.equal(existsSync(join(dir, 'missing')), false);
@@ -299,7 +309,7 @@ test('memory SQLite stays inline; reader startup never creates or migrates a fil
   writeFileSync(empty, '');
   const before = readFileSync(empty);
   const jobLog = recordedLog();
-  const unmigrated = new ReportRunner({ ...config, filename: empty }, operations, { logger: jobLog.logger });
+  const unmigrated = createReportRunner({ ...config, filename: empty }, operations, { logger: jobLog.logger });
   t.after(() => unmigrated.close());
   await assert.rejects(runReport(unmigrated, user.id, user.defaultWorkspaceId, job), /Report failed/);
   await unmigrated.close();
@@ -348,7 +358,7 @@ test('inline cancellation and shutdown await the actual memory snapshot release'
       });
     },
   };
-  const runner = new ReportRunner(config, source);
+  const runner = createReportRunner(config, source);
   const controller = new AbortController();
   const cancelled = assert.rejects(
     runReport(runner, user.id, user.defaultWorkspaceId, job, { signal: controller.signal }),

@@ -394,6 +394,15 @@ export interface ImportResult {
   skipped: Array<{ rows: number; reason: string }>;
 }
 
+/**
+ * GET /api/app/trash/total: how many trashed entries the account has. GET /api/app/trash lists only
+ * the `limit` most recently deleted, so a `total` above `limit` means the list left some out.
+ */
+export interface TrashTotal {
+  total: number;
+  limit: number;
+}
+
 /** POST /api/app/report/entries: one sorted page of every matching entry. */
 export interface DetailedReportPage {
   total: number;

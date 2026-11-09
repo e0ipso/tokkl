@@ -7,7 +7,8 @@ import { createAccountOperations } from '../../src/domain/accounts.ts';
 import { errorReply } from '../../src/http/errors.ts';
 import { generateApiToken, hashPassword, sha256 } from '../../src/lib/crypto.ts';
 import { createApplicationServices } from '../../src/services/application.ts';
-import { ReportRunner } from '../../src/services/reportRunner.ts';
+import { createLocalTimerBus } from '../../src/storage/timerBus.ts';
+import { createReportRunner } from '../../src/reportRunners.ts';
 import { openConnection } from '../../src/storage/connections.ts';
 import type { Repositories, Storage } from '../../src/domain/ports.ts';
 import { createStorage } from '../../src/storage/index.ts';
@@ -77,7 +78,8 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       const competing = createStorage(await openConnection(fixture.config));
       const services = createApplicationServices({
         storage,
-        reports: new ReportRunner(fixture.config, storage),
+        reports: createReportRunner(fixture.config, storage),
+        bus: createLocalTimerBus(),
         sessionDays: 30,
       });
       t.after(async () => {

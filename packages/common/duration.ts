@@ -82,11 +82,3 @@ export function formatDuration(totalSeconds: number, format: DurationFormat = 'i
   }
   return `${h}:${pad(m)}:${pad(s)}`;
 }
-
-/** Compact form for totals and chart labels, e.g. "12h 05m". */
-export function formatHoursMinutes(totalSeconds: number): string {
-  const minutes = Math.floor(Math.max(0, totalSeconds) / 60);
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return h > 0 ? `${h}h ${pad(m)}m` : `${m}m`;
-}
