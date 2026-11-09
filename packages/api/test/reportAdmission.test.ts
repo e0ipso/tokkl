@@ -11,7 +11,9 @@ import { silentLogger } from '../src/lib/logger.ts';
 import { appReportRoutes, reportsV3Routes } from '../src/routes/reports.ts';
 import type { Deps } from '../src/routes/context.ts';
 import { createApplicationServices } from '../src/services/application.ts';
-import { ReportRunner } from '../src/services/reportRunner.ts';
+import { ReportRunner, type ReportExecutor } from '../src/services/reportRunner.ts';
+import { createApp } from '../src/app.ts';
+import { testConfig, testServer } from './helpers.ts';
 import { runReport, runExport } from './fixtures/reportRunner.ts';
 import { fakeReportWorkers, postedJobs } from './fixtures/fakeReportWorker.ts';
 import type { JobSource } from '../src/services/reportExecution.ts';
@@ -469,4 +471,86 @@ test('a lane runs at least one job and at most its queue at once', () => {
   );
   // A short queue lowers the default instead of refusing it.
   assert.doesNotThrow(() => new ReportRunner(INLINE, UNUSED, { maxQueue: 1, downloads: { maxQueue: 1 } }));
+});
+
+/** Waits until `ready()` holds, for at most `ms`, and says whether it did. */
+async function until(ready: () => boolean, ms = 5000): Promise<boolean> {
+  const end = Date.now() + ms;
+  while (!ready() && Date.now() < end) await new Promise(resolve => setTimeout(resolve, 5));
+  return ready();
+}
+
+test('a report request the client abandons gives back its place, queued or running', async t => {
+  const db = await openSQLiteDatabase();
+  const user = await insertAccount(db, {
+    email: 'abandon@example.test',
+    fullname: 'Abandon',
+    timezone: 'UTC',
+    passwordHash: 'unused',
+    role: 'user',
+  });
+  const { source, reading, release } = gatedSource();
+  const runner = new ReportRunner(INLINE, source, { maxQueue: 4, maxPerUser: 2 });
+  // What each report request handed the runner, so the test knows when a job was queued and when
+  // the server saw its request close.
+  const signals: AbortSignal[] = [];
+  let submitted = 0;
+  const reports: ReportExecutor = {
+    reserve: (options, work) => {
+      signals.push(options.signal!);
+      return runner.reserve(options, slot =>
+        work({
+          run: (...args) => {
+            submitted++;
+            return slot.run(...args);
+          },
+        }),
+      );
+    },
+    reserveDownload: (options, work) => runner.reserveDownload(options, work),
+    close: () => runner.close(),
+  };
+  const app = createApp({ storage: storageFor(db), config: testConfig(), setup: { code: null }, reports });
+  t.after(async () => {
+    release();
+    await app.locals.close();
+  });
+  const server = testServer(app);
+  const authorization = `Basic ${Buffer.from(`${user.apiToken}:api_token`).toString('base64')}`;
+  const post = (signal: AbortSignal) =>
+    server
+      .request('/api/app/report', {
+        method: 'POST',
+        headers: { authorization, 'content-type': 'application/json' },
+        body: JSON.stringify({ start_date: '2026-01-01', end_date: '2026-01-07' }),
+        signal,
+      })
+      .then(
+        response => response.status,
+        () => 'aborted',
+      );
+  /** Whether the account has `count` free places now. It holds them only while it checks. */
+  const free = (count: number): Promise<boolean> => {
+    const take = (left: number): Promise<boolean> =>
+      left === 0 ? Promise.resolve(true) : runner.reserve({ userId: user.id }, () => take(left - 1));
+    return take(count).catch(() => false);
+  };
+
+  const running = new AbortController();
+  const answers = [post(running.signal)];
+  await reading(1);
+  const queued = new AbortController();
+  answers.push(post(queued.signal));
+  assert.ok(await until(() => submitted === 2), 'the second report was queued');
+  assert.equal(await free(1), false, 'both places are taken');
+
+  queued.abort();
+  assert.ok(await until(() => signals[1]!.aborted), 'the server saw the queued request close');
+  assert.equal(await free(1), true, 'the queued request gave back its place');
+  assert.equal(await free(2), false, 'the running request still holds its place');
+
+  running.abort();
+  assert.ok(await until(() => signals[0]!.aborted), 'the server saw the running request close');
+  assert.equal(await free(2), true, 'the running request gave back its place');
+  assert.deepEqual(await Promise.all(answers), ['aborted', 'aborted']);
 });
