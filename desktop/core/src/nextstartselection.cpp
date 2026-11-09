@@ -36,16 +36,12 @@ NextStartSelection::Choice NextStartSelection::afterStop(std::optional<qint64> p
     return found ? Choice{found->id, found->billable} : Choice();
 }
 
-NextStartSelection::Choice NextStartSelection::fromRecentEntries(const QList<ListedEntry> &entries, qint64 workspaceId)
+NextStartSelection::Choice NextStartSelection::fromLatestEntry(const std::optional<ListedEntry> &latest, qint64 workspaceId)
 {
-    if (entries.isEmpty()) {
+    if (!latest || latest->entry.workspaceId != workspaceId || !latest->entry.projectId || !latest->projectActive) {
         return Choice();
     }
-    const ListedEntry &last = entries.first();
-    if (last.entry.workspaceId != workspaceId || !last.entry.projectId || !last.projectActive) {
-        return Choice();
-    }
-    return Choice{last.entry.projectId, last.projectBillable};
+    return Choice{latest->entry.projectId, latest->projectBillable};
 }
 
 NextStartSelection::NextStartSelection(const ProjectCatalog *catalog, QObject *parent)
@@ -141,26 +137,13 @@ bool NextStartSelection::takeLastEntryWanted()
     return m_defaults.takeLastEntryWanted();
 }
 
-void NextStartSelection::readLastEntry(std::function<bool()> stillWanted, const QDateTime &now)
+void NextStartSelection::readLastEntry(std::function<bool()> stillWanted)
 {
     if (m_defaults.picked() || !m_connection) {
         return;
     }
-    readEntries(m_defaults.beginLastEntryRead(), now, std::move(stillWanted));
-}
-
-void NextStartSelection::readEntries(quint64 number, const QDateTime &now, std::function<bool()> stillWanted)
-{
-    if (!m_connection) {
-        return;
-    }
-    auto answered = [this, number, now, stillWanted](const ApiResult<QList<ListedEntry>> &result) {
-        // Nothing in the first days: the wider read, while it may still
-        // apply.
-        if (now.isValid() && result.ok() && result.value->isEmpty() && m_defaults.lastEntryReadIs(number) && !m_defaults.picked() && stillWanted()) {
-            readEntries(number, QDateTime(), stillWanted);
-            return;
-        }
+    const quint64 number = m_defaults.beginLastEntryRead();
+    m_connection->fetchLatestEntry(m_epoch.guard(this, [this, number, stillWanted](const ApiResult<std::optional<ListedEntry>> &result) {
         if (!m_defaults.takeLastEntryRead(number)) {
             return; // a choice or start since it was sent
         }
@@ -173,17 +156,8 @@ void NextStartSelection::readEntries(quint64 number, const QDateTime &now, std::
             return;
         }
         m_defaults.takeStopDefault();
-        apply(fromRecentEntries(*result.value, m_connection ? m_connection->workspaceId() : 0));
-    };
-    if (now.isValid()) {
-        // Up to a day ahead, for a server clock a little ahead of the state's.
-        m_connection->fetchEntriesStarted(now.addDays(-lastEntryFirstDays), now.addDays(1), m_epoch.guard(this, std::move(answered)));
-    } else {
-        // Known limit: the API lists only the entries of the last 9 days, so
-        // after a longer break there is no last entry and the next start has
-        // no project.
-        m_connection->fetchRecentEntries(m_epoch.guard(this, std::move(answered)));
-    }
+        apply(fromLatestEntry(*result.value, m_connection ? m_connection->workspaceId() : 0));
+    }));
 }
 
 void NextStartSelection::apply(const Choice &choice)

@@ -279,7 +279,7 @@ private Q_SLOTS:
             << QStringList{QStringLiteral("app-preferences"), QStringLiteral("timer-actions"), QStringLiteral("timer-edit"), QStringLiteral("pomodoro-revision")}
             << false;
         // Without one capability of the floor.
-        for (const QString &missing : {QStringLiteral("catalog-revision")}) {
+        for (const QString &missing : {QStringLiteral("catalog-revision"), QStringLiteral("latest-entry")}) {
             QStringList rest = all;
             rest.removeAll(missing);
             QTest::addRow("without %s", qPrintable(missing))
@@ -387,7 +387,8 @@ private Q_SLOTS:
                               QStringLiteral("pomodoro-revision"),
                               QStringLiteral("timer-edit-entry"),
                               QStringLiteral("idempotency-keys"),
-                              QStringLiteral("catalog-revision")}));
+                              QStringLiteral("catalog-revision"),
+                              QStringLiteral("latest-entry")}));
     }
 
     // The announcement in a /me body, as an earlier server sent it, does
@@ -441,6 +442,30 @@ private Q_SLOTS:
         QVERIFY(Tokkl::decodeProjects(*parseJsonBody("[]"))->isEmpty());
         QVERIFY(!Tokkl::decodeProjects(*parseJsonBody("null")));
         QVERIFY(!Tokkl::decodeProjects(*parseJsonBody(R"([{"id":1}])")));
+    }
+
+    // GET /api/app/time_entries/latest: one entry with the meta flags, or
+    // null.
+    void decodeLatestEntry()
+    {
+        const QByteArray body = R"({"id":6,"workspace_id":9,"project_id":4,"billable":true,"start":"2026-10-16T08:00:00Z",
+            "stop":"2026-10-16T09:30:00Z","duration":5400,"description":"","tags":[],"project_active":true,"project_billable":true})";
+        const auto latest = Tokkl::decodeLatestEntry(*parseJsonBody(body));
+        QVERIFY(latest && latest->has_value());
+        QCOMPARE((*latest)->entry.id, 6);
+        QCOMPARE((*latest)->entry.projectId.value_or(0), 4);
+        QVERIFY((*latest)->projectActive);
+        QVERIFY((*latest)->projectBillable);
+
+        const auto none = Tokkl::decodeLatestEntry(*parseJsonBody("null"));
+        QVERIFY(none && !none->has_value());
+        // Without a project the flags are null, which reads as false.
+        const auto bare = Tokkl::decodeLatestEntry(*parseJsonBody(R"({"id":6,"workspace_id":9,"project_id":null,"start":"2026-10-16T08:00:00Z",)"
+                                                                  R"("stop":null,"duration":-1,"project_active":null,"project_billable":null})"));
+        QVERIFY(bare && bare->has_value());
+        QVERIFY(!(*bare)->projectActive);
+        QVERIFY(!Tokkl::decodeLatestEntry(*parseJsonBody("[]")));
+        QVERIFY(!Tokkl::decodeLatestEntry(*parseJsonBody(R"({"id":6,"workspace_id":9,"start":"2026-10-16T08:00:00Z","duration":1,"project_active":"yes"})")));
     }
 
     void decodeCatalogRevision()

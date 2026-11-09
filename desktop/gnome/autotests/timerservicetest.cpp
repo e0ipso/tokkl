@@ -154,13 +154,14 @@ IntMap lengthsMap(const PomodoroConfig &config)
     };
 }
 
-// The newest entry the account has: stopped, on Alpha.
-QByteArray recentBody()
+// GET /api/app/time_entries/latest: the newest entry the account has,
+// stopped, on Alpha.
+QByteArray latestBody()
 {
     QJsonObject entry = entryObject(4, 11, false, true);
     entry.insert(QStringLiteral("project_active"), true);
     entry.insert(QStringLiteral("project_billable"), true);
-    return json(QJsonArray{entry});
+    return json(entry);
 }
 
 QString iso(const QDateTime &time)
@@ -652,8 +653,8 @@ class TimerServiceTest : public QObject
                         body = state();
                     } else if (path.endsWith("/projects")) {
                         body = projectsBody;
-                    } else if (path.endsWith("/me/time_entries")) {
-                        body = recentBody();
+                    } else if (path.endsWith("/app/time_entries/latest")) {
+                        body = latestBody();
                     } else if (path.endsWith("/me/preferences")) {
                         body = preferencesBody(lengths);
                     } else {

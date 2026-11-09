@@ -128,8 +128,8 @@ public:
     virtual void lookUpProject(qint64 id, std::function<bool(qint64)> stillWanted) = 0;
     // True once after the last entry's project was asked for.
     virtual bool takeLastEntryWanted() = 0;
-    // Reads the account's recent entries for the next start's default, by
-    // the server's clock; see NextStartSelection::readLastEntry().
+    // Reads the account's newest entry for the next start's default; see
+    // NextStartSelection::readLastEntry().
     virtual void readLastEntry(std::function<bool()> stillWanted) = 0;
     // Calls answered, with context, after each project list and each
     // single-project answer the model has taken in.

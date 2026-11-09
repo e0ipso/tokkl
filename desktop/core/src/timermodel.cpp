@@ -464,7 +464,7 @@ bool TimerModel::takeLastEntryWanted()
 
 void TimerModel::readLastEntry(std::function<bool()> stillWanted)
 {
-    m_next->readLastEntry(std::move(stillWanted), m_state ? m_state->serverNow() : QDateTime());
+    m_next->readLastEntry(std::move(stillWanted));
 }
 
 void TimerModel::onProjectsAnswered(QObject *context, std::function<void()> answered)

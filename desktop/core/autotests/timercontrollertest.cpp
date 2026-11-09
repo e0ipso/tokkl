@@ -22,7 +22,7 @@ const QString instanceA = QStringLiteral("https://a.example.test");
 const QString instanceB = QStringLiteral("https://b.example.test/tokkl");
 const QString token = QStringLiteral("tok-timer-1");
 const QByteArray statePath = "/app/timer";
-const QByteArray listPath = "/me/time_entries";
+const QByteArray listPath = "/app/time_entries/latest";
 const QByteArray startPath = "/app/timer/start";
 const QByteArray stopPath = "/app/timer/stop";
 const QByteArray editPath = "/app/timer/edit";
@@ -64,7 +64,7 @@ QByteArray entryBody(qint64 id, qint64 workspace, const QString &start, bool run
     return QJsonDocument(entryObject(id, workspace, start, running, project)).toJson(QJsonDocument::Compact);
 }
 
-// One stopped entry of GET /me/time_entries?meta=true.
+// One stopped entry with the meta fields of GET /me/time_entries?meta=true.
 QJsonObject listedEntry(qint64 id, qint64 workspace, std::optional<qint64> project, const QJsonValue &active, bool billable = false)
 {
     QJsonObject entry = entryObject(id, workspace, QStringLiteral("2026-10-15T08:00:00Z"), false, project);
@@ -73,9 +73,11 @@ QJsonObject listedEntry(qint64 id, qint64 workspace, std::optional<qint64> proje
     return entry;
 }
 
+// GET /api/app/time_entries/latest for an account whose entries list, newest
+// first, as entries: the first of them, or null.
 QByteArray listBody(const QJsonArray &entries)
 {
-    return QJsonDocument(entries).toJson(QJsonDocument::Compact);
+    return entries.isEmpty() ? QByteArray("null") : QJsonDocument(entries.first().toObject()).toJson(QJsonDocument::Compact);
 }
 
 QByteArray projectsBody(qint64 workspace)
@@ -1532,7 +1534,7 @@ private Q_SLOTS:
         QTest::newRow("unknown state") << listBody({listedEntry(8, 7, 11, QJsonValue::Null)}) << none << false;
         QTest::newRow("no project") << listBody({listedEntry(8, 7, std::nullopt, QJsonValue::Null), listedEntry(6, 7, 11, true)}) << none << false;
         QTest::newRow("another workspace") << listBody({listedEntry(8, 9, 11, true, true)}) << none << false;
-        QTest::newRow("empty") << QByteArray("[]") << none << false;
+        QTest::newRow("no entry") << listBody({}) << none << false;
     }
 
     void connectDefaultsToTheLastEntryProject()
@@ -1546,21 +1548,14 @@ private Q_SLOTS:
         const qsizetype read = f.last("GET", listPath);
         QVERIFY(f.unanswered(read));
         const QUrl url = f.transport.requests.at(read).url;
-        QCOMPARE(url.path(), QStringLiteral("/api/v9/me/time_entries"));
-        // The entries of the last two days on the server's clock, up to a
-        // day ahead.
-        QCOMPARE(url.query(), QStringLiteral("meta=true&start_date=2026-10-14T09:00:00Z&end_date=2026-10-17T09:00:00Z"));
+        // The newest entry alone, however long ago it started.
+        QCOMPARE(url.path(), QStringLiteral("/api/app/time_entries/latest"));
+        QVERIFY(url.query().isEmpty());
 
         QSignalSpy choice(&f.timer, &TimerController::choiceChanged);
         f.respond(read, FakeTransport::answer(200, list));
-        if (list == "[]") {
-            // None there: the API's last 9 days follow.
-            const qsizetype wider = f.last("GET", listPath);
-            QVERIFY(wider > read);
-            QCOMPARE(f.transport.requests.at(wider).url.query(), QStringLiteral("meta=true"));
-            f.respond(wider, FakeTransport::answer(200, list));
-        }
         const qsizetype reads = f.find("GET", listPath).size();
+        QCOMPARE(reads, 1);
         if (project.isNull()) {
             QVERIFY(f.timer.chosenProjectId().isNull());
         } else {

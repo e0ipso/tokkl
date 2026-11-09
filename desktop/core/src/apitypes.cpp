@@ -99,6 +99,7 @@ QStringList ServerFloor::capabilities()
         QStringLiteral("timer-edit-entry"),
         QStringLiteral("idempotency-keys"),
         QStringLiteral("catalog-revision"),
+        QStringLiteral("latest-entry"),
     };
 }
 
@@ -315,24 +316,20 @@ std::optional<std::optional<TimeEntry>> decodeCurrentEntry(const QJsonValue &val
     return entry;
 }
 
-std::optional<QList<ListedEntry>> decodeListedEntries(const QJsonValue &value)
+std::optional<std::optional<ListedEntry>> decodeLatestEntry(const QJsonValue &value)
 {
-    if (!value.isArray()) {
+    if (value.isNull()) {
+        return std::optional<ListedEntry>();
+    }
+    ListedEntry listed;
+    std::optional<TimeEntry> entry = decodeTimeEntry(value);
+    const QJsonObject object = value.toObject();
+    if (!entry || !optionalBool(object.value(QLatin1String("project_active")), listed.projectActive, false)
+        || !optionalBool(object.value(QLatin1String("project_billable")), listed.projectBillable, false)) {
         return std::nullopt;
     }
-    QList<ListedEntry> entries;
-    for (const QJsonValue &item : value.toArray()) {
-        ListedEntry listed;
-        std::optional<TimeEntry> entry = decodeTimeEntry(item);
-        const QJsonObject object = item.toObject();
-        if (!entry || !optionalBool(object.value(QLatin1String("project_active")), listed.projectActive, false)
-            || !optionalBool(object.value(QLatin1String("project_billable")), listed.projectBillable, false)) {
-            return std::nullopt;
-        }
-        listed.entry = std::move(*entry);
-        entries.append(std::move(listed));
-    }
-    return entries;
+    listed.entry = std::move(*entry);
+    return std::optional<ListedEntry>(std::move(listed));
 }
 
 namespace

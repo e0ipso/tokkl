@@ -111,12 +111,11 @@ public:
     void fetchCatalogRevision(Callback<qint64> done = {});
     // One project of the workspace, archived or not.
     void fetchProject(qint64 projectId, Callback<Project> done = {});
-    // The account's entries of the last 9 days in every workspace, newest
-    // first, with project metadata (GET /me/time_entries?meta=true).
-    void fetchRecentEntries(Callback<QList<ListedEntry>> done = {});
-    // As fetchRecentEntries(), for the entries that started from from up to
-    // before to.
-    void fetchEntriesStarted(const QDateTime &from, const QDateTime &to, Callback<QList<ListedEntry>> done = {});
+    // The account's newest entry by start, running or stopped, in any
+    // workspace, with project metadata: GET /api/app/time_entries/latest,
+    // the first entry GET /me/time_entries?meta=true lists. None for an
+    // account without entries.
+    void fetchLatestEntry(Callback<std::optional<ListedEntry>> done = {});
     // The Pomodoro lengths of the account preferences, through
     // /api/app/me/preferences, whose refusals name the refused key in
     // Tokkl-Error-Field. A length outside the server's pomodoro_limits reads
