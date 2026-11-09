@@ -29,8 +29,8 @@ export type OrderedTimerPublication<S extends Revisioned> = ((
   claim(userId: Id, incarnation: string): void;
 };
 
-/** Serialize deliveries per user after release. Drop overtaken revisions; a failed delivery is
- * reported by the runner and never retried as a write. Later deliveries still run. Every delivery
+/** Serialize deliveries per user after release. Drop overtaken revisions; a failed delivery rejects
+ * the call that queued it and is never retried as a write. Later deliveries still run. Every delivery
  * must belong to the incarnation this process holds state for; any other is dropped. */
 export function createTimerPublication<S extends Revisioned = TimerView>(
   deliver: TimerDelivery<S>,

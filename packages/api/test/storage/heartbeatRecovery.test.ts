@@ -173,18 +173,29 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       const held = remote.hold();
       await held.entered.promise;
       const onBWrite = send(1, u, 'PUT', `${running}/${entry.id}`, { description: 'on B' });
-      // B's own commit is now waiting for the stream's queue, which the held tick occupies.
+      // B's own delivery is now waiting for the stream's queue, which the held tick occupies.
       const deadline = performance.now() + 5000;
       while (published.mock.callCount() === 0) {
         assert.ok(performance.now() < deadline, 'local publish reached the stream');
         await new Promise(r => setTimeout(r, 5));
       }
+      // The reply does not wait for that delivery.
+      let late: NodeJS.Timeout | undefined;
+      const replied = await Promise.race([
+        onBWrite,
+        new Promise<never>((_, reject) => {
+          late = setTimeout(() => {
+            held.release.resolve();
+            reject(new Error('the reply waited for the held keep-alive tick'));
+          }, 5000);
+        }),
+      ]).finally(() => clearTimeout(late));
+      await ok(replied);
       await ok(await send(0, u, 'PUT', `${running}/${entry.id}`, { description: 'on A' }));
       assert.equal(await revision(), base + 2);
       // The tick now reads base + 2, ahead of both the stream and B's pending base + 1.
       held.release.resolve();
       await onB.until(() => onB.events.includes(base + 2), { describe: () => JSON.stringify(onB.events) });
-      await ok(await onBWrite);
       assert.deepEqual(
         onB.states.slice(seen).map(s => s.revision),
         [base + 1, base + 2],

@@ -2,6 +2,13 @@
  * Wires timer state from commit to client: the domain's timer operations publish each committed
  * view, the ordered publication delivers it to this process's streams and signals the bus, and bus
  * signals from other processes refresh the streams from the database.
+ *
+ * Publishing starts the delivery and returns at once, so a write's reply never waits for stream
+ * credential checks or a keep-alive tick holding the user's stream queue. The reply can then reach
+ * its client before the stream sends the same state, or an older one still queued. Revisions keep
+ * that harmless: each stream only ever sends a revision above the last one it sent, and clients
+ * drop a state older than the one they hold (`planTimerUpdate` in the web client,
+ * `TimerStateClient::adopt` in the desktop core).
  */
 import type { Storage } from '../domain/ports.ts';
 import type { Id } from '../domain/model.ts';
@@ -49,38 +56,39 @@ export function createTimerDelivery({ storage, bus, logger, streamOptions }: Tim
         }),
     },
   );
-  const refreshes = new Set<Promise<void>>();
+  /** Started deliveries and refreshes, until each ends. */
+  const running = new Set<Promise<void>>();
+  const track = (work: Promise<void>) => {
+    running.add(work);
+    void work.then(
+      () => running.delete(work),
+      () => running.delete(work),
+    );
+    return work;
+  };
   // Every local commit publishes through here. Remote refreshes skip the send, which stops echo loops.
   const publish: OrderedTimerPublication<TimerView> = Object.assign(
-    (id: Id, view: TimerView, incarnation: string) => {
-      const delivery = ordered(id, view, incarnation);
+    async (id: Id, view: TimerView, incarnation: string) => {
+      // Enqueued before this returns, so deliveries run in the order the commits published them.
+      track(ordered(id, view, incarnation)).catch(error => logger.error('Timer delivery failed', { error }));
       try {
         bus.send({ userId: id, revision: view.revision });
       } catch (error) {
         logger.warn('Timer bus send failed', { error });
       }
-      return delivery;
     },
     {
       forgetUser: ordered.forgetUser,
       claim: ordered.claim,
-      refresh(id: Id, hintedRevision: number) {
-        const refresh = ordered.refresh(id, hintedRevision);
-        refreshes.add(refresh);
-        void refresh.then(
-          () => refreshes.delete(refresh),
-          () => refreshes.delete(refresh),
-        );
-        return refresh;
-      },
+      refresh: (id: Id, hintedRevision: number) => track(ordered.refresh(id, hintedRevision)),
     },
   );
   return {
     timerStreams,
     publish,
-    /** Waits for started refreshes; call after the streams closed, so no new one starts. */
+    /** Waits until no delivery or refresh is running, those started while it waits included. */
     async settled(): Promise<void> {
-      await Promise.allSettled([...refreshes]);
+      while (running.size) await Promise.allSettled([...running]);
     },
   };
 }

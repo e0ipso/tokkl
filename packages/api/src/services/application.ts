@@ -224,8 +224,11 @@ export function createApplicationServices({
     catalogsFor: (authentication: Authentication) =>
       createCatalogOperations(guardedTransactions(storage, authentication), authentication.user.id, publish),
     async close() {
+      // States already committed reach the open streams before they close.
+      await settled();
       const results = await Promise.allSettled([timerStreams.closeAll(), reports.close(), maintenance.close()]);
-      // Streams are closed, so no new rebuild starts. Let started ones finish before storage closes.
+      // A write still finishing may have published since. With the streams closed its delivery
+      // sends nothing and no new refresh starts, but storage stays open until each one ends.
       await settled();
       if (results.some(result => result.status === 'rejected')) throw new Error('Application shutdown failed');
     },
