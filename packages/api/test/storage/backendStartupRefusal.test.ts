@@ -8,7 +8,8 @@ import { join } from 'node:path';
 import { sql } from 'kysely';
 import { disposableBackend } from './support/disposableBackend.ts';
 import { openConnection } from '../../src/storage/connections.ts';
-import { initializeDatabase, migrations, validateEngine } from '../../src/storage/migrations.ts';
+import { validateEngine } from '../../src/storage/migrationRunner.ts';
+import { initializeDatabase, migrations } from '../../src/storage/migrations.ts';
 import type { PhysicalDatabase } from '../../src/storage/physical.ts';
 
 for (const backend of ['mysql', 'mariadb'] as const) {

@@ -5,7 +5,8 @@ import type { User } from '../../src/domain/model.ts';
 import { createStorage } from '../fixtures/storageShortcuts.ts';
 import { openConnection } from '../../src/storage/connections.ts';
 import type { PhysicalDatabase } from '../../src/storage/physical.ts';
-import { initializeDatabase, migrations, verifyCurrent } from '../../src/storage/migrations.ts';
+import { initializeDatabase, migrations } from '../../src/storage/migrations.ts';
+import { assertCurrent } from './support/migrationLedger.ts';
 import { createApp } from '../../src/app.ts';
 import { withBodies } from '../fixtures/accountBodies.ts';
 import { sha256 } from '../../src/lib/crypto.ts';
@@ -255,7 +256,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       assert.equal((await request(1, 'GET', '/api/v9/me', undefined, admin.apiToken)).status, 403);
       assert.equal((await request(1, 'GET', '/api/v9/me', undefined, token)).status, 200);
     });
-    await verifyCurrent(c);
+    await assertCurrent(c);
     const ledger = await c.db
       .selectFrom('storage_migrations')
       .select(['version', 'state'])

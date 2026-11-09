@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { sql } from 'kysely';
 import { openConnection } from '../../src/storage/connections.ts';
-import { initializeDatabase, migrate, migrations, verifyCurrent } from '../../src/storage/migrations.ts';
+import { assertSupportedEngine, runMigrations } from '../../src/storage/migrationRunner.ts';
+import { initializeDatabase, migrations } from '../../src/storage/migrations.ts';
+import { assertCurrent } from './support/migrationLedger.ts';
 import type { PhysicalDatabase } from '../../src/storage/physical.ts';
 import { assertSchema, assertDefaultsAndForeignKeys, insert, rows } from './support/schemaAssertions.ts';
 import { assertInvariants } from './support/invariants.ts';
@@ -15,12 +17,12 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
     try {
       const connection = await initializeDatabase(fixture.config);
       try {
-        await verifyCurrent(connection);
+        await assertCurrent(connection);
         assert.equal((await sql`select * from users`.execute(connection.db)).rows.length, 0);
         await assertSchema(connection.db, backend);
         await assertDefaultsAndForeignKeys(connection.db, backend);
         await assertInvariants(connection.db, backend);
-        await verifyCurrent(connection);
+        await assertCurrent(connection);
         assert.equal(
           (
             await sql<{ n: number | string }>`select count(*) as n from storage_migrations`.execute(connection.db)
@@ -44,7 +46,7 @@ for (const backend of ['mysql', 'mariadb'] as const) {
     try {
       const connection = await openConnection<PhysicalDatabase>(fixture.config);
       try {
-        await migrate(connection, migrations(backend).slice(0, 3));
+        await runMigrations(connection, migrations(backend).slice(0, 3));
         const times = { created_at: '2026-10-01T00:00:00.000Z', updated_at: '2026-10-01T00:00:00.000Z' };
         await insert(connection.db, backend, 'workspaces', { id: 1, name: 'scope', ...times });
         for (const id of [1, 2])
@@ -67,7 +69,7 @@ for (const backend of ['mysql', 'mariadb'] as const) {
         await entry(1, 1, null);
         await entry(2, 1, '2026-10-01T01:00:00.000Z');
         await entry(3, 2, null);
-        await migrate(connection);
+        await runMigrations(connection, migrations(backend));
         const slots = async () =>
           (await rows(connection.db, backend, 'running_entries'))
             .map(row => [Number(row.user_id), Number(row.entry_id)])
@@ -103,7 +105,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       try {
         const available = migrations(backend);
         const version = available.findIndex(m => m.name === 'timer_session_entry');
-        await migrate(connection, available.slice(0, version));
+        await runMigrations(connection, available.slice(0, version));
         const session = { userId: 1, entryId: 7, config: {}, phase: {} };
         const fingerprints: Array<[string, number | null]> = [
           [JSON.stringify({ running: { id: 7 }, session, chain: null }), 7],
@@ -126,7 +128,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           });
           await insert(connection.db, backend, 'timer_states', { user_id: id, revision: 3, fingerprint });
         }
-        await migrate(connection);
+        await runMigrations(connection, migrations(backend));
         const stored = new Map(
           (await rows(connection.db, backend, 'timer_states')).map(row => [
             Number(row.user_id),
@@ -154,7 +156,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       const connection = await openConnection<PhysicalDatabase>(fixture.config);
       try {
         const available = migrations(backend);
-        await migrate(
+        await runMigrations(
           connection,
           available.slice(
             0,
@@ -163,7 +165,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         );
         const times = { created_at: '2026-10-01T00:00:00.000Z', updated_at: '2026-10-01T00:00:00.000Z' };
         for (const id of [1, 2]) await insert(connection.db, backend, 'workspaces', { id, name: `ws${id}`, ...times });
-        await migrate(connection);
+        await runMigrations(connection, migrations(backend));
         assert.deepEqual(
           (await rows(connection.db, backend, 'workspaces'))
             .map(row => [Number(row.id), Number(row.catalog_revision)])
@@ -184,7 +186,6 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
 }
 
 test('supported engine lines are explicit and errors contain no supplied version text', async () => {
-  const { assertSupportedEngine } = await import('../../src/storage/migrations.ts');
   for (const [backend, version] of [
     ['postgres', 'PostgreSQL 17.9 secret'],
     ['mysql', '11.8.9-MariaDB secret'],

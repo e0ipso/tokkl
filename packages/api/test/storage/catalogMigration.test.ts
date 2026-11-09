@@ -3,7 +3,8 @@ import { createHash } from 'node:crypto';
 import { test } from 'node:test';
 import { sql } from 'kysely';
 import { openConnection } from '../../src/storage/connections.ts';
-import { initializeDatabase, migrate, migrations, schemaFingerprint } from '../../src/storage/migrations.ts';
+import { runMigrations, schemaFingerprint } from '../../src/storage/migrationRunner.ts';
+import { initializeDatabase, migrations } from '../../src/storage/migrations.ts';
 import type { PhysicalDatabase } from '../../src/storage/physical.ts';
 import { createTransactionRunner } from '../../src/storage/transactions.ts';
 import { createCatalogRepositories } from '../../src/storage/repositories/catalogs.ts';
@@ -26,7 +27,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           available.slice(0, 2).map(m => createHash('sha256').update(JSON.stringify(m)).digest('hex')),
           originalHashes[backend],
         );
-        await migrate(connection, available.slice(0, 2));
+        await runMigrations(connection, available.slice(0, 2));
         await connection.db
           .insertInto('workspaces')
           .values({ id: 1, name: 'Catalog', created_at: at, updated_at: at })
@@ -67,7 +68,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         if (backend === 'sqlite') {
           // Fractional estimates only change server column types. SQLite keeps its schema.
           connection = await openConnection<PhysicalDatabase>(fixture.config);
-          await migrate(connection, available.slice(0, 3));
+          await runMigrations(connection, available.slice(0, 3));
           assert.equal(await schemaFingerprint(connection.db, backend), before);
           await connection.close();
         }

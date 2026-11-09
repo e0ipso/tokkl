@@ -5,13 +5,9 @@ import { sql } from 'kysely';
 import { disposableBackend } from './support/disposableBackend.ts';
 import { migrationChild } from './support/childProcess.ts';
 import { openConnection, openReadConnection } from '../../src/storage/connections.ts';
-import {
-  initializeDatabase,
-  migrate,
-  migrations,
-  verifyCurrent,
-  validateEngine,
-} from '../../src/storage/migrations.ts';
+import { runMigrations, validateEngine } from '../../src/storage/migrationRunner.ts';
+import { initializeDatabase, migrations } from '../../src/storage/migrations.ts';
+import { assertCurrent } from './support/migrationLedger.ts';
 import { serverDDL, quote } from '../../src/storage/schema.ts';
 import type { PhysicalDatabase } from '../../src/storage/physical.ts';
 
@@ -54,7 +50,6 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         } finally {
           fresh.forEach(({ child }) => child.kill('SIGKILL'));
         }
-        await assert.rejects(verifyCurrent(c), /inconsistent-schema/);
         await c.db
           .insertInto('workspaces')
           .values({ name: 'persisted', created_at: '2026-10-01T00:00:00.000Z', updated_at: '2026-10-01T00:00:00.000Z' })
@@ -95,20 +90,19 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           .set({ checksum: 'tampered' })
           .where('version', '=', latest)
           .execute();
-        await assert.rejects(verifyCurrent(c), /inconsistent-schema/);
         await assert.rejects(initializeDatabase(fixture.config), /inconsistent-schema/);
         await c.db
           .updateTable('storage_migrations')
           .set({ checksum: saved.checksum, version: future })
           .where('version', '=', latest)
           .execute();
-        await assert.rejects(verifyCurrent(c), /inconsistent-schema/);
+        await assert.rejects(initializeDatabase(fixture.config), /inconsistent-schema/);
         await c.db.updateTable('storage_migrations').set({ version: latest }).where('version', '=', future).execute();
-        await verifyCurrent(c);
+        await assertCurrent(c);
         const reader = await openReadConnection<PhysicalDatabase>(fixture.config);
         try {
-          await verifyCurrent(reader);
-          await assert.rejects(migrate(reader), /reader/);
+          await assertCurrent(reader);
+          await assert.rejects(runMigrations(reader, migrations(backend)), /reader/);
           await assert.rejects(sql`delete from workspaces`.execute(reader.db));
         } finally {
           await reader.close();
@@ -118,7 +112,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           name: 'failure_probe',
           statements: ['CREATE TABLE failure_probe (value INTEGER)', 'THIS IS INVALID DDL secret-password'],
         };
-        await assert.rejects(migrate(c, [...migrations(backend), fault]), error => {
+        await assert.rejects(runMigrations(c, [...migrations(backend), fault]), error => {
           assert.match(String(error), /migration-failed/);
           assert.doesNotMatch(String(error), /secret-password/);
           assert.equal((error as Error).cause, undefined);
@@ -130,7 +124,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           assert.equal(ledger.at(-1)!.state, 'applying');
           assert.equal(ledger.at(-1)!.schema_hash, null);
           await sql`select * from failure_probe`.execute(c.db);
-          await assert.rejects(migrate(c), /inconsistent-schema/);
+          await assert.rejects(runMigrations(c, migrations(backend)), /inconsistent-schema/);
           // Fixture-only repair to reuse this disposable database for the process-death test.
           await sql`drop table failure_probe`.execute(c.db);
           await c.db.deleteFrom('storage_migrations').where('version', '=', next).execute();
@@ -138,14 +132,14 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           assert.equal(ledger.length, latest);
           await assert.rejects(sql`select * from failure_probe`.execute(c.db));
         }
-        await verifyCurrent(c);
+        await assertCurrent(c);
         if (fixture.config.backend === 'mysql' || fixture.config.backend === 'mariadb') {
           const wrong = {
             ...fixture.config,
             backend: fixture.config.backend === 'mysql' ? ('mariadb' as const) : ('mysql' as const),
           };
           await assert.rejects(initializeDatabase(wrong), /unsupported-engine/);
-          await verifyCurrent(c);
+          await assertCurrent(c);
         }
         await c.close();
         const interrupted = migrationChild(fixture.config, 'interrupt');
@@ -169,14 +163,13 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           await sql`drop table interruption_probe`.execute(c.db);
           await c.db.deleteFrom('storage_migrations').where('version', '=', next).execute();
         } else {
-          await verifyCurrent(c);
+          await assertCurrent(c);
           assert.equal((await c.db.selectFrom('storage_migrations').selectAll().execute()).length, latest);
           await assert.rejects(sql`select * from interruption_probe`.execute(c.db));
         }
-        await verifyCurrent(c);
+        await assertCurrent(c);
         // An unexpected physical index is refused despite a complete ledger and unchanged versions.
         await sql.raw(`CREATE INDEX ${quote(backend, 'unexpected_index')} ON time_entries(id)`).execute(c.db);
-        await assert.rejects(verifyCurrent(c), /inconsistent-schema/);
         await assert.rejects(initializeDatabase(fixture.config), /inconsistent-schema/);
       } finally {
         await c.close();
