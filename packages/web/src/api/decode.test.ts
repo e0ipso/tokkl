@@ -6,6 +6,7 @@ import {
   boolean,
   instant,
   integer,
+  knownNames,
   nullable,
   number,
   object,
@@ -58,6 +59,19 @@ test('the error names the path to the first field that does not fit', () => {
 
 test('null, lists and scalars are not objects', () => {
   for (const value of [null, [], 'text', 3]) assert.throws(() => item(value), { message: /reply is not an object/ });
+});
+
+test('knownNames keeps the names it knows, drops the rest, and still wants a list of strings', () => {
+  const names = knownNames({ a: true, b: true });
+  assert.deepEqual(names(['b', 'later', 'a']), ['b', 'a']);
+  assert.deepEqual(names([]), []);
+  // Names inherited from Object.prototype are not known names.
+  assert.deepEqual(names(['toString', 'constructor']), []);
+  assert.throws(() => names('a'), { message: /reply is not a list/ });
+  assert.throws(
+    () => names(['a', 3]),
+    (error: unknown) => error instanceof DecodeError && error.at === 'reply[1]',
+  );
 });
 
 test('nullable accepts null and checks anything else', () => {
