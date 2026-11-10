@@ -1,6 +1,6 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:80434fbf4e4c7ecf0c953333fa8a3bdd9265a94719517c6a435e9d2f101ccd54'
+nodes_hash: 'sha256:d91502d04bb64290b6f1ed098390b1a66a7f0f0261e4fd7f7d02c05d6f789e7e'
 node_count: 116
 ---
 # kenkeep Graph
@@ -163,10 +163,11 @@ Total nodes: 116
 ## map-instance-settings-api-app-admin-settings-and-setting-rules
 
 - **kind:** map
-- **title:** Instance settings: /api/app/admin/settings and SETTING_RULES
+- **title:** Instance settings: /api/app/admin/settings
 - **path:** api-and-data/users-and-admin/map-instance-settings-api-app-admin-settings-and-setting-rules.md
 - **tags:** server, admin, settings
 - **relates_to:** practice-stopped-entries-snap-to-the-time-resolution-on-write
+- **derived_from:** packages/api/src/domain/instanceSettings.ts
 
 ## map-invites-and-password-reset-links-in-account-tokens
 
@@ -175,6 +176,7 @@ Total nodes: 116
 - **path:** api-and-data/users-and-admin/map-invites-and-password-reset-links-in-account-tokens.md
 - **tags:** server, auth, admin, invites
 - **relates_to:** map-users-roles-and-workspace-membership, practice-password-checks-go-through-failurelimiter-attempt, practice-cookie-writes-and-session-starting-routes-need-the-csrf-header
+- **derived_from:** packages/api/src/domain/accountLinks.ts
 
 ## map-kde-and-core-ci-jobs
 
