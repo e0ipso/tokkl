@@ -3,9 +3,8 @@ import { test } from 'node:test';
 import { addDays, parseDateKey, zonedParts } from '@tokkl/common/time';
 import { dayLabel, dayOfWeekName, formatDateTime, formatTime, monthName, shortDate, weekdayName } from './format.ts';
 
-// The helpers moved from English tables to Intl in the interface locale. Each is checked against
-// the table version it replaced, over every day of several years and every minute of a day in
-// several time zones, so the output is the same byte for byte.
+// Each Intl-based helper is checked against an English table over every day of several years and every
+// minute of a day in several zones.
 
 const LEGACY_WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const LEGACY_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

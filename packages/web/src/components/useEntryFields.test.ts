@@ -111,7 +111,6 @@ test('picking a non-billable project, no project or an unknown one leaves billab
   }
 });
 
-/** Renders the hook once for `draft` and returns what it gave back. */
 function renderHook(draft: EntryDraft, recentEntries: TimeEntry[] = []) {
   let result: ReturnType<typeof useEntryFields> | undefined;
   function Probe() {

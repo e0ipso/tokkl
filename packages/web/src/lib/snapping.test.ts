@@ -8,7 +8,6 @@ const at = (iso: string) => new Date(iso);
 test('snappedSeconds moves each end to the nearest grid point', () => {
   assert.equal(snappedSeconds(at('2026-10-16T09:00:00Z'), at('2026-10-16T09:15:00Z'), utc(15)), 900);
   assert.equal(snappedSeconds(at('2026-10-16T09:00:00Z'), at('2026-10-16T09:15:01Z'), utc(15)), 900);
-  // A stop exactly halfway goes to the later grid point.
   assert.equal(snappedSeconds(at('2026-10-16T09:00:00Z'), at('2026-10-16T09:22:30Z'), utc(15)), 1800);
   assert.equal(snappedSeconds(at('2026-10-16T09:00:00Z'), at('2026-10-16T09:01:01Z'), utc(1)), 60);
   assert.equal(snappedSeconds(at('2026-10-16T09:07:00Z'), at('2026-10-16T09:22:00Z'), utc(15)), 900);
@@ -25,7 +24,6 @@ test('snappedSeconds is zero for a span the server refuses as too short', () => 
 test('snappedSeconds cuts both ends to whole seconds first, as the server does', () => {
   // 900.5 s of real time, but 900 s once each end drops its milliseconds.
   assert.equal(snappedSeconds(at('2026-10-16T09:00:00.400Z'), at('2026-10-16T09:15:00.900Z'), utc(15)), 900);
-  // Both ends in the same second: nothing to store.
   assert.equal(snappedSeconds(at('2026-10-16T09:00:00.100Z'), at('2026-10-16T09:00:00.900Z'), utc(15)), 0);
 });
 
@@ -113,14 +111,12 @@ test('snappedSplit refuses a split on or outside the snapped start and stop', ()
   assert.equal(snappedSplit(start, stop, at('2026-10-16T09:15:00Z'), utc(15)), 'outside');
   assert.equal(snappedSplit(start, stop, at('2026-10-16T10:15:00Z'), utc(15)), 'outside');
   assert.equal(snappedSplit(start, stop, at('2026-10-16T09:00:00Z'), utc(15)), 'outside');
-  // An entry that rounds to zero has nothing to split.
   assert.equal(snappedSplit(start, at('2026-10-16T09:20:00Z'), at('2026-10-16T09:15:00Z'), utc(15)), 'outside');
 });
 
 test('snappedSplit splits across a half-hour clock change', () => {
-  // Lord Howe springs forward from 02:00 (UTC+10:30) to 02:30 (UTC+11) at 15:30 UTC on 2026-10-03.
-  // At a resolution of 60, 14:30 to 16:30 UTC stores as local 01:00 to 04:00 (17:00 UTC), and local
-  // 03:00 (16:00 UTC) cuts it into halves of 90 and 60 minutes that meet.
+  // Lord Howe springs forward 02:00 to 02:30 at 15:30 UTC on 2026-10-03. At 60, 14:30-16:30 UTC stores as
+  // local 01:00-04:00, and local 03:00 cuts it into halves of 90 and 60 minutes.
   const lordHowe = { timeZone: 'Australia/Lord_Howe', timeResolution: 60 };
   const halves = snappedSplit(
     at('2026-10-03T14:30:00Z'),

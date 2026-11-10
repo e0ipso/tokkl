@@ -2,8 +2,6 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { noTimeDuration, noTimeSeconds } from './noTimeDuration.ts';
 
-// A no-time entry stores its duration snapped to the resolution, so the form checks that value.
-
 test('a readable duration is snapped to the resolution', () => {
   assert.deepEqual(noTimeDuration('1:30', 1), { seconds: 5400 });
   assert.deepEqual(noTimeDuration('53m', 15), { seconds: 3600 });

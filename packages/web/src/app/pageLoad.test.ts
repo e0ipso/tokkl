@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { PAGE_RELOAD_KEY, loadPageModule } from './pageLoad.ts';
 
-/** Installs a window whose session storage and reload only record what happens; `broken` storage throws. */
+/** Session storage and reload only record what happens; `broken` storage throws. */
 function fakeBrowser({ flagged = false, broken = false } = {}) {
   const items = new Map<string, string>(flagged ? [[PAGE_RELOAD_KEY, '1']] : []);
   const seen = { reloads: 0 };
@@ -18,7 +18,6 @@ function fakeBrowser({ flagged = false, broken = false } = {}) {
   return { items, seen };
 }
 
-/** A loader that fails `failures` times, then gives `value`. */
 function flaky(failures: number, value = 'page') {
   let calls = 0;
   const load = () =>

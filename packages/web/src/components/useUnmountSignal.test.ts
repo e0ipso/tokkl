@@ -26,7 +26,6 @@ test('a failure while the view is still there is reported', async () => {
   assert.deepEqual(reported, [refused]);
 });
 
-/** Work that runs until `signal` aborts, then fails with its reason, as a download does. */
 const untilAborted = (signal: AbortSignal) =>
   new Promise((_, reject) => signal.addEventListener('abort', () => reject(signal.reason)));
 

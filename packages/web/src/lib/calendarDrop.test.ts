@@ -34,7 +34,6 @@ test('a plain click on a slot creates nothing, and a create at midnight keeps on
     start: '2026-06-22T21:45:00.000Z',
     stop: '2026-06-22T21:59:00.000Z',
   });
-  // The step follows the resolution: 20 minutes leaves a 20-minute block.
   assert.deepEqual(dropChange(creating(540, 545), { timeZone: MADRID, timeResolution: 20 }, false), {
     kind: 'create',
     start: '2026-06-22T07:00:00.000Z',
@@ -102,7 +101,6 @@ test('a day-mode move on the 25-hour autumn day keeps the stored stop on the sho
     start: '2026-10-25T18:00:00.000Z',
     stop: '2026-10-25T23:00:00.000Z',
   });
-  // The week view lets the same move run past midnight.
   assert.deepEqual(dropChange(dragging('move', early, 1200, '2026-10-25'), exact, false), {
     kind: 'update',
     id: 5,
@@ -130,7 +128,6 @@ test('a resize moves only the stop, never below one step from the grid start', (
     id: 5,
     stop: '2026-06-22T07:15:00.000Z',
   });
-  // A running entry has no end to drag.
   assert.deepEqual(dropChange(dragging('resize', entry('2026-06-22T07:00:00.000Z', null), 30), exact, false), {
     kind: 'none',
   });

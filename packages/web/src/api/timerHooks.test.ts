@@ -24,7 +24,6 @@ const running = (id: number) =>
 const derived: QueryKey[] = [keys.entries, keys.report, keys.trash, keys.projects, keys.tasks, keys.tags];
 const projectTasks: QueryKey = [...keys.tasks, 'project', 4];
 
-/** A client holding data under every key, so each one can be checked for invalidation. */
 function seeded(): QueryClient {
   const qc = new QueryClient();
   for (const key of [...derived, projectTasks, keys.clients]) qc.setQueryData(key, []);
@@ -80,10 +79,6 @@ test('the running entry lives only in the timer state, so an older reply cannot 
   );
 });
 
-/**
- * A fetch that records each request and answers it with the next of `replies`: `body` as JSON,
- * `raw` as it is, or `fail` thrown as fetch throws.
- */
 function answering(...replies: Array<{ status: number; body?: unknown; raw?: string } | { fail: Error }>) {
   const sent: Array<{ path: string; method: string; body: unknown }> = [];
   const keys: Array<string | undefined> = [];
@@ -145,7 +140,6 @@ for (const [name, act, path, body] of actions)
     t.mock.method(globalThis, 'fetch', fetch);
     await assert.rejects(act(qc), (error: unknown) => error instanceof TimerActionError && error.kind === 'conflict');
     assert.deepEqual(sent[0], { path, method: 'POST', body: { ...body, revision: 3 } });
-    // The conflict's state replaced the stale one, so the next action goes out at its revision.
     assert.equal(qc.getQueryData<TimerState>(keys.timer)?.running_entry?.id, 6);
     await act(qc);
     assert.deepEqual(sent[1]?.body, { ...body, revision: 4 });
@@ -173,7 +167,6 @@ test('a Start answered twice with a 5xx keeps its message, and the next timer wr
   } = answering(
     { status: 502, body: 'Bad Gateway' },
     { status: 502, body: 'Bad Gateway' },
-    // The lost Start landed: the state moved on to a running entry.
     { status: 200, body: state(2, running(5)) },
   );
   t.mock.method(globalThis, 'fetch', fetch);
@@ -230,7 +223,6 @@ test('an action reply that is not a whole state leaves the outcome unknown; a re
   t.mock.method(globalThis, 'fetch', fetch);
   await assert.rejects(stopTimer(qc), (error: unknown) => isApiErrorWith(error, 400));
   await assert.rejects(stopTimer(qc), (error: unknown) => error instanceof UnreadableTimerStateError);
-  // The Stop landed: the read finds the timer stopped, so the next Start fails without being sent.
   await assert.rejects(
     startTimer(qc, { description: 'Next' }),
     (error: unknown) => error instanceof TimerActionError && error.kind === 'conflict',

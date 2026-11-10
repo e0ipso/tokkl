@@ -25,7 +25,6 @@ class FakeSource implements TimerEventSource {
     this.readyState = 1;
     this.emit('open');
   }
-  /** Opens the source and sends the state the server sends first. */
   start(revision: number): void {
     this.open();
     this.emit('timer', JSON.stringify(state(revision)));
@@ -34,7 +33,7 @@ class FakeSource implements TimerEventSource {
 
 const state = (revision: number) => timerState(revision);
 
-/** A stream whose retries draw `random` (0 by default, so each waits the shortest time, 5 s). */
+/** Retries draw `random` (0 by default, so each waits the shortest time, 5 s). */
 function setup(random: () => number = () => 0) {
   mock.method(Math, 'random', random);
   const sources: FakeSource[] = [];
@@ -68,8 +67,7 @@ test('the stream counts as up from its first state, not from opening, and status
     [1, 2],
   );
   assert.deepEqual(statuses, [true]);
-  // The browser reconnects by itself while the source is connecting; each error is a change only once,
-  // and the reconnected source is up again with its first state.
+  // The browser reconnects by itself while connecting; each error is a change only once.
   source.readyState = 0;
   source.emit('error');
   source.emit('error');
@@ -83,7 +81,6 @@ test('the stream counts as up from its first state, not from opening, and status
 const malformed: Array<[string, string]> = [
   ['not JSON', '{not json'],
   ['a wrong revision', JSON.stringify({ revision: 'x' })],
-  // A revision and a server time are not enough: the nested parts are checked too.
   ['a state without its parts', JSON.stringify({ revision: 3, server_time: '2026-10-27T10:00:00.000Z' })],
   ['a malformed pause', JSON.stringify({ ...state(4), pause: { paused: true } })],
 ];
@@ -148,7 +145,6 @@ test('a stream that stays silent past the timeout counts as down and opens again
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const { sources, at, states, statuses, stop } = setup();
   at(0).start(1);
-  // Each keep-alive or state restarts the wait.
   t.mock.timers.tick(59_999);
   at(0).emit('keep-alive', '');
   t.mock.timers.tick(59_999);
@@ -157,8 +153,7 @@ test('a stream that stays silent past the timeout counts as down and opens again
   assert.deepEqual(statuses, [true]);
   assert.equal(sources.length, 1);
 
-  // A proxy that holds the body back: nothing arrives, so polling takes over and a new source opens
-  // after the retry wait.
+  // A proxy that holds the body back: polling takes over and a new source opens after the retry wait.
   t.mock.timers.tick(1);
   assert.deepEqual(statuses, [true, false]);
   assert.equal(at(0).closed, true);
@@ -173,7 +168,6 @@ test('a stream that stays silent past the timeout counts as down and opens again
   );
   assert.deepEqual(statuses, [true, false, true]);
 
-  // While the browser reconnects by itself there is nothing to time out, and a stopped stream waits for nothing.
   at(1).readyState = 0;
   at(1).emit('error');
   t.mock.timers.tick(120_000);
@@ -199,7 +193,6 @@ test('keep-alives do not keep a connection that never sent a state', t => {
   assert.equal(sources.length, 2);
   assert.deepEqual(statuses, [], 'it never counted as up');
 
-  // After a browser reconnect, keep-alives count only once the new connection sent its state.
   at(1).start(1);
   at(1).readyState = 0;
   at(1).emit('error');
@@ -246,7 +239,6 @@ test('each failure in a row waits longer, and a well-formed state starts the cou
   reopensAfter(12_500);
   giveUp(2);
   reopensAfter(22_500);
-  // A connection that opens but sends no state is not healthy yet.
   at(3).open();
   giveUp(3);
   reopensAfter(32_500);
@@ -268,7 +260,6 @@ test('a stream that stays silent again and again waits longer each time, until a
     t.mock.timers.tick(1);
     assert.equal(sources.length, before + 1, `a source opens at ${ms} ms`);
   };
-  // Behind a proxy that holds every body back, each source opens and then says nothing.
   at(0).open();
   silentFor(60_000);
   assert.equal(at(0).closed, true);
@@ -280,7 +271,6 @@ test('a stream that stays silent again and again waits longer each time, until a
   silentFor(60_000);
   reopensAfter(22_500);
   assert.deepEqual(statuses, [], 'polling stays on throughout');
-  // A delivered state starts the count again.
   at(3).start(1);
   silentFor(60_000);
   reopensAfter(7500);

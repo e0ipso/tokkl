@@ -2,8 +2,6 @@ import assert from 'node:assert/strict';
 import { afterEach, beforeEach, test } from 'node:test';
 import { QueryClient } from '@tanstack/react-query';
 
-// Logging out ends the session in this tab whether or not the request succeeds.
-// A failed request leaves a one-time flag so the reloaded app can say logout failed.
 // lib/theme.ts reads localStorage and <html> when it loads, so a minimal browser stands in first.
 const storage = new Map<string, string>();
 const tabStorage = new Map<string, string>();
@@ -35,7 +33,6 @@ const realFetch = globalThis.fetch;
 let qc: QueryClient;
 let requests: Array<{ url: string; method: string | undefined }>;
 
-/** A signed-in tab: cached queries and a cached dark theme on <html>. */
 beforeEach(() => {
   qc = new QueryClient();
   qc.setQueryData(['me'], { email: 'someone@example.com', fullname: 'Someone' });

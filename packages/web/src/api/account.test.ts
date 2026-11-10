@@ -7,17 +7,13 @@ import type { Preferences } from '@tokkl/types';
 
 const base = { theme: 'light', manualMode: false, timerView: 'list' } as unknown as Preferences;
 
-/** A save the test answers by hand, as the server would. */
 interface Sent {
   readonly changes: Partial<Preferences>;
   reply(preferences: Partial<Preferences>): void;
   fail(): void;
 }
 
-/**
- * A client with `base` cached and a stand-in for the server. `save` starts a save the way
- * `useSavePreferences().mutate` does, and `sent` lists the requests that went out, in order.
- */
+/** `save` starts a save as `useSavePreferences().mutate` does; `sent` lists the requests in order. */
 function setup(cached: Preferences | null = base) {
   const qc = new QueryClient();
   if (cached) qc.setQueryData(keys.preferences, cached);
@@ -26,7 +22,6 @@ function setup(cached: Preferences | null = base) {
     return new Promise<Preferences>((resolve, reject) => {
       sent.push({
         changes,
-        // Stands in for the server and the reply's decoder.
         reply: preferences => resolve({ ...base, ...preferences }),
         fail: () => reject(new Error('Preferences not saved')),
       });

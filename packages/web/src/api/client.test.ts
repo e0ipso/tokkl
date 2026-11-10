@@ -14,7 +14,7 @@ import {
 } from './client.ts';
 import { t } from '../i18n/messages.ts';
 
-/** Work that never answers: it fails only when its signal aborts, with the signal's reason, as fetch does. */
+/** Fails only when its signal aborts, with the signal's reason, as fetch does. */
 const hang = (signal: AbortSignal) =>
   new Promise<never>((_, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }));
 
@@ -70,15 +70,11 @@ test("a query's cancel signal reaches fetch, and the deadline rides along", asyn
   assert.equal(seen[0]!.aborted, true);
   await assert.rejects(pending, (error: unknown) => error instanceof DOMException && error.name === 'AbortError');
 
-  // Without a caller signal, fetch still gets one: the deadline's.
   void api.post('/api/app/timer/pause', undefined, { decode: value => value }).catch(() => {});
   assert.ok(seen[1] instanceof AbortSignal);
 });
 
-/**
- * A fetch that answers with `pieces`, one every `everyMs`, then ends the body, or holds it open if
- * `end` is false. As with a real fetch, an abort errors the body.
- */
+/** Answers `pieces`, one every `everyMs`, then ends the body unless `end` is false. An abort errors the body. */
 function streaming(pieces: string[], everyMs: number, end = true) {
   return (_path: string, init: RequestInit) => {
     const signal = init.signal!;
