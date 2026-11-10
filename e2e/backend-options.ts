@@ -3,14 +3,15 @@ import { parseStorageConfig, type Backend, type StorageConfig } from '../package
 
 export function browserBackend(env: Record<string, string | undefined>): Backend {
   const backend = env.TOKKL_E2E_BACKEND ?? 'sqlite';
-  if (!['sqlite', 'postgres', 'mysql', 'mariadb'].includes(backend)) throw new Error('Unsupported browser test backend');
+  if (!['sqlite', 'postgres', 'mysql', 'mariadb'].includes(backend))
+    throw new Error('Unsupported browser test backend');
   if (backend !== 'sqlite' && env.TOKKL_DATABASE_URL !== undefined) {
     throw new Error('Disposable browser tests refuse an operator database target; unset TOKKL_DATABASE_URL');
   }
   return backend as Backend;
 }
 
-/** Only called with configuration returned by the disposable provisioner. Never logs credentials. */
+/** Only for configuration from the disposable provisioner. Never logs credentials. */
 export function disposableDatabaseUrl(config: StorageConfig): string {
   if (config.backend === 'sqlite') return `sqlite://${config.filename}`;
   const url = new URL(`${config.backend}://127.0.0.1`);

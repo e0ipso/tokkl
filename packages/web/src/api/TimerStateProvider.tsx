@@ -1,18 +1,15 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { ApiError } from './client.ts';
-import { keys, useMe } from './hooks.ts';
+import { onSignOut } from '../lib/session.ts';
+import { useMe } from './account.ts';
+import { keys } from './keys.ts';
 import { acceptTimerState, useTimerState } from './timerHooks.ts';
 import { connectTimerStream } from './timerStream.ts';
 import { TimerStreamingContext } from './timerStreaming.ts';
 
 const EVENTS_PATH = '/api/app/timer/events';
 
-/**
- * Keeps the timer state current for the signed-in account. It opens the event stream, writes each
- * state into the caches, and tells the hooks whether the stream is up so they poll only when it is
- * not. It remounts per account, so switching accounts reopens the stream, and signing out closes it.
- */
+/** Opens the event stream and tells the hooks whether to poll. Remounts per account; signing out closes it. */
 export function TimerStateProvider({ children }: { children: ReactNode }) {
   const { data: me } = useMe();
   return me ? <AccountTimerState key={me.id}>{children}</AccountTimerState> : children;
@@ -23,11 +20,10 @@ function AccountTimerState({ children }: { children: ReactNode }) {
   const [streaming, setStreaming] = useState(false);
   const wasDown = useRef(false);
 
-  useEffect(() => connectTimerStream(
-    () => new EventSource(EVENTS_PATH),
-    {
-      onState: (state) => acceptTimerState(qc, state),
-      onStatus: (up) => {
+  useEffect(() => {
+    const stop = connectTimerStream(() => new EventSource(EVENTS_PATH), {
+      onState: state => acceptTimerState(qc, state),
+      onStatus: up => {
         setStreaming(up);
         if (!up) {
           wasDown.current = true;
@@ -38,8 +34,14 @@ function AccountTimerState({ children }: { children: ReactNode }) {
           void qc.refetchQueries({ queryKey: keys.timer });
         }
       },
-    },
-  ), [qc]);
+    });
+    // Logging out in this tab closes the stream before the server ends it, so no timer read follows.
+    const unsubscribe = onSignOut(stop);
+    return () => {
+      unsubscribe();
+      stop();
+    };
+  }, [qc]);
 
   return (
     <TimerStreamingContext.Provider value={streaming}>
@@ -49,17 +51,8 @@ function AccountTimerState({ children }: { children: ReactNode }) {
   );
 }
 
-/**
- * Keeps the timer state query mounted so the state loads and the poll fallback runs whichever views
- * are on screen. It sits below the provider because the query reads whether the stream is up.
- */
+/** Keeps the timer query mounted whatever views are on screen; below the provider since it reads stream status. */
 function TimerStateReader() {
-  const qc = useQueryClient();
-  const timer = useTimerState();
-  // A 403 on the timer read means the credential is gone. /me decides what the app shows then.
-  const forbidden = timer.error instanceof ApiError && timer.error.status === 403;
-  useEffect(() => {
-    if (forbidden) void qc.invalidateQueries({ queryKey: keys.me });
-  }, [forbidden, qc]);
+  useTimerState();
   return null;
 }

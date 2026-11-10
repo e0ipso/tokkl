@@ -1,6 +1,3 @@
-// How the Keychain store reads QtKeychain's errors and words them. Nothing
-// here opens a keychain.
-
 #include "keychaincredentialstore.h"
 
 #include <QSet>
@@ -39,8 +36,6 @@ private Q_SLOTS:
         QCOMPARE(int(KeychainCredentialStore::statusFor(static_cast<QKeychain::Error>(error))), status);
     }
 
-    // Every failure has its own wording that names the Keychain, and the
-    // missing secret points to the app's settings, not a KDE widget.
     void messages()
     {
         const KeychainCredentialStore store;

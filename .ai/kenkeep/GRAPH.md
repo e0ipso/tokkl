@@ -1,11 +1,11 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:bdc1715d1c1642a0c0456cffae0693a16ac2264cb83fe189d2000ffbd3ce8e7c'
-node_count: 109
+nodes_hash: 'sha256:80434fbf4e4c7ecf0c953333fa8a3bdd9265a94719517c6a435e9d2f101ccd54'
+node_count: 116
 ---
 # kenkeep Graph
 
-Total nodes: 109
+Total nodes: 116
 
 ## map-admin-user-management-api-and-the-last-active-admin-rule
 
@@ -15,6 +15,15 @@ Total nodes: 109
 - **tags:** server, auth, admin
 - **relates_to:** map-users-roles-and-workspace-membership
 - **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:map:7
+
+## map-api-composition-root-services-http-app-and-clock
+
+- **kind:** map
+- **title:** API composition root: services, HTTP app and clock
+- **path:** api-and-data/map-api-composition-root-services-http-app-and-clock.md
+- **tags:** server, architecture, testing
+- **relates_to:** practice-signed-in-operations-bind-the-authenticated-user, map-app-report-endpoints
+- **derived_from:** packages/api/src/index.ts, packages/api/src/app.ts, packages/api/src/services/application.ts, packages/api/test/fixtures/app.ts
 
 ## map-app-report-endpoints
 
@@ -32,6 +41,14 @@ Total nodes: 109
 - **tags:** web, navigation, brand, mobile, wordmark
 - **relates_to:** practice-playwright-gotchas-in-the-e2e-specs, practice-contrast-tables-and-project-colours, practice-phone-layout-css-gotchas, practice-visual-screenshot-baselines, map-app-icons-script, practice-section-hues-data-section-maps-each-nav-section-to-a-hue
 - **derived_from:** 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:map:0
+
+## map-catalog-revision-and-latest-entry-endpoints
+
+- **kind:** map
+- **title:** Catalog revision and latest entry endpoints for caching clients
+- **path:** api-and-data/reports-and-totals/map-catalog-revision-and-latest-entry-endpoints.md
+- **tags:** server, projects, clients, desktop
+- **relates_to:** practice-client-deletion-keeps-projects, practice-write-paths-validate-refs-not-totals
 
 ## map-container-image-ghcr-io-e0ipso-tokkl
 
@@ -366,7 +383,7 @@ Total nodes: 109
 - **title:** Timer state service: settlement, revision and the discarded pomodoro
 - **path:** api-and-data/timer-state/map-timer-state-service-settlement-revision-and-discarded-pomodoro.md
 - **tags:** api, timer, pomodoro, pause
-- **relates_to:** practice-stopped-entries-snap-to-the-time-resolution-on-write, map-pomodoro-session-model-in-packages-common-pomodorosession, map-timer-event-stream-keep-alive-auth-rechecks-and-stream-cap
+- **relates_to:** practice-stopped-entries-snap-to-the-time-resolution-on-write, map-pomodoro-session-model-in-packages-common-pomodorosession, map-timer-event-stream-keep-alive-auth-rechecks-and-stream-cap, practice-creates-take-an-idempotency-key
 - **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:map:9
 
 ## map-tokkl-kde-live-widgets-reload-with-plasmashell
@@ -412,6 +429,14 @@ Total nodes: 109
 - **path:** web-ui-behaviour/interaction-and-state/map-web-entry-fields-entryfields-tsx-and-useentryfields-ts.md
 - **tags:** web, timer, components, react, focus
 - **relates_to:** practice-timer-bar-pickers-return-focus-without-opening-suggestions, practice-web-ui-survives-background-refetches, map-test-and-static-analysis-layout
+
+## map-web-message-catalog-and-intl-formatting
+
+- **kind:** map
+- **title:** UI text: the typed message catalog, t() and tx(), and Intl formatting
+- **path:** web-ui-behaviour/interaction-and-state/map-web-message-catalog-and-intl-formatting.md
+- **tags:** web, i18n, a11y, react, e2e
+- **relates_to:** map-web-page-state-and-field-error-components, map-shared-list-controls-in-manage-ui
 
 ## map-web-page-state-and-field-error-components
 
@@ -504,6 +529,14 @@ Total nodes: 109
 - **path:** api-and-data/password-and-csrf-rules/practice-cookie-writes-and-session-starting-routes-need-the-csrf-header.md
 - **tags:** server, auth, csrf
 - **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:practice:9
+
+## practice-creates-take-an-idempotency-key
+
+- **kind:** practice
+- **title:** Creates take an Idempotency-Key, recorded in the create's own transaction
+- **path:** api-and-data/toggl-compat-and-import/practice-creates-take-an-idempotency-key.md
+- **tags:** api, database, concurrency
+- **relates_to:** map-timer-state-service-settlement-revision-and-discarded-pomodoro, practice-live-entry-indexes-back-project-and-task-totals
 
 ## practice-desktop-app-identifiers-use-the-canpicasoft-com-domain
 
@@ -614,7 +647,7 @@ Total nodes: 109
 - **title:** KDE timer controller: server-derived time, one mutation, no replayed starts
 - **path:** tooling-and-project/kde-companion/practice-kde-timer-controller-rules.md
 - **tags:** kde, desktop
-- **relates_to:** map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types, map-kde-panel-button-menu-and-project-indicator, practice-kde-companion-requests-basic-auth-access-kinds-and-stale-replies, practice-kde-companion-credential-stores-kwallet-only-message-and-reportwrite, practice-kde-configure-page-cfg-instanceurl-and-the-wallet-save-timing, map-users-roles-and-workspace-membership, map-timer-state-service-settlement-revision-and-discarded-pomodoro, map-desktop-timer-state-client-stream-poll-settling-and-revisions
+- **relates_to:** map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types, map-kde-panel-button-menu-and-project-indicator, practice-kde-companion-requests-basic-auth-access-kinds-and-stale-replies, practice-kde-companion-credential-stores-kwallet-only-message-and-reportwrite, practice-kde-configure-page-cfg-instanceurl-and-the-wallet-save-timing, map-users-roles-and-workspace-membership, map-timer-state-service-settlement-revision-and-discarded-pomodoro, map-desktop-timer-state-client-stream-poll-settling-and-revisions, map-catalog-revision-and-latest-entry-endpoints
 - **derived_from:** .ai/kenkeep/nodes/.redirects.json
 
 ## practice-keep-sift-ticket-ids-and-strikethroo-plans-out-of-code-and-public-docs
@@ -770,6 +803,15 @@ Total nodes: 109
 - **relates_to:** map-app-shell-brand-and-navigation, practice-contrast-tables-and-project-colours, map-shared-list-controls-in-manage-ui, practice-week-calendar-hour-height-agrees-in-three-places
 - **derived_from:** 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:practice:0
 
+## practice-signed-in-operations-bind-the-authenticated-user
+
+- **kind:** practice
+- **title:** Signed-in operations bind the authenticated user at construction
+- **path:** api-and-data/users-and-admin/practice-signed-in-operations-bind-the-authenticated-user.md
+- **tags:** server, auth, architecture
+- **relates_to:** practice-password-checks-go-through-failurelimiter-attempt
+- **derived_from:** packages/api/src/services/application.ts, packages/api/src/routes/README.md
+
 ## practice-stopped-entry-grid-validation
 
 - **kind:** practice
@@ -782,7 +824,7 @@ Total nodes: 109
 ## practice-styles-css-loads-last-and-owns-colour-tokens
 
 - **kind:** practice
-- **title:** styles.css loads last and owns the colour tokens
+- **title:** styles.css orders the cascade and owns the colour tokens
 - **path:** web-ui-styling-and-layout/theme-and-tokens/practice-styles-css-loads-last-and-owns-colour-tokens.md
 - **tags:** web, css, cascade, tokens, reports
 - **relates_to:** practice-contrast-tables-and-project-colours, map-shared-list-controls-in-manage-ui, practice-theme-tokens-data-theme-and-cached-theme
@@ -870,7 +912,7 @@ Total nodes: 109
 - **path:** api-and-data/toggl-compat-and-import/practice-v9-deletes-answer-an-empty-200.md
 - **tags:** api, toggl-v9
 - **relates_to:** practice-client-deletion-keeps-projects
-- **derived_from:** packages/api/src/routes/togglV9.ts
+- **derived_from:** packages/api/src/routes/toggl/timeEntries.ts, packages/api/src/routes/toggl/catalog.ts
 
 ## practice-visual-screenshot-baselines
 
@@ -889,6 +931,15 @@ Total nodes: 109
 - **tags:** web, time, timer, entries
 - **relates_to:** practice-stopped-entries-snap-to-the-time-resolution-on-write, practice-ui-time-math-uses-wall-clock-helpers, map-admin-user-management-api-and-the-last-active-admin-rule, map-invites-and-password-reset-links-in-account-tokens, map-instance-settings-api-app-admin-settings-and-setting-rules
 - **derived_from:** .ai/kenkeep/nodes/.redirects.json
+
+## practice-web-request-deadlines-cancel-signals-and-ordered-preference-saves
+
+- **kind:** practice
+- **title:** Web requests: deadlines, cancel signals and ordered preference saves
+- **path:** web-ui-behaviour/interaction-and-state/practice-web-request-deadlines-cancel-signals-and-ordered-preference-saves.md
+- **tags:** web, tanstack-query, network
+- **relates_to:** practice-web-timer-actions-send-the-seen-revision-and-pause-fields-are-read-only, practice-e2e-isolation-worker-accounts-the-reset-fixture-and-the-error-guard
+- **derived_from:** packages/web/src/api/client.ts, packages/web/src/api/preferenceSaves.ts
 
 ## practice-web-timer-actions-send-the-seen-revision-and-pause-fields-are-read-only
 
@@ -913,6 +964,14 @@ Total nodes: 109
 - **path:** web-ui-styling-and-layout/calendar/practice-week-calendar-hour-height-agrees-in-three-places.md
 - **tags:** web, calendar, css, e2e
 - **relates_to:** practice-ui-time-math-uses-wall-clock-helpers, practice-contrast-tables-and-project-colours
+
+## practice-workspace-task-search-keeps-javascript-order
+
+- **kind:** practice
+- **title:** The workspace task search keeps JavaScript's case folding and name order
+- **path:** api-and-data/reports-and-totals/practice-workspace-task-search-keeps-javascript-order.md
+- **tags:** server, tasks, toggl
+- **relates_to:** map-catalog-revision-and-latest-entry-endpoints
 
 ## practice-write-paths-validate-refs-not-totals
 

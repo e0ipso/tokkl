@@ -14,14 +14,8 @@
       "stop": "2026-10-05T10:30:00+00:00",
       "duration": 5400,
       "description": "Literal _% and É",
-      "tags": [
-        "Alpha",
-        "zebra"
-      ],
-      "tag_ids": [
-        "<id>",
-        "<id>"
-      ],
+      "tags": ["Alpha", "zebra"],
+      "tag_ids": ["<id>", "<id>"],
       "duronly": true,
       "all_day": false,
       "at": "2026-10-30T12:00:00+00:00",
@@ -50,14 +44,8 @@
       "stop": "2026-10-05T10:30:00+00:00",
       "duration": 5400,
       "description": "Literal _% and É",
-      "tags": [
-        "Alpha",
-        "zebra"
-      ],
-      "tag_ids": [
-        "<id>",
-        "<id>"
-      ],
+      "tags": ["Alpha", "zebra"],
+      "tag_ids": ["<id>", "<id>"],
       "duronly": true,
       "all_day": false,
       "at": "2026-10-30T12:00:00+00:00",
@@ -170,14 +158,8 @@
       "stop": "2026-10-05T10:30:00+00:00",
       "duration": 5400,
       "description": "Renamed _%",
-      "tags": [
-        "Alpha",
-        "zebra"
-      ],
-      "tag_ids": [
-        "<id>",
-        "<id>"
-      ],
+      "tags": ["Alpha", "zebra"],
+      "tag_ids": ["<id>", "<id>"],
       "duronly": true,
       "all_day": false,
       "at": "2026-10-30T12:00:00+00:00",
@@ -241,14 +223,8 @@
         "stop": "2026-10-05T10:30:00+00:00",
         "duration": 5400,
         "description": "Renamed _%",
-        "tags": [
-          "Alpha",
-          "zebra"
-        ],
-        "tag_ids": [
-          "<id>",
-          "<id>"
-        ],
+        "tags": ["Alpha", "zebra"],
+        "tag_ids": ["<id>", "<id>"],
         "duronly": true,
         "all_day": false,
         "at": "2026-10-30T12:00:00+00:00",
@@ -302,14 +278,8 @@
       "stop": null,
       "duration": -1793360700,
       "description": "Running",
-      "tags": [
-        "Alpha",
-        "zebra"
-      ],
-      "tag_ids": [
-        "<id>",
-        "<id>"
-      ],
+      "tags": ["Alpha", "zebra"],
+      "tag_ids": ["<id>", "<id>"],
       "duronly": true,
       "all_day": false,
       "at": "2026-10-30T12:00:00+00:00",
@@ -341,14 +311,8 @@
         "stop": null,
         "duration": -1793360700,
         "description": "Running",
-        "tags": [
-          "Alpha",
-          "zebra"
-        ],
-        "tag_ids": [
-          "<id>",
-          "<id>"
-        ],
+        "tags": ["Alpha", "zebra"],
+        "tag_ids": ["<id>", "<id>"],
         "duronly": true,
         "all_day": false,
         "at": "2026-10-30T12:00:00+00:00",
@@ -392,14 +356,8 @@
         "description": "Running",
         "project_id": "<id>",
         "task_id": "<id>",
-        "tag_ids": [
-          "<id>",
-          "<id>"
-        ],
-        "tags": [
-          "Alpha",
-          "zebra"
-        ],
+        "tag_ids": ["<id>", "<id>"],
+        "tags": ["Alpha", "zebra"],
         "billable": true,
         "clone_entry_id": null
       },
@@ -423,14 +381,8 @@
         "description": "Running",
         "project_id": "<id>",
         "task_id": "<id>",
-        "tag_ids": [
-          "<id>",
-          "<id>"
-        ],
-        "tags": [
-          "Alpha",
-          "zebra"
-        ],
+        "tag_ids": ["<id>", "<id>"],
+        "tags": ["Alpha", "zebra"],
         "billable": true,
         "clone_entry_id": null
       },
@@ -456,14 +408,8 @@
         "stop": null,
         "duration": -1793362200,
         "description": "Running",
-        "tags": [
-          "Alpha",
-          "zebra"
-        ],
-        "tag_ids": [
-          "<id>",
-          "<id>"
-        ],
+        "tags": ["Alpha", "zebra"],
+        "tag_ids": ["<id>", "<id>"],
         "duronly": true,
         "all_day": false,
         "at": "2026-10-30T12:10:00+00:00",
@@ -493,14 +439,8 @@
         "description": "Running",
         "project_id": "<id>",
         "task_id": "<id>",
-        "tag_ids": [
-          "<id>",
-          "<id>"
-        ],
-        "tags": [
-          "Alpha",
-          "zebra"
-        ],
+        "tag_ids": ["<id>", "<id>"],
+        "tags": ["Alpha", "zebra"],
         "billable": true,
         "clone_entry_id": "<id>"
       },
@@ -523,14 +463,8 @@
       "stop": "2026-10-30T12:25:00+00:00",
       "duration": 900,
       "description": "Running",
-      "tags": [
-        "Alpha",
-        "zebra"
-      ],
-      "tag_ids": [
-        "<id>",
-        "<id>"
-      ],
+      "tags": ["Alpha", "zebra"],
+      "tag_ids": ["<id>", "<id>"],
       "duronly": true,
       "all_day": false,
       "at": "2026-10-30T12:25:00+00:00",
@@ -595,14 +529,8 @@
         "stop": "2026-10-05T10:30:00+00:00",
         "duration": 5400,
         "description": "Renamed _%",
-        "tags": [
-          "Alpha",
-          "zebra"
-        ],
-        "tag_ids": [
-          "<id>",
-          "<id>"
-        ],
+        "tags": ["Alpha", "zebra"],
+        "tag_ids": ["<id>", "<id>"],
         "duronly": true,
         "all_day": false,
         "at": "2026-10-30T12:25:00+00:00",

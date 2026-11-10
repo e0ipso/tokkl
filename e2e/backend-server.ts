@@ -5,7 +5,10 @@ import { browserBackend, disposableDatabaseUrl } from './backend-options.ts';
 const backend = browserBackend(process.env);
 let stopped = false;
 let child: ReturnType<typeof spawn> | undefined;
-const stop = () => { stopped = true; child?.kill('SIGTERM'); };
+const stop = () => {
+  stopped = true;
+  child?.kill('SIGTERM');
+};
 process.on('SIGTERM', stop);
 process.on('SIGINT', stop);
 const fixture = await disposableBackend(backend);
@@ -15,7 +18,8 @@ try {
     const config = fixture.config.backend === 'sqlite' ? fixture.config : { ...fixture.config, connectTimeoutMs: 5000 };
     const databaseUrl = disposableDatabaseUrl(config);
     child = spawn(process.execPath, ['packages/api/src/index.ts'], {
-      env: { ...process.env, TOKKL_DATABASE_URL: databaseUrl }, stdio: 'inherit',
+      env: { ...process.env, TOKKL_DATABASE_URL: databaseUrl },
+      stdio: 'inherit',
     });
     const exit = await new Promise<number>((resolve, reject) => {
       child!.once('error', reject);

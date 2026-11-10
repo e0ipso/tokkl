@@ -45,18 +45,34 @@ cleanup() {
 trap cleanup EXIT
 
 echo "== pack"
-gnome-extensions pack "$source_dir" --force --out-dir="$work" \
-    --extra-source=indicator.js --extra-source=projectindicator.js --extra-source=timer1.js \
+# The checkout is read-only here, and the interface description lives in
+# desktop/gnome/dbus, so the extension is packed from a copy with the file
+# beside its modules, as scripts/pack-extension.sh packs it.
+interface="$repo/desktop/gnome/dbus/org.tokkl.Timer1.xml"
+cp -a "$source_dir" "$work/source"
+cp "$interface" "$work/source/"
+gnome-extensions pack "$work/source" --force --out-dir="$work" \
+    --extra-source=compat.js --extra-source=indicator.js --extra-source=instanceurl.js \
+    --extra-source=menumodel.js \
+    --extra-source=projectindicator.js --extra-source=projectindicatorview.js \
+    --extra-source=timer1.js --extra-source=timer1proxy.js --extra-source=timerrequests.js --extra-source=typedsecret.js \
+    --extra-source=org.tokkl.Timer1.xml \
     --extra-source=tokkl.png --extra-source=tokkl-symbolic.symbolic.png \
     --extra-source=hourglass.svg --extra-source=hourglass-symbolic.svg
 zip="$work/$uuid.shell-extension.zip"
 contents="$(unzip -Z1 "$zip" | sort)"
 echo "$contents"
-for file in metadata.json extension.js indicator.js projectindicator.js timer1.js prefs.js stylesheet.css \
+for file in metadata.json extension.js compat.js indicator.js instanceurl.js menumodel.js \
+            projectindicator.js projectindicatorview.js \
+            timer1.js timer1proxy.js timerrequests.js typedsecret.js org.tokkl.Timer1.xml prefs.js stylesheet.css \
             tokkl.png tokkl-symbolic.symbolic.png hourglass.svg hourglass-symbolic.svg \
             schemas/org.gnome.shell.extensions.tokkl.gschema.xml; do
     grep -qx "$file" <<<"$contents" || { echo "error: the package lacks $file" >&2; exit 1; }
 done
+if grep -q '^legacyactions.js$\|^legacylimits.js$' <<<"$contents"; then
+    echo "error: the package still has a fallback for an older tokkl-timerd" >&2
+    exit 1
+fi
 if grep -q '^tests/\|^ci/' <<<"$contents"; then
     echo "error: the package contains tests or CI files" >&2
     exit 1
@@ -90,7 +106,7 @@ gsettings set org.gnome.shell disable-extension-version-validation false
 
 start_mock() {
     echo "== mock org.tokkl.Timer1"
-    gjs -m "$ci/mock-timer.js" "$repo/desktop/gnome/dbus/org.tokkl.Timer1.xml" &
+    gjs -m "$ci/mock-timer.js" "$interface" &
     pids+=($!)
     gdbus wait --session --timeout 30 org.tokkl.Timer1
 }
@@ -118,7 +134,7 @@ if [ -n "$timerd" ]; then
 else
     # shell-check.js starts the mock itself, after it has checked the button
     # without one, and stops it last.
-    gjs -m "$ci/shell-check.js" "$uuid" "$ci/mock-timer.js" "$repo/desktop/gnome/dbus/org.tokkl.Timer1.xml" \
+    gjs -m "$ci/shell-check.js" "$uuid" "$ci/mock-timer.js" "$interface" \
         || status=1
 
     start_mock

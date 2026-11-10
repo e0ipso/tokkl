@@ -5,33 +5,20 @@
 namespace Tokkl
 {
 
-PomodoroSession::PomodoroSession(Clock *clock, TimerController *timer, TimerStateClient *client, PomodoroStore *store, QObject *parent)
+PomodoroSession::PomodoroSession(Clock &clock, TimerActions &timer, SessionState &state, PomodoroStore &store, QObject *parent)
     : QObject(parent)
-    , m_clock(clock)
     , m_timer(timer)
-    , m_client(client)
+    , m_client(state)
     , m_store(store)
+    , m_pomodoroMode(store.loadPomodoroMode())
 {
-    if (m_store) {
-        m_pomodoroMode = m_store->loadPomodoroMode();
-    }
-    if (m_clock) {
-        connect(m_clock, &Clock::ticked, this, &PomodoroSession::updateClock);
-    }
-    if (m_client) {
-        connect(m_client, &TimerStateClient::stateChanged, this, &PomodoroSession::onStateChanged);
-        connect(m_client, &TimerStateClient::settlingChanged, this, &PomodoroSession::update);
-        if (Connection *connection = m_client->connection()) {
-            connect(connection, &Connection::generationChanged, this, &PomodoroSession::onGenerationChanged);
-        }
-    }
-    if (m_timer) {
-        connect(m_timer, &TimerController::contextChanged, this, &PomodoroSession::update);
-        connect(m_timer, &TimerController::statusChanged, this, &PomodoroSession::update);
-        connect(m_timer, &TimerController::currentEntryChanged, this, &PomodoroSession::update);
-        connect(m_timer, &TimerController::chainChanged, this, &PomodoroSession::update);
-        connect(m_timer, &TimerController::sessionActiveChanged, this, &PomodoroSession::update);
-    }
+    connect(&m_store, &PomodoroStore::sourceChanged, this, &PomodoroSession::reloadMode);
+    connect(&clock, &Clock::ticked, this, &PomodoroSession::updateClock);
+    connect(&m_client, &SessionState::stateChanged, this, &PomodoroSession::onStateChanged);
+    connect(&m_client, &SessionState::settlingChanged, this, &PomodoroSession::update);
+    connect(&m_client, &SessionState::accountReset, this, &PomodoroSession::onAccountReset);
+    connect(&m_client, &SessionState::woke, this, &PomodoroSession::updateClock);
+    connect(&m_timer, &TimerActions::changed, this, &PomodoroSession::update);
     onStateChanged();
 }
 
@@ -48,13 +35,24 @@ bool PomodoroSession::setPomodoroMode(bool pomodoro)
     if (m_modeLocked) {
         return false;
     }
-    if (m_store && !m_store->savePomodoroMode(pomodoro)) {
+    if (!m_store.savePomodoroMode(pomodoro)) {
         return false;
     }
     m_pomodoroMode = pomodoro;
     Q_EMIT modeChanged();
     update();
     return true;
+}
+
+void PomodoroSession::reloadMode()
+{
+    const bool stored = m_store.loadPomodoroMode();
+    if (stored == m_pomodoroMode) {
+        return;
+    }
+    m_pomodoroMode = stored;
+    Q_EMIT modeChanged();
+    update();
 }
 
 bool PomodoroSession::modeLocked() const
@@ -139,23 +137,30 @@ QString PomodoroSession::formatCountdown(qint64 seconds, bool overtime)
     return overtime ? QLatin1Char('+') + text : text;
 }
 
-// ----- actions -------------------------------------------------------------
+PrimaryAction PomodoroSession::primaryAction() const
+{
+    if (pomodoro()) {
+        return PrimaryAction::Session;
+    }
+    if (timerHeld() || !m_pomodoroMode) {
+        return m_timer.toggleAction();
+    }
+    return PrimaryAction::StartSession;
+}
 
 PomodoroSession::Activation PomodoroSession::activate()
 {
-    if (pomodoro()) {
+    switch (primaryAction()) {
+    case PrimaryAction::Session:
         if (!m_ringing) {
             return Activation::OpenMenu;
         }
         return confirmNextPhase() ? Activation::Handled : Activation::Ignored;
+    case PrimaryAction::StartSession:
+        return startSession() ? Activation::Handled : Activation::Ignored;
+    default:
+        return m_timer.toggle() ? Activation::Handled : Activation::Ignored;
     }
-    if (timerHeld() || !m_pomodoroMode) {
-        if (m_timer) {
-            m_timer->toggle();
-        }
-        return Activation::Handled;
-    }
-    return startSession() ? Activation::Handled : Activation::Ignored;
 }
 
 bool PomodoroSession::startSession()
@@ -163,32 +168,28 @@ bool PomodoroSession::startSession()
     if (!m_canStart) {
         return false;
     }
+    const TimerActions::Selection selection = m_timer.selection();
     PomodoroStart start;
-    const QVariant project = m_timer->chosenProjectId();
-    bool ok = false;
-    const qint64 id = project.isValid() && !project.isNull() ? project.toLongLong(&ok) : 0;
-    if (ok && id > 0) {
-        start.projectId = id;
-    }
-    start.billable = m_timer->chosenBillable();
+    start.projectId = selection.projectId;
+    start.billable = selection.billable;
     clearMessage();
     m_pending = true;
     update();
-    m_client->startPomodoro(start, finishing());
+    m_client.startPomodoro(start, finishing());
     return true;
 }
 
 bool PomodoroSession::confirmNextPhase()
 {
-    return sendWithRevision(&TimerStateClient::nextPhase);
+    return sendWithRevision(&SessionState::nextPhase);
 }
 
 bool PomodoroSession::endSession()
 {
-    return sendWithRevision(&TimerStateClient::endPomodoro);
+    return sendWithRevision(&SessionState::endPomodoro);
 }
 
-bool PomodoroSession::sendWithRevision(void (TimerStateClient::*action)(TimerStateClient::ActionCallback))
+bool PomodoroSession::sendWithRevision(void (SessionState::*action)(SessionState::ActionCallback))
 {
     if (!pomodoro() || busy()) {
         return false;
@@ -196,35 +197,29 @@ bool PomodoroSession::sendWithRevision(void (TimerStateClient::*action)(TimerSta
     clearMessage();
     m_pending = true;
     update();
-    (m_client->*action)(finishing());
+    (m_client.*action)(finishing());
     return true;
 }
 
-TimerStateClient::ActionCallback PomodoroSession::finishing()
+SessionState::ActionCallback PomodoroSession::finishing()
 {
-    QPointer<PomodoroSession> self(this);
-    const quint64 epoch = m_epoch;
-    return [self, epoch](const TimerActionResult &result) {
-        if (!self || epoch != self->m_epoch) {
-            return;
-        }
-        self->m_pending = false;
-        // The state of an applied action or of a 409 is already adopted and
-        // shows what happened. Otherwise the user learns why nothing did, or
-        // that the outcome is being settled.
+    return m_epoch.guard(this, [this](const TimerActionResult &result) {
+        m_pending = false;
+        // An applied action or a 409 already shows its state; otherwise tell the
+        // user why nothing happened, or that the outcome is being settled.
         using Outcome = TimerActionResult::Outcome;
         if (result.outcome == Outcome::Refused || result.outcome == Outcome::Unknown) {
-            self->setMessage(result.error.message);
+            setMessage(result.error.message);
         }
-        self->update();
-    };
+        update();
+    });
 }
 
-void PomodoroSession::onGenerationChanged()
+void PomodoroSession::onAccountReset()
 {
     // Another instance, account or credential: the pending action and its
     // message belonged to the earlier one.
-    ++m_epoch;
+    m_epoch.advance();
     m_pending = false;
     clearMessage();
     update();
@@ -235,34 +230,27 @@ void PomodoroSession::clearMessage()
     setMessage(QString());
 }
 
-void PomodoroSession::resumed()
-{
-    updateClock();
-}
-
-// ----- state, timer and clock ----------------------------------------------
-
 const TimerPomodoro *PomodoroSession::pomodoro() const
 {
-    if (!m_client || !m_client->state() || !m_client->state()->pomodoro) {
+    if (!m_client.state() || !m_client.state()->pomodoro) {
         return nullptr;
     }
-    return &*m_client->state()->pomodoro;
+    return &*m_client.state()->pomodoro;
 }
 
 bool PomodoroSession::timerHeld() const
 {
-    return m_timer && (m_timer->isRunning() || m_timer->isPaused());
+    return m_timer.holdsEntry();
 }
 
 bool PomodoroSession::busy() const
 {
-    return m_pending || !m_client || m_client->settling() || (m_timer && m_timer->isBusy());
+    return m_pending || m_client.settling() || m_timer.isBusy();
 }
 
 void PomodoroSession::onStateChanged()
 {
-    const std::optional<DiscardedPomodoro> discarded = m_client && m_client->state() ? m_client->state()->discardedPomodoro : std::nullopt;
+    const std::optional<DiscardedPomodoro> discarded = m_client.state() ? m_client.state()->discardedPomodoro : std::nullopt;
     if (discarded && discarded->entryId != m_discardedEntry) {
         m_discardedEntry = discarded->entryId;
         setMessage(tr("This pomodoro was too short to save."));
@@ -276,7 +264,7 @@ void PomodoroSession::update()
     View view;
     if (session) {
         // The server's instants on this device's clock.
-        const qint64 offset = m_client->serverOffsetMs();
+        const qint64 offset = m_client.serverOffsetMs();
         view.active = true;
         view.phase = phaseKindName(session->phase.kind);
         view.phaseStart = session->phase.start.addMSecs(-offset);
@@ -286,10 +274,13 @@ void PomodoroSession::update()
         view.nextPhase = phaseKindName(session->upcomingPhase);
     }
 
-    const bool sessionActive = session || (m_timer && m_timer->isSessionActive());
+    // The timer reads the same client, so it sees a session exactly when
+    // this does.
+    const bool sessionActive = session != nullptr;
     const bool locked = timerHeld() || sessionActive;
-    const bool canStart = m_pomodoroMode && !sessionActive && !timerHeld() && !busy() && m_clock && m_timer && m_timer->isConnected() && m_client
-        && m_client->state().has_value();
+    // The timer says whether anything new may start; a session adds the
+    // mode, its own action and its own view of the state.
+    const bool canStart = m_pomodoroMode && !sessionActive && !busy() && m_timer.canStartNew();
     if (locked != m_modeLocked) {
         m_modeLocked = locked;
         Q_EMIT modeLockedChanged();
@@ -314,7 +305,7 @@ void PomodoroSession::updateClock()
     bool ringing = false;
     QString transition;
     if (session) {
-        const qint64 ms = m_client->serverNow().msecsTo(session->phase.plannedEnd);
+        const qint64 ms = m_client.serverNow().msecsTo(session->phase.plannedEnd);
         if (ms > 0) {
             remaining = (ms + 999) / 1000;
             text = formatCountdown(remaining, false);

@@ -1,9 +1,9 @@
 #include "alarmplayer.h"
 
 #include "apitypes.h"
+#include "logging.h"
 #include "pomodorosounds.h"
 
-#include <QFileInfo>
 #include <QStandardPaths>
 
 #include <utility>
@@ -115,15 +115,30 @@ bool AlarmPlayer::isPreviewing() const
     return m_preview && m_preview->isPlaying();
 }
 
+QString AlarmPlayer::error() const
+{
+    return m_error;
+}
+
 void AlarmPlayer::preview(const QString &soundId)
 {
     const QUrl url = locate(soundId);
     if (url.isEmpty()) {
+        if (pomodoroSound(soundId)) {
+            setError(missingError(soundId));
+        }
         return;
     }
+    setError(QString());
     release(m_preview);
     m_previewSource = url;
     m_preview = new QSoundEffect(this);
+    connect(m_preview, &QSoundEffect::statusChanged, this, [this, preview = m_preview] {
+        if (preview == m_preview && preview->status() == QSoundEffect::Error) {
+            qCWarning(lcAlarm) << "The preview sound cannot play:" << preview->source().toString();
+            setError(effectError(preview->source()));
+        }
+    });
     connect(m_preview, &QSoundEffect::playingChanged, this, [this, preview = m_preview] {
         if (preview != m_preview) {
             return;
@@ -149,8 +164,12 @@ void AlarmPlayer::stopPreview()
 
 void AlarmPlayer::update()
 {
-    const QUrl url = m_ringing ? locate(chosenSound()) : QUrl();
+    const QString soundId = m_ringing ? chosenSound() : QString();
+    const QUrl url = soundId.isEmpty() ? QUrl() : locate(soundId);
     if (url.isEmpty()) {
+        if (!soundId.isEmpty()) {
+            setError(missingError(soundId));
+        }
         release(m_alarm);
         setSource(QUrl());
         setPlaying(false);
@@ -160,11 +179,13 @@ void AlarmPlayer::update()
         return;
     }
     release(m_alarm);
+    setError(QString());
     m_alarm = new QSoundEffect(this);
     m_alarm->setLoopCount(QSoundEffect::Infinite);
     connect(m_alarm, &QSoundEffect::statusChanged, this, [this, alarm = m_alarm] {
         if (alarm == m_alarm && alarm->status() == QSoundEffect::Error) {
-            qWarning("Tokkl: the alarm sound %s cannot play", qPrintable(alarm->source().toString()));
+            qCWarning(lcAlarm) << "The alarm sound cannot play:" << alarm->source().toString();
+            setError(effectError(alarm->source()));
             setPlaying(false);
         }
     });
@@ -180,27 +201,19 @@ QString AlarmPlayer::chosenSound() const
     if (!kind) {
         return QString();
     }
-    const QString chosen = m_sounds.value(m_transition).toString();
-    return isSoundId(chosen) ? chosen : defaultSound(*kind);
+    return Tokkl::chosenSound(m_sounds.value(m_transition).toString(), *kind);
 }
 
 QUrl AlarmPlayer::locate(const QString &soundId) const
 {
-    const std::optional<PomodoroSound> sound = pomodoroSound(soundId);
-    if (!sound) {
-        return QUrl();
-    }
     QString path;
-    if (m_directory.isEmpty()) {
+    if (!m_directory.isEmpty()) {
+        path = soundFile(m_directory, soundId);
+    } else if (const std::optional<PomodoroSound> sound = pomodoroSound(soundId)) {
         path = QStandardPaths::locate(QStandardPaths::GenericDataLocation,
                                       QStringLiteral("plasma/plasmoids/") + QStringLiteral(TOKKL_PLASMOID_ID) + QStringLiteral("/contents/sounds/") + sound->fileName);
-    } else {
-        path = m_directory + QLatin1Char('/') + sound->fileName;
     }
-    if (path.isEmpty() || !QFileInfo::exists(path)) {
-        return QUrl();
-    }
-    return QUrl::fromLocalFile(path);
+    return path.isEmpty() ? QUrl() : QUrl::fromLocalFile(path);
 }
 
 void AlarmPlayer::setSource(const QUrl &url)
@@ -210,6 +223,25 @@ void AlarmPlayer::setSource(const QUrl &url)
     }
     m_source = url;
     Q_EMIT sourceChanged();
+}
+
+void AlarmPlayer::setError(const QString &error)
+{
+    if (error == m_error) {
+        return;
+    }
+    m_error = error;
+    Q_EMIT errorChanged();
+}
+
+QString AlarmPlayer::missingError(const QString &soundId)
+{
+    return tr("No alarm sound: the file for %1 is not installed").arg(soundId);
+}
+
+QString AlarmPlayer::effectError(const QUrl &url)
+{
+    return tr("No alarm sound: %1 cannot be played").arg(url.toLocalFile());
 }
 
 void AlarmPlayer::setPlaying(bool playing)

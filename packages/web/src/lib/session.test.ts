@@ -2,15 +2,15 @@ import assert from 'node:assert/strict';
 import { afterEach, beforeEach, test } from 'node:test';
 import { QueryClient } from '@tanstack/react-query';
 
-// Logging out ends the session in this tab whether or not the request succeeds.
-// A failed request leaves a one-time flag so the reloaded app can say logout failed.
 // lib/theme.ts reads localStorage and <html> when it loads, so a minimal browser stands in first.
 const storage = new Map<string, string>();
 const tabStorage = new Map<string, string>();
 const attributes = new Map<string, string>();
 const fakeStorage = (map: Map<string, string>): Storage => ({
-  get length() { return map.size; },
-  key: (index) => [...map.keys()][index] ?? null,
+  get length() {
+    return map.size;
+  },
+  key: index => [...map.keys()][index] ?? null,
   clear: () => map.clear(),
   getItem: (key: string) => map.get(key) ?? null,
   setItem: (key: string, value: string) => void map.set(key, value),
@@ -27,13 +27,12 @@ Object.assign(globalThis, {
   },
 });
 const { ApiError } = await import('../api/client.ts');
-const { endSession, logOut, takeLogoutFailure } = await import('./session.ts');
+const { endSession, logOut, onSignOut, takeLogoutFailure } = await import('./session.ts');
 
 const realFetch = globalThis.fetch;
 let qc: QueryClient;
 let requests: Array<{ url: string; method: string | undefined }>;
 
-/** A signed-in tab: cached queries and a cached dark theme on <html>. */
 beforeEach(() => {
   qc = new QueryClient();
   qc.setQueryData(['me'], { email: 'someone@example.com', fullname: 'Someone' });
@@ -101,4 +100,37 @@ test('logout sends only the logout request: a running Pomodoro session stays on 
   await logOut(qc);
   assert.deepEqual(requests, [{ url: '/api/app/logout', method: 'POST' }]);
   assertSessionEnded();
+});
+
+test('logging out closes what subscribed and cancels reads before the request goes out', async () => {
+  const order: string[] = [];
+  const unsubscribe = onSignOut(() => order.push('closed'));
+  let readSignal: AbortSignal | undefined;
+  void qc
+    .fetchQuery({
+      queryKey: ['timer'],
+      queryFn: ({ signal }) => {
+        readSignal = signal;
+        return new Promise(() => {});
+      },
+    })
+    .catch(() => {});
+  answerLogout(async () => {
+    order.push(readSignal?.aborted ? 'logout after the read was cancelled' : 'logout with the read in flight');
+    return new Response(null, { status: 200 });
+  });
+  try {
+    await logOut(qc);
+  } finally {
+    unsubscribe();
+  }
+  assert.deepEqual(order, ['closed', 'logout after the read was cancelled']);
+});
+
+test('an unsubscribed listener is not called', async () => {
+  let called = false;
+  onSignOut(() => (called = true))();
+  answerLogout(async () => new Response(null, { status: 200 }));
+  await logOut(qc);
+  assert.equal(called, false);
 });

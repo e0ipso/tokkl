@@ -16,8 +16,8 @@ class Wallet;
 namespace Tokkl
 {
 
-// The user's network wallet, folder "Tokkl", opened asynchronously so a
-// locked wallet prompts without blocking plasmashell.
+// Opens the wallet asynchronously so a locked wallet's prompt does not
+// block plasmashell.
 class KWalletCredentialStore : public CredentialStore
 {
     Q_OBJECT
@@ -28,12 +28,10 @@ public:
 
     void read(const QString &key, QObject *context, Callback done) override;
     void write(const QString &key, const QString &secret, QObject *context, Callback done) override;
-    // Names KDE Wallet and System Settings.
     QString message(const CredentialResult &result) const override;
 
-    // The store for the whole process, owned by the application. The panel
-    // and the Configure dialog share it, so the panel hears about a new
-    // secret, and a write finishes even after the dialog closes.
+    // Shared by the panel and the Configure dialog, so the panel hears of a
+    // new secret and a write finishes after the dialog closes.
     static KWalletCredentialStore *shared();
 
     static const QString folder;

@@ -1,49 +1,46 @@
 #pragma once
 
-// The timer and the Pomodoro session of the shared core on D-Bus, as
-// org.tokkl.Timer1 (described in dbus/org.tokkl.Timer1.xml). The service
-// maps the core's properties onto the interface and forwards the methods;
-// the rules stay in the core. The one thing it adds is where the core's
-// per-device state lives: the mode and the sound choices go to its settings
-// file. The timer and the session are the server's, read through one
-// TimerStateClient.
+// Serves the core's timer and Pomodoro session as org.tokkl.Timer1
+// (dbus/org.tokkl.Timer1.xml). The rules stay in the core.
 
 #include <QDBusConnection>
 #include <QDBusContext>
 #include <QList>
 #include <QMap>
+#include <QMetaProperty>
 #include <QObject>
 #include <QString>
 #include <QVariantMap>
 
-class QSettings;
+#include "apitypes.h"
 
 namespace Tokkl
 {
-class Clock;
-class Connection;
-class CredentialStore;
+class PomodoroAlarm;
+class ServiceSettings;
 class PomodoroPreferences;
 class PomodoroSession;
-class SettingsPomodoroStore;
+class SoundChoices;
 class TimerController;
-class TimerStateClient;
-class Transport;
 
 class TimerService : public QObject, protected QDBusContext
 {
     Q_OBJECT
 
-    // The org.tokkl.Timer1 properties, read by the generated adaptor.
+    // Every Q_PROPERTY here is published. No NOTIFY: changes go out as
+    // PropertiesChanged, batched per event-loop turn.
     Q_PROPERTY(bool Running READ running)
     Q_PROPERTY(qint64 StartTime READ startTime)
+    Q_PROPERTY(qint64 LocalStartTime READ localStartTime)
     Q_PROPERTY(bool Paused READ paused)
     Q_PROPERTY(qint64 ChainSeconds READ chainSeconds)
     Q_PROPERTY(QString IndicatorState READ indicatorState)
     Q_PROPERTY(QString IndicatorColor READ indicatorColor)
     Q_PROPERTY(QList<QVariantMap> Projects READ projects)
+    Q_PROPERTY(bool ProjectsIncomplete READ projectsIncomplete)
     Q_PROPERTY(qint64 ChosenProject READ chosenProject)
     Q_PROPERTY(QString ChosenProjectName READ chosenProjectName)
+    Q_PROPERTY(QVariantMap ChosenProjectLabel READ chosenProjectLabel)
     Q_PROPERTY(bool Billable READ billable)
     Q_PROPERTY(QString Status READ status)
     Q_PROPERTY(QString ErrorString READ errorString)
@@ -60,49 +57,63 @@ class TimerService : public QObject, protected QDBusContext
     Q_PROPERTY(bool Ringing READ ringing)
     Q_PROPERTY(QString RingingTransition READ ringingTransition)
     Q_PROPERTY(QString SessionMessage READ sessionMessage)
+    Q_PROPERTY(QMap<QString, QVariantMap> Actions READ actions)
+    Q_PROPERTY(QVariantMap Presentation READ presentation)
     Q_PROPERTY(QMap<QString, int> PomodoroLengths READ pomodoroLengths)
     Q_PROPERTY(bool PomodoroLengthsEditable READ pomodoroLengthsEditable)
     Q_PROPERTY(QMap<QString, QString> PomodoroLengthErrors READ pomodoroLengthErrors)
+    Q_PROPERTY(QMap<QString, QMap<QString, int>> PomodoroLengthLimits READ pomodoroLengthLimits)
     Q_PROPERTY(QMap<QString, QString> Sounds READ sounds)
-    Q_PROPERTY(QList<QVariantMap> SoundChoices READ soundChoices)
+    Q_PROPERTY(QList<QVariantMap> SoundChoices READ soundCatalogue)
+    Q_PROPERTY(QString AlarmError READ alarmError)
+    Q_PROPERTY(uint InterfaceVersion READ interfaceVersion)
 
 public:
     static const QString serviceName;
     static const QString objectPath;
     static const QString interfaceName;
-    // The error of a Configure call whose secret the credential store refused.
     static const QString credentialStoreError;
+    static const QString supersededError;
+    // Raise by one in each release that adds members to org.tokkl.Timer1.
+    static constexpr uint version = 2;
+    // "Sounds/workToShortRest" and so on.
+    static QString soundKey(TransitionKind kind);
 
-    // The client name the service gives the core: the created_with value of
-    // the entries it starts. The caller's transport should send it as its
-    // User-Agent product too.
+    // The created_with value of started entries; also the transport's
+    // User-Agent product.
     static QString clientName();
 
-    // Runs the core on the given transport and credential store, which the
-    // service does not own. Settings (address, sign-in method and email;
-    // never the secret), the Pomodoro mode and the sound choices are read
-    // from and saved to settingsFile. A null clock means the system clock.
-    TimerService(Transport *transport, CredentialStore *store, const QString &settingsFile, Clock *clock = nullptr, QObject *parent = nullptr);
+    // Not owned, none null. The session must wrap the timer, and the alarm
+    // must use the same session and sound choices.
+    struct Parts {
+        TimerController *timer = nullptr;
+        PomodoroSession *session = nullptr;
+        PomodoroPreferences *preferences = nullptr;
+        SoundChoices *sounds = nullptr;
+        ServiceSettings *settings = nullptr;
+        PomodoroAlarm *alarm = nullptr;
+    };
+
+    explicit TimerService(const Parts &parts, QObject *parent = nullptr);
     ~TimerService() override;
 
-    // Exports the interface on the bus and takes the service name. False when
-    // the bus refuses either, for example because another instance owns the
-    // name.
+    // False when the bus refuses the object or the name (another instance
+    // owns it).
     bool registerOn(QDBusConnection bus);
-
-    Connection *connection() const;
-    TimerController *timer() const;
-    PomodoroSession *session() const;
 
     bool running() const;
     qint64 startTime() const;
+    // Corrected by the state client's server clock offset.
+    qint64 localStartTime() const;
     bool paused() const;
     qint64 chainSeconds() const;
     QString indicatorState() const;
     QString indicatorColor() const;
     QList<QVariantMap> projects() const;
+    bool projectsIncomplete() const;
     qint64 chosenProject() const;
     QString chosenProjectName() const;
+    QVariantMap chosenProjectLabel() const;
     bool billable() const;
     QString status() const;
     QString errorString() const;
@@ -119,22 +130,26 @@ public:
     bool ringing() const;
     QString ringingTransition() const;
     QString sessionMessage() const;
+    QMap<QString, QVariantMap> actions() const;
+    QVariantMap presentation() const;
     QMap<QString, int> pomodoroLengths() const;
     bool pomodoroLengthsEditable() const;
     QMap<QString, QString> pomodoroLengthErrors() const;
+    QMap<QString, QMap<QString, int>> pomodoroLengthLimits() const;
     QMap<QString, QString> sounds() const;
-    QList<QVariantMap> soundChoices() const;
-
-    // The id of the sound chosen for a transition (a RingingTransition
-    // name), or empty for a transition the core does not have.
-    QString soundFor(const QString &transition) const;
+    QList<QVariantMap> soundCatalogue() const;
+    QString alarmError() const;
+    uint interfaceVersion() const;
 
 public Q_SLOTS:
-    // The org.tokkl.Timer1 methods, called by the generated adaptor.
     bool Start();
     bool Stop();
     bool Pause();
     bool Resume();
+    qulonglong RequestStart();
+    qulonglong RequestStop();
+    qulonglong RequestPause();
+    qulonglong RequestResume();
     bool SetProject(qint64 projectId);
     bool SetBillable(bool billable);
     void Configure(const QString &instanceUrl, const QString &authMode, const QString &email, const QString &secret);
@@ -145,38 +160,49 @@ public Q_SLOTS:
     bool EndSession();
     bool SetPomodoroLengths(int work, int shortRest, int longRest, int longRestEvery);
     void RefreshPreferences();
+    void RefreshProjects();
     bool SetSound(const QString &transition, const QString &soundId);
     bool PreviewSound(const QString &soundId);
 
 Q_SIGNALS:
-    // For the sound player. The alarm starts ringing with the sound chosen
-    // for the transition, or stops (ringing false, soundId empty). Also
-    // emitted when the sound chosen for the ringing transition changes.
-    void alarmChanged(bool ringing, const QString &soundId);
-    // PreviewSound asked for a sound to be played once.
-    void previewRequested(const QString &soundId);
+    void RequestFinished(qulonglong request, bool ok, const QString &error);
 
 private:
-    void loadSettings();
-    void applySettings(const QString &instanceUrl, const QString &authMode, const QString &email);
-    QVariantMap snapshot() const;
-    void publishChanges();
-    void updateAlarm();
+    // One request is followed at a time, as the timer sends one write at a
+    // time.
+    qulonglong follow(bool sent);
+    void onWriteFinished(bool ok, const QString &message);
 
-    QSettings *m_settings;
-    Clock *m_clock;
-    Connection *m_connection;
+    static const QList<QMetaProperty> &publication();
+    template<typename Sender, typename... Signals>
+    void watch(Sender *sender, Signals... signals)
+    {
+        (connect(sender, signals, this, &TimerService::markChanged), ...);
+    }
+    QVariantMap read() const;
+    void markChanged();
+    void publishChanges();
+    // Publish before replying: clients read their cached properties when
+    // the reply arrives.
+    template<typename T>
+    T answer(T value)
+    {
+        publishChanges();
+        return value;
+    }
+
     TimerController *m_timer;
-    TimerStateClient *m_client;
-    SettingsPomodoroStore *m_pomodoroStore;
-    PomodoroPreferences *m_preferences;
     PomodoroSession *m_session;
-    CredentialStore *m_store;
+    PomodoroPreferences *m_preferences;
+    SoundChoices *m_sounds;
+    ServiceSettings *m_settings;
+    PomodoroAlarm *m_alarm;
     QDBusConnection m_bus;
     bool m_registered = false;
-    // The property values the bus last saw.
     QVariantMap m_published;
-    // The alarm as the player last heard it: empty while silent.
-    QString m_alarmSound;
+    bool m_dirty = false;
+    qulonglong m_lastRequest = 0;
+    qulonglong m_request = 0;
+    bool m_publishQueued = false;
 };
 }

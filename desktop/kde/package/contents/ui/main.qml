@@ -7,56 +7,32 @@ import org.kde.plasma.plasmoid
 
 import com.canpicasoft.tokkl.backend
 
-// The panel timer and the Pomodoro session: PanelButton shows them and opens
-// PanelMenu.
 PlasmoidItem {
     id: root
 
-    // The account connection, configured from the Connection settings page.
-    readonly property TokklConnection connection: TokklConnection {
-        instanceUrl: Plasmoid.configuration.instanceUrl
-        authMode: Plasmoid.configuration.authMode
-        email: Plasmoid.configuration.email
-    }
-
-    // The account's timer state as the server holds it, read once for the
-    // timer and the Pomodoro session to share.
     readonly property TokklTimerState timerState: TokklTimerState {
-        connection: root.connection
-    }
-
-    // The running entry, its elapsed time, the pause chain and the start,
-    // pause, resume and stop actions, on the server's timer state.
-    readonly property TokklTimer timer: TokklTimer {
-        stateClient: root.timerState.client
-    }
-
-    // Keeps Pomodoro mode in this widget's configuration, so a plasmashell
-    // restart keeps it. The session itself is the server's.
-    readonly property TokklPomodoroStore pomodoroStore: TokklPomodoroStore {
         applet: Plasmoid
+        connection.instanceUrl: Plasmoid.configuration.instanceUrl
+        connection.authMode: Plasmoid.configuration.authMode
+        connection.email: Plasmoid.configuration.email
     }
 
-    // Builds the Pomodoro session and the lengths client on the timer's
-    // state client. Its session is null until this document is complete.
-    readonly property TokklPomodoro pomodoro: TokklPomodoro {
-        timer: root.timer
-        store: root.pomodoroStore
-    }
+    readonly property TokklConnection connection: root.timerState.connection
 
-    // Keeps the account's lengths, as the session knows them, in the
-    // widget's settings for the Pomodoro settings page, which cannot reach
-    // the session.
+    readonly property TokklTimer timer: root.timerState.timer
+
+    readonly property TokklPomodoroSession session: root.timerState.session
+
+    // The Pomodoro settings page cannot reach the session, so it reads these.
     readonly property PomodoroLengthsCache lengthsCache: PomodoroLengthsCache {
         configuration: Plasmoid.configuration
         connection: root.connection
-        preferences: root.pomodoro.preferences
+        preferences: root.timerState.preferences
     }
 
-    // Loops the sound chosen for the transition while the session rings.
     readonly property TokklAlarm alarm: TokklAlarm {
-        ringing: root.pomodoro.session !== null && root.pomodoro.session.ringing
-        transition: root.pomodoro.session !== null ? root.pomodoro.session.ringingTransition : ""
+        ringing: root.session.ringing
+        transition: root.session.ringingTransition
         sounds: ({
                 workToShortRest: Plasmoid.configuration.workToShortRestSound,
                 shortRestToWork: Plasmoid.configuration.shortRestToWorkSound,
@@ -65,13 +41,18 @@ PlasmoidItem {
             })
     }
 
-    readonly property StatusText words: StatusText {
-        timer: root.timer
-        session: root.pomodoro.session
+    readonly property TokklLengthsSaveStatus lengthsSave: TokklLengthsSaveStatus {
+        connection: root.connection
     }
 
-    // Keep the timer inline in the panel. Plasma does not select a compact
-    // representation when no full representation has been provided.
+    readonly property StatusText words: StatusText {
+        timer: root.timer
+        session: root.session
+        lengthsSave: root.lengthsSave
+        alarm: root.alarm
+    }
+
+    // Plasma selects no compact representation without a full one.
     preferredRepresentation: fullRepresentation
 
     toolTipMainText: i18n("Tokkl: %1", words.summary)
@@ -88,8 +69,9 @@ PlasmoidItem {
     fullRepresentation: PanelButton {
         monochromeIcon: Plasmoid.configuration.monochromeIcon
         timer: root.timer
-        session: root.pomodoro.session
-        // The configured base URL only: it never holds credentials.
+        session: root.session
+        words: root.words
+        // The base URL only; it never holds credentials.
         onOpenRequested: url => Qt.openUrlExternally(url)
         onConfigureRequested: Plasmoid.internalAction("configure").trigger()
     }

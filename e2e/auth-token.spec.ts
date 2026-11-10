@@ -1,18 +1,20 @@
 import type { Page } from '@playwright/test';
 import { basic, createAccount, expect, logInThroughForm, test } from './auth-tests-helpers.ts';
 
-// API token reveal, copy and reset through account settings. Each scenario runs its own
-// disposable server, so the shared e2e account keeps its token.
+// Each scenario runs its own disposable server, so the shared e2e account keeps its token.
 
 async function openTokenCard(page: Page) {
   await page.getByRole('link', { name: 'Settings' }).click();
   return page.locator('#api-token');
 }
 
-/** GET /api/v9/me from the page with only a Basic token, no cookie, so the runtime guard sees it. */
+/** Only a Basic token, no cookie, so the runtime guard sees it. */
 async function meStatusWithToken(page: Page, token: string): Promise<number> {
   const authorization = basic(token, 'api_token');
-  return page.evaluate(async (header) => (await fetch('/api/v9/me', { headers: { authorization: header }, credentials: 'omit' })).status, authorization);
+  return page.evaluate(
+    async header => (await fetch('/api/v9/me', { headers: { authorization: header }, credentials: 'omit' })).status,
+    authorization,
+  );
 }
 
 test('the API token starts hidden, can be shown, and copies to the clipboard', async ({ page, servers }) => {
@@ -30,7 +32,6 @@ test('the API token starts hidden, can be shown, and copies to the clipboard', a
   await card.getByRole('button', { name: 'Hide' }).click();
   await expect(card.getByLabel('API token, hidden')).toHaveText('•'.repeat(32));
 
-  // Copy works while the token is hidden.
   await card.getByRole('button', { name: 'Copy' }).click();
   await expect(page.getByRole('status')).toContainText('API token copied');
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(apiToken);
@@ -51,13 +52,17 @@ test('without the Clipboard API, a failed copy says how to copy by hand', async 
   await expect(page.getByRole('status')).toContainText('Could not copy. Show the token and copy it by hand.');
 });
 
-test('a refused Clipboard API write falls back to the textarea, then to the copy-by-hand hint', async ({ page, servers }) => {
+test('a refused Clipboard API write falls back to the textarea, then to the copy-by-hand hint', async ({
+  page,
+  servers,
+}) => {
   const server = await servers.start({ slot: 4 });
   const { apiToken } = await createAccount(server.baseURL);
   await page.context().grantPermissions(['clipboard-read'], { origin: server.baseURL });
   // A secure page can still be refused, for example when the user blocked clipboard access.
   await page.addInitScript(() => {
-    navigator.clipboard.writeText = () => Promise.reject(new DOMException('Write permission denied.', 'NotAllowedError'));
+    navigator.clipboard.writeText = () =>
+      Promise.reject(new DOMException('Write permission denied.', 'NotAllowedError'));
   });
   await logInThroughForm(page, server.baseURL);
   const card = await openTokenCard(page);
@@ -66,14 +71,19 @@ test('a refused Clipboard API write falls back to the textarea, then to the copy
   await expect(page.getByRole('status')).toContainText('API token copied');
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(apiToken);
 
-  // When the textarea copy fails too, the toast says what to do instead of showing the browser error.
-  await page.evaluate(() => { document.execCommand = () => false; });
+  await page.evaluate(() => {
+    document.execCommand = () => false;
+  });
   await card.getByRole('button', { name: 'Copy' }).click();
   await expect(page.getByRole('status')).toContainText('Could not copy. Show the token and copy it by hand.');
   await expect(page.getByRole('status')).not.toContainText('Write permission denied.');
 });
 
-test('resetting the token asks first; confirming swaps tokens and keeps the browser logged in', async ({ page, runtimeErrors, servers }) => {
+test('resetting the token asks first; confirming swaps tokens and keeps the browser logged in', async ({
+  page,
+  runtimeErrors,
+  servers,
+}) => {
   const server = await servers.start({ slot: 4 });
   const { apiToken: oldToken } = await createAccount(server.baseURL);
   await logInThroughForm(page, server.baseURL);
@@ -99,11 +109,15 @@ test('resetting the token asks first; confirming swaps tokens and keeps the brow
   const newToken = (await shown.textContent())!;
   expect(newToken).toMatch(/^[0-9a-f]{32}$/);
 
-  runtimeErrors.allowResponse({ status: 403, method: 'GET', path: /^\/api\/v9\/me$/, reason: 'the old API token is used after the reset on purpose' });
+  runtimeErrors.allowResponse({
+    status: 403,
+    method: 'GET',
+    path: /^\/api\/v9\/me$/,
+    reason: 'the old API token is used after the reset on purpose',
+  });
   expect(await meStatusWithToken(page, oldToken)).toBe(403);
   expect(await meStatusWithToken(page, newToken)).toBe(200);
 
-  // The browser session does not depend on the token.
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
   const me = await page.request.get(`${server.baseURL}/api/v9/me`);

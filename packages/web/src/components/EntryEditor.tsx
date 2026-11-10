@@ -1,354 +1,260 @@
-import { useMemo, useRef, useState } from 'react';
-import { useCreateEntry, useDeleteEntry, useProjects, useRestoreEntry, useUpdateEntry } from '../api/hooks.ts';
-import type { TimeEntry } from '../api/types.ts';
-import { formatDuration, parseDuration } from '@tokkl/common/duration';
-import { snapDuration } from '@tokkl/common/snap';
-import { addDays } from '@tokkl/common/time';
-import { parseTimeOfDay } from '@tokkl/common/timeOfDay';
-import { instantAt, localDay, resolveRange, unreadableTime } from '../lib/entryTime.ts';
-import { noTimeSeconds } from '../lib/noTimeDuration.ts';
-import { noTimeFields } from '../lib/noTimeEdit.ts';
+import { useRef, useState } from 'react';
 import {
-  entrySeconds, formatTime, minutesOfDay, snappedSeconds, snappedSplit, useNow, useSettings, type SplitHalves,
-} from '../lib/settings.ts';
+  useCreateEntry,
+  useDeleteEntry,
+  useRestoreEntry,
+  useUpdateEntry,
+  useUpdateRunningEntry,
+} from '../api/entries.ts';
+import { useProjects } from '../api/projects.ts';
+import { useSettings } from '../api/settings.ts';
+import type { TimeEntry } from '@tokkl/types';
+import { useNow } from '../lib/clock.ts';
+import { duplicateInput } from '../lib/duplicateEntry.ts';
+import { localDay } from '../lib/entryTime.ts';
+import { DurationField } from './DurationField.tsx';
+import { EntrySplitField } from './EntrySplitField.tsx';
 import { useFieldErrors } from './FieldError.tsx';
 import { Icon } from './Icon.tsx';
 import { Modal } from './Overlay.tsx';
-import { ProjectLabel, ProjectPicker, TagPicker } from './Pickers.tsx';
-import { DurationField } from './TimeFields.tsx';
+import { ProjectLabel } from './ProjectLabel.tsx';
+import { ProjectPicker } from './ProjectPicker.tsx';
+import { TagPicker } from './TagPicker.tsx';
 import { useToast } from './Toast.tsx';
+import { useExclusive } from './useExclusive.ts';
+import { draftOf, projectChanges, type EntryDraft } from './useEntryFields.ts';
+import { useEntryTimes, type TimeFieldKey } from './useEntryTimes.ts';
+import { t } from '../i18n/messages.ts';
 
-const SPLIT_PROBLEMS = {
-  unreadable: 'Enter a split time like 10:30',
-  outside: 'The split time must fall inside the entry',
-} as const;
-
-function spanSeconds(span: { start: Date; stop: Date }): number {
-  return (span.stop.getTime() - span.start.getTime()) / 1000;
+function isStopped(entry: TimeEntry): entry is TimeEntry & { stop: string } {
+  return entry.stop !== null;
 }
 
-/** Full editor for one entry: every field, plus duplicate, split and delete. */
+/** One of Save, Duplicate, Split and Delete runs at a time, so a double click never saves twice. */
 export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () => void }) {
   const settings = useSettings();
   const now = useNow(entry.stop ? 60_000 : 1000);
-  const running = entry.stop === null;
-  const [description, setDescription] = useState(entry.description);
-  const [projectId, setProjectId] = useState(entry.project_id);
-  const [taskId, setTaskId] = useState(entry.task_id);
-  const [tags, setTags] = useState(entry.tags);
-  const [billable, setBillable] = useState(entry.billable);
-  const [day, setDay] = useState(localDay(entry.start, settings.timeZone));
-  // A no-time entry has no times to show: its start and end stay empty until it becomes timed.
-  const [noTimes, setNoTimes] = useState(entry.all_day);
-  const [startText, setStartText] = useState(entry.all_day ? '' : formatTime(entry.start, settings));
-  const [endText, setEndText] = useState(entry.stop && !entry.all_day ? formatTime(entry.stop, settings) : '');
-  // Saving snaps the entry to the time resolution, so the duration shows the snapped length.
-  const [durationText, setDurationText] = useState(entry.all_day ? '' : formatDuration(
-    entry.stop ? snappedSeconds(new Date(entry.start), new Date(entry.stop), settings) : entrySeconds(entry, now),
-  ));
-  // The duration a no-time entry is stored with, which a no-time save sends when it changes.
-  const [storedNoTimeLength] = useState(() => entry.all_day
-    ? snapDuration(entrySeconds(entry, now), settings.timeResolution)
-    : entry.stop ? snappedSeconds(new Date(entry.start), new Date(entry.stop), settings) : 0);
-  const [noTimeLength, setNoTimeLength] = useState(storedNoTimeLength);
-  // What the fields showed when the editor opened, and the duration last derived from start/end.
-  // Times are typed to the minute, so unchanged fields must not be sent back: that would drop the
-  // seconds, or pick the wrong hour when a DST change makes a wall time ambiguous.
-  const [initial] = useState(() => ({
-    day: localDay(entry.start, settings.timeZone),
-    start: entry.all_day ? '' : formatTime(entry.start, settings),
-    end: entry.stop && !entry.all_day ? formatTime(entry.stop, settings) : '',
-  }));
-  const [syncedDuration, setSyncedDuration] = useState(durationText);
-  const [splitText, setSplitText] = useState('');
+  const times = useEntryTimes(entry, settings, now);
+  const { running } = times;
+  const [draft, setDraft] = useState<EntryDraft>(() => draftOf(entry));
   const [picker, setPicker] = useState<'project' | 'tags' | null>(null);
   const projectButton = useRef<HTMLButtonElement>(null);
   const tagButton = useRef<HTMLButtonElement>(null);
   const { data: projects = [] } = useProjects();
   const update = useUpdateEntry();
+  const updateRunning = useUpdateRunningEntry();
   const create = useCreateEntry();
   const remove = useDeleteEntry();
   const restore = useRestoreEntry();
   const toast = useToast();
-  const fields = useFieldErrors<'start' | 'end' | 'duration' | 'split'>();
+  const fields = useFieldErrors<TimeFieldKey>();
+  const actions = useExclusive();
+  const edit = (changes: Partial<EntryDraft>) => setDraft(current => ({ ...current, ...changes }));
 
-  const timeOptions = { timeZone: settings.timeZone, twelveHour: settings.twelveHour, nowMinutes: minutesOfDay(now, settings.timeZone) };
-  const range = useMemo(() => {
-    if (noTimes) return null;
-    if (running) {
-      const minutes = parseTimeOfDay(startText, { twelveHour: settings.twelveHour, reference: timeOptions.nowMinutes });
-      return minutes === null ? null : { start: instantAt(day, minutes, settings.timeZone), stop: null };
-    }
-    return resolveRange(day, startText, endText, timeOptions);
-  }, [day, startText, endText, running, noTimes, settings.timeZone, settings.twelveHour, timeOptions.nowMinutes]);
-
-  const startChanged = day !== initial.day || startText !== initial.start;
-  const endChanged = day !== initial.day || endText !== initial.end;
-  const durationChanged = durationText !== syncedDuration;
-
-  const syncDuration = (next: { start: Date; stop: Date | null } | null) => {
-    if (!next?.stop || (!startChanged && !endChanged)) return;
-    const text = formatDuration(snappedSeconds(next.start, next.stop, settings));
-    setDurationText(text);
-    setSyncedDuration(text);
-  };
-
-  const applyDuration = () => {
-    if (!durationChanged) return;
-    const seconds = parseDuration(durationText);
-    if (seconds === null || !range) return;
-    const start = startChanged ? range.start : new Date(entry.start);
-    const stop = new Date(start.getTime() + seconds * 1000);
-    setEndText(formatTime(stop, settings));
-    setDurationText(formatDuration(snappedSeconds(start, stop, settings)));
-  };
-
-  const toggleNoTimes = (on: boolean) => {
-    setNoTimes(on);
-    (['start', 'end', 'duration'] as const).forEach(fields.clear);
-    if (!on || entry.all_day) return;
-    // A timed entry keeps its date and takes the length its fields show now.
-    const typed = parseDuration(durationText);
-    if (typed) setNoTimeLength(snapDuration(typed, settings.timeResolution));
-  };
-
-  const saveNoTimes = async () => {
-    const send = noTimeFields(entry, { day, seconds: noTimeLength }, { day: initial.day, seconds: storedNoTimeLength });
-    // Only a changed day or duration is sent, so only then must it be valid.
-    const { error: problem } = noTimeSeconds(noTimeLength, settings.timeResolution);
-    if (!fields.validate([['duration', send.all_day && problem]])) return;
-    try {
-      await update.mutateAsync({
-        id: entry.id, description, project_id: projectId, task_id: taskId, tags, billable, ...send,
-      });
-      onClose();
-    } catch (error) {
-      toast.error(error);
-    }
-  };
-
-  const save = async () => {
-    if (noTimes) return saveNoTimes();
-    const unreadable = !range && (running ? 'start' : unreadableTime(startText, timeOptions));
-    const seconds = !running && durationChanged ? parseDuration(durationText) : null;
-    const timesMessage = 'Check the start and end times';
-    const valid = fields.validate([
-      ['start', unreadable === 'start' && timesMessage],
-      ['end', unreadable === 'end' && timesMessage],
-      ['duration', !running && durationChanged && seconds === null && 'Check the duration'],
-    ]);
-    if (!valid || !range) return;
-    const times: { start?: string; stop?: string; all_day?: boolean } = {};
-    // Leaving no-time mode needs both ends, which the range already guarantees.
-    if (entry.all_day) times.all_day = false;
-    const start = startChanged ? range.start : new Date(entry.start);
-    if (startChanged) times.start = start.toISOString();
-    if (!running) {
-      if (seconds !== null) times.stop = new Date(start.getTime() + seconds * 1000).toISOString();
-      else if (endChanged && range.stop) times.stop = range.stop.toISOString();
-    }
-    try {
-      await update.mutateAsync({
-        id: entry.id, description, project_id: projectId, task_id: taskId, tags, billable, ...times,
-      });
-      onClose();
-    } catch (error) {
-      toast.error(error);
-    }
-  };
-
-  const duplicate = async () => {
-    if (!entry.stop) return;
-    const when = entry.all_day
-      ? { all_day: true, start_date: localDay(entry.start, settings.timeZone), duration: entrySeconds(entry, now) }
-      : { start: entry.start, stop: entry.stop };
-    try {
-      await create.mutateAsync({
-        description: entry.description, project_id: entry.project_id, task_id: entry.task_id, tags: entry.tags,
-        billable: entry.billable, ...when,
-      });
-      toast.show('Entry duplicated');
-      onClose();
-    } catch (error) {
-      toast.error(error);
-    }
-  };
-
-  /**
-   * The halves a typed split time cuts a stopped entry into, as the server will store them, or why
-   * it cuts nowhere. The time moves to the nearest grid point of the time resolution, so both halves
-   * keep it as their shared boundary when the server snaps them.
-   */
-  const splitHalves = (text: string, stop: string): SplitHalves | 'unreadable' | 'outside' => {
-    const minutes = parseTimeOfDay(text, { twelveHour: settings.twelveHour, reference: minutesOfDay(entry.start, settings.timeZone) });
-    if (minutes === null) return 'unreadable';
-    const startDay = localDay(entry.start, settings.timeZone);
-    let at = instantAt(startDay, minutes, settings.timeZone);
-    // Overnight: the same clock time on the next calendar day. Adding 24 hours would be off by the
-    // DST shift when the clocks change that night.
-    if (at <= new Date(entry.start)) at = instantAt(addDays(startDay, 1), minutes, settings.timeZone);
-    return snappedSplit(new Date(entry.start), new Date(stop), at, settings);
-  };
-  const halves = entry.stop ? splitHalves(splitText, entry.stop) : null;
-
-  const split = async () => {
-    if (!entry.stop) return;
-    const result = splitHalves(splitText, entry.stop);
-    const problem = typeof result === 'string' && SPLIT_PROBLEMS[result];
-    if (!fields.validate([['split', problem]]) || typeof result === 'string') return;
-    const { first, second } = result;
-    try {
-      // Create the second half first: if that fails, the original entry is untouched.
-      const created = await create.mutateAsync({
-        description: entry.description, project_id: entry.project_id, task_id: entry.task_id, tags: entry.tags,
-        billable: entry.billable, start: second.start.toISOString(), stop: second.stop.toISOString(),
-      });
+  const save = () =>
+    actions.run(async () => {
+      const timeChanges = times.changes(fields.validate);
+      if (!timeChanges) return;
       try {
-        await update.mutateAsync({ id: entry.id, start: first.start.toISOString(), stop: first.stop.toISOString() });
+        // The running entry saves through the timer, which takes its labels and a moved start.
+        if (running) await updateRunning.mutateAsync({ id: entry.id, ...draft, start: timeChanges.start });
+        else await update.mutateAsync({ id: entry.id, ...draft, ...timeChanges });
+        onClose();
       } catch (error) {
-        await remove.mutateAsync(created.id).catch(() => undefined);
-        throw error;
+        toast.error(error);
       }
-      toast.show('Entry split in two');
-      onClose();
-    } catch (error) {
-      toast.error(error);
-    }
-  };
+    });
 
-  const destroy = async () => {
-    try {
-      await remove.mutateAsync(entry.id);
-      toast.show('Entry deleted', { action: { label: 'Undo', run: () => restore.mutate(entry.id) } });
-      onClose();
-    } catch (error) {
-      toast.error(error);
-    }
-  };
+  const duplicate = () =>
+    actions.run(async () => {
+      if (!entry.stop) return;
+      try {
+        await create.mutateAsync(duplicateInput(entry, settings.timeZone));
+        toast.show(t('entries.duplicated'));
+        onClose();
+      } catch (error) {
+        toast.error(error);
+      }
+    });
 
-  const project = projects.find((p) => p.id === projectId);
+  const destroy = () =>
+    actions.run(async () => {
+      try {
+        await remove.mutateAsync(entry.id);
+        toast.show(t('entries.deleted'), {
+          action: { label: t('common.undo'), run: () => restore.mutate(entry.id) },
+        });
+        onClose();
+      } catch (error) {
+        toast.error(error);
+      }
+    });
+
+  const project = projects.find(p => p.id === draft.project_id);
+  const rangeStop = times.range?.stop ?? null;
   return (
     <Modal
-      title={running ? 'Edit running entry' : 'Edit entry'}
+      title={running ? t('entries.editRunning') : t('entries.editEntry')}
       onClose={onClose}
-      footer={(
+      footer={
         <>
-          <button type="button" className="button button-danger-ghost" onClick={() => void destroy()}>
-            <Icon name="trash" size={16} /> Delete
+          <button
+            type="button"
+            className="button button-danger-ghost"
+            onClick={() => void destroy()}
+            disabled={actions.busy}
+          >
+            <Icon name="trash" size={16} /> {t('common.delete')}
           </button>
           <span className="spacer" />
           {!running ? (
-            <button type="button" className="button button-ghost" onClick={() => void duplicate()}>
-              <Icon name="copy" size={16} /> Duplicate
+            <button
+              type="button"
+              className="button button-ghost"
+              onClick={() => void duplicate()}
+              disabled={actions.busy}
+            >
+              <Icon name="copy" size={16} /> {t('entries.duplicate')}
             </button>
           ) : null}
-          <button type="button" className="button button-primary" onClick={() => void save()} disabled={update.isPending}>
-            Save
+          <button type="button" className="button button-primary" onClick={() => void save()} disabled={actions.busy}>
+            {t('common.save')}
           </button>
         </>
-      )}
+      }
     >
-      <form className="form-grid" onSubmit={(event) => { event.preventDefault(); void save(); }}>
+      <form
+        className="form-grid"
+        onSubmit={event => {
+          event.preventDefault();
+          void save();
+        }}
+      >
         <label className="field field-full">
-          <span>Description</span>
-          <input value={description} onChange={(event) => setDescription(event.target.value)} maxLength={3000} />
+          <span>{t('entries.description')}</span>
+          <input
+            value={draft.description}
+            onChange={event => edit({ description: event.target.value })}
+            maxLength={3000}
+          />
         </label>
         <div className="field">
-          <span>Project</span>
+          <span>{t('entries.project')}</span>
           <button ref={projectButton} type="button" className="select-button" onClick={() => setPicker('project')}>
-            {projectId ? <ProjectLabel projectId={projectId} taskId={taskId} /> : <span className="muted">No project</span>}
+            {draft.project_id ? (
+              <ProjectLabel projectId={draft.project_id} taskId={draft.task_id} />
+            ) : (
+              <span className="muted">{t('entries.noProject')}</span>
+            )}
           </button>
         </div>
         <div className="field">
-          <span>Tags</span>
+          <span>{t('entries.tags')}</span>
           <button ref={tagButton} type="button" className="select-button" onClick={() => setPicker('tags')}>
-            {tags.length ? tags.join(', ') : <span className="muted">No tags</span>}
+            {draft.tags.length ? draft.tags.join(', ') : <span className="muted">{t('entries.noTags')}</span>}
           </button>
         </div>
         <label className="field checkbox-field">
-          <input type="checkbox" checked={billable} onChange={(event) => setBillable(event.target.checked)} />
-          <span>Billable{project?.billable ? ' (project default)' : ''}</span>
+          <input
+            type="checkbox"
+            checked={draft.billable}
+            onChange={event => edit({ billable: event.target.checked })}
+          />
+          <span>{project?.billable ? t('entries.billableProjectDefault') : t('entries.billable')}</span>
         </label>
         {!running ? (
           <label className="manual-switch field-full">
-            <input type="checkbox" role="switch" checked={noTimes} onChange={(event) => toggleNoTimes(event.target.checked)} />
-            No times
+            <input
+              type="checkbox"
+              role="switch"
+              checked={times.noTimes}
+              onChange={event => {
+                times.toggleNoTimes(event.target.checked);
+                (['start', 'end', 'duration'] as const).forEach(fields.clear);
+              }}
+            />
+            {t('entries.noTimes')}
           </label>
         ) : null}
         <label className="field">
-          <span>Date</span>
-          <input type="date" value={day} onChange={(event) => event.target.value && setDay(event.target.value)} />
+          <span>{t('entries.date')}</span>
+          <input
+            type="date"
+            value={times.day}
+            onChange={event => event.target.value && times.setDay(event.target.value)}
+          />
         </label>
-        {noTimes ? (
+        {times.noTimes ? (
           <div className="field">
-            <label htmlFor={fields.id('duration')}>Duration</label>
+            <label htmlFor={fields.id('duration')}>{t('entries.duration')}</label>
             <DurationField
               format={settings.durationFormat}
-              seconds={noTimeLength}
-              onCommit={(seconds) => setNoTimeLength(snapDuration(seconds, settings.timeResolution))}
+              seconds={times.noTimeLength}
+              onCommit={times.setNoTimeSeconds}
               inputProps={fields.field('duration')}
             />
             {fields.message('duration')}
           </div>
         ) : (
           <div className="field">
-            <label htmlFor={fields.id('start')}>Start</label>
-            <input {...fields.field('start')} value={startText} onChange={(event) => setStartText(event.target.value)} onBlur={() => syncDuration(range)} />
+            <label htmlFor={fields.id('start')}>{t('entries.start')}</label>
+            <input
+              {...fields.field('start')}
+              value={times.startText}
+              onChange={event => times.setStartText(event.target.value)}
+              onBlur={times.syncDuration}
+            />
             {fields.message('start')}
           </div>
         )}
-        {!running && !noTimes ? (
+        {!running && !times.noTimes ? (
           <>
             <div className="field">
-              <label htmlFor={fields.id('end')}>End</label>
-              <input {...fields.field('end')} value={endText} onChange={(event) => setEndText(event.target.value)} onBlur={() => syncDuration(range)} />
+              <label htmlFor={fields.id('end')}>{t('entries.end')}</label>
+              <input
+                {...fields.field('end')}
+                value={times.endText}
+                onChange={event => times.setEndText(event.target.value)}
+                onBlur={times.syncDuration}
+              />
               {fields.message('end')}
             </div>
             <div className="field">
-              <label htmlFor={fields.id('duration')}>Duration</label>
-              <input {...fields.field('duration')} value={durationText} onChange={(event) => setDurationText(event.target.value)} onBlur={applyDuration} />
+              <label htmlFor={fields.id('duration')}>{t('entries.duration')}</label>
+              <input
+                {...fields.field('duration')}
+                value={times.durationText}
+                onChange={event => times.setDurationText(event.target.value)}
+                onBlur={times.applyDuration}
+              />
               {fields.message('duration')}
             </div>
           </>
         ) : null}
-        {range?.stop && localDay(range.stop, settings.timeZone) !== day ? (
-          <p className="field-full hint">Ends the next day, {localDay(range.stop, settings.timeZone)}.</p>
+        {rangeStop && localDay(rangeStop, settings.timeZone) !== times.day ? (
+          <p className="field-full hint">{t('entries.endsNextDay', { day: localDay(rangeStop, settings.timeZone) })}</p>
         ) : null}
-        {!running && !noTimes && !entry.all_day ? (
-          <div className="field field-full">
-            <label htmlFor={fields.id('split')}>Split at</label>
-            <div className="inline-controls">
-              <input {...fields.field('split')} value={splitText} placeholder="e.g. 10:30" onChange={(event) => setSplitText(event.target.value)} />
-              <button type="button" className="button button-ghost" onClick={() => void split()}>
-                <Icon name="split" size={16} /> Split
-              </button>
-            </div>
-            {halves !== null && typeof halves !== 'string' ? (
-              <p className="hint">
-                Splits into {formatDuration(spanSeconds(halves.first))} and {formatDuration(spanSeconds(halves.second))}.
-              </p>
-            ) : null}
-            {fields.message('split')}
-          </div>
+        {isStopped(entry) && !times.noTimes && !entry.all_day ? (
+          <EntrySplitField entry={entry} settings={settings} actions={actions} onSplit={onClose} />
         ) : null}
         <button type="submit" hidden />
       </form>
       {picker === 'project' ? (
         <ProjectPicker
-          anchor={projectButton.current}
-          projectId={projectId}
-          taskId={taskId}
-          onChange={(pid, tid) => {
-            setProjectId(pid);
-            setTaskId(tid);
-            const picked = projects.find((p) => p.id === pid);
-            if (picked?.billable) setBillable(true);
-          }}
+          anchor={projectButton}
+          projectId={draft.project_id}
+          taskId={draft.task_id}
+          onChange={(pid, tid) => edit(projectChanges(draft, projects, pid, tid))}
           onClose={() => setPicker(null)}
         />
       ) : null}
       {picker === 'tags' ? (
-        <TagPicker anchor={tagButton.current} value={tags} onChange={setTags} onClose={() => setPicker(null)} />
+        <TagPicker
+          anchor={tagButton}
+          value={draft.tags}
+          onChange={tags => edit({ tags })}
+          onClose={() => setPicker(null)}
+        />
       ) : null}
     </Modal>
   );

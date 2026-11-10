@@ -1,7 +1,7 @@
 import { expect, type APIResponse, type Browser, type Page } from '@playwright/test';
 import { RuntimeErrors } from './runtime-errors.ts';
 
-// Cookie-authenticated writes must carry this header (packages/api/src/auth/storageMiddleware.ts).
+// Cookie-authenticated writes must carry this header (packages/api/src/auth/middleware.ts).
 const CSRF = { 'X-Tokkl-CSRF': '1' };
 
 export interface EntryView {
@@ -15,7 +15,6 @@ export interface EntryView {
   billable: boolean;
 }
 
-/** The metadata Continue, favorites and autocomplete promise to copy. */
 export type Metadata = Pick<EntryView, 'description' | 'project_id' | 'task_id' | 'tags' | 'billable'>;
 
 async function ok<T>(response: APIResponse): Promise<T> {
@@ -23,10 +22,7 @@ async function ok<T>(response: APIResponse): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-/**
- * Reads and seeds data through the page's own session, so call it after logging in. The automatic
- * fixture in e2e/fixtures.ts deletes everything created here, tasks included with their projects.
- */
+/** Uses the page's own session, so call it after logging in. The automatic fixture deletes what it creates. */
 export class TimerApi {
   private readonly page: Page;
   readonly workspaceId: number;
@@ -46,31 +42,50 @@ export class TimerApi {
   }
 
   async createProject(name: string, billable = false): Promise<number> {
-    return (await ok<{ id: number }>(await this.page.request.post(`${this.ws}/projects`, { headers: CSRF, data: { name, billable } }))).id;
+    return (
+      await ok<{ id: number }>(
+        await this.page.request.post(`${this.ws}/projects`, { headers: CSRF, data: { name, billable } }),
+      )
+    ).id;
   }
 
   async createTask(projectId: number, name: string): Promise<number> {
-    return (await ok<{ id: number }>(await this.page.request.post(`${this.ws}/projects/${projectId}/tasks`, { headers: CSRF, data: { name } }))).id;
+    return (
+      await ok<{ id: number }>(
+        await this.page.request.post(`${this.ws}/projects/${projectId}/tasks`, { headers: CSRF, data: { name } }),
+      )
+    ).id;
   }
 
   async createEntry(entry: Partial<Metadata> & { start: string; stop: string }): Promise<EntryView> {
-    return view(await ok(await this.page.request.post(`${this.ws}/time_entries`, { headers: CSRF, data: { ...entry, created_with: 'e2e' } })));
+    return view(
+      await ok(
+        await this.page.request.post(`${this.ws}/time_entries`, {
+          headers: CSRF,
+          data: { ...entry, created_with: 'e2e' },
+        }),
+      ),
+    );
   }
 
-  /** Seeds a running entry, as another device that started a timer at `start` would. */
   async startTimer(entry: Partial<Metadata> & { start: string }): Promise<EntryView> {
-    return view(await ok(await this.page.request.post(`${this.ws}/time_entries`, { headers: CSRF, data: { ...entry, duration: -1, created_with: 'e2e' } })));
+    return view(
+      await ok(
+        await this.page.request.post(`${this.ws}/time_entries`, {
+          headers: CSRF,
+          data: { ...entry, duration: -1, created_with: 'e2e' },
+        }),
+      ),
+    );
   }
 
-  /**
-   * Moves a running entry's start `minutes` earlier, as if it had run that long. A timer stopped
-   * seconds after it started rounds to zero at the time resolution and goes to the trash, so a
-   * scenario that needs the stopped entry backdates it first.
-   */
+  /** A timer stopped seconds after it started rounds to zero and goes to the trash, so backdate first. */
   async backdate(id: number, minutes: number): Promise<EntryView> {
     const entry = await ok<EntryView>(await this.page.request.get(`/api/v9/me/time_entries/${id}`));
     const start = new Date(Date.parse(entry.start) - minutes * 60_000).toISOString();
-    return view(await ok(await this.page.request.put(`${this.ws}/time_entries/${id}`, { headers: CSRF, data: { start } })));
+    return view(
+      await ok(await this.page.request.put(`${this.ws}/time_entries/${id}`, { headers: CSRF, data: { start } })),
+    );
   }
 
   async trash(): Promise<EntryView[]> {
@@ -83,7 +98,9 @@ export class TimerApi {
   }
 
   async entries(): Promise<EntryView[]> {
-    const all = await ok<EntryView[]>(await this.page.request.get('/api/v9/me/time_entries?start_date=1970-01-01&end_date=2100-01-01'));
+    const all = await ok<EntryView[]>(
+      await this.page.request.get('/api/v9/me/time_entries?start_date=1970-01-01&end_date=2100-01-01'),
+    );
     return all.map(view);
   }
 
@@ -96,7 +113,7 @@ export class TimerApi {
   }
 }
 
-/** Keeps the compared fields only, with tags sorted so their order never matters. */
+/** Tags sorted so their order never matters. */
 export function view(entry: EntryView): EntryView {
   const { id, description, start, stop, project_id, task_id, billable } = entry;
   return { id, description, start, stop, project_id, task_id, tags: [...(entry.tags ?? [])].sort(), billable };
@@ -107,21 +124,32 @@ export function metadataOf(entry: Metadata): Metadata {
   return { description, project_id, task_id, tags: [...entry.tags].sort(), billable };
 }
 
-/** Waits until a running entry other than `previousId` exists and returns it. */
 export async function nextRunning(api: TimerApi, previousId: number | null): Promise<EntryView> {
   let running: EntryView | null = null;
-  await expect.poll(async () => {
-    running = await api.current();
-    return running !== null && running.id !== previousId;
-  }).toBe(true);
+  await expect
+    .poll(async () => {
+      running = await api.current();
+      return running !== null && running.id !== previousId;
+    })
+    .toBe(true);
   return running!;
 }
 
-/** Date key (YYYY-MM-DD) and 24-hour clock text of an instant in Europe/Madrid, the e2e account zone. */
+/** In Europe/Madrid, the e2e account zone. */
 export function madridWallClock(at: Date): { day: string; time: string } {
-  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Europe/Madrid', hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
-  }).formatToParts(at).map((part) => [part.type, part.value]));
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Europe/Madrid',
+      hourCycle: 'h23',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+      .formatToParts(at)
+      .map(part => [part.type, part.value]),
+  );
   return { day: `${parts.year}-${parts.month}-${parts.day}`, time: `${parts.hour}:${parts.minute}` };
 }
 
@@ -131,11 +159,7 @@ export function instant(iso: string | null): number {
   return Date.parse(iso!);
 }
 
-/**
- * Expects `saved`, a stopped entry that ran from `exactStart`, to sit on the time resolution grid of
- * `step` milliseconds: its start is the grid point nearest `exactStart` and its duration is a
- * multiple of the step. Europe/Madrid is a whole number of hours off UTC, so its grid is the UTC one.
- */
+/** Start on the grid point nearest `exactStart`, duration a multiple of `step`. Madrid's grid is the UTC one. */
 export function expectSnapped(saved: Pick<EntryView, 'start' | 'stop'>, exactStart: string, step: number): void {
   const start = instant(saved.start);
   expect(start % step).toBe(0);
@@ -143,52 +167,46 @@ export function expectSnapped(saved: Pick<EntryView, 'start' | 'stop'>, exactSta
   expect((instant(saved.stop) - start) % step).toBe(0);
 }
 
-const STOP_REQUEST = /\/time_entries\/\d+\/stop(?:\?|$)/;
+const STOP_REQUEST = /\/api\/app\/timer\/stop$/;
 
-/**
- * Holds the answer to the next stop request, as a slow network would: the server stops the entry
- * at once, and the page sees the response only after `release()`. Later stop requests pass straight
- * through. Requests matching `alsoHold`, such as a current-entry poll, wait for `release()` before
- * they reach the server. `stops.count` counts every stop request; `sent` resolves on the first one.
- */
+/** The server stops the entry at once; the page sees the reply after `release()`. `alsoHold` requests wait too. */
 export async function holdNextStop(
   page: Page,
   alsoHold?: RegExp,
 ): Promise<{ sent: Promise<unknown>; release: () => void; stops: { count: number } }> {
   let release!: () => void;
-  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const gate = new Promise<void>(resolve => {
+    release = resolve;
+  });
   const stops = { count: 0 };
   if (alsoHold) {
-    await page.route(alsoHold, async (route) => {
+    await page.route(alsoHold, async route => {
       await gate;
       await route.continue();
     });
   }
-  await page.route(STOP_REQUEST, async (route) => {
+  await page.route(STOP_REQUEST, async route => {
     stops.count += 1;
     if (stops.count > 1) return route.continue();
     const response = await route.fetch();
     await gate;
     return route.fulfill({ response });
   });
-  const sent = page.waitForRequest((request) => request.method() === 'PATCH' && STOP_REQUEST.test(request.url()));
+  const sent = page.waitForRequest(request => request.method() === 'POST' && STOP_REQUEST.test(request.url()));
   return { sent, release, stops };
 }
 
 declare global {
   interface Window {
-    /** Timer states this page has received: stream events plus replies from the timer and Pomodoro endpoints. */
     timerTraffic: number;
-    /** Every timer event stream the page opened. */
     timerStreams: EventSource[];
+    fetchesInFlight: number;
   }
 }
 
 /**
- * Counts every timer state the page receives, as `window.timerTraffic`. Install it before the page
- * loads. The server sets the time of a state and the page takes its clock offset from the latest
- * one, so a fake browser clock moved forward while a state is still on its way snaps back when it
- * lands. `settleTimerTraffic` tells when none is.
+ * The page takes its clock offset from the latest state, so a fake clock moved while a state is in flight snaps
+ * back when it lands. `settleTimerTraffic` tells when none is.
  */
 export async function watchTimerTraffic(page: Page): Promise<void> {
   await page.addInitScript(() => {
@@ -199,62 +217,92 @@ export async function watchTimerTraffic(page: Page): Promise<void> {
       constructor(url: string | URL, init?: EventSourceInit) {
         super(url, init);
         window.timerStreams.push(this);
-        this.addEventListener('timer', () => { window.timerTraffic++; });
+        this.addEventListener('timer', () => {
+          window.timerTraffic++;
+        });
       }
     };
+    window.fetchesInFlight = 0;
     const nativeFetch = window.fetch;
     window.fetch = async function (this: unknown, ...args: Parameters<typeof fetch>) {
-      const response = await nativeFetch.apply(this, args);
-      if (/^\/api\/app\/(timer|pomodoro)(\/(pause|resume|discard|next|end))?$/.test(new URL(response.url).pathname)) window.timerTraffic++;
-      return response;
+      window.fetchesInFlight++;
+      try {
+        const response = await nativeFetch.apply(this, args);
+        if (
+          /^\/api\/app\/(timer|pomodoro)(\/(start|stop|pause|resume|discard|next|end))?$/.test(
+            new URL(response.url).pathname,
+          )
+        )
+          window.timerTraffic++;
+        return response;
+      } finally {
+        window.fetchesInFlight--;
+      }
     };
   });
 }
 
-/** The server's interval between `keep-alive` events on the timer stream. */
 const KEEP_ALIVE_MS = 25_000;
 
 /**
- * Moves a fake browser clock forward by `ms` as time passes with the timer stream connected: in
- * steps no longer than the server's keep-alive interval, each followed by a `keep-alive` event on
- * every open stream. One jump past the app's one-minute silence timeout would make it give the
- * stream up, and the state the new stream sends would set the clock offset back to the server's
- * time. The clock belongs to the browser context, so every page of it moves and gets the events.
- * Needs `watchTimerTraffic` on the pages that stream.
+ * Steps at most one keep-alive long, each with a keep-alive event, so the app keeps its stream, and each waits
+ * for in-flight requests, since the fake clock drives `AbortSignal.timeout` too. Needs `watchTimerTraffic`.
  */
 export async function fastForwardStreaming(page: Page, ms: number): Promise<void> {
+  const pages = () => page.context().pages();
   for (let left = ms; left > 0; left -= KEEP_ALIVE_MS) {
+    await expect
+      .poll(
+        async () => {
+          const counts = await Promise.all(pages().map(open => open.evaluate(() => window.fetchesInFlight ?? 0)));
+          return counts.reduce((sum, count) => sum + count, 0);
+        },
+        { timeout: 15_000 },
+      )
+      .toBe(0);
     await page.clock.fastForward(Math.min(left, KEEP_ALIVE_MS));
-    await Promise.all(page.context().pages().map((open) => open.evaluate(() => {
-      for (const stream of window.timerStreams ?? []) {
-        if (stream.readyState === EventSource.OPEN) stream.dispatchEvent(new MessageEvent('keep-alive', { data: '' }));
-      }
-    })));
+    await Promise.all(
+      page
+        .context()
+        .pages()
+        .map(open =>
+          open.evaluate(() => {
+            for (const stream of window.timerStreams ?? []) {
+              if (stream.readyState === EventSource.OPEN)
+                stream.dispatchEvent(new MessageEvent('keep-alive', { data: '' }));
+            }
+          }),
+        ),
+    );
   }
 }
 
-/** Waits until no timer state has reached the page for 300 ms. Needs `watchTimerTraffic`. */
+/** Needs `watchTimerTraffic`. */
 export async function settleTimerTraffic(page: Page): Promise<void> {
   let last = -1;
-  await expect.poll(async () => {
-    const seen = await page.evaluate(() => window.timerTraffic);
-    const quiet = seen === last;
-    last = seen;
-    return quiet;
-  }, { intervals: [300], timeout: 15_000 }).toBe(true);
+  await expect
+    .poll(
+      async () => {
+        const seen = await page.evaluate(() => window.timerTraffic);
+        const quiet = seen === last;
+        last = seen;
+        return quiet;
+      },
+      { intervals: [300], timeout: 15_000 },
+    )
+    .toBe(true);
 }
 
-/**
- * A second device of the same user: a browser context with the page's session, and a guard for its
- * runtime errors. `prepare` runs on the new page before it opens `path`, for init scripts and a
- * fake clock. Call `errors.verify(testInfo)` at the end of the scenario, as for any other page.
- */
+/** `prepare` runs on the new page before it opens `path`. Call `errors.verify(testInfo)` at the end. */
 export async function openSecondDevice(
   page: Page,
   browser: Browser,
   { path = '/', prepare }: { path?: string; prepare?: (other: Page) => Promise<void> } = {},
 ): Promise<{ other: Page; errors: RuntimeErrors }> {
-  const context = await browser.newContext({ storageState: await page.context().storageState(), timezoneId: 'Europe/Madrid' });
+  const context = await browser.newContext({
+    storageState: await page.context().storageState(),
+    timezoneId: 'Europe/Madrid',
+  });
   const other = await context.newPage();
   const errors = new RuntimeErrors(other);
   await prepare?.(other);
@@ -262,15 +310,16 @@ export async function openSecondDevice(
   return { other, errors };
 }
 
-/**
- * Holds the first request that matches `path` and `method` before it leaves the page, as a slow
- * network would, and lets it through on `release()`. `sent` resolves when the page has issued it.
- */
-export async function holdRequest(page: Page, path: RegExp, method = 'POST'): Promise<{ sent: Promise<void>; release: () => void }> {
+/** `sent` resolves when the page has issued it. */
+export async function holdRequest(
+  page: Page,
+  path: RegExp,
+  method = 'POST',
+): Promise<{ sent: Promise<void>; release: () => void }> {
   const sent = Promise.withResolvers<void>();
   const gate = Promise.withResolvers<void>();
   let held = false;
-  await page.route(path, async (route) => {
+  await page.route(path, async route => {
     if (held || route.request().method() !== method) return route.continue();
     held = true;
     sent.resolve();

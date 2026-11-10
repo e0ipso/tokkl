@@ -1,11 +1,6 @@
-import type { ReportQuery } from '../../api/types.ts';
+import type { ReportFilterBody } from '../../api/reports.ts';
+import type { ReportQuery } from '@tokkl/types';
 import type { ReportState } from './urlState.ts';
-
-/** Filter fields shared by the app report endpoints and the CSV exports. */
-export type ReportFilterBody = Pick<
-  ReportQuery, 'start_date' | 'end_date' | 'project_ids' | 'client_ids' | 'tag_ids' | 'billable' | 'description'
-  | 'exclude_project_ids' | 'exclude_client_ids' | 'exclude_tag_ids'
->;
 
 function idFilter(ids: ReportState['projects'], negated: boolean, include: string, exclude: string) {
   if (!ids.length) return {};
@@ -25,10 +20,8 @@ export function filterBody(state: ReportState): ReportFilterBody {
 }
 
 /**
- * The query for POST /api/app/report. The server reads a sub-grouping equal to the grouping as
- * "no sub-grouping". Only the summary tab shows groups; the detailed and weekly tabs fetch their
- * own data and need just the totals, so they ask for the smallest grouping instead of one that
- * can list every description.
+ * A sub-grouping equal to the grouping means none. Detailed and weekly tabs need only totals, so they ask
+ * for the smallest grouping.
  */
 export function reportQuery(state: ReportState): ReportQuery {
   if (state.tab !== 'summary') return { ...filterBody(state), grouping: 'projects', sub_grouping: 'projects' };

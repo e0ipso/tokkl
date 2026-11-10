@@ -1,232 +1,243 @@
 <!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
  "http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
 <!--
-  org.tokkl.Timer1: the Tokkl timer of tokkl-timerd, at /org/tokkl/Timer1 on
-  the session bus. The service runs the shared desktop core and adds no rule
-  of its own. The running entry, the pause chain and the Pomodoro session are
-  the server's: a change made on any device shows here, in either mode. Every
-  property emits
-  org.freedesktop.DBus.Properties.PropertiesChanged with its new value when
-  it changes.
+  org.tokkl.Timer1 at /org/tokkl/Timer1 on the session bus. Timer, chain and
+  Pomodoro session state is the server's, so changes from any device show
+  here. Every property emits PropertiesChanged when its value changes.
 -->
 <node>
   <interface name="org.tokkl.Timer1">
-    <!-- An entry is running. The open pomodoro of a session is not a
-         timer: it leaves Running false and SessionActive true. -->
+    <!-- An entry is running. An open pomodoro is not one: it leaves Running
+         false and SessionActive true. -->
     <property name="Running" type="b" access="read"/>
-    <!-- Start of the running entry as Unix time in seconds, or 0. The
-         running entry's own time is the current time minus this. -->
-    <property name="StartTime" type="x" access="read"/>
-    <!-- A chain is paused: nothing runs, so Running is false and StartTime
-         is 0, and Resume would continue it. -->
+    <!-- Deprecated, use LocalStartTime. The running entry's start on the
+         server's clock, Unix seconds, or 0. -->
+    <property name="StartTime" type="x" access="read">
+      <annotation name="org.freedesktop.DBus.Deprecated" value="true"/>
+    </property>
+    <!-- The running entry's start on this machine's clock (corrected by the
+         last server_time), Unix seconds, or 0. Elapsed = now - this. -->
+    <property name="LocalStartTime" type="x" access="read"/>
+    <!-- A chain is paused: Running is false, StartTime is 0, and Resume
+         continues it. -->
     <property name="Paused" type="b" access="read"/>
-    <!-- The seconds the server stored for the entries the chain's pauses
-         stopped; 0 without a chain. Elapsed time is this plus the running
-         entry's own time, and this alone while paused. -->
+    <!-- Seconds stored for the entries the chain's pauses stopped; 0 without
+         a chain. Elapsed time is this plus the running entry's own time. -->
     <property name="ChainSeconds" type="x" access="read"/>
-    <!-- What the project indicator shows for ChosenProject: "none" (no
-         project, or the instance no longer has it), "pending" (its details
-         are still being read) or "project". -->
+    <!-- Project indicator for ChosenProject: "none" (no project or a removed
+         one), "pending" (still being read) or "project". -->
     <property name="IndicatorState" type="s" access="read"/>
     <!-- The project's colour as lowercase #rrggbb in the "project" state,
          otherwise empty. -->
     <property name="IndicatorColor" type="s" access="read"/>
-    <!-- The active projects of the workspace, each with id (x), name (s),
-         clientName (s), color (s) and billable (b). -->
+    <!-- The workspace's active projects: id (x), name (s), clientName (s),
+         color (s), billable (b). -->
     <property name="Projects" type="aa{sv}" access="read">
       <annotation name="org.qtproject.QtDBus.QtTypeName" value="QList&lt;QVariantMap&gt;"/>
     </property>
-    <!-- The running or paused entry's project, or the project of the next
-         start while stopped; 0 for no project. A session started on another
-         device does not change it. -->
+    <!-- The workspace has more active projects than Projects holds. -->
+    <property name="ProjectsIncomplete" type="b" access="read"/>
+    <!-- The running or paused entry's project, or the next start's while
+         stopped; 0 for none. Sessions from other devices do not change it. -->
     <property name="ChosenProject" type="x" access="read"/>
-    <!-- The name of ChosenProject, also when the running entry's project is
-         archived and so missing from Projects. Empty for no project, while
-         the project is still being read, and for a project the instance no
-         longer has. -->
-    <property name="ChosenProjectName" type="s" access="read"/>
-    <!-- The running or paused entry's billable flag, or that of the next
-         start. -->
+    <!-- Deprecated, use ChosenProjectLabel. The name of ChosenProject, also
+         when archived; empty for none, pending or a removed project. -->
+    <property name="ChosenProjectName" type="s" access="read">
+      <annotation name="org.freedesktop.DBus.Deprecated" value="true"/>
+    </property>
+    <!-- Label of ChosenProject: kind (s) "none", "unknown", "unavailable" or
+         "named" (read other values as "unknown"); missing (b) iff "unavailable";
+         name (s), client (s), archived (b), set only when kind is "named". -->
+    <property name="ChosenProjectLabel" type="a{sv}" access="read">
+      <annotation name="org.qtproject.QtDBus.QtTypeName" value="QVariantMap"/>
+    </property>
+    <!-- The running or paused entry's billable flag, or the next start's. -->
     <property name="Billable" type="b" access="read"/>
     <!-- "unconfigured", "loading", "ready", "busy", "stale",
          "authentication-blocked" or "error". -->
     <property name="Status" type="s" access="read"/>
     <!-- Why Status is "error", "stale" or "authentication-blocked", for the
-         user; empty otherwise. It never contains a secret. -->
+         user; empty otherwise. Never contains a secret. -->
     <property name="ErrorString" type="s" access="read"/>
 
-    <!-- Pomodoro mode is on: with nothing running, left-clicks start
-         Pomodoro sessions instead of timer entries, and Start is refused.
-         The service stores the mode on this device, so it survives a
-         restart. -->
+    <!-- Pomodoro mode is on: idle left-clicks start sessions and Start is
+         refused. Stored on this device. -->
     <property name="PomodoroMode" type="b" access="read"/>
     <!-- The mode cannot change: an entry runs, a chain is paused, or a
          session is active. -->
     <property name="ModeLocked" type="b" access="read"/>
-    <!-- A Pomodoro session is active on the server, whichever device
-         started it and in either mode. A restart reads it again. -->
+    <!-- A Pomodoro session is active on the server, from any device. -->
     <property name="SessionActive" type="b" access="read"/>
-    <!-- StartSession can send now: Pomodoro mode is on, nothing runs, no
-         session is active, an account is connected, and a state has been
-         read from the server. False while an action waits for its answer
-         or its outcome is not known yet. -->
+    <!-- StartSession (and Start) can send now: mode allows it, nothing runs,
+         the account may write, a state was read, and no action is pending. -->
     <property name="CanStartSession" type="b" access="read"/>
-    <!-- The phase that runs: "work", "shortRest" or "longRest"; empty
-         without a session. -->
+    <!-- The running phase: "work", "shortRest" or "longRest"; empty without
+         a session. -->
     <property name="Phase" type="s" access="read"/>
-    <!-- Start and planned end of the phase as Unix time in seconds; 0
-         without a session. Clients count down to PlannedEnd themselves:
-         the remaining time is not published. -->
+    <!-- Start and planned end of the phase, Unix seconds; 0 without a
+         session. Clients count down to PlannedEnd themselves. -->
     <property name="PhaseStart" type="x" access="read"/>
     <property name="PlannedEnd" type="x" access="read"/>
-    <!-- Work phases of this round: the one that runs counts, and a rest
-         counts the work phase before it. 0 without a session. -->
+    <!-- Work phases of this round so far, counting the running one (a rest
+         counts the work before it). 0 without a session. -->
     <property name="PomodoroNumber" type="i" access="read"/>
-    <!-- Work phases per round, from the lengths the session started with;
-         0 without a session. -->
+    <!-- Work phases per round for this session; 0 without a session. -->
     <property name="LongRestEvery" type="i" access="read"/>
-    <!-- The kind of phase the NextPhase method would start, as Phase
-         names it; empty without a session. -->
+    <!-- The phase NextPhase would start, named as Phase; empty without a
+         session. -->
     <property name="UpcomingPhase" type="s" access="read"/>
-    <!-- The planned end has passed and the phase has not changed since. It
-         stays true until a state shows another phase or no session, also
-         when the app starts after the planned end and while the instance is
-         unreachable. -->
+    <!-- The planned end has passed and the phase has not changed. Stays true
+         until a state shows another phase or no session. -->
     <property name="Ringing" type="b" access="read"/>
-    <!-- The transition that rings: "workToShortRest", "shortRestToWork",
-         "workToLongRest" or "longRestToWork"; empty while not ringing. -->
+    <!-- "workToShortRest", "shortRestToWork", "workToLongRest" or
+         "longRestToWork"; empty while not ringing. -->
     <property name="RingingTransition" type="s" access="read"/>
-    <!-- The last message about the session or the timer for the user: why
-         an action failed, such as a connection error or "The timer changed
-         on another device first.", or that a pomodoro was too short to
-         save. Empty when there is none; it stays until the next action or
-         the next message. -->
+    <!-- The last user message about the session or timer, such as why an
+         action failed; empty when none. Kept until the next action or message. -->
     <property name="SessionMessage" type="s" access="read"/>
-    <!-- The account's Pomodoro lengths: work, shortRest and longRest in
-         minutes, and longRestEvery in work phases per round. The last
-         known lengths while the account is unreachable; the defaults
-         without an account. -->
+    <!-- Keys run, startSession, nextPhase, endSession, project, billable, mode,
+         each with visible (b), enabled (b) and label (s): "start"/"stop", the
+         UpcomingPhase, "project[Running|Paused]", "pomodoroMode[Locked]" or the key. -->
+    <property name="Actions" type="a{sa{sv}}" access="read">
+      <annotation name="org.qtproject.QtDBus.QtTypeName" value="QMap&lt;QString,QVariantMap&gt;"/>
+    </property>
+    <!-- work, shortRest, longRest (minutes) and longRestEvery; the last known
+         values while offline, the defaults without an account. -->
     <property name="PomodoroLengths" type="a{si}" access="read">
       <annotation name="org.qtproject.QtDBus.QtTypeName" value="QMap&lt;QString,int&gt;"/>
     </property>
     <!-- The account is connected, so SetPomodoroLengths can send. -->
     <property name="PomodoroLengthsEditable" type="b" access="read"/>
-    <!-- The server's message for each length it refused, keyed as
-         PomodoroLengths, and under "general" a failed read or a refusal
-         that names no length. Only refused keys are present; the next
-         SetPomodoroLengths clears them. -->
+    <!-- Server messages for refused lengths, keyed as PomodoroLengths, plus
+         "general". The next SetPomodoroLengths clears them. -->
     <property name="PomodoroLengthErrors" type="a{ss}" access="read">
       <annotation name="org.qtproject.QtDBus.QtTypeName" value="QMap&lt;QString,QString&gt;"/>
     </property>
-    <!-- The sound each transition plays when it rings: the four transition
-         names of RingingTransition, each with an id from SoundChoices. -->
+    <!-- min, max and default (i) per length, keyed as PomodoroLengths, from
+         the server's pomodoro_limits. Before the server announces them,
+         1 to 999 with the offline defaults, and the lengths cannot be saved. -->
+    <property name="PomodoroLengthLimits" type="a{sa{si}}" access="read">
+      <annotation name="org.qtproject.QtDBus.QtTypeName" value="QMap&lt;QString,QMap&lt;QString,int&gt;&gt;"/>
+    </property>
+    <!-- The sound id from SoundChoices for each RingingTransition name. -->
     <property name="Sounds" type="a{ss}" access="read">
       <annotation name="org.qtproject.QtDBus.QtTypeName" value="QMap&lt;QString,QString&gt;"/>
     </property>
-    <!-- The sounds a transition can play, each with id (s) and label (s),
-         in the order a settings pane lists them. -->
+    <!-- Playable sounds, each with id (s) and label (s), in display order. -->
     <property name="SoundChoices" type="aa{sv}" access="read">
       <annotation name="org.qtproject.QtDBus.QtTypeName" value="QList&lt;QVariantMap&gt;"/>
     </property>
+    <!-- summary (as) and menuLine (as): ordered part keys from "activity",
+         "session", "project", "connection", "detail", "pomodoroMode",
+         "message"; mark (s): "none", "pending", "alert" or "unconfigured". -->
+    <property name="Presentation" type="a{sv}" access="read">
+      <annotation name="org.qtproject.QtDBus.QtTypeName" value="QVariantMap"/>
+    </property>
+    <!-- Why the last ring or preview sound did not play, for the user; empty
+         when it played. Kept until the next ring or preview. -->
+    <property name="AlarmError" type="s" access="read"/>
+    <!-- Interface version. 2 is the first release; each release that adds
+         members adds one. Members are never removed or changed. -->
+    <property name="InterfaceVersion" type="u" access="read"/>
 
-    <!-- Start a new entry on ChosenProject with Billable. Returns false
-         when nothing was sent: an entry runs, a chain is paused, a session
-         is active, a request is in flight, the account is not ready, or
-         Pomodoro mode is on. -->
+    <!-- Deprecated, use RequestStart. Start an entry on ChosenProject with
+         Billable; false when nothing was sent. -->
     <method name="Start">
       <arg name="sent" type="b" direction="out"/>
+      <annotation name="org.freedesktop.DBus.Deprecated" value="true"/>
     </method>
-    <!-- Stop the running entry and end the chain. While paused it asks the
-         server to discard the chain, which needs a connection. Returns false
-         when nothing was sent, also while a session is active. -->
+    <!-- Deprecated, use RequestStop. Stop the entry and end the chain (a
+         paused chain is discarded); false when nothing was sent. -->
     <method name="Stop">
       <arg name="sent" type="b" direction="out"/>
+      <annotation name="org.freedesktop.DBus.Deprecated" value="true"/>
     </method>
-    <!-- Stop the running entry and keep the chain paused, so Resume can
-         continue it. Returns false when nothing was sent, also while a
-         session is active. -->
+    <!-- Deprecated, use RequestPause. Stop the entry and keep the chain
+         paused; false when nothing was sent. -->
     <method name="Pause">
       <arg name="sent" type="b" direction="out"/>
+      <annotation name="org.freedesktop.DBus.Deprecated" value="true"/>
     </method>
-    <!-- Start a clone of the paused entry: its description, project, task,
-         tags and billable flag. Returns false when nothing was sent, also
-         while a session is active. A refused resume leaves the chain
-         paused. -->
+    <!-- Deprecated, use RequestResume. Start a clone of the paused entry;
+         false when nothing was sent. -->
     <method name="Resume">
       <arg name="sent" type="b" direction="out"/>
+      <annotation name="org.freedesktop.DBus.Deprecated" value="true"/>
     </method>
-    <!-- Choose the project of the next start; 0 for no project. Applies the
-         project's billable default. Refused (false) while an entry runs or a
-         chain is paused, and for a project that is not an active project of
-         the workspace. -->
+    <!-- Start, Stop, Pause and Resume as trackable requests. Return the
+         request id, or 0 when nothing was sent; RequestFinished reports the
+         outcome. Ids are not reused while the service runs. -->
+    <method name="RequestStart">
+      <arg name="request" type="t" direction="out"/>
+    </method>
+    <method name="RequestStop">
+      <arg name="request" type="t" direction="out"/>
+    </method>
+    <method name="RequestPause">
+      <arg name="request" type="t" direction="out"/>
+    </method>
+    <method name="RequestResume">
+      <arg name="request" type="t" direction="out"/>
+    </method>
+    <!-- A Request* call ended, after its property changes. ok is true when
+         the server applied it; otherwise error is the user message, empty if
+         another account was configured meanwhile. -->
+    <signal name="RequestFinished">
+      <arg name="request" type="t"/>
+      <arg name="ok" type="b"/>
+      <arg name="error" type="s"/>
+    </signal>
+    <!-- Choose the next start's project (0 for none) and apply its billable
+         default. False while an entry runs or a chain is paused, or for a
+         project that is not active in the workspace. -->
     <method name="SetProject">
       <arg name="projectId" type="x" direction="in"/>
       <arg name="accepted" type="b" direction="out"/>
     </method>
-    <!-- Choose billable for the next start; while an entry runs, also edit
-         that entry. Refused (false) while a chain is paused. -->
+    <!-- Set billable for the next start and any running entry. False while
+         a chain is paused. -->
     <method name="SetBillable">
       <arg name="billable" type="b" direction="in"/>
       <arg name="accepted" type="b" direction="out"/>
     </method>
-    <!-- Connect to an instance. authMode is "token" or "password"; email is
-         needed for "password". A nonempty secret is saved in the credential
-         store first; an empty one keeps what the store holds for that
-         account. Fails with org.freedesktop.DBus.Error.InvalidArgs for
-         unusable settings, and with org.tokkl.Timer1.Error.CredentialStore
-         when the store refuses the secret; the settings then stay as they
-         were. -->
+    <!-- Connect to an instance. authMode "token" or "password" (needs email);
+         an empty secret keeps the stored one. Errors: InvalidArgs, Error.CredentialStore,
+         Error.Superseded (a later Configure won and this one was not applied). -->
     <method name="Configure">
       <arg name="instanceUrl" type="s" direction="in"/>
       <arg name="authMode" type="s" direction="in"/>
       <arg name="email" type="s" direction="in"/>
       <arg name="secret" type="s" direction="in"/>
     </method>
-    <!-- Switch between Timer mode (false) and Pomodoro mode (true).
-         Refused (false) while ModeLocked, and when the choice cannot be
-         stored. -->
+    <!-- Timer mode (false) or Pomodoro mode (true). False while ModeLocked or
+         when the choice cannot be stored. -->
     <method name="SetPomodoroMode">
       <arg name="pomodoro" type="b" direction="in"/>
       <arg name="accepted" type="b" direction="out"/>
     </method>
-    <!-- The panel's left-click. While a session is active, in either mode,
-         it confirms the next phase while Ringing and otherwise returns
-         "open-menu". With no session, while an entry runs or a chain is
-         paused, and always in Timer mode, it is the timer's toggle: it
-         pauses a running entry, resumes a paused chain, and otherwise
-         starts an entry. In Pomodoro mode it starts a session when there is
-         none. Returns "handled", "open-menu" (a session runs before its
-         planned end: the client opens its menu) or "ignored" (nothing
-         applied: no account, no state read yet, or an action waits for its
-         answer or its outcome). -->
+    <!-- The panel's left-click: confirm a ringing phase, toggle the timer, or
+         start a session. Returns "handled", "open-menu" (a session runs
+         before its planned end) or "ignored". -->
     <method name="Activate">
       <arg name="action" type="s" direction="out"/>
     </method>
-    <!-- Start a session on the server with ChosenProject and Billable; the
-         server takes the account's lengths and starts at its own clock.
-         Allowed when CanStartSession is true. Returns false when nothing was
-         sent. -->
+    <!-- Start a session with ChosenProject and Billable when CanStartSession
+         is true; false when nothing was sent. -->
     <method name="StartSession">
       <arg name="sent" type="b" direction="out"/>
     </method>
-    <!-- Confirm the next phase on the server, before or after the planned
-         end, against the state shown. The server saves the ended pomodoro.
-         Returns false without a session and while an action waits for its
-         answer or its outcome. -->
+    <!-- Confirm the next phase against the state shown; the server saves the
+         ended pomodoro. False without a session or while an action is pending. -->
     <method name="NextPhase">
       <arg name="sent" type="b" direction="out"/>
     </method>
-    <!-- End the session on the server, against the state shown. The server
-         saves the open pomodoro, or drops it when too short. Returns false
-         without a session and while an action waits for its answer or its
-         outcome. -->
+    <!-- End the session against the state shown; the server saves or drops
+         the open pomodoro. False without a session or while an action is pending. -->
     <method name="EndSession">
       <arg name="sent" type="b" direction="out"/>
     </method>
-    <!-- Save the account's lengths: work, short rest and long rest in
-         minutes, and work phases per round. Only the values that differ
-         from PomodoroLengths are sent. Returns false while not editable,
-         while a save runs, and when nothing differs. A refused value shows
+    <!-- Save the lengths, sending only values that differ. False while not
+         editable, while a save runs, or when nothing differs; refusals show
          in PomodoroLengthErrors. -->
     <method name="SetPomodoroLengths">
       <arg name="work" type="i" direction="in"/>
@@ -237,18 +248,19 @@
     </method>
     <!-- Read the lengths from the server again. -->
     <method name="RefreshPreferences"/>
-    <!-- Choose the sound a transition plays. Fails with
-         org.freedesktop.DBus.Error.InvalidArgs for a transition or a sound
-         id the service does not know. Returns false when the choice cannot
-         be stored. -->
+    <!-- Call before showing Projects: rereads them only if the server says
+         they changed. No-op while a check runs, without an account, or after
+         the workspace is lost. -->
+    <method name="RefreshProjects"/>
+    <!-- Choose a transition's sound. InvalidArgs for an unknown transition or
+         sound id; false when the choice cannot be stored. -->
     <method name="SetSound">
       <arg name="transition" type="s" direction="in"/>
       <arg name="soundId" type="s" direction="in"/>
       <arg name="accepted" type="b" direction="out"/>
     </method>
-    <!-- Play a sound once, for a settings pane. Fails with
-         org.freedesktop.DBus.Error.InvalidArgs for a sound id the service
-         does not know. Returns false when the service has no player. -->
+    <!-- Play a sound once. InvalidArgs for an unknown sound id; otherwise
+         true, and a playback failure shows in AlarmError. -->
     <method name="PreviewSound">
       <arg name="soundId" type="s" direction="in"/>
       <arg name="accepted" type="b" direction="out"/>

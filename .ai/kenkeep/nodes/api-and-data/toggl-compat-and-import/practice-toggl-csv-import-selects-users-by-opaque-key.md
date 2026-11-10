@@ -19,13 +19,15 @@ kk_relates_to:
 kk_depends_on: []
 kk_confidence: high
 ---
-`importTogglCsv` in `packages/api/src/services/storageImportCsv.ts` maps the Toggl `User` and `Email` columns. When either column is present, every row belongs to an `ImportUser` (`packages/types/index.ts`): `key`, `user`, `email` and `rows`. `ImportResult` returns those in `users`, and the rows it did not import in `skipped` as `{ rows, reason }`.
+`importTogglCsv` in `packages/api/src/services/importCsv.ts` maps the Toggl `User` and `Email` columns. When either column is present, every row belongs to an `ImportUser` (`packages/types/index.ts`): `key`, `user`, `email` and `rows`. `ImportResult` returns those in `users`, and the rows it did not import in `skipped` as `{ rows, reason }`.
 
 `key` is `JSON.stringify([name, email])`, so User "Alice" with Email "a@x" and User "Alice <a@x>" with no Email stay two users. Treat it as opaque. Pass it back unchanged, and show people `user` and `email` instead.
 
 `POST /api/app/import/toggl-csv` takes the selection as repeated `user=<key>` query parameters, one per user (`DataSection.tsx` uses `params.append('user', key)`). Never join keys with commas, since keys can contain them. A key that matches no row, or an empty selection, is a 400. A dry run (`dry_run=true`) without a selection succeeds and lists the users; a real import of a file with more than one user and no selection is a 400.
 
 Selected rows always go to the caller's account, in its `default_workspace_id`. After the selection checks, `memberWorkspace` answers 403 when the caller is no longer a member of that workspace, dry runs included.
+
+`readTogglCsv` parses the file before the import's transaction opens. `parseCsv` in `packages/api/src/lib/csv.ts` reads it in stretches of 64 KiB, gives the event loop a turn after each, and stops at the first limit it passes: 100000 rows after the header, 1000 columns in a row, or a value of over a million characters. Each is a 400 with its own message, and nothing is imported.
 
 Imported entries keep their exact times; they are not snapped to the time resolution (see `practice-stopped-entries-snap-to-the-time-resolution-on-write`). `e2e/fixtures-data/transfer/toggl-team.csv` is the multi-user fixture.
 

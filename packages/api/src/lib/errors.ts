@@ -1,33 +1,74 @@
-export class HttpError extends Error {
-  readonly status: number;
-  /** Response headers the error handler sets, such as Retry-After. */
-  readonly headers: Readonly<Record<string, string>>;
+/** Each carries a message safe to show the client; `http/errors.ts` alone maps a kind to a status. */
+export type FailureKind =
+  'invalid' | 'forbidden' | 'not-found' | 'conflict' | 'unprocessable' | 'rate-limited' | 'unavailable';
 
-  constructor(status: number, message: string, headers: Readonly<Record<string, string>> = {}) {
+/** Codes and field names are stable; the human message may change wording at any time. */
+type ValidationCode =
+  | 'invalid_input'
+  /** `field` is the preference key. */
+  | 'invalid_preference'
+  /** `field` is the setting name. */
+  | 'invalid_setting'
+  | 'unknown_setting';
+export interface ValidationDetail {
+  code: ValidationCode;
+  /** Always a name the server defines, never client text. */
+  field?: string;
+}
+
+export class ApplicationError extends Error {
+  readonly kind: FailureKind;
+  /** For rate-limited or unavailable failures. */
+  readonly retryAfterSeconds: number | undefined;
+  /** Set on every invalid-input failure. */
+  readonly validation: ValidationDetail | undefined;
+
+  constructor(kind: FailureKind, message: string, retryAfterSeconds?: number, validation?: ValidationDetail) {
     super(message);
-    this.status = status;
-    this.headers = headers;
+    this.name = 'ApplicationError';
+    this.kind = kind;
+    this.retryAfterSeconds = retryAfterSeconds;
+    this.validation = validation;
   }
 }
 
-/**
- * A 409 that carries a JSON body to reply with in place of the message, such as the current state
- * a refused change was checked against, so the client can catch up without another read.
- */
-export class ConflictWithBody<T = unknown> extends HttpError {
-  readonly body: T;
+/** The current state replaces the message as the reply body, so the client can catch up without a read. */
+export class StateConflict<T = unknown> extends ApplicationError {
+  readonly state: T;
 
-  constructor(message: string, body: T) {
-    super(409, message);
-    this.body = body;
+  constructor(message: string, state: T) {
+    super('conflict', message);
+    this.name = 'StateConflict';
+    this.state = state;
   }
 }
 
-export const badRequest = (message: string) => new HttpError(400, message);
-export const forbidden = (message = 'Forbidden') => new HttpError(403, message);
-export const notFound = (message = 'Not found') => new HttpError(404, message);
-export const conflict = (message: string) => new HttpError(409, message);
+/** The client went away or the server is shutting down. Not a server fault; only a client still there gets a reply. */
+export class RequestCancelled extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'RequestCancelled';
+  }
+}
 
-/** A 429 that tells the client how many whole seconds to wait. */
-export const tooManyRequests = (message: string, retryAfterSeconds: number) =>
-  new HttpError(429, message, { 'Retry-After': String(retryAfterSeconds) });
+export const invalidInput = (message: string, validation: ValidationDetail = { code: 'invalid_input' }) =>
+  new ApplicationError('invalid', message, undefined, validation);
+export const forbidden = (message = 'Forbidden') => new ApplicationError('forbidden', message);
+export const notFound = (message = 'Not found') => new ApplicationError('not-found', message);
+export const conflict = (message: string) => new ApplicationError('conflict', message);
+/** Well formed, but contradicts a request the server already handled. */
+export const unprocessable = (message: string) => new ApplicationError('unprocessable', message);
+export const tooManyAttempts = (message: string, retryAfterSeconds: number) =>
+  new ApplicationError('rate-limited', message, retryAfterSeconds);
+export const unavailable = (message: string, retryAfterSeconds: number) =>
+  new ApplicationError('unavailable', message, retryAfterSeconds);
+
+/** Turns a calendar helper's RangeError on client input into an invalid-input failure. */
+export function calendarInput<T>(compute: () => T): T {
+  try {
+    return compute();
+  } catch (error) {
+    if (error instanceof RangeError) throw invalidInput(error.message);
+    throw error;
+  }
+}

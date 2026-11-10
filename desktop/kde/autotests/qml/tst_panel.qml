@@ -7,10 +7,6 @@ import Tokkl.Test
 
 import "../../package/contents/ui"
 
-// The panel item and its menu, against a scripted instance. Every request
-// goes to the fake transport in PanelFixture; time comes from its fake clock.
-// The instance answers with timer states, as the server does, and the panel
-// follows them whichever device caused the change.
 TestCase {
     id: testCase
 
@@ -27,7 +23,7 @@ TestCase {
 
     property PanelFixture fixture
     property PanelButton button
-    // Kirigami.Units.longDuration before a test changed it, or -1.
+    property StatusText words
     property int longDurationBefore: -1
 
     Component {
@@ -40,8 +36,11 @@ TestCase {
         PanelButton {}
     }
 
-    // Stands in for Plasmoid.configuration: the four cached lengths, as an
-    // earlier run left them, and the call that saves the settings.
+    Component {
+        id: wordsComponent
+        StatusText {}
+    }
+
     Component {
         id: settingsComponent
         QtObject {
@@ -71,8 +70,6 @@ TestCase {
         id: configureSpy
         signalName: "configureRequested"
     }
-
-    // ----- scripted instance ---------------------------------------------
 
     function meBody(user, workspace) {
         return JSON.stringify({
@@ -127,12 +124,8 @@ TestCase {
         return index;
     }
 
-    // The revision of the newest state built. The server raises it with every
-    // change to the running entry, the pause chain or the session.
     property int revision: 0
 
-    // A timer state as the server sends it: GET /api/app/timer, a timer
-    // action's reply and an event. running is the running entry or null.
     function stateBody(running, pause, pomodoro, discarded) {
         return JSON.stringify({
             revision: ++revision,
@@ -144,15 +137,19 @@ TestCase {
         });
     }
 
-    // Answers the newest state read with the next state.
     function answerState(running, pause, pomodoro, discarded) {
         const index = waitFor("GET", "/app/timer");
         fixture.respond(index, 200, stateBody(running, pause, pomodoro, discarded));
         return index;
     }
 
-    // The pause chain of a stopped entry like entry()'s, with the seconds the
-    // server stored for it. A running clone has cloneId.
+    function settleState(running) {
+        if (fixture.pending("GET", "/app/timer") >= 0) {
+            answerState(running);
+        }
+        tryCompare(button.timer, "canWrite", true);
+    }
+
     function pauseChain(paused, seconds, cloneId, projectId, billable) {
         return {
             paused: paused,
@@ -168,8 +165,7 @@ TestCase {
         };
     }
 
-    // A Pomodoro session in a phase that started startOffset seconds from now,
-    // with the lengths 25, 5 and 15 minutes.
+    // The lengths are 25, 5 and 15 minutes.
     function pomodoroSession(kind, startOffset, number, every) {
         const lengths = {
             work: 25,
@@ -202,28 +198,22 @@ TestCase {
         };
     }
 
-    // The open pomodoro of a session, which is the running entry.
     function pomodoroEntry(session) {
         return entry(session.entry_id, 7, null, false, {
             start: session.pomodoro_start
         });
     }
 
-    // Answers the newest state read with a session in the given phase.
     function answerSession(kind, startOffset, number, every) {
         const session = pomodoroSession(kind, startOffset, number, every);
         answerState(pomodoroEntry(session), null, session);
     }
 
-    // A session's state as an action's reply.
     function sessionBody(kind, startOffset, number, every) {
         const session = pomodoroSession(kind, startOffset, number, every);
         return stateBody(pomodoroEntry(session), null, session);
     }
 
-    // Configures the instance, validates the account and answers the first
-    // state and project reads. current is the running entry, if any, and
-    // pause or pomodoro the chain or the session the state holds.
     function connectAccount(url, user, workspace, current, projects, pause, pomodoro) {
         fixture.configure(url, "tok-" + user);
         answer("GET", "/me", 200, meBody(user, workspace));
@@ -253,7 +243,6 @@ TestCase {
         tryVerify(() => !button.menu.visible, 3000, "menu closes");
     }
 
-    // Highlights the given item of a menu with the arrow keys.
     function moveTo(menu, item) {
         for (let i = 0; i <= menu.count && menu.itemAt(menu.currentIndex) !== item; ++i) {
             keyClick(Qt.Key_Down);
@@ -261,7 +250,6 @@ TestCase {
         compare(menu.itemAt(menu.currentIndex), item, "highlighted with the keyboard");
     }
 
-    // Highlights the Project submenu's entry with the arrow keys.
     function moveToProject() {
         const menu = button.menu;
         for (let i = 0; i <= menu.count && menu.itemAt(menu.currentIndex).subMenu !== menu.projectMenu; ++i) {
@@ -301,9 +289,14 @@ TestCase {
     function init() {
         revision = 0;
         fixture = fixtureComponent.createObject(testCase);
-        button = buttonComponent.createObject(testCase, {
+        words = wordsComponent.createObject(testCase, {
             timer: fixture.timer,
             session: fixture.session
+        });
+        button = buttonComponent.createObject(testCase, {
+            timer: fixture.timer,
+            session: fixture.session,
+            words: words
         });
         verify(button);
         button.width = button.implicitWidth;
@@ -322,12 +315,11 @@ TestCase {
         }
         button.menu.dismiss();
         button.destroy();
+        words.destroy();
         wait(0);
         fixture.destroy();
         wait(0);
     }
-
-    // ----- panel ---------------------------------------------------------
 
     function test_showsTimeAndRunningState() {
         connectAccount(instanceA, 3, 7, entry(5, 7, null, false));
@@ -347,16 +339,6 @@ TestCase {
         compare(label.text, "0:02");
     }
 
-    // A running entry as the server stores it once stopped: the seconds it
-    // ran, and the fields a resume copies.
-    function stoppedEntry(id, projectId, billable, seconds) {
-        return entry(id, 7, projectId, billable, {
-            start: fixture.clockIso(-seconds),
-            stop: fixture.clockIso(),
-            duration: seconds
-        });
-    }
-
     function checkWords(runText, name) {
         compare(button.words.runText, runText);
         compare(button.Accessible.name, name);
@@ -372,10 +354,10 @@ TestCase {
         verify(button.menu.runItem.enabled);
         verify(button.timer.chooseProject(11));
 
-        // A click starts.
         mouseClick(button, 5, 5, Qt.LeftButton);
-        const start = waitFor("POST", "/workspaces/7/time_entries");
+        const start = waitFor("POST", "/timer/start");
         const body = fixture.request(start).body;
+        compare(body.revision, revision, "against the revision shown");
         compare(body.project_id, 11);
         compare(body.billable, true, "Alpha's billable default");
         compare(button.timer.status, TokklTimer.Busy);
@@ -383,8 +365,7 @@ TestCase {
         const running = entry(9, 7, 11, true, {
             start: fixture.clockIso()
         });
-        fixture.respond(start, 200, JSON.stringify(running));
-        answerState(running);
+        fixture.respond(start, 200, stateBody(running));
         tryCompare(button.timer, "canWrite", true);
         verify(button.timer.running);
         fixture.advance(125000);
@@ -394,10 +375,11 @@ TestCase {
         verify(indicator().round);
         verify(indicator().pulsing);
 
-        // A click pauses: the server stops the entry and keeps its time.
         mouseClick(button, 5, 5, Qt.LeftButton);
         const pause = waitFor("POST", "/timer/pause");
-        compare(fixture.request(pause).body, {}, "a pause names no revision");
+        compare(fixture.request(pause).body, {
+            revision: revision
+        }, "against the revision shown");
         fixture.respond(pause, 200, stateBody(null, pauseChain(true, 125, undefined, 11, true)));
         tryCompare(button.timer, "canWrite", true);
         verify(button.timer.paused);
@@ -417,8 +399,6 @@ TestCase {
         fixture.advance(120000);
         compare(label.text, "0:02", "frozen while paused");
 
-        // Space resumes: the server starts a clone of the paused entry, against
-        // the revision shown.
         button.forceActiveFocus(Qt.TabFocusReason);
         keyClick(Qt.Key_Space);
         const resume = waitFor("POST", "/timer/resume");
@@ -438,15 +418,18 @@ TestCase {
         checkWords("Running", "Pause the Tokkl timer");
         verify(indicator().pulsing);
 
-        // Stop in the menu ends the chain.
         openMenu();
         compare(button.menu.itemAt(button.menu.currentIndex), button.menu.runItem, "Stop is highlighted first");
         compare(button.menu.runItem.text, "Stop");
         keyClick(Qt.Key_Return);
         tryVerify(() => !button.menu.visible, 3000, "menu closes after Stop");
-        fixture.respond(waitFor("PATCH", "/time_entries/10/stop"), 200, JSON.stringify(stoppedEntry(10, 11, true, 55)));
-        answerState(null);
-        tryCompare(button.timer, "canWrite", true);
+        const stop = waitFor("POST", "/timer/stop");
+        compare(fixture.request(stop).body, {
+            revision: revision
+        });
+        fixture.respond(stop, 200, stateBody(null));
+        // A poll went out while the clone ran.
+        settleState(null);
         verify(!button.timer.running);
         verify(!button.timer.paused);
         compare(label.text, "0:00");
@@ -454,16 +437,14 @@ TestCase {
         compare(button.menu.runItem.text, "Start");
         verify(!indicator().round, "a square while stopped");
 
-        // The next click starts a new entry from 0:00.
         mouseClick(button, 5, 5, Qt.LeftButton);
-        const next = waitFor("POST", "/workspaces/7/time_entries");
+        const next = waitFor("POST", "/timer/start");
         verify(next > resume);
         compare(fixture.request(next).body.description, "", "a new entry, not a clone");
         const fresh = entry(11, 7, 11, true, {
             start: fixture.clockIso()
         });
-        fixture.respond(next, 200, JSON.stringify(fresh));
-        answerState(fresh);
+        fixture.respond(next, 200, stateBody(fresh));
         tryCompare(button.timer, "running", true);
         compare(label.text, "0:00");
     }
@@ -502,7 +483,12 @@ TestCase {
         tryCompare(button.timer, "status", TokklTimer.Stale);
 
         // The discard is the server's, so the chain stays until it answers.
+        // Still offline: the project check the menu sends fails as well.
+        fixture.holdCatalogChecks();
+        const checks = fixture.catalogChecks;
         openMenu();
+        tryVerify(() => fixture.catalogChecks === checks + 1, 3000, "the menu checks the projects");
+        fixture.failCatalogChecks();
         verify(button.menu.runItem.enabled);
         keyClick(Qt.Key_Return);
         tryVerify(() => !button.menu.visible, 3000, "menu closes after Stop");
@@ -514,7 +500,6 @@ TestCase {
         verify(!button.timer.stop(), "the discard is not sent again");
         compare(fixture.pending("POST", "/timer/discard"), -1);
 
-        // The server never got it: the read shows the chain, and Stop works again.
         answerState(null, pauseChain(true, 65, undefined, 12, false));
         tryCompare(button.timer, "canWrite", true);
         verify(button.timer.paused);
@@ -549,8 +534,6 @@ TestCase {
         compare(button.Accessible.role, Accessible.Button);
     }
 
-    // ----- menu ----------------------------------------------------------
-
     function test_menuIsKeyboardAccessible() {
         connectAccount(instanceA, 3, 7);
         openMenu();
@@ -561,7 +544,6 @@ TestCase {
         verify(!menu.stateItem.enabled, "the state line is not a choice");
         compare(menu.stateItem.text, "Stopped 0:00 · Connected");
 
-        // Every action is reachable with the arrow keys and has a label.
         const labels = [];
         for (let i = 0; i < menu.count + 1; ++i) {
             const item = menu.itemAt(menu.currentIndex);
@@ -590,7 +572,7 @@ TestCase {
         mouseClick(button, 5, 5, Qt.RightButton);
         tryVerify(() => menu.opened, 3000, "right click opens");
         closeMenu();
-        compare(fixture.pending("POST", "/time_entries"), -1, "opening the menu starts nothing");
+        compare(fixture.pending("POST", "/timer/start"), -1, "opening the menu starts nothing");
     }
 
     function test_openTokklAndConfigure() {
@@ -611,7 +593,7 @@ TestCase {
 
     function test_initialChoicesAndBillingDefaults() {
         connectAccount(instanceA, 3, 7);
-        answer("GET", "/me/time_entries", 200, []);
+        answer("GET", "/time_entries/latest", 200, null);
         const menu = button.menu;
         verify(menu.noProjectItem.checked, "No project at first");
         verify(!menu.billableItem.checked, "nonbillable at first");
@@ -635,18 +617,15 @@ TestCase {
         compare(button.timer.chosenProjectId, null);
         verify(!menu.billableItem.checked, "No project is nonbillable");
 
-        // The next start sends what was chosen.
         chooseProjectWithKeyboard("Alpha");
         toggleBillableWithKeyboard();
         mouseClick(button, 5, 5, Qt.LeftButton);
-        const body = fixture.request(waitFor("POST", "/workspaces/7/time_entries")).body;
+        const body = fixture.request(waitFor("POST", "/timer/start")).body;
         compare(body.project_id, 11);
         compare(body.billable, false);
-        compare(fixture.pending("PUT", "/time_entries/5"), -1, "no edit while stopped");
+        compare(fixture.pending("POST", "/timer/edit"), -1, "no edit while stopped");
     }
 
-    // A stopped entry of the last 9 days, as GET /me/time_entries?meta=true
-    // lists it.
     function listedEntry(id, projectId, active, billable) {
         return entry(id, 7, projectId, billable, {
             stop: fixture.clockIso(-3600),
@@ -657,12 +636,11 @@ TestCase {
     }
 
     function test_nextStartDefaultsToTheLastEntry() {
-        // Nothing runs at connect: the newest listed entry's project.
         connectAccount(instanceA, 3, 7);
-        const list = waitFor("GET", "/me/time_entries");
-        compare(fixture.request(list).query.meta, "true");
-        compare(Object.keys(fixture.request(list).query), ["meta"], "no date range: the API's last 9 days");
-        fixture.respond(list, 200, JSON.stringify([listedEntry(8, 11, true, true), listedEntry(6, 12, true, false)]));
+        const latest = waitFor("GET", "/time_entries/latest");
+        verify(fixture.request(latest).path.endsWith("/api/app/time_entries/latest"), fixture.request(latest).path);
+        compare(Object.keys(fixture.request(latest).query).length, 0, "no query");
+        fixture.respond(latest, 200, JSON.stringify(listedEntry(8, 11, true, true)));
         tryCompare(button.timer, "chosenProjectId", 11);
         const menu = button.menu;
         compare(menu.projectMenu.title, "Project: Alpha");
@@ -671,22 +649,18 @@ TestCase {
         verify(menu.billableItem.checked, "Alpha's billable default");
 
         mouseClick(button, 5, 5, Qt.LeftButton);
-        const start = waitFor("POST", "/workspaces/7/time_entries");
+        const start = waitFor("POST", "/timer/start");
         compare(fixture.request(start).body.project_id, 11);
         compare(fixture.request(start).body.billable, true);
     }
 
     function test_stopFromThePanelKeepsItsProject() {
         connectAccount(instanceA, 3, 7, entry(5, 7, 12, false));
-        compare(fixture.pending("GET", "/me/time_entries"), -1, "nothing to ask while an entry runs");
+        compare(fixture.pending("GET", "/time_entries/latest"), -1, "nothing to ask while an entry runs");
 
         // Stop in the menu ends the entry; a click would pause it.
         verify(button.timer.stop());
-        fixture.respond(waitFor("PATCH", "/time_entries/5/stop"), 200, JSON.stringify(entry(5, 7, 12, false, {
-            stop: fixture.clockIso(),
-            duration: 65
-        })));
-        answerState(null);
+        fixture.respond(waitFor("POST", "/timer/stop"), 200, stateBody(null));
         tryCompare(button.timer, "canWrite", true);
         verify(!button.timer.running);
         verify(!button.timer.paused);
@@ -695,12 +669,32 @@ TestCase {
         compare(menu.projectMenu.title, "Project: Beta");
         verify(projectItem("Beta").checked);
         verify(!menu.billableItem.checked, "Beta is nonbillable");
-        compare(fixture.pending("GET", "/me/time_entries"), -1, "a stop needs no list");
+        compare(fixture.pending("GET", "/time_entries/latest"), -1, "a stop needs no read");
 
         mouseClick(button, 5, 5, Qt.LeftButton);
-        const start = waitFor("POST", "/workspaces/7/time_entries");
+        const start = waitFor("POST", "/timer/start");
         compare(fixture.request(start).body.project_id, 12);
         compare(fixture.request(start).body.billable, false);
+    }
+
+    function test_openingTheMenuChecksTheProjects() {
+        connectAccount(instanceA, 3, 7);
+        const checks = fixture.catalogChecks;
+        const requests = fixture.requestCount;
+        openMenu();
+        tryVerify(() => fixture.catalogChecks === checks + 1, 3000, "one check");
+        wait(50);
+        compare(fixture.requestCount, requests, "no list read for an unchanged catalog");
+        closeMenu();
+        verify(projectItem("Alpha") !== null);
+
+        fixture.changeCatalog();
+        openMenu();
+        tryVerify(() => fixture.catalogChecks === checks + 2, 3000, "another check");
+        answer("GET", "/projects", 200, [project(12, 7, "Beta renamed", false)]);
+        tryVerify(() => projectItem("Beta renamed") !== null, 3000, "the renamed project");
+        compare(projectItem("Alpha"), null);
+        closeMenu();
     }
 
     function test_projectsFollowPagination() {
@@ -730,7 +724,6 @@ TestCase {
         verify(button.menu.billableItem.checked);
     }
 
-    // The notice in the Project submenu, or null.
     function incompleteNotice() {
         const menu = button.menu.projectMenu;
         for (let i = 0; i < menu.count; ++i) {
@@ -743,14 +736,11 @@ TestCase {
     }
 
     function test_incompleteProjectListShowsANotice() {
-        // A complete list has no notice.
         connectAccount(instanceA, 3, 7);
         compare(button.timer.projectsIncomplete, false);
         verify(incompleteNotice() === null, "no notice for a complete list");
 
-        // Every page up to the limit is full of new projects, so the list is
-        // cut short. The menu only offers the discovered workspace's projects,
-        // so all but three of them belong to another workspace; this keeps a
+        // All but three projects belong to another workspace, which keeps a
         // menu of 20,000 items out of the test.
         fixture.configure(instanceB, "tok-4");
         tryVerify(() => button.timer.projects.length === 0, 3000, "the first account's projects are gone");
@@ -777,7 +767,6 @@ TestCase {
         verify(projectItem("P1"), "the projects read stay selectable");
         verify(projectItem("P3"));
 
-        // Switching account clears the notice with the projects.
         fixture.configure(instanceA, "tok-3");
         tryCompare(button.timer, "projectsIncomplete", false, 3000);
         tryCompare(menu, "count", 1, 3000);
@@ -800,11 +789,11 @@ TestCase {
         verify(archived.checked, "marked as the entry's project");
         verify(!archived.enabled, "not a choice");
         verify(!button.timer.chooseProject(33), "an archived project is refused");
-        compare(fixture.pending("PUT", "/time_entries/5"), -1);
+        compare(fixture.pending("POST", "/timer/edit"), -1);
         verify(button.timer.projects.every(p => p.id !== 33), "not among the active projects");
         verify(!projectItem("Alpha").enabled, "the running entry's project is locked");
         verify(!button.timer.chooseProject(11), "no move to an active project while running");
-        compare(fixture.pending("PUT", "/time_entries/5"), -1);
+        compare(fixture.pending("POST", "/timer/edit"), -1);
     }
 
     function test_projectIsLockedWhileRunning() {
@@ -821,21 +810,19 @@ TestCase {
 
         verify(!button.timer.chooseProject(11), "a direct call is refused too");
         verify(!button.timer.chooseProject(null));
-        compare(fixture.pending("PUT", "/time_entries/5"), -1, "no edit sent");
+        compare(fixture.pending("POST", "/timer/edit"), -1, "no edit sent");
         compare(button.timer.chosenProjectId, 12);
 
-        // Billable edits the running entry with billable alone.
         toggleBillableWithKeyboard();
-        const put = waitFor("PUT", "/workspaces/7/time_entries/5");
-        compare(fixture.request(put).body, {
-            billable: true
+        const edit = waitFor("POST", "/timer/edit");
+        compare(fixture.request(edit).body, {
+            billable: true,
+            entry_id: 5
         }, "a billable change sends only billable");
         compare(button.timer.status, TokklTimer.Busy);
 
-        // The server keeps everything else; the same entry keeps running.
-        fixture.respond(put, 200, JSON.stringify(entry(5, 7, 12, true)));
-        answerState(entry(5, 7, 12, true));
-        tryCompare(button.timer, "canWrite", true);
+        fixture.respond(edit, 200, stateBody(entry(5, 7, 12, true)));
+        settleState(entry(5, 7, 12, true));
         const current = button.timer.currentEntry;
         compare(current.id, 5);
         compare(current.description, "Write the report");
@@ -846,17 +833,12 @@ TestCase {
         verify(!menu.projectMenu.enabled, "still locked after the edit");
         for (let i = before; i < fixture.requestCount; ++i) {
             const request = fixture.request(i);
-            verify(request.method === "GET" || request.method === "PUT", request.method + " " + request.path);
+            verify(request.method === "GET" || request.path.endsWith("/timer/edit"), request.method + " " + request.path);
         }
 
-        // Stopped, Project is a choice again. A click would pause, which
-        // keeps the project.
+        // A click would pause, which keeps the project.
         verify(button.timer.stop());
-        fixture.respond(waitFor("PATCH", "/time_entries/5/stop"), 200, JSON.stringify(entry(5, 7, 12, true, {
-            stop: fixture.clockIso(),
-            duration: 65
-        })));
-        answerState(null);
+        fixture.respond(waitFor("POST", "/timer/stop"), 200, stateBody(null));
         tryCompare(button.timer, "canWrite", true);
         verify(!button.timer.running);
         verify(menu.projectMenu.enabled);
@@ -865,10 +847,55 @@ TestCase {
         verify(projectItem("Beta").enabled);
         verify(button.timer.chooseProject(11));
         compare(button.timer.chosenProjectId, 11);
-        compare(fixture.pending("PUT", "/time_entries/5"), -1, "a stopped choice sends nothing");
+        compare(fixture.pending("POST", "/timer/edit"), -1, "a stopped choice sends nothing");
     }
 
-    // ----- states and disabled controls -----------------------------------
+    function test_everyCoreKeyHasWords() {
+        const words = button.words;
+        const parts = words.parts;
+        compare(parts.partKeys.length, 7);
+        for (const key of parts.partKeys) {
+            verify(words.partWords(key, []) !== undefined, "part " + key);
+        }
+        compare(parts.statusKeys.length, 7);
+        for (const key of parts.statusKeys) {
+            verify(words.statusWord(key) !== undefined, "status " + key);
+        }
+        compare(parts.actionKeys.length, 5);
+        for (const key of parts.actionKeys) {
+            verify(words.actionWord(key) !== undefined, "action " + key);
+        }
+        verify(words.partWords("unknown", []) === undefined);
+        verify(words.statusWord("unknown") === undefined);
+        verify(words.actionWord("unknown") === undefined);
+        compare(parts.status, "unconfigured");
+        compare(parts.action, "start");
+    }
+
+    function test_wordsFollowTheSharedFixture() {
+        const english = fixture.statusFixture().words;
+        verify(english !== undefined, "the fixture has words");
+        const words = button.words;
+        compare(Object.keys(english.statuses).length, words.parts.statusKeys.length);
+        for (const key of words.parts.statusKeys) {
+            compare(words.statusWord(key), english.statuses[key], "status " + key);
+        }
+        for (const key of words.parts.actionKeys) {
+            if (english.actions[key] !== null) {
+                compare(words.actionWord(key), english.actions[key], "action " + key);
+            }
+        }
+        for (const phase of Object.keys(english.phases)) {
+            compare(words.phaseName(phase), english.phases[phase], "phase " + phase);
+        }
+        for (const kind of Object.keys(english.projectLabels)) {
+            compare(words.projectLabel({
+                kind: kind
+            }), english.projectLabels[kind], "label " + kind);
+        }
+        compare(words.runText, english.activity.stopped);
+        compare(words.partWords("pomodoroMode", ["Stopped 0:00"]), ["Stopped 0:00 · " + english.pomodoroMode]);
+    }
 
     function test_unconfiguredDisablesEverything() {
         compare(button.timer.status, TokklTimer.Unconfigured);
@@ -916,8 +943,7 @@ TestCase {
         mouseClick(button, 5, 5, Qt.LeftButton);
         record(TokklTimer.Busy);
         verify(!button.menu.billableItem.enabled);
-        fixture.respond(waitFor("POST", "/time_entries"), 200, JSON.stringify(entry(9, 7, null, false)));
-        answerState(entry(9, 7, null, false));
+        fixture.respond(waitFor("POST", "/timer/start"), 200, stateBody(entry(9, 7, null, false)));
         tryCompare(button.timer, "status", TokklTimer.Ready);
 
         fixture.advance(31000);
@@ -937,14 +963,10 @@ TestCase {
         record(TokklTimer.Error);
         verify(!button.menu.openItem.enabled, "an address with user info is never opened");
 
-        // Seven states with seven texts; the six that are not ready also
-        // have a symbol each.
         compare(Object.keys(seen).length, 7);
         delete seen["Connected"];
         compare(new Set(Object.values(seen)).size, 6);
     }
-
-    // ----- project indicator -----------------------------------------------
 
     function colored(id, name, color, active) {
         return Object.assign(project(id, 7, name, false, active), {
@@ -952,7 +974,6 @@ TestCase {
         });
     }
 
-    // The WCAG 2 contrast ratio of two colours.
     function contrast(a, b) {
         function channel(c) {
             return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
@@ -969,7 +990,6 @@ TestCase {
         return findChild(button, "projectIndicator");
     }
 
-    // The colour of the panel item at a point of the indicator's shape.
     function shapePixel(x, y) {
         const shape = findChild(button, "indicatorShape");
         const point = shape.mapToItem(button, x, y);
@@ -978,7 +998,7 @@ TestCase {
 
     function test_monochromeLogoFollowsPanelForeground() {
         connectAccount(instanceA, 3, 7);
-        answer("GET", "/me/time_entries", 200, []);
+        answer("GET", "/time_entries/latest", 200, null);
         verify(button.timer.chooseProject(11));
         const logo = findChild(button, "logoIcon");
         compare(logo.isMask, false);
@@ -986,7 +1006,6 @@ TestCase {
         button.monochromeIcon = true;
         compare(logo.isMask, true);
         for (const ink of ["#ffffff", "#000000"]) {
-            // Override only the panel item, independently of the application theme.
             button.Kirigami.Theme.textColor = ink;
             tryVerify(() => {
                 const image = grabImage(button);
@@ -1046,7 +1065,7 @@ TestCase {
 
     function test_stoppedProjectIsAStillSquare() {
         connectAccount(instanceA, 3, 7);
-        answer("GET", "/me/time_entries", 200, []);
+        answer("GET", "/time_entries/latest", 200, null);
         verify(button.timer.chooseProject(11));
         const ind = indicator();
         verify(ind.filled);
@@ -1057,7 +1076,6 @@ TestCase {
         verify(fill.radius < fill.width / 2);
         verify(button.Accessible.description.indexOf("Stopped 0:00 · Alpha") === 0, button.Accessible.description);
 
-        // Drawn: the project colour inside, the text colour on the ring.
         const shape = findChild(button, "indicatorShape");
         tryVerify(() => Qt.colorEqual(shapePixel(shape.width / 2, shape.height / 2), "#06aaf5"), 3000, "filled with the project colour");
         tryVerify(() => Qt.colorEqual(shapePixel(0, shape.height / 2), ind.ringColor), 3000, "ringed in the text colour");
@@ -1066,7 +1084,7 @@ TestCase {
 
     function test_noProjectIsADashedOutline() {
         connectAccount(instanceA, 3, 7);
-        answer("GET", "/me/time_entries", 200, []);
+        answer("GET", "/time_entries/latest", 200, null);
         const ind = indicator();
         verify(ind.dashed, "a dashed square while stopped");
         verify(!ind.filled);
@@ -1077,8 +1095,6 @@ TestCase {
         verify(button.Accessible.description.indexOf("Stopped 0:00 · No project") === 0, button.Accessible.description);
         const width = ind.width;
 
-        // Drawn: inside its corners, the left side has dashes in the text
-        // colour and gaps between them.
         const shape = findChild(button, "indicatorShape");
         function leftSide() {
             const image = grabImage(button);
@@ -1095,8 +1111,7 @@ TestCase {
         }, 3000, "a dashed side");
 
         mouseClick(button, 5, 5, Qt.LeftButton);
-        fixture.respond(waitFor("POST", "/workspaces/7/time_entries"), 200, JSON.stringify(entry(9, 7, null, false)));
-        answerState(entry(9, 7, null, false));
+        fixture.respond(waitFor("POST", "/timer/start"), 200, stateBody(entry(9, 7, null, false)));
         tryCompare(button.timer, "running", true);
         verify(ind.dashed, "a dashed circle while running");
         verify(ind.round);
@@ -1129,7 +1144,7 @@ TestCase {
 
     function test_invalidColourFallsBackToTheTextColour() {
         connectAccount(instanceA, 3, 7, undefined, [colored(11, "Alpha", "blue"), colored(12, "Beta", "#06aaf")]);
-        answer("GET", "/me/time_entries", 200, []);
+        answer("GET", "/time_entries/latest", 200, null);
         const ind = indicator();
         for (const id of [11, 12]) {
             verify(button.timer.chooseProject(id));
@@ -1176,7 +1191,6 @@ TestCase {
         compare(ring.opacity, 1, "the ring never fades");
         verify(ring.border.width >= 1);
         verify(Qt.colorEqual(ring.border.color, ind.ringColor));
-        // As drawn, the ring's edge keeps 3:1 against the background next to it.
         const edge = shapePixel(0, shape.height / 2);
         const outside = shapePixel(-1, shape.height / 2);
         const ratio = contrast(edge, outside);
@@ -1222,8 +1236,6 @@ TestCase {
         tryVerify(() => ind.pulsing, 3000, "the pulse restarts with the window");
     }
 
-    // ----- accounts --------------------------------------------------------
-
     function test_switchingAccountsClearsChoices() {
         connectAccount(instanceA, 3, 7);
         chooseProjectWithKeyboard("Alpha");
@@ -1245,7 +1257,6 @@ TestCase {
         compare(button.timer.status, TokklTimer.Loading);
         verify(!button.timer.chooseProject(11), "no choice before the new account is known");
 
-        // The same ids in another account: only its own names show.
         connectAccount(instanceB, 4, 7, undefined, [project(11, 7, "Gamma", false)]);
         verify(button.menu.noProjectItem.checked);
         verify(!button.menu.billableItem.checked);
@@ -1255,7 +1266,6 @@ TestCase {
         verify(!button.timer.running, "the first account's late answer is dropped");
         compare(button.timer.chosenProjectId, null);
 
-        // Back to the first account: nothing is restored from before.
         fixture.configure(instanceA, "tok-3");
         compare(button.timer.chosenProjectId, null);
         connectAccount(instanceA, 3, 7);
@@ -1263,8 +1273,6 @@ TestCase {
         verify(!button.timer.chosenBillable);
         verify(button.menu.noProjectItem.checked);
     }
-
-    // ----- Pomodoro mode -----------------------------------------------------
 
     function preferences(work, shortRest, longRest, every) {
         return {
@@ -1288,8 +1296,6 @@ TestCase {
         verify(source.endsWith("/contents/images/" + name), source);
     }
 
-    // A click in Pomodoro mode asks the server for a session, which answers
-    // with the first work phase.
     function startSession(every) {
         mouseClick(button, 5, 5, Qt.LeftButton);
         const start = waitFor("POST", "/pomodoro");
@@ -1300,8 +1306,6 @@ TestCase {
         return start;
     }
 
-    // Opens the menu with the keyboard and checks the session items and the
-    // mode item. Leaves it open.
     function checkSessionMenu(state) {
         openMenu();
         const menu = button.menu;
@@ -1316,7 +1320,6 @@ TestCase {
         compare(menu.modeItem.enabled, !state.locked, "Pomodoro mode enabled");
         compare(menu.modeItem.text, state.locked ? "Pomodoro mode (locked while running)" : "Pomodoro mode");
         verify(menu.itemAt(menu.currentIndex).visible, "the highlighted entry is shown");
-        // Hidden entries take no room.
         let y = 0;
         for (let i = 0; i < menu.count; ++i) {
             const item = menu.itemAt(i);
@@ -1349,10 +1352,8 @@ TestCase {
         closeMenu();
         verify(!session.setPomodoroMode(true), "refused while a timer runs");
 
-        // Stopped, the mode is a choice again.
         verify(button.timer.stop());
-        fixture.respond(waitFor("PATCH", "/time_entries/5/stop"), 200, JSON.stringify(stoppedEntry(5, 11, true, 65)));
-        answerState(null);
+        fixture.respond(waitFor("POST", "/timer/stop"), 200, stateBody(null));
         tryCompare(button.timer, "canWrite", true);
         menu = checkSessionMenu({
             run: true,
@@ -1368,21 +1369,18 @@ TestCase {
 
     function test_pomodoroModeWithoutASession() {
         connectAccount(instanceA, 3, 7);
-        answer("GET", "/me/time_entries", 200, []);
+        answer("GET", "/time_entries/latest", 200, null);
         verify(button.timer.chooseProject(11));
         const menu = button.menu;
         const logo = findChild(button, "logoIcon");
         verify(!glyph().visible);
 
-        // Turned on from the menu with the keyboard.
         openMenu();
         moveTo(menu, menu.modeItem);
         keyClick(Qt.Key_Space);
         tryVerify(() => !menu.visible, 3000, "menu closes after a choice");
         verify(fixture.session.pomodoroMode);
 
-        // The colour hourglass right of the logo; the indicator and the
-        // time keep their order after it.
         verify(glyph().visible);
         verify(!glyph().isMask);
         const left = glyph().mapToItem(button, 0, 0).x;
@@ -1407,8 +1405,6 @@ TestCase {
         verify(menu.billableItem.enabled);
         closeMenu();
 
-        // Monochrome: the single-colour hourglass, tinted with the panel
-        // text colour as the logo is.
         button.monochromeIcon = true;
         verify(glyph().isMask);
         checkGlyphFile("hourglass-mono.svg");
@@ -1421,7 +1417,6 @@ TestCase {
         verify(!glyph().isMask);
         checkGlyphFile("hourglass.svg");
 
-        // Off again: the panel is the Timer mode's.
         openMenu();
         moveTo(menu, menu.modeItem);
         keyClick(Qt.Key_Space);
@@ -1432,8 +1427,6 @@ TestCase {
         compare(button.Accessible.name, "Start the Tokkl timer");
     }
 
-    // The drawn hourglass: how many of its pixels have each of the colours,
-    // and how many are not a shade of grey.
     function glyphPixels(colors) {
         const image = grabImage(button);
         const item = glyph();
@@ -1463,19 +1456,15 @@ TestCase {
         verify(fixture.session.setPomodoroMode(true));
         tryVerify(() => glyph().visible && glyph().width > 0, 3000, "the hourglass is shown");
 
-        // The colour file: a magenta frame around yellow sand. Of the 16 × 16
-        // pixels, 40 are exactly the frame colour and about 24 exactly the
-        // sand colour; the sand's slanted edges are blended.
+        // Of the 16 x 16 pixels, 40 are exactly the frame colour and about 24
+        // the sand colour; the sand's slanted edges are blended.
         tryVerify(() => {
             const drawn = glyphPixels(["#f6209b", "#f7b817"]);
             return drawn.counts[0] >= 30 && drawn.counts[1] >= 15;
         }, 3000, "the colour hourglass is drawn");
 
-        // Monochrome: the single-colour file, a black shape on the white
-        // window. Black ink is the file's own colour. Kirigami 6.31 tints a
-        // mask only in a shader, which the software renderer used here
-        // does not run, so another ink would draw black there too.
-        // test_pomodoroModeWithoutASession checks the tint the icon is given.
+        // Kirigami 6.31 tints a mask only in a shader, which the software
+        // renderer skips, so only the file's own black ink is checked here.
         button.monochromeIcon = true;
         button.Kirigami.Theme.textColor = "#000000";
         tryVerify(() => {
@@ -1495,20 +1484,17 @@ TestCase {
             connection: fixture.connection,
             preferences: fixture.preferences
         }));
-        // Without an account the preferences show the defaults, which must
-        // not replace what an earlier run kept.
+        // Defaults shown before the account is known must not replace the cache.
         wait(50);
         compare(cachedLengths(settings), [40, 8, 20, 3]);
         compare(settings.saves, 0);
 
-        // Once the account is known, its lengths are kept and saved.
         connectAccount(instanceA, 3, 7);
         answer("GET", "/me/preferences", 200, preferences(50, 10, 30, 2));
         tryVerify(() => cachedLengths(settings).join() === "50,10,30,2", 3000, "the account's lengths are kept");
         verify(settings.saves > 0);
 
-        // Apply on the settings page writes back the lengths the page opened
-        // with. They are put right with one save, and nothing more follows.
+        // Apply on the settings page writes back the lengths it opened with.
         const saves = settings.saves;
         settings.cachedWorkMinutes = 40;
         settings.cachedLongRestEvery = 3;
@@ -1517,7 +1503,6 @@ TestCase {
         wait(50);
         compare(settings.saves, saves + 1);
 
-        // Another account: until it is known, the last one's lengths stay.
         fixture.configure(instanceB, "tok-4");
         wait(50);
         compare(cachedLengths(settings), [50, 10, 30, 2]);
@@ -1526,7 +1511,7 @@ TestCase {
 
     function test_sessionCountsDownAndOpensTheMenu() {
         connectAccount(instanceA, 3, 7);
-        answer("GET", "/me/time_entries", 200, []);
+        answer("GET", "/time_entries/latest", 200, null);
         verify(fixture.session.setPomodoroMode(true));
         verify(button.timer.chooseProject(11));
         const menu = button.menu;
@@ -1535,7 +1520,7 @@ TestCase {
         const start = startSession(4);
         compare(fixture.request(start).body.project_id, 11, "the chosen project");
         compare(fixture.request(start).body.billable, true, "and Alpha's billable default");
-        compare(fixture.pending("POST", "/time_entries"), -1, "a session starts no timer");
+        compare(fixture.pending("POST", "/timer/start"), -1, "a session starts no timer");
         compare(label.text, "25:00");
         fixture.advance(1000);
         compare(label.text, "24:59");
@@ -1544,14 +1529,12 @@ TestCase {
         compare(button.Accessible.name, "Work · 24:59 left · Pomodoro 1 of 4");
         verify(button.Accessible.description.indexOf("Alpha") >= 0, "the project stays in words: " + button.Accessible.description);
 
-        // Mid-phase, a click opens the menu.
         mouseClick(button, 5, 5, Qt.LeftButton);
         tryVerify(() => menu.opened, 3000, "a click mid-phase opens the menu");
         compare(fixture.session.phase, "work", "and confirms nothing");
         compare(fixture.pending("POST", "/pomodoro/next"), -1);
         closeMenu();
 
-        // So does Space, with the first entry highlighted.
         checkSessionMenu({
             run: false,
             startSession: false,
@@ -1570,7 +1553,6 @@ TestCase {
         tryVerify(() => menu.opened, 3000, "Space mid-phase opens the menu");
         compare(menu.itemAt(menu.currentIndex), menu.nextPhaseItem);
 
-        // End session: a pomodoro this short is not saved, and the menu says so.
         moveTo(menu, menu.endSessionItem);
         keyClick(Qt.Key_Return);
         tryVerify(() => !menu.visible, 3000, "menu closes after End session");
@@ -1599,7 +1581,6 @@ TestCase {
         compare(menu.messageItem.text, "This pomodoro was too short to save.");
         compare(menu.itemAt(menu.currentIndex), menu.startSessionItem);
 
-        // Start session from the menu clears it.
         keyClick(Qt.Key_Return);
         tryVerify(() => !menu.visible, 3000, "menu closes after Start session");
         fixture.respond(waitFor("POST", "/pomodoro"), 200, sessionBody("work", 0, 1, 4));
@@ -1612,20 +1593,17 @@ TestCase {
 
     function test_ringingPhaseConfirmsOnClick() {
         connectAccount(instanceA, 3, 7);
-        answer("GET", "/me/time_entries", 200, []);
+        answer("GET", "/time_entries/latest", 200, null);
         verify(fixture.session.setPomodoroMode(true));
         const label = findChild(button, "elapsedLabel");
         startSession(2);
 
-        // Past the planned end the label counts the overtime.
         fixture.advance(minutes(25) + 5000);
         verify(fixture.session.ringing);
         compare(label.text, "+0:05");
         compare(button.words.summary, "Work · +0:05 overtime · Pomodoro 1 of 2");
         compare(button.Accessible.name, "Work · +0:05 overtime · Pomodoro 1 of 2");
 
-        // A click confirms Next phase against the revision shown and opens no
-        // menu. The phase changes when the server answers.
         mouseClick(button, 5, 5, Qt.LeftButton);
         const next = waitFor("POST", "/pomodoro/next");
         compare(fixture.request(next).body, {
@@ -1649,7 +1627,6 @@ TestCase {
         compare(button.menu.stateItem.text, "Short rest · 5:00 left · Pomodoro 1 of 2");
         closeMenu();
 
-        // Return on a ringing rest starts the next work phase.
         fixture.advance(minutes(5));
         compare(label.text, "+0:00");
         verify(fixture.session.ringing);
@@ -1660,7 +1637,6 @@ TestCase {
         verify(!button.menu.visible);
         compare(button.words.summary, "Work · 25:00 left · Pomodoro 2 of 2");
 
-        // The last work phase of the round leads to the long rest.
         checkSessionMenu({
             run: false,
             startSession: false,
@@ -1678,11 +1654,9 @@ TestCase {
         compare(label.text, "15:00");
     }
 
-    // ----- a session started on another device ------------------------------
-
     function test_aSessionFromAnotherDeviceShowsInTimerMode() {
         connectAccount(instanceA, 3, 7);
-        answer("GET", "/me/time_entries", 200, []);
+        answer("GET", "/time_entries/latest", 200, null);
         const session = fixture.session;
         const menu = button.menu;
         const label = findChild(button, "elapsedLabel");
@@ -1690,7 +1664,6 @@ TestCase {
         compare(label.text, "0:00");
         checkWords("Stopped", "Start the Tokkl timer");
 
-        // The web app starts a session; the event stream brings it.
         const foreign = pomodoroSession("work", -90, 1, 4);
         verify(fixture.push(stateBody(pomodoroEntry(foreign), null, foreign)), "an event stream is open");
         tryVerify(() => session.active, 3000, "the session shows");
@@ -1701,8 +1674,6 @@ TestCase {
         compare(button.words.summary, "Work · 23:30 left · Pomodoro 1 of 4");
         compare(button.Accessible.name, "Work · 23:30 left · Pomodoro 1 of 4");
 
-        // The menu has the session's items, not the timer's Start or Stop,
-        // and the mode is locked.
         const state = checkSessionMenu({
             run: false,
             startSession: false,
@@ -1717,8 +1688,6 @@ TestCase {
         verify(!session.setPomodoroMode(true), "the mode is locked while the session runs");
         closeMenu();
 
-        // A click mid-phase opens the menu and neither starts nor pauses
-        // anything.
         const before = fixture.requestCount;
         mouseClick(button, 5, 5, Qt.LeftButton);
         tryVerify(() => menu.opened, 3000, "a click opens the menu");
@@ -1727,7 +1696,6 @@ TestCase {
         verify(!button.timer.toggle(), "the timer does nothing during a session");
         compare(fixture.requestCount, before);
 
-        // Past the planned end it rings, and a click confirms Next phase.
         fixture.advance(minutes(24));
         verify(session.ringing);
         compare(label.text, "+0:30");
@@ -1740,7 +1708,6 @@ TestCase {
         fixture.respond(next, 200, stateBody(pomodoroEntry(foreign), null, pomodoroSession("shortRest", 0, 1, 4)));
         compare(session.phase, "shortRest");
 
-        // The web app ends it: the panel is the timer's again.
         verify(fixture.push(stateBody(null, null, null)));
         tryVerify(() => !session.active, 3000, "the session is gone");
         verify(!button.timer.sessionActive);
@@ -1774,6 +1741,18 @@ TestCase {
             locked: true
         });
         closeMenu();
+
+        verify(button.Accessible.description.indexOf("Connected") < 0, "a ready connection goes unsaid: " + button.Accessible.description);
+        fixture.advance(31000);
+        fixture.failNetwork(waitFor("GET", "/app/timer"));
+        tryCompare(button.timer, "status", TokklTimer.Stale);
+        verify(fixture.session.active, "the last known session stays");
+        verify(button.words.detailText.length > 0);
+        const description = button.Accessible.description;
+        verify(description.indexOf("Offline, showing the last known state") >= 0, description);
+        verify(description.indexOf(button.words.detailText) >= 0, description);
+        compare(button.words.summary, button.words.sessionText + " · Offline, showing the last known state");
+        compare(button.words.menuLine, button.words.summary);
     }
 
     function test_endSessionIsRefusedWhenTheSessionMovedOn() {
@@ -1795,14 +1774,11 @@ TestCase {
         verify(fixture.session.active);
     }
 
-    // ----- the session's messages ---------------------------------------------
-
     function test_sessionMessagesShowInTheMenuAndTheTooltipText() {
         const session = pomodoroSession("work", -30, 1, 4);
         connectAccount(instanceA, 3, 7, pomodoroEntry(session), undefined, undefined, session);
         const menu = button.menu;
 
-        // The instance cannot be reached: the answer to Next phase says why.
         verify(fixture.session.confirmNextPhase());
         fixture.failNetwork(waitFor("POST", "/pomodoro/next"));
         tryVerify(() => fixture.session.message.length > 0, 3000, "a message");
@@ -1816,8 +1792,8 @@ TestCase {
         compare(menu.messageItem.text, fixture.session.message);
         closeMenu();
 
-        // The outcome is unknown, so nothing is sent again until a read
-        // settles it; the session still shows.
+        // The outcome is unknown, so nothing is sent again until a read settles
+        // it.
         verify(!fixture.session.confirmNextPhase());
         verify(!fixture.session.endSession());
         verify(fixture.session.active);
@@ -1852,10 +1828,9 @@ TestCase {
         verify(!fixture.session.startSession());
         compare(fixture.pending("POST", "/pomodoro"), -1);
         answerState(null);
-        answer("GET", "/me/time_entries", 200, []);
+        answer("GET", "/time_entries/latest", 200, null);
         tryCompare(fixture.session, "canStartSession", true);
 
-        // While the start waits for its answer, a second one is refused.
         verify(fixture.session.startSession());
         verify(!fixture.session.canStartSession);
         verify(!fixture.session.startSession());
@@ -1866,10 +1841,9 @@ TestCase {
 
     function test_runningTimerInPomodoroModeKeepsItsControls() {
         connectAccount(instanceA, 3, 7);
-        answer("GET", "/me/time_entries", 200, []);
+        answer("GET", "/time_entries/latest", 200, null);
         verify(fixture.session.setPomodoroMode(true));
 
-        // Another client starts a timer; the next poll shows it.
         fixture.advance(31000);
         answerState(entry(9, 7, 11, true));
         tryCompare(button.timer, "running", true);
@@ -1887,7 +1861,6 @@ TestCase {
         compare(button.menu.runItem.text, "Stop");
         closeMenu();
 
-        // A click pauses it, as in Timer mode.
         mouseClick(button, 5, 5, Qt.LeftButton);
         fixture.respond(waitFor("POST", "/timer/pause"), 200, stateBody(null, pauseChain(true, 65, undefined, 11, true)));
         tryCompare(button.timer, "canWrite", true);

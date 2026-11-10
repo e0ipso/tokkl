@@ -1,6 +1,4 @@
-// The alarm player's choice of file and its start and stop, offscreen. It
-// never asserts audio output: a container has no audio device, and whether
-// a sound effect reaches the speakers is checked by hand with pactl.
+// Never asserts audio output: a container has no audio device.
 
 #include "alarmplayer.h"
 #include "pomodorosounds.h"
@@ -20,7 +18,6 @@ using namespace Tokkl;
 
 namespace
 {
-// The bundled sounds, from the core's sounds/ directory.
 QString bundledSoundsDir()
 {
     const QStringList files = QString::fromUtf8(TOKKL_POMODORO_SOUND_FILES).split(QLatin1Char('|'));
@@ -76,7 +73,6 @@ private Q_SLOTS:
         QVERIFY(player.loops());
         QCOMPARE(playing.size(), 1);
 
-        // The same ring again changes nothing.
         player.setRinging(true);
         QCOMPARE(playing.size(), 1);
 
@@ -94,7 +90,6 @@ private Q_SLOTS:
         player.setRinging(true);
         QCOMPARE(player.source(), bundled(QStringLiteral("work-to-short-rest")));
 
-        // The user picks another sound while it rings: the ring follows.
         player.setSounds({{QStringLiteral("workToShortRest"), QStringLiteral("short-rest-to-work")}});
         QCOMPARE(player.source(), bundled(QStringLiteral("short-rest-to-work")));
         QVERIFY(player.isPlaying());
@@ -111,7 +106,6 @@ private Q_SLOTS:
         player.setTransition(QStringLiteral("lunch"));
         QVERIFY(!player.isPlaying());
 
-        // The transition arrives after the ring started.
         player.setTransition(QStringLiteral("longRestToWork"));
         QVERIFY(player.isPlaying());
         QCOMPARE(player.source(), bundled(QStringLiteral("long-rest-to-work")));
@@ -127,7 +121,6 @@ private Q_SLOTS:
         player.preview(QStringLiteral("short-rest-to-work"));
         QCOMPARE(player.previewSource(), bundled(QStringLiteral("short-rest-to-work")));
 
-        // An unknown id is ignored, and the preview never touches the alarm.
         player.preview(QStringLiteral("gong"));
         QCOMPARE(player.previewSource(), bundled(QStringLiteral("short-rest-to-work")));
         QVERIFY(!player.isPlaying());
@@ -137,9 +130,6 @@ private Q_SLOTS:
         QVERIFY(!player.isPreviewing());
     }
 
-    // A stopped sound effect keeps its audio stream open, paused, until it
-    // is destroyed, so the sound server would go on listing the widget as a
-    // paused player. Each ring gets its own effect, gone once it stops.
     void aStoppedRingReleasesItsSoundEffect()
     {
         AlarmPlayer player;
@@ -151,7 +141,6 @@ private Q_SLOTS:
         QCOMPARE(alarm->source(), bundled(QStringLiteral("work-to-short-rest")));
         QCOMPARE(alarm->loopCount(), int(QSoundEffect::Infinite));
 
-        // Another sound while it rings replaces the effect.
         player.setSounds({{QStringLiteral("workToShortRest"), QStringLiteral("short-rest-to-work")}});
         QTRY_VERIFY(!alarm);
         alarm = player.findChild<QSoundEffect *>();
@@ -180,8 +169,6 @@ private Q_SLOTS:
 
     void findsTheSoundsOfTheInstalledWidget()
     {
-        // XDG_DATA_HOME is the test's own; the widget's sounds go where the
-        // package installs them.
         QTemporaryDir data;
         QVERIFY(data.isValid());
         const QByteArray earlier = qgetenv("XDG_DATA_HOME");
@@ -210,11 +197,20 @@ private Q_SLOTS:
         AlarmPlayer player;
         player.setSoundsDirectory(empty.path());
         player.setTransition(QStringLiteral("workToShortRest"));
+        QVERIFY(player.error().isEmpty());
         player.setRinging(true);
         QVERIFY(!player.isPlaying());
         QVERIFY(player.source().isEmpty());
-        player.preview(QStringLiteral("work-to-short-rest"));
+        QCOMPARE(player.error(), QStringLiteral("No alarm sound: the file for work-to-short-rest is not installed"));
+        player.setRinging(false);
+        QVERIFY(!player.error().isEmpty());
+        player.preview(QStringLiteral("work-to-long-rest"));
         QVERIFY(player.previewSource().isEmpty());
+        QCOMPARE(player.error(), QStringLiteral("No alarm sound: the file for work-to-long-rest is not installed"));
+
+        player.setSoundsDirectory(bundledSoundsDir());
+        player.preview(QStringLiteral("work-to-long-rest"));
+        QVERIFY(player.error().isEmpty());
     }
 };
 

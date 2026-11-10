@@ -1,308 +1,16 @@
 #include "apitypes.h"
 
-#include "transport.h"
+#include "apijson.h"
 
-#include <QCoreApplication>
 #include <QJsonArray>
 #include <QJsonDocument>
-#include <QJsonObject>
 
-#include <limits>
+#include <algorithm>
 
 namespace Tokkl
 {
 
-namespace
-{
-QString tr(const char *text)
-{
-    return QCoreApplication::translate("Tokkl::Api", text);
-}
-
-constexpr qint64 noInteger = std::numeric_limits<qint64>::min();
-
-std::optional<qint64> integer(const QJsonValue &value)
-{
-    if (!value.isDouble()) {
-        return std::nullopt;
-    }
-    const qint64 result = value.toInteger(noInteger);
-    if (result == noInteger) {
-        return std::nullopt;
-    }
-    return result;
-}
-
-std::optional<qint64> positiveId(const QJsonValue &value)
-{
-    const std::optional<qint64> id = integer(value);
-    if (!id || *id <= 0) {
-        return std::nullopt;
-    }
-    return id;
-}
-
-// Missing and null both mean "none"; anything else must be a positive id.
-bool nullableId(const QJsonValue &value, std::optional<qint64> &out)
-{
-    if (value.isUndefined() || value.isNull()) {
-        out.reset();
-        return true;
-    }
-    out = positiveId(value);
-    return out.has_value();
-}
-
-bool optionalString(const QJsonValue &value, QString &out)
-{
-    if (value.isUndefined() || value.isNull()) {
-        out.clear();
-        return true;
-    }
-    if (!value.isString()) {
-        return false;
-    }
-    out = value.toString();
-    return true;
-}
-
-bool optionalBool(const QJsonValue &value, bool &out, bool fallback)
-{
-    if (value.isUndefined() || value.isNull()) {
-        out = fallback;
-        return true;
-    }
-    if (!value.isBool()) {
-        return false;
-    }
-    out = value.toBool();
-    return true;
-}
-
-std::optional<QDateTime> timestamp(const QJsonValue &value)
-{
-    if (!value.isString()) {
-        return std::nullopt;
-    }
-    const QDateTime result = QDateTime::fromString(value.toString(), Qt::ISODateWithMs);
-    if (!result.isValid()) {
-        return std::nullopt;
-    }
-    return result;
-}
-
-// A whole number from min up, as an int.
-std::optional<int> count(const QJsonValue &value, int min)
-{
-    const std::optional<qint64> number = integer(value);
-    if (!number || *number < min || *number > std::numeric_limits<int>::max()) {
-        return std::nullopt;
-    }
-    return int(*number);
-}
-
-std::optional<PhaseKind> phaseKind(const QJsonValue &value)
-{
-    return value.isString() ? parsePhaseKind(value.toString()) : std::nullopt;
-}
-
-// A key that must be present: false when it is missing. A null value leaves
-// out empty; anything else must decode.
-template<typename T>
-bool nullable(const QJsonObject &object, QLatin1String key, std::optional<T> (*decode)(const QJsonValue &), std::optional<T> &out)
-{
-    const QJsonValue value = object.value(key);
-    if (value.isUndefined()) {
-        return false;
-    }
-    if (value.isNull()) {
-        out.reset();
-        return true;
-    }
-    out = decode(value);
-    return out.has_value();
-}
-
-std::optional<TimeEntry> runningEntry(const QJsonValue &value)
-{
-    std::optional<TimeEntry> entry = decodeTimeEntry(value);
-    if (!entry || !entry->isRunning()) {
-        return std::nullopt;
-    }
-    return entry;
-}
-
-std::optional<TimerPause> timerPause(const QJsonValue &value)
-{
-    if (!value.isObject()) {
-        return std::nullopt;
-    }
-    const QJsonObject object = value.toObject();
-    TimerPause pause;
-    const QJsonValue paused = object.value(QLatin1String("paused"));
-    const std::optional<qint64> seconds = integer(object.value(QLatin1String("seconds")));
-    const std::optional<qint64> workspace = positiveId(object.value(QLatin1String("workspace_id")));
-    if (!paused.isBool() || !seconds || *seconds < 0 || !workspace) {
-        return std::nullopt;
-    }
-    pause.paused = paused.toBool();
-    pause.seconds = *seconds;
-    pause.workspaceId = *workspace;
-    if (!optionalString(object.value(QLatin1String("description")), pause.description)
-        || !nullableId(object.value(QLatin1String("project_id")), pause.projectId) || !nullableId(object.value(QLatin1String("task_id")), pause.taskId)
-        || !optionalBool(object.value(QLatin1String("billable")), pause.billable, false)
-        || !nullableId(object.value(QLatin1String("clone_entry_id")), pause.cloneEntryId)) {
-        return std::nullopt;
-    }
-    const QJsonValue tagIds = object.value(QLatin1String("tag_ids"));
-    if (!tagIds.isArray()) {
-        return std::nullopt;
-    }
-    for (const QJsonValue &item : tagIds.toArray()) {
-        const std::optional<qint64> id = positiveId(item);
-        if (!id) {
-            return std::nullopt;
-        }
-        pause.tagIds.append(*id);
-    }
-    const QJsonValue tags = object.value(QLatin1String("tags"));
-    if (!tags.isArray()) {
-        return std::nullopt;
-    }
-    for (const QJsonValue &tag : tags.toArray()) {
-        if (!tag.isString()) {
-            return std::nullopt;
-        }
-        pause.tags.append(tag.toString());
-    }
-    return pause;
-}
-
-std::optional<TimerPomodoro> timerPomodoro(const QJsonValue &value)
-{
-    if (!value.isObject()) {
-        return std::nullopt;
-    }
-    const QJsonObject object = value.toObject();
-    const QJsonObject phaseObject = object.value(QLatin1String("phase")).toObject();
-    const std::optional<int> work = count(object.value(QLatin1String("work_minutes")), 1);
-    const std::optional<int> shortRest = count(object.value(QLatin1String("short_rest_minutes")), 1);
-    const std::optional<int> longRest = count(object.value(QLatin1String("long_rest_minutes")), 1);
-    const std::optional<int> every = count(object.value(QLatin1String("long_rest_every")), 1);
-    const std::optional<PhaseKind> kind = phaseKind(phaseObject.value(QLatin1String("kind")));
-    const std::optional<QDateTime> phaseStart = timestamp(phaseObject.value(QLatin1String("start")));
-    const std::optional<int> completed = count(phaseObject.value(QLatin1String("completed")), 0);
-    const std::optional<QDateTime> plannedEnd = timestamp(phaseObject.value(QLatin1String("planned_end")));
-    const std::optional<PhaseKind> upcoming = phaseKind(object.value(QLatin1String("upcoming_phase")));
-    const QJsonValue transitionName = object.value(QLatin1String("transition"));
-    const std::optional<TransitionKind> transition = transitionName.isString() ? parseTransitionKind(transitionName.toString()) : std::nullopt;
-    const std::optional<int> number = count(object.value(QLatin1String("number")), 1);
-    const std::optional<qint64> entry = positiveId(object.value(QLatin1String("entry_id")));
-    const std::optional<QDateTime> pomodoroStart = timestamp(object.value(QLatin1String("pomodoro_start")));
-    if (!work || !shortRest || !longRest || !every || !kind || !phaseStart || !completed || !plannedEnd || !upcoming || !transition || !number || !entry
-        || !pomodoroStart) {
-        return std::nullopt;
-    }
-    TimerPomodoro pomodoro;
-    pomodoro.config = PomodoroConfig{*work, *shortRest, *longRest, *every};
-    if (!pomodoro.config.isValid()) {
-        return std::nullopt;
-    }
-    pomodoro.phase = TimerPomodoroPhase{*kind, *phaseStart, *completed, *plannedEnd};
-    pomodoro.upcomingPhase = *upcoming;
-    pomodoro.transition = *transition;
-    pomodoro.number = *number;
-    pomodoro.entryId = *entry;
-    pomodoro.pomodoroStart = *pomodoroStart;
-    return pomodoro;
-}
-
-std::optional<DiscardedPomodoro> discardedPomodoro(const QJsonValue &value)
-{
-    if (!value.isObject()) {
-        return std::nullopt;
-    }
-    const QJsonObject object = value.toObject();
-    const std::optional<qint64> entry = positiveId(object.value(QLatin1String("entry_id")));
-    const std::optional<QDateTime> start = timestamp(object.value(QLatin1String("start")));
-    const std::optional<QDateTime> stop = timestamp(object.value(QLatin1String("stop")));
-    if (!entry || !start || !stop) {
-        return std::nullopt;
-    }
-    return DiscardedPomodoro{*entry, *start, *stop};
-}
-
-QVariant idVariant(const std::optional<qint64> &id)
-{
-    return id ? QVariant(*id) : QVariant::fromValue(nullptr);
-}
-
-QJsonValue idJson(const std::optional<qint64> &id)
-{
-    return id ? QJsonValue(*id) : QJsonValue(QJsonValue::Null);
-}
-
-QString utcTimestamp(const QDateTime &time)
-{
-    return time.toUTC().toString(Qt::ISODate);
-}
-
-// A server message fit for display: one line, bounded length.
-QString serverMessage(const QByteArray &body)
-{
-    const std::optional<QJsonValue> value = parseJsonBody(body);
-    if (!value || !value->isString()) {
-        return QString();
-    }
-    QString message = value->toString().simplified();
-    if (message.size() > 300) {
-        message = message.left(300) + QStringLiteral("…");
-    }
-    return message;
-}
-
-QString redirectTarget(const QByteArray &location)
-{
-    const QUrl url(QString::fromLatin1(location));
-    if (!url.isValid() || url.isRelative() || url.host().isEmpty()) {
-        return tr("another address");
-    }
-    return url.adjusted(QUrl::RemoveUserInfo | QUrl::RemovePath | QUrl::RemoveQuery | QUrl::RemoveFragment).toString();
-}
-
-// The preferences that hold the Pomodoro lengths: the config value each one
-// fills, the range the server accepts and the change that sets it.
-struct PomodoroPreference {
-    PomodoroField field;
-    QLatin1String key;
-    int PomodoroConfig::*value;
-    PomodoroRange range;
-    std::optional<int> PomodoroConfigUpdate::*change;
-};
-
-const PomodoroPreference pomodoroPreferences[] = {
-    {PomodoroField::WorkMinutes,
-     QLatin1String("pomodoro_focus_interval_in_minutes"),
-     &PomodoroConfig::workMinutes,
-     PomodoroConfig::workMinutesRange,
-     &PomodoroConfigUpdate::workMinutes},
-    {PomodoroField::ShortRestMinutes,
-     QLatin1String("pomodoro_break_interval_in_minutes"),
-     &PomodoroConfig::shortRestMinutes,
-     PomodoroConfig::shortRestMinutesRange,
-     &PomodoroConfigUpdate::shortRestMinutes},
-    {PomodoroField::LongRestMinutes,
-     QLatin1String("pomodoro_long_break_interval_in_minutes"),
-     &PomodoroConfig::longRestMinutes,
-     PomodoroConfig::longRestMinutesRange,
-     &PomodoroConfigUpdate::longRestMinutes},
-    {PomodoroField::LongRestEvery,
-     QLatin1String("pomodoro_long_break_every"),
-     &PomodoroConfig::longRestEvery,
-     PomodoroConfig::longRestEveryRange,
-     &PomodoroConfigUpdate::longRestEvery},
-};
-}
+using namespace Json;
 
 QVariantMap Me::toVariantMap() const
 {
@@ -348,18 +56,6 @@ QVariantMap TimeEntry::toVariantMap() const
     };
 }
 
-std::optional<QJsonValue> parseJsonBody(const QByteArray &body)
-{
-    // QJsonDocument only accepts an object or array at the top level, so wrap
-    // the body in one and require exactly one element.
-    QJsonParseError error;
-    const QJsonDocument document = QJsonDocument::fromJson(QByteArrayLiteral("[") + body + QByteArrayLiteral("\n]"), &error);
-    if (error.error != QJsonParseError::NoError || !document.isArray() || document.array().size() != 1) {
-        return std::nullopt;
-    }
-    return document.array().first();
-}
-
 std::optional<Me> decodeMe(const QJsonValue &value)
 {
     if (!value.isObject()) {
@@ -391,6 +87,109 @@ std::optional<Me> decodeMe(const QJsonValue &value)
     const std::optional<qint64> resolution = integer(object.value(QLatin1String("time_resolution_minutes")));
     me.timeResolutionMinutes = resolution && isTimeResolution(*resolution) ? int(*resolution) : 1;
     return me;
+}
+
+QStringList ServerFloor::capabilities()
+{
+    return {
+        QStringLiteral("app-preferences"),
+        QStringLiteral("timer-actions"),
+        QStringLiteral("pause-revision"),
+        QStringLiteral("pomodoro-revision"),
+        QStringLiteral("timer-edit-entry"),
+        QStringLiteral("idempotency-keys"),
+        QStringLiteral("catalog-revision"),
+        QStringLiteral("latest-entry"),
+    };
+}
+
+bool ServerApi::isSupported() const
+{
+    if (version < ServerFloor::apiVersion || !pomodoroLimits) {
+        return false;
+    }
+    const QStringList required = ServerFloor::capabilities();
+    return std::all_of(required.cbegin(), required.cend(), [this](const QString &name) {
+        return capabilities.contains(name);
+    });
+}
+
+namespace
+{
+bool decodeLimit(const QJsonObject &limits, QLatin1String key, PomodoroRange &range, int &defaultValue)
+{
+    const QJsonObject limit = limits.value(key).toObject();
+    const std::optional<int> min = count(limit.value(QLatin1String("min")), 1);
+    const std::optional<int> max = count(limit.value(QLatin1String("max")), 1);
+    const std::optional<int> value = count(limit.value(QLatin1String("default")), 1);
+    if (!min || !max || !value || *min > *value || *value > *max) {
+        return false;
+    }
+    range = PomodoroRange{*min, *max};
+    defaultValue = *value;
+    return true;
+}
+
+std::optional<PomodoroLimits> decodePomodoroLimits(const QJsonValue &value)
+{
+    const QJsonObject object = value.toObject();
+    PomodoroLimits limits;
+    if (!decodeLimit(object, QLatin1String("work_minutes"), limits.workMinutes, limits.defaults.workMinutes)
+        || !decodeLimit(object, QLatin1String("short_rest_minutes"), limits.shortRestMinutes, limits.defaults.shortRestMinutes)
+        || !decodeLimit(object, QLatin1String("long_rest_minutes"), limits.longRestMinutes, limits.defaults.longRestMinutes)
+        || !decodeLimit(object, QLatin1String("long_rest_every"), limits.longRestEvery, limits.defaults.longRestEvery)) {
+        return std::nullopt;
+    }
+    return limits;
+}
+}
+
+PomodoroRange PomodoroLimits::range(PomodoroField field) const
+{
+    switch (field) {
+    case PomodoroField::WorkMinutes:
+        return workMinutes;
+    case PomodoroField::ShortRestMinutes:
+        return shortRestMinutes;
+    case PomodoroField::LongRestMinutes:
+        return longRestMinutes;
+    case PomodoroField::LongRestEvery:
+        return longRestEvery;
+    }
+    return {};
+}
+
+QVariantMap PomodoroLimits::toVariantMap() const
+{
+    const auto limit = [](PomodoroRange range, int value) {
+        return QVariantMap{{QStringLiteral("min"), range.min}, {QStringLiteral("max"), range.max}, {QStringLiteral("default"), value}};
+    };
+    return {
+        {QStringLiteral("workMinutes"), limit(workMinutes, defaults.workMinutes)},
+        {QStringLiteral("shortRestMinutes"), limit(shortRestMinutes, defaults.shortRestMinutes)},
+        {QStringLiteral("longRestMinutes"), limit(longRestMinutes, defaults.longRestMinutes)},
+        {QStringLiteral("longRestEvery"), limit(longRestEvery, defaults.longRestEvery)},
+    };
+}
+
+PomodoroLimits PomodoroLimits::placeholder()
+{
+    constexpr PomodoroRange any{1, 999};
+    return PomodoroLimits{any, any, any, any, PomodoroConfig()};
+}
+
+ServerApi decodeServerApi(const QJsonObject &status)
+{
+    ServerApi server;
+    server.pomodoroLimits = decodePomodoroLimits(status.value(QLatin1String("pomodoro_limits")));
+    server.version = integer(status.value(QLatin1String("api_version"))).value_or(0);
+    const QJsonArray names = status.value(QLatin1String("capabilities")).toArray();
+    for (const QJsonValue &name : names) {
+        if (name.isString()) {
+            server.capabilities.append(name.toString());
+        }
+    }
+    return server;
 }
 
 std::optional<Project> decodeProject(const QJsonValue &value)
@@ -432,6 +231,15 @@ std::optional<QList<Project>> decodeProjects(const QJsonValue &value)
         projects.append(std::move(*project));
     }
     return projects;
+}
+
+std::optional<qint64> decodeCatalogRevision(const QJsonValue &value)
+{
+    const std::optional<qint64> revision = integer(value.toObject().value(QLatin1String("revision")));
+    if (!revision || *revision < 0) {
+        return std::nullopt;
+    }
+    return revision;
 }
 
 std::optional<TimeEntry> decodeTimeEntry(const QJsonValue &value)
@@ -507,100 +315,29 @@ std::optional<std::optional<TimeEntry>> decodeCurrentEntry(const QJsonValue &val
     return entry;
 }
 
-std::optional<QList<ListedEntry>> decodeListedEntries(const QJsonValue &value)
+std::optional<std::optional<ListedEntry>> decodeLatestEntry(const QJsonValue &value)
 {
-    if (!value.isArray()) {
-        return std::nullopt;
+    if (value.isNull()) {
+        return std::optional<ListedEntry>();
     }
-    QList<ListedEntry> entries;
-    for (const QJsonValue &item : value.toArray()) {
-        ListedEntry listed;
-        std::optional<TimeEntry> entry = decodeTimeEntry(item);
-        const QJsonObject object = item.toObject();
-        if (!entry || !optionalBool(object.value(QLatin1String("project_active")), listed.projectActive, false)
-            || !optionalBool(object.value(QLatin1String("project_billable")), listed.projectBillable, false)) {
-            return std::nullopt;
-        }
-        listed.entry = std::move(*entry);
-        entries.append(std::move(listed));
-    }
-    return entries;
-}
-
-std::optional<TimerState> decodeTimerState(const QJsonValue &value)
-{
-    if (!value.isObject()) {
-        return std::nullopt;
-    }
+    ListedEntry listed;
+    std::optional<TimeEntry> entry = decodeTimeEntry(value);
     const QJsonObject object = value.toObject();
-    TimerState state;
-    const std::optional<qint64> revision = integer(object.value(QLatin1String("revision")));
-    const std::optional<QDateTime> serverTime = timestamp(object.value(QLatin1String("server_time")));
-    if (!revision || *revision < 0 || !serverTime) {
+    if (!entry || !optionalBool(object.value(QLatin1String("project_active")), listed.projectActive, false)
+        || !optionalBool(object.value(QLatin1String("project_billable")), listed.projectBillable, false)) {
         return std::nullopt;
     }
-    state.revision = *revision;
-    state.serverTime = *serverTime;
-    if (!nullable(object, QLatin1String("running_entry"), &runningEntry, state.runningEntry)
-        || !nullable(object, QLatin1String("pause"), &timerPause, state.pause)
-        || !nullable(object, QLatin1String("pomodoro"), &timerPomodoro, state.pomodoro)
-        || !nullable(object, QLatin1String("discarded_pomodoro"), &discardedPomodoro, state.discardedPomodoro)) {
-        return std::nullopt;
-    }
-    return state;
+    listed.entry = std::move(*entry);
+    return std::optional<ListedEntry>(std::move(listed));
 }
 
-ApiError errorFromResponse(const HttpResponse &response)
+namespace
 {
-    ApiError error;
-    switch (response.outcome) {
-    case HttpResponse::Outcome::Timeout:
-        error.kind = ApiError::Kind::Timeout;
-        error.message = tr("The Tokkl instance did not answer in time.");
-        return error;
-    case HttpResponse::Outcome::NetworkError:
-    case HttpResponse::Outcome::Aborted:
-        error.kind = ApiError::Kind::Network;
-        error.message = response.errorString.isEmpty() ? tr("Could not reach the Tokkl instance.")
-                                                        : tr("Could not reach the Tokkl instance: %1").arg(response.errorString);
-        return error;
-    case HttpResponse::Outcome::Finished:
-        break;
-    }
-
-    error.status = response.status;
-    const QString message = serverMessage(response.body);
-    if (response.status >= 300 && response.status < 400) {
-        error.kind = ApiError::Kind::Redirect;
-        error.message = tr("The instance redirected the request to %1. Enter the final address as the instance URL.").arg(redirectTarget(response.location));
-    } else if (response.status == 401) {
-        error.kind = ApiError::Kind::Unauthorized;
-        error.message = message.isEmpty() ? tr("The instance did not accept these credentials.") : message;
-    } else if (response.status == 403) {
-        error.kind = ApiError::Kind::Forbidden;
-        error.message = message.isEmpty() ? tr("The instance refused the request.") : message;
-    } else if (response.status == 429) {
-        error.kind = ApiError::Kind::RateLimited;
-        error.message = message.isEmpty() ? tr("Too many attempts. Try again later.") : message;
-    } else if (response.status >= 500) {
-        error.kind = ApiError::Kind::Server;
-        error.message = tr("The Tokkl instance had an error (HTTP %1).").arg(response.status);
-    } else if (response.status >= 400) {
-        error.kind = ApiError::Kind::Client;
-        error.message = message.isEmpty() ? tr("The instance rejected the request (HTTP %1).").arg(response.status) : message;
-    } else {
-        error.kind = ApiError::Kind::InvalidResponse;
-        error.message = tr("The instance sent an unexpected response (HTTP %1).").arg(response.status);
-    }
-    return error;
-}
-
-QByteArray encodeStartEntry(const StartEntry &entry, qint64 workspaceId, const QString &createdWith)
+QJsonObject startEntryObject(const StartEntry &entry, qint64 workspaceId, const QString &createdWith)
 {
     QJsonObject object{
         {QStringLiteral("created_with"), createdWith},
         {QStringLiteral("description"), entry.description},
-        {QStringLiteral("duration"), -1},
         {QStringLiteral("start"), utcTimestamp(entry.start)},
         {QStringLiteral("workspace_id"), workspaceId},
         {QStringLiteral("project_id"), idJson(entry.projectId)},
@@ -614,6 +351,14 @@ QByteArray encodeStartEntry(const StartEntry &entry, qint64 workspaceId, const Q
     if (entry.billable) {
         object.insert(QStringLiteral("billable"), *entry.billable);
     }
+    return object;
+}
+}
+
+QByteArray encodeTimerStart(qint64 revision, const StartEntry &entry, qint64 workspaceId, const QString &createdWith)
+{
+    QJsonObject object = startEntryObject(entry, workspaceId, createdWith);
+    object.insert(QStringLiteral("revision"), revision);
     return QJsonDocument(object).toJson(QJsonDocument::Compact);
 }
 
@@ -638,120 +383,18 @@ QByteArray encodeTimeEntryUpdate(const TimeEntryUpdate &update)
     return QJsonDocument(object).toJson(QJsonDocument::Compact);
 }
 
-bool PomodoroConfig::isValid() const
+QByteArray encodeTimerEdit(qint64 entryId, const TimeEntryUpdate &update)
 {
-    return workMinutesRange.contains(workMinutes) && shortRestMinutesRange.contains(shortRestMinutes) && longRestMinutesRange.contains(longRestMinutes)
-        && longRestEveryRange.contains(longRestEvery);
-}
-
-QString phaseKindName(PhaseKind kind)
-{
-    switch (kind) {
-    case PhaseKind::Work:
-        return QStringLiteral("work");
-    case PhaseKind::ShortRest:
-        return QStringLiteral("shortRest");
-    case PhaseKind::LongRest:
-        return QStringLiteral("longRest");
-    }
-    return QString();
-}
-
-std::optional<PhaseKind> parsePhaseKind(QStringView name)
-{
-    for (const PhaseKind kind : {PhaseKind::Work, PhaseKind::ShortRest, PhaseKind::LongRest}) {
-        if (name == phaseKindName(kind)) {
-            return kind;
-        }
-    }
-    return std::nullopt;
-}
-
-QString transitionKindName(TransitionKind kind)
-{
-    switch (kind) {
-    case TransitionKind::WorkToShortRest:
-        return QStringLiteral("workToShortRest");
-    case TransitionKind::ShortRestToWork:
-        return QStringLiteral("shortRestToWork");
-    case TransitionKind::WorkToLongRest:
-        return QStringLiteral("workToLongRest");
-    case TransitionKind::LongRestToWork:
-        return QStringLiteral("longRestToWork");
-    }
-    return QString();
-}
-
-std::optional<TransitionKind> parseTransitionKind(QStringView name)
-{
-    for (const TransitionKind kind :
-         {TransitionKind::WorkToShortRest, TransitionKind::ShortRestToWork, TransitionKind::WorkToLongRest, TransitionKind::LongRestToWork}) {
-        if (name == transitionKindName(kind)) {
-            return kind;
-        }
-    }
-    return std::nullopt;
+    QJsonObject object = QJsonDocument::fromJson(encodeTimeEntryUpdate(update)).object();
+    // The running entry's start is the timer's, not an edit's.
+    object.remove(QStringLiteral("start"));
+    object.insert(QStringLiteral("entry_id"), entryId);
+    return QJsonDocument(object).toJson(QJsonDocument::Compact);
 }
 
 bool isTimeResolution(qint64 minutes)
 {
     return minutes >= 1 && 60 % minutes == 0;
-}
-
-QString pomodoroPreferenceKey(PomodoroField field)
-{
-    for (const PomodoroPreference &preference : pomodoroPreferences) {
-        if (preference.field == field) {
-            return preference.key;
-        }
-    }
-    return QString();
-}
-
-std::optional<PomodoroConfig> decodePomodoroPreferences(const QJsonValue &value)
-{
-    if (!value.isObject()) {
-        return std::nullopt;
-    }
-    const QJsonObject object = value.toObject();
-    PomodoroConfig config;
-    for (const PomodoroPreference &preference : pomodoroPreferences) {
-        const std::optional<qint64> minutes = integer(object.value(preference.key));
-        if (minutes && *minutes >= preference.range.min && *minutes <= preference.range.max) {
-            config.*preference.value = int(*minutes);
-        }
-    }
-    return config;
-}
-
-QByteArray encodePomodoroConfigUpdate(const PomodoroConfigUpdate &update)
-{
-    QJsonObject object;
-    for (const PomodoroPreference &preference : pomodoroPreferences) {
-        if (const std::optional<int> value = update.*preference.change) {
-            object.insert(preference.key, *value);
-        }
-    }
-    return QJsonDocument(object).toJson(QJsonDocument::Compact);
-}
-
-QByteArray encodeRevision(qint64 revision)
-{
-    return QJsonDocument(QJsonObject{{QStringLiteral("revision"), revision}}).toJson(QJsonDocument::Compact);
-}
-
-QByteArray encodePomodoroStart(const PomodoroStart &start, qint64 workspaceId, const QString &createdWith)
-{
-    QJsonObject object{
-        {QStringLiteral("created_with"), createdWith},
-        {QStringLiteral("description"), start.description},
-        {QStringLiteral("workspace_id"), workspaceId},
-        {QStringLiteral("project_id"), idJson(start.projectId)},
-    };
-    if (start.billable) {
-        object.insert(QStringLiteral("billable"), *start.billable);
-    }
-    return QJsonDocument(object).toJson(QJsonDocument::Compact);
 }
 
 }

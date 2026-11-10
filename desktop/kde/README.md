@@ -148,12 +148,11 @@ come from `desktop/core`.
 - `timer`: the timer controller (`TokklTimer`) against a fake clock, transport
   and credential store: ticking, sleep gaps, polling, start and stop requests,
   repeated clicks, conflicts, late replies, failures and account switches.
-- `kdetimerstate`: the timer state client the widget creates from QML
-  (`TokklTimerState`): built once the connection is set, reading through that
-  connection, replaced when the connection changes.
-- `kdepomodoro`: the Pomodoro wiring (`TokklPomodoro`): the session acts
-  through the state client the timer reads, and is built again when the timer
-  gets another client.
+- `kdetimerstate`: the widget's timer as QML creates it (`TokklTimerState`):
+  the connection, the timer, the Pomodoro session and its preferences client
+  exist from the start, the timer and the session share one state client,
+  and the session takes the Pomodoro mode from the applet's configuration
+  once the applet is set.
 - `appletpomodorostore`: the Pomodoro mode in the configuration of an applet
   that a test corona hosts, and that records an earlier version kept there are
   neither read nor removed.
@@ -168,12 +167,13 @@ come from `desktop/core`.
   messages and its end.
 - `networktransport`: the real HTTP transport against an in-process server on
   127.0.0.1: headers, no cookies, redirects not followed, timeouts.
-- `kdeconnection`: the connection and Configure page types the widget creates
-  (`TokklConnection`, `TokklConnectionSetup`) with the real KDE Wallet client
+- `kdeconnection`: the widget's connections (`KdeConnection`, which the
+  Pomodoro settings page uses, `TokklConnectionSetup` and the connection of
+  `TokklTimerState`) with the real KDE Wallet client
   and transport. A fake kwalletd answers on a private `dbus-daemon` the test
   starts, and an in-process server on 127.0.0.1 plays Tokkl, so neither your
   wallet nor your session bus is touched. It checks the KDE Wallet message for
-  each wallet status, that both types share one wallet store, that each owns
+  each wallet status, that they share one wallet store, that each owns
   its transport, and the `tokkl-kde` client name in `created_with` and the
   User-Agent.
 - `kdewallet-disabled`: the same types with KDE Wallet turned off in a
@@ -249,7 +249,8 @@ before the change. When `/me` or `/me/time_entries/current` answers 403 the widg
 account and stops retrying until you choose Reconnect from its context menu or
 change the settings; the saved secret stays in the wallet so you can correct it. A 429
 answer pauses requests for the `Retry-After` time (60 seconds when the server
-sends none). Connection failures, timeouts and 5xx answers keep the last account
+sends none), and so does a 503 that carries `Retry-After`. The event stream
+reconnects no sooner than its `retry:` field asks. Connection failures, timeouts and 5xx answers keep the last account
 data, marked stale. Redirects are not followed, so the credentials never go to
 another address; enter the final address instead.
 
@@ -358,17 +359,19 @@ never the only sign.
   that happens before the project list has arrived waits for the list and
   then checks the project against it. When the timer connects, or you choose
   Reconnect, with nothing running, it reads
-  `GET /api/v9/me/time_entries?meta=true` and takes the newest entry's
-  project. Only an active project of the workspace counts; an archived or
-  deleted project, or none, gives No project. The API lists only the last 9
-  days, so after a longer break the default is No project. A choice made
+  `GET /api/app/time_entries/latest` and takes the newest entry's
+  project, however long ago it started. Only an active project of the
+  workspace counts; an archived or deleted project, or none, gives No
+  project. A choice made
   while stopped (a project or Billable) wins until the next start, and
   Reconnect replaces only an automatic default, never a choice you made. A
   choice made before a stop does not carry over it.
 - While an entry runs, Billable also changes that entry in place with
-  `PUT /api/v9/workspaces/{wid}/time_entries/{id}`, sending only `billable`.
+  `POST /api/app/timer/edit`, sending only `billable` and the entry's id.
   The description, tags, start and the rest stay as they are, and the entry
-  is not split.
+  is not split. A change on another device that leaves the entry running
+  does not refuse the edit. The server answers 409 only once the entry
+  stopped, which shows as a change on another device.
 - Project and Billable are disabled whenever the timer cannot write: not
   configured, loading, busy, offline before the entry is known, refused
   credentials, a lost workspace or a cooldown.
@@ -380,10 +383,13 @@ hand; the tests run offscreen.
 
 ## Timer
 
-`TokklTimer` (`desktop/core/src/timercontroller.h`) drives the timer for the widget. QML
-sets its `stateClient` to the `client` of a `TokklTimerState`, which the widget
-builds on its `TokklConnection`. The timer and the Pomodoro session share that
-one client, which reads `GET /api/app/timer`, follows the event stream of
+`TokklTimer` (`desktop/core/src/timercontroller.h`) drives the timer for the widget.
+`TokklTimerState` (`src/kdetimerstate.h`) builds it with the rest of the core's
+`TimerStack` (`desktop/core/src/timerstack.h`): the connection
+(`TokklConnection`, which `main.qml` configures through grouped properties such
+as `connection.instanceUrl`), one timer state client, the Pomodoro session and
+its preferences client, all on one clock. The timer and the Pomodoro session
+share that one client, which reads `GET /api/app/timer`, follows the event stream of
 `GET /api/app/timer/events` and keeps the newest state; the running entry, the
 pause chain and the session all come from it.
 
@@ -404,13 +410,21 @@ pause chain and the session all come from it.
   included. `indicatorColor` is the project's colour as lowercase `#rrggbb`
   in the `Project` state when it has that form, and an empty string otherwise. `indicatorChanged`
   fires whenever either changes. The panel's project indicator draws it.
-- Start sends `POST /api/v9/workspaces/{wid}/time_entries` with
-  `duration: -1`, the current UTC time as `start`, `created_with: "tokkl-kde"`,
-  an empty description and the selected project and billable choice. Stop
-  sends `PATCH /api/v9/workspaces/{wid}/time_entries/{id}/stop` for the
-  running entry.
-- Pause (`POST /api/app/timer/pause`) asks the server to stop the running
-  entry and keep a chain: the entry's description, project, task, tags and
+- Start sends `POST /api/app/timer/start` with the revision shown, the
+  current UTC time as `start`, `created_with: "tokkl-kde"`, an empty
+  description and the selected project and billable choice. Stop sends `POST
+  /api/app/timer/stop` with the revision shown. Both answer with the timer
+  state, and with a 409 and the server's state when another device changed
+  the timer first. A 404 from either route is a refusal, never a reason to
+  send the write again elsewhere.
+- The widget needs a Tokkl server from the first release after 2.1.0: its
+  `GET /api/app/status` names `api_version` 1 and the capabilities
+  `ServerFloor` lists in `desktop/core/src/apitypes.h`. Against an older
+  server the widget shows the Error status with "This Tokkl server is too old
+  for this app; update the server." and sends nothing else; Reconnect asks
+  the server again.
+- Pause (`POST /api/app/timer/pause`, against the revision shown) asks the
+  server to stop the running entry and keep a chain: the entry's description, project, task, tags and
   billable flag, and the seconds it stored. Resume (`POST
   /api/app/timer/resume`) starts a clone of that entry on the server, against
   the revision shown. The elapsed time is then the chain total, the seconds the
@@ -425,10 +439,12 @@ pause chain and the session all come from it.
 - One start, pause, resume or stop runs at a time and clicks meanwhile are
   ignored. A read sent before one cannot overwrite its result. When one gets
   no clear answer (no response, timeout, 5xx or an unreadable body)
-  the timer stays busy until a read shows what the server did; it never sends
-  the request again. A 409 on a timer action adopts the state the server sent
-  and shows "The timer changed on another device first."; a 409 or 404 on stop
-  just reads the entry again.
+  the timer stays busy until a read shows what the server did. Start and
+  Start session carry an `Idempotency-Key`, a new one per click, and go out
+  once more about a second later with the same body and key, so a server that acted on
+  the first answers with what it did then. Nothing else is sent again. A 409 on a timer action adopts the state the server sent
+  and shows "The timer changed on another device first."; any other refusal
+  reads the state again.
 - Connection failures keep the last entry, marked stale. After a failed read
   of the entry the mark stays until the entry is read again, even if other
   requests succeed first. Refused credentials clear it. During a 429 cooldown nothing is sent.
@@ -447,7 +463,7 @@ pause chain and the session all come from it.
 
 The menu has a checkable Pomodoro mode item that switches the widget between Timer mode and Pomodoro mode. The widget remembers the choice on this device. While a timer runs or is paused, or a session is active, the item reads "Pomodoro mode (locked while running)" and is disabled. Stop the timer or end the session to change it.
 
-The session belongs to the server (`POST /api/app/pomodoro`, `/next` and `/end`), so a session started, advanced or ended on any device shows here, in either mode. The widget keeps only the mode and the alarm. Start session sends the chosen project and billable flag; the server takes the account's lengths and times the phases on its own clock. Next phase and End session send the revision of the state shown, so a confirm that another device beat to it is refused and the panel shows the state that refused it. Start session, Next phase and End session need a connection. While the instance is unreachable, a running session keeps counting down and ringing from the last state held.
+The session belongs to the server (`POST /api/app/pomodoro`, `/next` and `/end`), so a session started, advanced or ended on any device shows here, in either mode. The widget keeps only the mode and the alarm. Start session sends the chosen project and billable flag; the server takes the account's lengths and times the phases on its own clock. Start session, Next phase and End session send the revision of the state shown, so an action that another device beat to it is refused and the panel shows the state that refused it. A server that does not announce `pomodoro-revision` gets Start session without one. Start session, Next phase and End session need a connection. While the instance is unreachable, a running session keeps counting down and ringing from the last state held.
 
 A left click on the panel depends on the session and the mode:
 
@@ -459,7 +475,7 @@ Whenever a session is active the panel shows the phase, the countdown and "Pomod
 
 Whenever Pomodoro mode is on, an hourglass follows the logo, in full colour or, with Use a monochrome panel icon on, in the panel's text colour. During a session the time counts down as `M:SS` to the phase's planned end, then up as `+M:SS` in overtime. The tooltip and the accessible description name the phase, the time left and the pomodoro, for example "Short rest · 4:10 left · Pomodoro 2 of 4". The widget posts no notification.
 
-The Pomodoro page of Configure holds the account's four lengths: Work, Short rest and Long rest in minutes, and Long rest every so many pomodoros. They are the account's preferences, shared with the web app and Android. A session takes them when it starts. Changing them needs a connection to the Tokkl server; without one the page shows the cached values and they cannot be edited. Below them, each of the four transitions has the sound it plays, chosen from the four bundled sounds (see [docs/sounds](../../docs/sounds/README.md)), with a Preview button. The widget keeps the sound choices on this device.
+The Pomodoro page of Configure holds the account's four lengths: Work, Short rest and Long rest in minutes, and Long rest every so many pomodoros. They are the account's preferences, shared with the web app and Android. A session takes them when it starts. Changing them needs a connection to the Tokkl server; without one the page shows the cached values and they cannot be edited. OK closes the dialog before the server answers; the save still finishes, and if the server refuses it, the panel's menu and tooltip say "Pomodoro lengths not saved" with the reason until the next save. Below them, each of the four transitions has the sound it plays, chosen from the four bundled sounds (see [docs/sounds](../../docs/sounds/README.md)), with a Preview button. The widget keeps the sound choices on this device.
 
 When a phase reaches its planned end, the chosen sound plays over and over until you confirm Next phase or end the session. The widget plays it through Qt Multimedia (`QSoundEffect`). The package installs the four WAV files in the widget's `contents/sounds/`.
 
@@ -517,6 +533,18 @@ To change the icons, run `npm run icons` from the repository root and commit
 the files it writes. A second run writes the same bytes. Plasma keeps the
 widget it has loaded, so after installing new icons restart plasmashell or log
 out and back in before checking them.
+
+## Translations
+
+The QML strings use KI18n under the catalogue
+`plasma_applet_com.canpicasoft.tokkl`. The core's C++ messages, such as
+connection states and API errors, use Qt's `tr()` and form the Qt catalogue
+`tokklcore_qt`. `Messages.sh` extracts both. The backend module loads
+`locale/<lang>/LC_MESSAGES/tokklcore_qt.qm` from the XDG data dirs through
+ECM's `ecm_create_qm_loader`, and the build installs `poqm/<lang>/*.po` as
+`.qm` files when the source has a `poqm/` directory. No translations ship yet,
+so the widget shows the English text. `desktop/core/src/translations.h`
+describes the catalogues of all three companions.
 
 ## Staged install
 
@@ -784,7 +812,8 @@ server's or refuse a server of another version.
 ### Real-server test
 
 `tests/realserver.test.ts` runs the companion's `Connection`,
-`TimerStateClient`, `TimerController` and `PomodoroSession`, with the real
+`TimerStateClient`, `TimerController` and `PomodoroSession`, built as the
+widget builds them through `TimerStack`, with the real
 HTTP transport, against two Tokkl instances started with the API's multi-user
 test fixtures (`packages/api/test/helpers.ts`) on 127.0.0.1. The instances'
 time resolution is 1 minute, and the ids on the two collide by construction.
@@ -872,7 +901,7 @@ Prepare:
 
 - Two accounts, A and B, on the instance. Account A has a billable project,
   a nonbillable project, an archived project that has a stopped entry, and
-  one entry from the last 9 days. B has one project with a different name.
+  a stopped entry. B has one project with a different name.
 - Both accounts' API tokens, and A's email and password.
 - `echo $XDG_SESSION_TYPE` prints `wayland`, and KWalletManager shows the
   network wallet. Note the Plasma, KDE Frameworks and Qt versions.
@@ -998,8 +1027,8 @@ Menu:
       pick stays. Pick nothing, change the newest entry's project in the web
       app, then choose Reconnect: the preselected project follows it.
 - [ ] Log out and in with nothing running: the preselected project is the
-      newest entry's from the last 9 days. With no entry in 9 days it is No
-      project.
+      newest entry's, also when that entry is weeks old. An account without
+      entries gets No project.
 - [ ] Start an entry on the archived project in the web app, then open the
       menu: the project is shown checked and disabled, and is not offered
       for a new start.

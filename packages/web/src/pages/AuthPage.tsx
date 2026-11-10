@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { api } from '../api/client.ts';
+import { authRequests } from '../api/auth.ts';
 import { Brand } from '../components/Brand.tsx';
-import { FieldError } from '../components/FieldError.tsx';
-import { Icon } from '../components/Icon.tsx';
+import { FormError, errorMessage } from '../components/FormError.tsx';
+import { browserTimeZone } from '../lib/browserTimeZone.ts';
+import { t } from '../i18n/messages.ts';
 
 export function AuthPage({ mode }: { mode: 'login' | 'setup' }) {
   const qc = useQueryClient();
@@ -20,16 +21,19 @@ export function AuthPage({ mode }: { mode: 'login' | 'setup' }) {
     setError(null);
     try {
       if (mode === 'setup') {
-        await api.post('/api/app/setup', {
-          setup_code: setupCode, email, password, fullname,
-          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        await authRequests.setup({
+          setup_code: setupCode,
+          email,
+          password,
+          fullname,
+          timezone: browserTimeZone(),
         });
       } else {
-        await api.post('/api/app/login', { email, password });
+        await authRequests.login({ email, password });
       }
       await qc.resetQueries();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(errorMessage(err));
     } finally {
       setBusy(false);
     }
@@ -41,44 +45,51 @@ export function AuthPage({ mode }: { mode: 'login' | 'setup' }) {
       <form className="auth-card" onSubmit={submit}>
         {mode === 'setup' ? (
           <>
-            <h1>Create the first admin</h1>
-            <p className="muted">
-              This creates the server's first administrator. You can invite more people afterwards.
-              The setup code is printed in the server log.
-            </p>
+            <h1>{t('auth.setupTitle')}</h1>
+            <p className="muted">{t('auth.setupIntro')}</p>
             <label className="field">
-              <span>Setup code</span>
-              <input value={setupCode} onChange={(e) => setSetupCode(e.target.value)} required autoComplete="off" autoFocus />
+              <span>{t('auth.setupCode')}</span>
+              <input
+                value={setupCode}
+                onChange={e => setSetupCode(e.target.value)}
+                required
+                autoComplete="off"
+                autoFocus
+              />
             </label>
             <label className="field">
-              <span>Name</span>
-              <input value={fullname} onChange={(e) => setFullname(e.target.value)} autoComplete="name" />
+              <span>{t('auth.name')}</span>
+              <input value={fullname} onChange={e => setFullname(e.target.value)} autoComplete="name" />
             </label>
           </>
-        ) : <h1>Log in</h1>}
+        ) : (
+          <h1>{t('auth.logIn')}</h1>
+        )}
         <label className="field">
-          <span>Email</span>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="username" autoFocus={mode === 'login'} />
+          <span>{t('auth.email')}</span>
+          <input
+            type="email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            required
+            autoComplete="username"
+            autoFocus={mode === 'login'}
+          />
         </label>
         <label className="field">
-          <span>Password</span>
+          <span>{t('auth.password')}</span>
           <input
             type="password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={e => setPassword(e.target.value)}
             required
             minLength={mode === 'setup' ? 8 : undefined}
             autoComplete={mode === 'setup' ? 'new-password' : 'current-password'}
           />
         </label>
-        {error ? (
-          <div className="auth-error">
-            <Icon name="alert" className="error-icon" />
-            <FieldError message={error} />
-          </div>
-        ) : null}
+        <FormError message={error} />
         <button type="submit" className="button button-primary button-block" disabled={busy}>
-          {mode === 'setup' ? 'Create admin account' : 'Log in'}
+          {mode === 'setup' ? t('auth.createAdmin') : t('auth.logIn')}
         </button>
       </form>
     </div>

@@ -1,8 +1,3 @@
-// D-Bus activation of the built tokkl-timerd through the activation file the
-// project installs, on a private D-Bus daemon whose only service directory
-// holds that file. The first call to org.tokkl.Timer1 starts the program; a
-// second copy cannot take the name and exits.
-
 #include "privatebus.h"
 
 #include <QDBusConnection>
@@ -48,8 +43,7 @@ private Q_SLOTS:
     void initTestCase()
     {
         QVERIFY(m_home.isValid());
-        // The program the bus starts inherits this environment: settings from
-        // an empty directory and no address of another session bus.
+        // The activated program inherits this environment.
         qputenv("HOME", m_home.path().toLocal8Bit());
         qputenv("XDG_CONFIG_HOME", m_home.filePath(QStringLiteral("config")).toLocal8Bit());
         qputenv("XDG_DATA_HOME", m_home.filePath(QStringLiteral("data")).toLocal8Bit());
@@ -63,7 +57,6 @@ private Q_SLOTS:
 
     void cleanupTestCase()
     {
-        // A service a failed check left running.
         if (m_pid != 0 && ::kill(static_cast<pid_t>(m_pid), 0) == 0) {
             ::kill(static_cast<pid_t>(m_pid), SIGTERM);
         }

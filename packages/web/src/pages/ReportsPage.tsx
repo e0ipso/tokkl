@@ -1,9 +1,11 @@
 import { useMemo } from 'react';
-import { useEntryBounds, useReport } from '../api/hooks.ts';
+import { useEntryBounds } from '../api/entries.ts';
+import { useReport } from '../api/reports.ts';
 import { EmptyState } from '../components/EmptyState.tsx';
 import { Icon } from '../components/Icon.tsx';
 import { LoadError, Loading } from '../components/PageState.tsx';
-import { today, useSettings } from '../lib/settings.ts';
+import { useSettings } from '../api/settings.ts';
+import { today } from '../lib/format.ts';
 import { DetailedTab } from './reports/DetailedTab.tsx';
 import { ExportButtons } from './reports/ExportButtons.tsx';
 import { Filters } from './reports/Filters.tsx';
@@ -12,9 +14,13 @@ import { RangeControl } from './reports/RangeControl.tsx';
 import { SummaryTab } from './reports/SummaryTab.tsx';
 import { TABS, useReportState, type Tab } from './reports/urlState.ts';
 import { WeeklyTab } from './reports/WeeklyTab.tsx';
-import './reports/reports.css';
+import { t, type MessageKey } from '../i18n/messages.ts';
 
-const TAB_LABELS: Record<Tab, string> = { summary: 'Summary', detailed: 'Detailed', weekly: 'Weekly' };
+const TAB_LABELS = {
+  summary: 'reports.tabSummary',
+  detailed: 'reports.tabDetailed',
+  weekly: 'reports.tabWeekly',
+} as const satisfies Record<Tab, MessageKey>;
 
 export function ReportsPage() {
   const settings = useSettings();
@@ -30,34 +36,62 @@ export function ReportsPage() {
 
   let body: React.ReactNode;
   if (report.isPending) {
-    body = <Loading label="Loading report…" />;
+    body = <Loading label={t('reports.loading')} />;
   } else if (report.isError && !data) {
-    body = <LoadError className="report-error" message={`Couldn't load the report: ${report.error.message}`} onRetry={() => void report.refetch()} />;
+    body = (
+      <LoadError
+        className="report-error"
+        message={t('reports.loadFailed', { message: report.error.message })}
+        onRetry={() => void report.refetch()}
+      />
+    );
   } else if (data && data.totals.entry_count === 0) {
-    const filtered = Boolean(filters.project_ids || filters.client_ids || filters.tag_ids || filters.billable !== undefined || filters.description);
+    const filtered = Boolean(
+      filters.project_ids ||
+      filters.client_ids ||
+      filters.tag_ids ||
+      filters.billable !== undefined ||
+      filters.description,
+    );
     body = (
       <EmptyState
         className={dimmed ? 'is-dimmed' : undefined}
         icon={<Icon name="chart" size={32} />}
-        title={`No time tracked in this range${filtered ? ' with these filters' : ''}`}
+        title={filtered ? t('reports.emptyTitleFiltered') : t('reports.emptyTitle')}
       >
-        {filtered ? 'Loosen a filter, or pick another range with the arrows or the date menu.' : 'Pick another range with the arrows or the date menu.'}
+        {filtered ? t('reports.emptyHintFiltered') : t('reports.emptyHint')}
       </EmptyState>
     );
   } else if (data) {
-    body = state.tab === 'summary' ? (
-      <SummaryTab report={data} grouping={state.grouping} subGrouping={state.subGrouping} settings={settings} dimmed={dimmed} update={update} />
-    ) : state.tab === 'detailed' ? (
-      <DetailedTab filters={filters} sort={state.sort} dir={state.dir} page={state.page} settings={settings} dimmed={dimmed} update={update} />
-    ) : (
-      <WeeklyTab filters={filters} by={state.weeklyRows} settings={settings} dimmed={dimmed} update={update} />
-    );
+    body =
+      state.tab === 'summary' ? (
+        <SummaryTab
+          report={data}
+          grouping={state.grouping}
+          subGrouping={state.subGrouping}
+          settings={settings}
+          dimmed={dimmed}
+          update={update}
+        />
+      ) : state.tab === 'detailed' ? (
+        <DetailedTab
+          filters={filters}
+          sort={state.sort}
+          dir={state.dir}
+          page={state.page}
+          settings={settings}
+          dimmed={dimmed}
+          update={update}
+        />
+      ) : (
+        <WeeklyTab filters={filters} by={state.weeklyRows} settings={settings} dimmed={dimmed} update={update} />
+      );
   }
 
   return (
     <div className="page reports">
       <header className="page-header reports-header">
-        <h1>Reports</h1>
+        <h1>{t('reports.title')}</h1>
         <RangeControl
           range={state.range}
           preset={state.preset}
@@ -78,8 +112,8 @@ export function ReportsPage() {
         />
       </header>
       <Filters state={state} update={update} />
-      <div className="report-tabs" role="tablist" aria-label="Report type">
-        {TABS.map((tab) => (
+      <div className="report-tabs" role="tablist" aria-label={t('reports.tabsLabel')}>
+        {TABS.map(tab => (
           <button
             key={tab}
             type="button"
@@ -90,11 +124,19 @@ export function ReportsPage() {
             className={`report-tab${state.tab === tab ? ' active' : ''}`}
             onClick={() => update({ tab })}
           >
-            {TAB_LABELS[tab]}
+            {t(TAB_LABELS[tab])}
           </button>
         ))}
-        {report.isFetching && !report.isPending ? <span className="hint report-refreshing" role="status">Updating…</span> : null}
-        {report.isError && data ? <span className="hint report-stale" role="alert">Couldn't refresh. Showing the last result.</span> : null}
+        {report.isFetching && !report.isPending ? (
+          <span className="hint report-refreshing" role="status">
+            {t('reports.updating')}
+          </span>
+        ) : null}
+        {report.isError && data ? (
+          <span className="hint report-stale" role="alert">
+            {t('reports.refreshFailed')}
+          </span>
+        ) : null}
       </div>
       <div id="report-panel" role="tabpanel" aria-labelledby={`report-tab-${state.tab}`}>
         {body}

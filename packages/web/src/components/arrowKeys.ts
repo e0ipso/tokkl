@@ -1,9 +1,4 @@
-/**
- * Index an arrow key, Home or End moves to in a list of `count` options, wrapping at the ends, or
- * null for any other key. `index` is -1 when no option is active yet: Down then goes to the first
- * option and Up to the last. A vertical list ignores Left and Right, which the caret or the page
- * may need.
- */
+/** Wraps at the ends; null for other keys. With `index` -1, Down goes first, Up last. Vertical ignores Left/Right. */
 export function arrowTarget(key: string, index: number, count: number, vertical = false): number | null {
   if (count === 0) return null;
   const forward = key === 'ArrowDown' || (!vertical && key === 'ArrowRight');

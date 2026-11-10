@@ -1,0 +1,24 @@
+{
+  "about": "Instance addresses and whether the settings warn that they are plain http: ConnectionSetup::isInsecure() for the KDE and macOS settings, and isInsecureUrl() in the GNOME extension's instanceurl.js. An address that is not usable gets no warning; the settings show why it is not usable instead. The GNOME rule is a JavaScript copy rather than a call to tokkl-timerd because the preferences window warns while the address is typed, also when the service is stopped or older than the extension supports, and calling a stopped service would start it through D-Bus activation. These cases keep the two in step.",
+  "cases": [
+    {"url": "http://tokkl.example.test", "insecure": true},
+    {"url": "HTTP://Tokkl.Example.test/tokkl/", "insecure": true},
+    {"url": "  http://tokkl.example.test  ", "insecure": true},
+    {"url": "http://10.0.0.5:8080", "insecure": true},
+    {"url": "http://[2001:db8::1]:8080", "insecure": true},
+    {"url": "http://tokkl.example.test:80/tokkl", "insecure": true},
+    {"url": "https://tokkl.example.test", "insecure": false},
+    {"url": "http://localhost:8080", "insecure": false},
+    {"url": "http://LOCALHOST", "insecure": false},
+    {"url": "http://127.0.0.1:8080", "insecure": false},
+    {"url": "http://127.4.5.6/tokkl", "insecure": false},
+    {"url": "http://[::1]:8080", "insecure": false},
+    {"url": "http://u:p@tokkl.example.test", "insecure": false},
+    {"url": "http://tokkl.example.test/?a=1", "insecure": false},
+    {"url": "http://tokkl.example.test#top", "insecure": false},
+    {"url": "http://", "insecure": false},
+    {"url": "tokkl.example.test", "insecure": false},
+    {"url": "ftp://tokkl.example.test", "insecure": false},
+    {"url": "", "insecure": false}
+  ]
+}

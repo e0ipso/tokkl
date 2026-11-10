@@ -4,21 +4,17 @@ import { login } from './helpers.ts';
 import { TimerApi, madridWallClock } from './timer-tests-helpers.ts';
 import { accountTime } from './transfer-tests-helpers.ts';
 
-// Manual mode persists per user (docs/PRD.md M1), an end before the start rolls to the next
-// account-local day (M3), and each saved entry's stored stop becomes the next start (M5). The e2e
-// account lives in Europe/Madrid.
+// Manual mode persists per user (docs/PRD.md M1), an end before the start rolls to the next day (M3), and
+// each stored stop becomes the next start (M5). The account lives in Europe/Madrid.
 
 interface Step {
   end: string;
-  /** Duration preview before saving. */
   duration: string;
-  /** Date and start fields after saving: the saved stop on its own local day. */
+  /** The saved stop on its own local day. */
   next: { date: string; start: string };
-  /** Saved instants. */
   saved: [string, string];
 }
 
-/** Adds one entry per step, each continuing from the previous stop, then checks the saved range. */
 async function addSequence(page: Page, api: TimerApi, first: { date: string; start: string }, steps: Step[]) {
   const timer = page.getByRole('region', { name: 'Timer' });
   await timer.getByLabel('Date').fill(first.date);
@@ -32,22 +28,24 @@ async function addSequence(page: Page, api: TimerApi, first: { date: string; sta
     await expect(timer.getByLabel('Date')).toHaveValue(step.next.date);
     await expect(timer.getByLabel('Start time')).toHaveValue(step.next.start);
     await expect(timer.getByLabel('End time')).toHaveValue('');
-    await expect.poll(async () => {
-      const saved = (await api.entries()).find((entry) => entry.description === description);
-      return saved ? [Date.parse(saved.start), Date.parse(saved.stop!)] : null;
-    }).toEqual(step.saved.map((iso) => Date.parse(iso)));
+    await expect
+      .poll(async () => {
+        const saved = (await api.entries()).find(entry => entry.description === description);
+        return saved ? [Date.parse(saved.start), Date.parse(saved.stop!)] : null;
+      })
+      .toEqual(step.saved.map(iso => Date.parse(iso)));
   }
 }
 
-/** After a reload, the saved entries still chain: each starts exactly where the previous one stopped. */
 async function expectChained(page: Page, api: TimerApi, prefix: string, count: number) {
   await page.reload();
   await expect(page.getByRole('region', { name: 'Timer' }).getByLabel('Date')).toBeVisible();
   const entries = (await api.entries())
-    .filter((entry) => entry.description.startsWith(prefix))
+    .filter(entry => entry.description.startsWith(prefix))
     .sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
   expect(entries).toHaveLength(count);
-  for (let i = 1; i < entries.length; i++) expect(Date.parse(entries[i]!.start)).toBe(Date.parse(entries[i - 1]!.stop!));
+  for (let i = 1; i < entries.length; i++)
+    expect(Date.parse(entries[i]!.start)).toBe(Date.parse(entries[i - 1]!.stop!));
 }
 
 test('manual mode survives reload and a 24-hour overnight sequence chains on the right dates', async ({ page }) => {
@@ -60,14 +58,15 @@ test('manual mode survives reload and a 24-hour overnight sequence chains on the
 
   await page.reload();
   await expect(timer.getByLabel('Date')).toBeVisible();
-  // The mode buttons expose which mode is on, not only through the fill.
   await expect(timer.getByRole('button', { name: 'Manual mode' })).toHaveAttribute('aria-pressed', 'true');
   await expect(timer.getByRole('button', { name: 'Timer mode' })).toHaveAttribute('aria-pressed', 'false');
   await expect(timer.getByRole('button', { name: 'Start timer' })).toHaveCount(0);
-  // The two mode buttons form a labelled group, each at least 24px each way.
   const modes = timer.getByRole('group', { name: 'Entry mode' }).getByRole('button');
   await expect(modes).toHaveCount(2);
-  expect(await modes.evaluateAll((buttons) => buttons.map((button) => button.getAttribute('aria-label')))).toEqual(['Timer mode', 'Manual mode']);
+  expect(await modes.evaluateAll(buttons => buttons.map(button => button.getAttribute('aria-label')))).toEqual([
+    'Timer mode',
+    'Manual mode',
+  ]);
   for (const button of await modes.all()) {
     const box = (await button.boundingBox())!;
     expect(Math.min(box.width, box.height)).toBeGreaterThanOrEqual(24);
@@ -75,9 +74,24 @@ test('manual mode survives reload and a 24-hour overnight sequence chains on the
 
   // November is CET (UTC+1).
   await addSequence(page, api, { date: '2025-11-12', start: '22:00' }, [
-    { end: '23:30', duration: '1:30:00', next: { date: '2025-11-12', start: '23:30' }, saved: ['2025-11-12T21:00:00Z', '2025-11-12T22:30:00Z'] },
-    { end: '1:15', duration: '1:45:00', next: { date: '2025-11-13', start: '01:15' }, saved: ['2025-11-12T22:30:00Z', '2025-11-13T00:15:00Z'] },
-    { end: '2', duration: '0:45:00', next: { date: '2025-11-13', start: '02:00' }, saved: ['2025-11-13T00:15:00Z', '2025-11-13T01:00:00Z'] },
+    {
+      end: '23:30',
+      duration: '1:30:00',
+      next: { date: '2025-11-12', start: '23:30' },
+      saved: ['2025-11-12T21:00:00Z', '2025-11-12T22:30:00Z'],
+    },
+    {
+      end: '1:15',
+      duration: '1:45:00',
+      next: { date: '2025-11-13', start: '01:15' },
+      saved: ['2025-11-12T22:30:00Z', '2025-11-13T00:15:00Z'],
+    },
+    {
+      end: '2',
+      duration: '0:45:00',
+      next: { date: '2025-11-13', start: '02:00' },
+      saved: ['2025-11-13T00:15:00Z', '2025-11-13T01:00:00Z'],
+    },
   ]);
   await expectChained(page, api, '2025-11-12 22:00', 3);
   await expect(timer.getByRole('button', { name: 'Manual mode' })).toHaveAttribute('aria-pressed', 'true');
@@ -92,13 +106,26 @@ test('off-grid manual entries chain from the stored, snapped stop without overla
   // 0:53 is nearer 0:55 than 0:50, so 0:00 to 0:53 is stored as 0:00 to 0:55 and the next entry
   // starts at 0:55, not at the typed 0:53.
   await addSequence(page, api, { date: '2025-11-12', start: '0:00' }, [
-    { end: '0:53', duration: '0:55:00', next: { date: '2025-11-12', start: '00:55' }, saved: ['2025-11-11T23:00:00Z', '2025-11-11T23:55:00Z'] },
-    { end: '1:30', duration: '0:35:00', next: { date: '2025-11-12', start: '01:30' }, saved: ['2025-11-11T23:55:00Z', '2025-11-12T00:30:00Z'] },
+    {
+      end: '0:53',
+      duration: '0:55:00',
+      next: { date: '2025-11-12', start: '00:55' },
+      saved: ['2025-11-11T23:00:00Z', '2025-11-11T23:55:00Z'],
+    },
+    {
+      end: '1:30',
+      duration: '0:35:00',
+      next: { date: '2025-11-12', start: '01:30' },
+      saved: ['2025-11-11T23:55:00Z', '2025-11-12T00:30:00Z'],
+    },
   ]);
   await expectChained(page, api, '2025-11-12 0:00', 2);
 });
 
-test('a 24-hour sequence across the spring clock change keeps local times and real durations', async ({ page, data }) => {
+test('a 24-hour sequence across the spring clock change keeps local times and real durations', async ({
+  page,
+  data,
+}) => {
   await data.savePreferences({ timeofday_format: 'H:mm' });
   await login(page);
   const api = await TimerApi.open(page);
@@ -106,8 +133,18 @@ test('a 24-hour sequence across the spring clock change keeps local times and re
   await timer.getByRole('button', { name: 'Manual mode' }).click();
   // 2026-03-29: 02:00 CET jumps to 03:00 CEST.
   await addSequence(page, api, { date: '2026-03-28', start: '23:00' }, [
-    { end: '01:30', duration: '2:30:00', next: { date: '2026-03-29', start: '01:30' }, saved: ['2026-03-28T22:00:00Z', '2026-03-29T00:30:00Z'] },
-    { end: '04:00', duration: '1:30:00', next: { date: '2026-03-29', start: '04:00' }, saved: ['2026-03-29T00:30:00Z', '2026-03-29T02:00:00Z'] },
+    {
+      end: '01:30',
+      duration: '2:30:00',
+      next: { date: '2026-03-29', start: '01:30' },
+      saved: ['2026-03-28T22:00:00Z', '2026-03-29T00:30:00Z'],
+    },
+    {
+      end: '04:00',
+      duration: '1:30:00',
+      next: { date: '2026-03-29', start: '04:00' },
+      saved: ['2026-03-29T00:30:00Z', '2026-03-29T02:00:00Z'],
+    },
   ]);
   await expectChained(page, api, '2026-03-28 23:00', 2);
 });
@@ -121,25 +158,51 @@ test('a 12-hour sequence with explicit suffixes chains across both clock changes
 
   // Spring: 11:30pm CET to 1:30am CET, then to 3:30am CEST, which is one real hour later.
   await addSequence(page, api, { date: '2026-03-28', start: '11:30pm' }, [
-    { end: '1:30am', duration: '2:00:00', next: { date: '2026-03-29', start: '1:30 AM' }, saved: ['2026-03-28T22:30:00Z', '2026-03-29T00:30:00Z'] },
-    { end: '3:30am', duration: '1:00:00', next: { date: '2026-03-29', start: '3:30 AM' }, saved: ['2026-03-29T00:30:00Z', '2026-03-29T01:30:00Z'] },
+    {
+      end: '1:30am',
+      duration: '2:00:00',
+      next: { date: '2026-03-29', start: '1:30 AM' },
+      saved: ['2026-03-28T22:30:00Z', '2026-03-29T00:30:00Z'],
+    },
+    {
+      end: '3:30am',
+      duration: '1:00:00',
+      next: { date: '2026-03-29', start: '3:30 AM' },
+      saved: ['2026-03-29T00:30:00Z', '2026-03-29T01:30:00Z'],
+    },
   ]);
   await expectChained(page, api, '2026-03-28 11:30pm', 2);
 
   // Autumn: 2025-10-26 03:00 CEST falls back to 02:00 CET. A repeated 2:30am resolves to the
   // later, CET occurrence, and the next entry starts exactly there.
   await addSequence(page, api, { date: '2025-10-25', start: '11pm' }, [
-    { end: '2:30am', duration: '4:30:00', next: { date: '2025-10-26', start: '2:30 AM' }, saved: ['2025-10-25T21:00:00Z', '2025-10-26T01:30:00Z'] },
-    { end: '9am', duration: '6:30:00', next: { date: '2025-10-26', start: '9:00 AM' }, saved: ['2025-10-26T01:30:00Z', '2025-10-26T08:00:00Z'] },
+    {
+      end: '2:30am',
+      duration: '4:30:00',
+      next: { date: '2025-10-26', start: '2:30 AM' },
+      saved: ['2025-10-25T21:00:00Z', '2025-10-26T01:30:00Z'],
+    },
+    {
+      end: '9am',
+      duration: '6:30:00',
+      next: { date: '2025-10-26', start: '9:00 AM' },
+      saved: ['2025-10-26T01:30:00Z', '2025-10-26T08:00:00Z'],
+    },
   ]);
   await expectChained(page, api, '2025-10-25 11pm', 2);
 });
 
-test('a no-time manual entry lists with its duration, no time range and no overlap mark, and bad durations show an error', async ({ page, data }) => {
-  // A past day inside the list's window, so midnight never moves it. The timed entry sits inside
-  // the no-time entry's stored span, which would overlap if that span counted.
+test('a no-time manual entry lists with its duration, no time range and no overlap mark, and bad durations show an error', async ({
+  page,
+  data,
+}) => {
+  // A past day inside the list's window, so midnight never moves it. The timed entry sits inside the no-time span.
   const day = madridWallClock(new Date(Date.now() - 3 * 86_400_000)).day;
-  await data.createEntry({ description: 'Timed neighbour', start: accountTime(day, '00:30:00'), stop: accountTime(day, '01:00:00') });
+  await data.createEntry({
+    description: 'Timed neighbour',
+    start: accountTime(day, '00:30:00'),
+    stop: accountTime(day, '01:00:00'),
+  });
   await login(page);
   const timer = page.getByRole('region', { name: 'Timer' });
   await timer.getByRole('button', { name: 'Manual mode' }).click();
@@ -166,7 +229,14 @@ test('a no-time manual entry lists with its duration, no time range and no overl
   await expect(page.locator('.overlap-mark')).toHaveCount(0);
   await expect(page.locator('.day-group', { has: row }).locator('.day-total')).toHaveText('2:00:00');
 
-  const saved = (await (await page.request.get('/api/v9/me/time_entries?start_date=1970-01-01&end_date=2100-01-01')).json() as Array<{ description: string; all_day: boolean; start: string; stop: string }>)
-    .find((entry) => entry.description === 'Offline workshop')!;
-  expect([saved.all_day, saved.start, saved.stop]).toEqual([true, accountTime(day, '00:00:00'), accountTime(day, '01:30:00')]);
+  const saved = (
+    (await (
+      await page.request.get('/api/v9/me/time_entries?start_date=1970-01-01&end_date=2100-01-01')
+    ).json()) as Array<{ description: string; all_day: boolean; start: string; stop: string }>
+  ).find(entry => entry.description === 'Offline workshop')!;
+  expect([saved.all_day, saved.start, saved.stop]).toEqual([
+    true,
+    accountTime(day, '00:00:00'),
+    accountTime(day, '01:30:00'),
+  ]);
 });

@@ -5,9 +5,7 @@ import { loginAs } from './helpers.ts';
 import { PHONE, expectFits, expectNoPageOverflow, tap } from './mobile-tests-helpers.ts';
 import { permissionRequests, stubNotifications, type NotificationSetup } from './notification-tests-helpers.ts';
 
-// The Pomodoro session defaults group of the Preferences card on /settings edits the four lengths a
-// new session starts with, and the card asks for permission to show notifications. Every scenario
-// signs in as an account of its own.
+// Every scenario signs in as an account of its own.
 
 const CSRF = { 'X-Tokkl-CSRF': '1' };
 const PREFERENCES_PATH = /^\/api\/v9\/me\/preferences$/;
@@ -19,7 +17,6 @@ const DEFAULTS = {
   pomodoro_long_break_every: 4,
 };
 
-/** The group's controls, found by the labels a user reads. */
 function group(page: Page) {
   const card = page.getByRole('form', { name: 'Preferences' });
   const pomodoro = card.getByRole('group', { name: 'Pomodoro session defaults' });
@@ -32,26 +29,22 @@ function group(page: Page) {
     longBreak: pomodoro.getByRole('spinbutton', { name: 'Long rest', exact: true }),
     every: pomodoro.getByRole('spinbutton', { name: 'Long rest every', exact: true }),
     allowNotifications: card.getByRole('button', { name: 'Allow notifications' }),
-    // The line under the button, which takes its place once the browser answers.
     notificationStatus: card.getByText(/^(Shows a notification|Notifications (are|need)|This browser can't)/),
   };
 }
 
-/** The four stored Pomodoro lengths, read from the API. */
 async function stored(page: Page): Promise<typeof DEFAULTS> {
   const response = await page.request.get('/api/v9/me/preferences');
   expect(response.ok()).toBe(true);
-  const prefs = await response.json() as Record<string, unknown>;
-  return Object.fromEntries(Object.keys(DEFAULTS).map((key) => [key, prefs[key]])) as typeof DEFAULTS;
+  const prefs = (await response.json()) as Record<string, unknown>;
+  return Object.fromEntries(Object.keys(DEFAULTS).map(key => [key, prefs[key]])) as typeof DEFAULTS;
 }
 
-/** Changes the stored preferences the way another device would. */
 async function saveFromAnotherDevice(page: Page, changes: Partial<typeof DEFAULTS>): Promise<void> {
   const response = await page.request.post('/api/v9/me/preferences', { headers: CSRF, data: changes });
   expect(response.ok()).toBe(true);
 }
 
-/** Signs in as a new account and opens Settings. */
 async function openSettings(page: Page, users: ExtraUsers) {
   const user = await users.create();
   await loginAs(page, user.account);
@@ -60,7 +53,10 @@ async function openSettings(page: Page, users: ExtraUsers) {
   return group(page);
 }
 
-test('the session defaults group shows the defaults, and a saved edit sends only its fields and survives a reload', async ({ page, users }) => {
+test('the session defaults group shows the defaults, and a saved edit sends only its fields and survives a reload', async ({
+  page,
+  users,
+}) => {
   const form = await openSettings(page, users);
   await expect(form.pomodoro.getByRole('checkbox')).toHaveCount(0);
   await expect(form.work).toHaveValue('25');
@@ -73,7 +69,9 @@ test('the session defaults group shows the defaults, and a saved edit sends only
   await form.shortBreak.fill('10');
   await form.longBreak.fill('20');
   await form.every.fill('3');
-  const request = page.waitForRequest((candidate) => candidate.method() === 'POST' && PREFERENCES_PATH.test(new URL(candidate.url()).pathname));
+  const request = page.waitForRequest(
+    candidate => candidate.method() === 'POST' && PREFERENCES_PATH.test(new URL(candidate.url()).pathname),
+  );
   await form.save.click();
   await expect(page.getByText('Preferences saved')).toBeVisible();
 
@@ -94,16 +92,25 @@ test('the session defaults group shows the defaults, and a saved edit sends only
   await expect(form.every).toHaveValue('3');
 });
 
-test('a value the server refuses shows its message on the field it names, and nothing is saved', async ({ page, users, runtimeErrors }) => {
+test('a value the server refuses shows its message on the field it names, and nothing is saved', async ({
+  page,
+  users,
+  runtimeErrors,
+}) => {
   const form = await openSettings(page, users);
   runtimeErrors.allowResponse({
-    status: 400, method: 'POST', path: PREFERENCES_PATH, reason: 'a Pomodoro value is out of range',
+    status: 400,
+    method: 'POST',
+    path: PREFERENCES_PATH,
+    reason: 'a Pomodoro value is out of range',
   });
 
   await form.work.fill('90');
   await form.every.fill('13');
   await form.save.click();
-  await expect(await describedError(form.every)).toHaveText('Invalid pomodoro_long_break_every: expected an integer from 1 to 12');
+  await expect(await describedError(form.every)).toHaveText(
+    'Invalid pomodoro_long_break_every: expected an integer from 1 to 12',
+  );
   await expect(form.every).toBeFocused();
   await expect(form.work).not.toHaveAttribute('aria-invalid', 'true');
   await expect(page.locator('.toast')).toHaveCount(0);
@@ -115,23 +122,31 @@ test('a value the server refuses shows its message on the field it names, and no
   await expect(form.every).not.toHaveAttribute('aria-invalid', 'true');
   await form.work.fill('181');
   await form.save.click();
-  await expect(await describedError(form.work)).toHaveText('Invalid pomodoro_focus_interval_in_minutes: expected an integer from 1 to 180');
+  await expect(await describedError(form.work)).toHaveText(
+    'Invalid pomodoro_focus_interval_in_minutes: expected an integer from 1 to 180',
+  );
   await expect(form.work).toBeFocused();
   await expect(form.every).not.toHaveAttribute('aria-invalid', 'true');
   expect(await stored(page)).toEqual(DEFAULTS);
 
-  // Fixing the value clears the error, and the next save keeps everything typed.
   await form.work.fill('180');
   await expect(form.work).not.toHaveAttribute('aria-invalid', 'true');
   await form.save.click();
   await expect(page.getByText('Preferences saved')).toBeVisible();
-  expect(await stored(page)).toEqual({ ...DEFAULTS, pomodoro_focus_interval_in_minutes: 180, pomodoro_long_break_every: 3 });
+  expect(await stored(page)).toEqual({
+    ...DEFAULTS,
+    pomodoro_focus_interval_in_minutes: 180,
+    pomodoro_long_break_every: 3,
+  });
 });
 
-test('an empty or fractional number never reaches the server, and its message names the unit', async ({ page, users }) => {
+test('an empty or fractional number never reaches the server, and its message names the unit', async ({
+  page,
+  users,
+}) => {
   const form = await openSettings(page, users);
   let posts = 0;
-  page.on('request', (request) => {
+  page.on('request', request => {
     if (request.method() === 'POST' && PREFERENCES_PATH.test(new URL(request.url()).pathname)) posts += 1;
   });
 
@@ -150,7 +165,7 @@ test('an empty or fractional number never reaches the server, and its message na
 test('a value typed back to the stored one is not an edit, so Save sends no request', async ({ page, users }) => {
   const form = await openSettings(page, users);
   let posts = 0;
-  page.on('request', (request) => {
+  page.on('request', request => {
     if (request.method() === 'POST' && PREFERENCES_PATH.test(new URL(request.url()).pathname)) posts += 1;
   });
 
@@ -162,14 +177,17 @@ test('a value typed back to the stored one is not an edit, so Save sends no requ
 });
 
 // Preferences stay fresh for a minute, so the page jumps its clock to make the refetch happen.
-test('a refetch keeps an unsaved Pomodoro value and its focus, and updates the untouched ones', async ({ page, users }) => {
+test('a refetch keeps an unsaved Pomodoro value and its focus, and updates the untouched ones', async ({
+  page,
+  users,
+}) => {
   await page.clock.install();
   const form = await openSettings(page, users);
 
   await form.work.fill('40');
   await saveFromAnotherDevice(page, { pomodoro_break_interval_in_minutes: 9, pomodoro_long_break_every: 6 });
   await page.clock.fastForward(61_000);
-  // Window focus refetches stale queries, at most once a second (packages/web/src/main.tsx).
+  // Window focus refetches stale queries, at most once a second.
   await expect(async () => {
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
     await expect(form.shortBreak).toHaveValue('9', { timeout: 1500 });
@@ -178,22 +196,28 @@ test('a refetch keeps an unsaved Pomodoro value and its focus, and updates the u
   await expect(form.work).toHaveValue('40');
   await expect(form.work).toBeFocused();
 
-  const request = page.waitForRequest((candidate) => candidate.method() === 'POST' && PREFERENCES_PATH.test(new URL(candidate.url()).pathname));
+  const request = page.waitForRequest(
+    candidate => candidate.method() === 'POST' && PREFERENCES_PATH.test(new URL(candidate.url()).pathname),
+  );
   await form.save.click();
   await expect(page.getByText('Preferences saved')).toBeVisible();
   expect((await request).postDataJSON()).toEqual({ pomodoro_focus_interval_in_minutes: 40 });
   expect(await stored(page)).toEqual({
-    ...DEFAULTS, pomodoro_long_break_every: 6, pomodoro_break_interval_in_minutes: 9, pomodoro_focus_interval_in_minutes: 40,
+    ...DEFAULTS,
+    pomodoro_long_break_every: 6,
+    pomodoro_break_interval_in_minutes: 9,
+    pomodoro_focus_interval_in_minutes: 40,
   });
 });
 
-// The user types the old value back while the save is still on its way.
 test('a value typed while a save is pending stays after the response, and Save sends it', async ({ page, users }) => {
   const form = await openSettings(page, users);
   const sent: unknown[] = [];
   let release = () => {};
-  const held = new Promise<void>((resolve) => { release = resolve; });
-  await page.route('**/api/v9/me/preferences', async (route) => {
+  const held = new Promise<void>(resolve => {
+    release = resolve;
+  });
+  await page.route('**/api/v9/me/preferences', async route => {
     if (route.request().method() !== 'POST') return route.fallback();
     sent.push(route.request().postDataJSON());
     if (sent.length === 1) await held;
@@ -217,18 +241,25 @@ test('a value typed while a save is pending stays after the response, and Save s
   await expect.poll(() => stored(page)).toEqual({ ...DEFAULTS, pomodoro_long_break_interval_in_minutes: 30 });
 });
 
-// When the pending save fails, the stored values have not changed. A value typed back to the stored
-// one is no longer an edit, while a value typed to match the pending save stays one.
-test('after a failed save, only a value typed back to the stored one stops being an edit', async ({ page, users, runtimeErrors }) => {
+test('after a failed save, only a value typed back to the stored one stops being an edit', async ({
+  page,
+  users,
+  runtimeErrors,
+}) => {
   await page.clock.install();
   const form = await openSettings(page, users);
   runtimeErrors.allowResponse({
-    status: 503, method: 'POST', path: PREFERENCES_PATH, reason: 'the held save is answered with an outage',
+    status: 503,
+    method: 'POST',
+    path: PREFERENCES_PATH,
+    reason: 'the held save is answered with an outage',
   });
   let sent = 0;
   let release = () => {};
-  const held = new Promise<void>((resolve) => { release = resolve; });
-  await page.route('**/api/v9/me/preferences', async (route) => {
+  const held = new Promise<void>(resolve => {
+    release = resolve;
+  });
+  await page.route('**/api/v9/me/preferences', async route => {
     if (route.request().method() !== 'POST') return route.fallback();
     sent += 1;
     await held;
@@ -248,8 +279,10 @@ test('after a failed save, only a value typed back to the stored one stops being
   await expect(form.longBreak).toHaveValue('20');
   expect(await stored(page)).toEqual(DEFAULTS);
 
-  // Another device's change reaches the field that is no longer edited, not the one that is.
-  await saveFromAnotherDevice(page, { pomodoro_focus_interval_in_minutes: 35, pomodoro_long_break_interval_in_minutes: 45 });
+  await saveFromAnotherDevice(page, {
+    pomodoro_focus_interval_in_minutes: 35,
+    pomodoro_long_break_interval_in_minutes: 45,
+  });
   await page.clock.fastForward(61_000);
   await expect(async () => {
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
@@ -258,26 +291,32 @@ test('after a failed save, only a value typed back to the stored one stops being
   await expect(form.longBreak).toHaveValue('20');
 });
 
-test('Allow notifications asks for permission only when clicked, saves nothing and then says they are allowed', async ({ page, users }) => {
+test('Allow notifications asks for permission only when clicked, saves nothing and then says they are allowed', async ({
+  page,
+  users,
+}) => {
   await stubNotifications(page, { permission: 'default', answer: 'granted' });
   const form = await openSettings(page, users);
   await expect(form.allowNotifications).toHaveAccessibleDescription(/phase ends while Tokkl is in a background tab/);
   expect(await permissionRequests(page)).toBe(0);
 
   const saves: string[] = [];
-  page.on('request', (request) => {
-    if (request.method() === 'POST' && PREFERENCES_PATH.test(new URL(request.url()).pathname)) saves.push(request.url());
+  page.on('request', request => {
+    if (request.method() === 'POST' && PREFERENCES_PATH.test(new URL(request.url()).pathname))
+      saves.push(request.url());
   });
   await form.allowNotifications.click();
   await expect(form.allowNotifications).toHaveCount(0);
-  // Focus stays in the group, on the line that replaced the button.
   await expect(form.notificationStatus).toHaveText(/^Notifications are allowed\./);
   await expect(form.notificationStatus).toBeFocused();
   expect(await permissionRequests(page)).toBe(1);
   expect(saves).toEqual([]);
 });
 
-for (const [name, answer] of [['dismissed', 'default'], ['failed', 'rejects']] as const) {
+for (const [name, answer] of [
+  ['dismissed', 'default'],
+  ['failed', 'rejects'],
+] as const) {
   test(`a ${name} permission request keeps the button and raises no page error`, async ({ page, users }) => {
     await stubNotifications(page, { permission: 'default', answer });
     const form = await openSettings(page, users);
@@ -285,7 +324,6 @@ for (const [name, answer] of [['dismissed', 'default'], ['failed', 'rejects']] a
     await expect.poll(() => permissionRequests(page)).toBe(1);
     await expect(form.allowNotifications).toBeVisible();
     await expect(form.notificationStatus).toHaveText(/phase ends while Tokkl is in a background tab/);
-    // The runtimeErrors fixture fails the test on any page error or console error.
   });
 }
 
@@ -307,18 +345,31 @@ for (const [name, notifications, status] of [
 test.describe('on a phone', () => {
   test.use(PHONE);
 
-  test('the group fits the screen, with and without field errors, and saves by touch', async ({ page, users, runtimeErrors }) => {
+  test('the group fits the screen, with and without field errors, and saves by touch', async ({
+    page,
+    users,
+    runtimeErrors,
+  }) => {
     await stubNotifications(page);
     const form = await openSettings(page, users);
     runtimeErrors.allowResponse({
-      status: 400, method: 'POST', path: PREFERENCES_PATH, reason: 'a Pomodoro value is out of range',
+      status: 400,
+      method: 'POST',
+      path: PREFERENCES_PATH,
+      reason: 'a Pomodoro value is out of range',
     });
     await expectNoPageOverflow(page);
-    for (const control of [form.work, form.shortBreak, form.longBreak, form.every, form.allowNotifications, form.save]) {
+    for (const control of [
+      form.work,
+      form.shortBreak,
+      form.longBreak,
+      form.every,
+      form.allowNotifications,
+      form.save,
+    ]) {
       await expectFits(control);
     }
 
-    // The longest message the group shows still wraps inside the screen.
     await form.work.fill('181');
     await form.every.fill('2.5');
     await tap(form.save);
@@ -335,7 +386,9 @@ test.describe('on a phone', () => {
     await tap(form.save);
     await expect(page.getByText('Preferences saved')).toBeVisible();
     expect(await stored(page)).toEqual({
-      ...DEFAULTS, pomodoro_focus_interval_in_minutes: 45, pomodoro_long_break_every: 3,
+      ...DEFAULTS,
+      pomodoro_focus_interval_in_minutes: 45,
+      pomodoro_long_break_every: 3,
     });
     await expectNoPageOverflow(page);
   });

@@ -1,16 +1,25 @@
 import { useState } from 'react';
-import { download } from '../../api/client.ts';
-import type { DurationFormat, Grouping } from '../../api/types.ts';
+import { downloadReportCsv, type ReportFilterBody } from '../../api/reports.ts';
+import type { DurationFormat, Grouping } from '@tokkl/types';
 import { Icon } from '../../components/Icon.tsx';
 import { useToast } from '../../components/Toast.tsx';
+import { reportUnlessCancelled, useCancellable } from '../../components/useUnmountSignal.ts';
 import type { DateRange } from './range.ts';
-import type { ReportFilterBody } from './query.ts';
 import type { SortDir, SortKey, SubGrouping } from './urlState.ts';
+import { t } from '../../i18n/messages.ts';
 
 type Kind = 'detailed' | 'summary';
 
-/** CSV downloads of the report on screen: same range, filters, rounding, grouping and sort order. */
-export function ExportButtons({ range, filters, grouping, subGrouping, sort, dir, durationFormat }: {
+/** Same range, filters, rounding, grouping and sort as on screen. Cancel and leaving the page stop it silently. */
+export function ExportButtons({
+  range,
+  filters,
+  grouping,
+  subGrouping,
+  sort,
+  dir,
+  durationFormat,
+}: {
   range: DateRange;
   filters: ReportFilterBody;
   grouping: Grouping;
@@ -21,8 +30,9 @@ export function ExportButtons({ range, filters, grouping, subGrouping, sort, dir
 }) {
   const toast = useToast();
   const [busy, setBusy] = useState<Kind | null>(null);
+  const downloads = useCancellable(busy !== null);
 
-  const run = async (kind: Kind) => {
+  const run = async (kind: Kind, origin: HTMLElement) => {
     setBusy(kind);
     const body = {
       ...filters,
@@ -31,29 +41,39 @@ export function ExportButtons({ range, filters, grouping, subGrouping, sort, dir
         ? { grouping, sub_grouping: subGrouping === 'none' ? grouping : subGrouping }
         : { sort, dir }),
     };
-    try {
-      await download(`/api/app/report/${kind}.csv`, `tokkl-${kind}-${range.from}-to-${range.to}.csv`, 'POST', body);
-    } catch (error) {
-      toast.error(error);
-    } finally {
-      setBusy(null);
-    }
+    await reportUnlessCancelled(
+      downloads.start(origin),
+      signal => downloadReportCsv(kind, body, `tokkl-${kind}-${range.from}-to-${range.to}.csv`, signal),
+      toast.error,
+    );
+    setBusy(null);
   };
 
   return (
-    <div className="export-buttons" role="group" aria-label="Export">
-      {(['detailed', 'summary'] as const).map((kind) => (
+    <div className="export-buttons" role="group" aria-label={t('reports.export')}>
+      {(['detailed', 'summary'] as const).map(kind => (
         <button
           key={kind}
           type="button"
           className="button button-ghost"
           disabled={busy !== null}
-          onClick={() => void run(kind)}
+          onClick={event => void run(kind, event.currentTarget)}
         >
           <Icon name="download" size={16} />
-          {kind === 'detailed' ? 'CSV (detailed)' : 'CSV (summary)'}
+          {kind === 'detailed' ? t('reports.csvDetailed') : t('reports.csvSummary')}
         </button>
       ))}
+      {busy !== null ? (
+        <button
+          type="button"
+          className="button button-ghost"
+          aria-label={t('common.cancelDownload')}
+          onClick={downloads.cancel}
+        >
+          <Icon name="x" size={16} />
+          {t('common.cancel')}
+        </button>
+      ) : null}
     </div>
   );
 }

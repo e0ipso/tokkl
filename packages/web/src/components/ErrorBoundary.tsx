@@ -1,8 +1,12 @@
 import { Component, type ReactNode } from 'react';
+import { t } from '../i18n/messages.ts';
 import { LoadError } from './PageState.tsx';
 
-/** Keeps a crash in one page from blanking the whole app, and offers a way back. */
-export class ErrorBoundary extends Component<{ children: ReactNode; resetKey: string }, { error: Error | null }> {
+/** Try again runs `onRetry` and re-renders; a new `resetKey` clears the error. React already logs caught errors. */
+export class ErrorBoundary extends Component<
+  { children: ReactNode; resetKey: string; onRetry?: () => void },
+  { error: Error | null }
+> {
   state: { error: Error | null } = { error: null };
 
   static getDerivedStateFromError(error: Error) {
@@ -18,9 +22,12 @@ export class ErrorBoundary extends Component<{ children: ReactNode; resetKey: st
     return (
       <div className="page error-page">
         <LoadError
-          title="Something broke on this page"
+          title={t('shell.pageBroke')}
           message={this.state.error.message}
-          onRetry={() => this.setState({ error: null })}
+          onRetry={() => {
+            this.props.onRetry?.();
+            this.setState({ error: null });
+          }}
         />
       </div>
     );

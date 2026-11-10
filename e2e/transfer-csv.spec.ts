@@ -2,15 +2,24 @@ import { expect, test } from './fixtures.ts';
 import { login, loginAs } from './helpers.ts';
 import { parseCsv } from './report-tests-helpers.ts';
 import {
-  accountTime, chooseCsv, expectEmptyAccount, openSettings, readAccount, recentDate, transferFixture,
+  accountTime,
+  chooseCsv,
+  expectEmptyAccount,
+  openSettings,
+  readAccount,
+  recentDate,
+  transferFixture,
 } from './transfer-tests-helpers.ts';
 
-test('Toggl CSV preview and cancel write nothing; import saves account-time entries once and refreshes the UI', async ({ page, data }) => {
+test('Toggl CSV preview and cancel write nothing; import saves account-time entries once and refreshes the UI', async ({
+  page,
+  data,
+}) => {
   const recent = recentDate();
   const csv = transferFixture('toggl-detailed.csv', { RECENT_DATE: recent });
   await login(page);
 
-  // Load the timer list and projects first, so seeing the import later proves the cache refreshed.
+  // Load these first, so seeing the import later proves the cache refreshed.
   await expect(page.locator('.entry-line')).toHaveCount(0);
   await page.getByRole('link', { name: 'Projects' }).click();
   await expect(page.getByRole('cell', { name: 'Website' })).toHaveCount(0);
@@ -19,7 +28,6 @@ test('Toggl CSV preview and cancel write nothing; import saves account-time entr
   const summary = page.locator('.import-summary').first();
   const importButton = page.getByRole('button', { name: /^Import \d+ entr/ });
 
-  // Preview, then cancel: the summary describes the file and nothing is written.
   await chooseCsv(page, csv);
   await expect(summary).toContainText('5 rows in the file');
   await expect(summary).toContainText('5 entries to import');
@@ -33,7 +41,6 @@ test('Toggl CSV preview and cancel write nothing; import saves account-time entr
   await expect(importButton).toHaveCount(0);
   await expectEmptyAccount(page, data.workspaceId);
 
-  // Preview again and import.
   await chooseCsv(page, csv);
   await expect(summary).toContainText('5 entries to import');
   await importButton.click();
@@ -43,50 +50,92 @@ test('Toggl CSV preview and cancel write nothing; import saves account-time entr
   await expect(importButton).toHaveCount(0);
 
   const account = await readAccount(page, data.workspaceId);
-  expect(account.entries.map((e) => ({
-    description: e.description, start: e.start, stop: e.stop, billable: e.billable,
-    project: e.project_name, client: e.client_name, task: e.task_name, tags: e.tags,
-  }))).toEqual([
+  expect(
+    account.entries.map(e => ({
+      description: e.description,
+      start: e.start,
+      stop: e.stop,
+      billable: e.billable,
+      project: e.project_name,
+      client: e.client_name,
+      task: e.task_name,
+      tags: e.tags,
+    })),
+  ).toEqual([
     {
-      description: 'Homepage wireframes', start: accountTime('2026-01-15', '09:00:00'), stop: accountTime('2026-01-15', '10:30:00'),
-      billable: true, project: 'Website', client: 'Acme', task: 'Design', tags: ['client-work', 'ux'],
+      description: 'Homepage wireframes',
+      start: accountTime('2026-01-15', '09:00:00'),
+      stop: accountTime('2026-01-15', '10:30:00'),
+      billable: true,
+      project: 'Website',
+      client: 'Acme',
+      task: 'Design',
+      tags: ['client-work', 'ux'],
     },
     {
-      description: 'No project', start: accountTime('2026-02-02', '14:00:00'), stop: accountTime('2026-02-02', '14:45:00'),
-      billable: false, project: null, client: null, task: null, tags: [],
+      description: 'No project',
+      start: accountTime('2026-02-02', '14:00:00'),
+      stop: accountTime('2026-02-02', '14:45:00'),
+      billable: false,
+      project: null,
+      client: null,
+      task: null,
+      tags: [],
     },
     {
       // Crosses the spring-forward night: 23:30 CET to 03:30 CEST is three hours.
-      description: 'Night deploy', start: '2026-03-28T22:30:00+00:00', stop: '2026-03-29T01:30:00+00:00',
-      billable: false, project: 'Internal', client: null, task: 'Ops', tags: ['ops'],
+      description: 'Night deploy',
+      start: '2026-03-28T22:30:00+00:00',
+      stop: '2026-03-29T01:30:00+00:00',
+      billable: false,
+      project: 'Internal',
+      client: null,
+      task: 'Ops',
+      tags: ['ops'],
     },
     {
-      description: 'Launch review', start: '2026-07-15T07:00:00+00:00', stop: '2026-07-15T08:00:00+00:00',
-      billable: false, project: 'Website', client: 'Acme', task: null, tags: ['ux'],
+      description: 'Launch review',
+      start: '2026-07-15T07:00:00+00:00',
+      stop: '2026-07-15T08:00:00+00:00',
+      billable: false,
+      project: 'Website',
+      client: 'Acme',
+      task: null,
+      tags: ['ux'],
     },
     {
       // Off the time resolution grid: an import keeps the times in the file.
-      description: 'Recent import', start: accountTime(recent, '10:02:37'), stop: accountTime(recent, '11:17:37'),
-      billable: true, project: 'Website', client: 'Acme', task: 'Design', tags: ['ops'],
+      description: 'Recent import',
+      start: accountTime(recent, '10:02:37'),
+      stop: accountTime(recent, '11:17:37'),
+      billable: true,
+      project: 'Website',
+      client: 'Acme',
+      task: 'Design',
+      tags: ['ops'],
     },
   ]);
-  expect(account.projects.map((p) => [p.name, p.client_name, p.actual_seconds])).toEqual([
+  expect(account.projects.map(p => [p.name, p.client_name, p.actual_seconds])).toEqual([
     ['Internal', null, 3 * 3600],
     ['Website', 'Acme', 5400 + 3600 + 4500],
   ]);
-  expect(account.clients.map((c) => c.name)).toEqual(['Acme']);
+  expect(account.clients.map(c => c.name)).toEqual(['Acme']);
   expect(account.tags).toEqual(['client-work', 'ops', 'ux']);
-  expect(account.tasks.map((t) => [t.name, t.project_name])).toEqual([['Design', 'Website'], ['Ops', 'Internal']]);
-  const website = account.projects.find((p) => p.name === 'Website')!;
-  const design = account.tasks.find((t) => t.name === 'Design')!;
-  expect(account.entries.filter((e) => e.task_id === design.id).every((e) => e.project_id === website.id)).toBe(true);
+  expect(account.tasks.map(t => [t.name, t.project_name])).toEqual([
+    ['Design', 'Website'],
+    ['Ops', 'Internal'],
+  ]);
+  const website = account.projects.find(p => p.name === 'Website')!;
+  const design = account.tasks.find(t => t.name === 'Design')!;
+  expect(account.entries.filter(e => e.task_id === design.id).every(e => e.project_id === website.id)).toBe(true);
 
-  // The app shows the imported data without a reload.
   await page.getByRole('link', { name: 'Projects' }).click();
   const websiteRow = page.getByRole('row').filter({ has: page.getByRole('cell', { name: 'Website', exact: true }) });
   await expect(websiteRow).toContainText('Acme');
   await expect(websiteRow).toContainText('3:45:00');
-  await expect(page.getByRole('row').filter({ has: page.getByRole('cell', { name: 'Internal', exact: true }) })).toContainText('3:00:00');
+  await expect(
+    page.getByRole('row').filter({ has: page.getByRole('cell', { name: 'Internal', exact: true }) }),
+  ).toContainText('3:00:00');
   await page.getByRole('link', { name: 'Timer' }).click();
   const row = page.locator('.entry-line').filter({ has: page.locator('input[value="Recent import"]') });
   await expect(row).toHaveCount(1);
@@ -94,27 +143,34 @@ test('Toggl CSV preview and cancel write nothing; import saves account-time entr
   await expect(row.locator('.tag-chip')).toHaveText('ops');
   await expect(row.getByRole('button', { name: 'Billable' })).toHaveAttribute('aria-pressed', 'true');
 
-  // The same file again finds every row already here.
   await openSettings(page);
   await chooseCsv(page, csv);
   await expect(summary).toContainText('0 entries to import');
   await expect(summary).toContainText('5 already here, skipped');
   await expect(importButton).toBeDisabled();
   const again = await readAccount(page, data.workspaceId);
-  expect(again.entries.map((e) => e.id)).toEqual(account.entries.map((e) => e.id));
-  expect(again.projects.map((p) => p.id)).toEqual(account.projects.map((p) => p.id));
-  expect(again.tasks.map((t) => t.id)).toEqual(account.tasks.map((t) => t.id));
+  expect(again.entries.map(e => e.id)).toEqual(account.entries.map(e => e.id));
+  expect(again.projects.map(p => p.id)).toEqual(account.projects.map(p => p.id));
+  expect(again.tasks.map(t => t.id)).toEqual(account.tasks.map(t => t.id));
 
   // An imported entry snaps to the default 5-minute time resolution the first time it is edited.
   await page.getByRole('link', { name: 'Timer' }).click();
   await row.getByLabel('Select entry').check();
   await page.getByRole('toolbar', { name: 'Bulk actions' }).getByRole('button', { name: 'Non-billable' }).click();
   await expect(page.getByText('Marked non-billable')).toBeVisible();
-  const edited = (await readAccount(page, data.workspaceId)).entries.find((e) => e.description === 'Recent import')!;
-  expect([edited.start, edited.stop, edited.billable]).toEqual([accountTime(recent, '10:05:00'), accountTime(recent, '11:20:00'), false]);
+  const edited = (await readAccount(page, data.workspaceId)).entries.find(e => e.description === 'Recent import')!;
+  expect([edited.start, edited.stop, edited.billable]).toEqual([
+    accountTime(recent, '10:05:00'),
+    accountTime(recent, '11:20:00'),
+    false,
+  ]);
 });
 
-test('Toggl CSV rows with problems show their reasons and the valid rows still import', async ({ page, data, runtimeErrors }) => {
+test('Toggl CSV rows with problems show their reasons and the valid rows still import', async ({
+  page,
+  data,
+  runtimeErrors,
+}) => {
   await login(page);
   await openSettings(page);
   const summary = page.locator('.import-summary').first();
@@ -124,7 +180,6 @@ test('Toggl CSV rows with problems show their reasons and the valid rows still i
     'Row 4: Invalid start date or time',
     'Row 5: Invalid end time or duration',
     'Row 6: Stop time must be after start time',
-    // A duration over the 999-hour limit, and one in a unit that does not exist.
     'Row 7: Invalid end time or duration',
     'Row 8: Invalid end time or duration',
   ];
@@ -141,42 +196,46 @@ test('Toggl CSV rows with problems show their reasons and the valid rows still i
   await expect(summary).toContainText('2 entries imported');
   await expect(problems).toHaveText(reasons);
   const account = await readAccount(page, data.workspaceId);
-  expect(account.entries.map((e) => [e.description, e.start, e.project_name])).toEqual([
+  expect(account.entries.map(e => [e.description, e.start, e.project_name])).toEqual([
     ['Valid first', accountTime('2026-05-04', '09:00:00'), 'Internal'],
     ['Valid last', accountTime('2026-05-06', '09:00:00'), 'Internal'],
   ]);
-  expect(account.projects.map((p) => p.name)).toEqual(['Internal']);
+  expect(account.projects.map(p => p.name)).toEqual(['Internal']);
 
-  // A file without the Toggl columns is refused as a whole, with the reason in a toast.
   runtimeErrors.allowResponse({
-    status: 400, method: 'POST', path: /^\/api\/app\/import\/toggl-csv$/,
+    status: 400,
+    method: 'POST',
+    path: /^\/api\/app\/import\/toggl-csv$/,
     reason: 'the scenario uploads a CSV without the Toggl detailed-report columns',
   });
-  await chooseCsv(page, { name: 'not-toggl.csv', mimeType: 'text/csv', buffer: Buffer.from('Name,When\nSomething,today\n') });
+  await chooseCsv(page, {
+    name: 'not-toggl.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from('Name,When\nSomething,today\n'),
+  });
   await expect(page.getByRole('status')).toContainText('Missing "Start date" and "Start time" columns');
   await expect(page.locator('.import-summary')).toHaveCount(0);
   expect((await readAccount(page, data.workspaceId)).entries).toHaveLength(2);
 });
 
-// A team export lists its Toggl users, needs a choice, and imports only the chosen rows.
 // User "Alice <alice@example.com>" with no Email and User "Alice" with that Email are two users.
 test('a Toggl CSV from several users imports only the users picked in the preview', async ({ page, data }) => {
   await login(page);
   await openSettings(page);
   const summary = page.locator('.import-summary').first();
-  const picker = page.getByRole('group', { name: 'This file has entries from 3 Toggl users. Choose whose entries to import.' });
+  const picker = page.getByRole('group', {
+    name: 'This file has entries from 3 Toggl users. Choose whose entries to import.',
+  });
   const sam = picker.getByRole('checkbox', { name: 'Sam Synthetic sam@example.com · 2 rows', exact: true });
   const aliceByName = picker.getByRole('checkbox', { name: 'Alice <alice@example.com> · 1 row', exact: true });
   const aliceByEmail = picker.getByRole('checkbox', { name: 'Alice alice@example.com · 1 row', exact: true });
 
-  // Before anyone is picked the preview counts every row, and the import waits for a choice.
   await chooseCsv(page, transferFixture('toggl-team.csv'));
   await expect(picker.getByRole('checkbox')).toHaveCount(3);
   for (const box of [sam, aliceByName, aliceByEmail]) await expect(box).not.toBeChecked();
   await expect(summary).toContainText('4 entries to import');
   await expect(page.getByRole('button', { name: 'Import 4 entries' })).toBeDisabled();
 
-  // Each pick previews again, so the counts describe only the chosen users' rows.
   await sam.check();
   await expect(summary).toContainText('2 entries to import');
   await expect(summary).toContainText('2 rows from other Toggl users, skipped');
@@ -190,23 +249,25 @@ test('a Toggl CSV from several users imports only the users picked in the previe
   await expect(summary).toContainText('1 row from other Toggl users, skipped');
   await expect(picker).toHaveCount(0);
   const account = await readAccount(page, data.workspaceId);
-  expect(account.entries.map((e) => [e.description, e.start, e.project_name])).toEqual([
+  expect(account.entries.map(e => [e.description, e.start, e.project_name])).toEqual([
     ['Sam first', accountTime('2026-04-06', '09:00:00'), 'Website'],
     ['Alice with an email', accountTime('2026-04-07', '09:00:00'), 'Website'],
     ['Sam second', accountTime('2026-04-07', '10:00:00'), 'Internal'],
   ]);
 });
 
-// The exported file blanks the time cells of a no-time entry and keeps its date and duration. The
-// target account is in New York, so the entry must land on the file's date there, not shift with the zone.
-test('a no-time entry round-trips through the CSV export into another account, and a second import adds nothing', async ({ page, data, users }) => {
+// The target account is in New York, so the entry must land on the file's date there.
+test('a no-time entry round-trips through the CSV export into another account, and a second import adds nothing', async ({
+  page,
+  data,
+  users,
+}) => {
   await data.createEntry({ description: 'Standup', start: '2026-06-15T07:00:00Z', stop: '2026-06-15T08:00:00Z' });
   await data.createNoTimeEntry({ description: 'Admin chores', day: '2026-06-15', duration: 5400 });
   await login(page);
   const text = await (await page.request.get('/api/app/export.csv')).text();
   const rows = parseCsv(text);
-  // Start date, Start time, End date, End time and Duration.
-  const cells = (description: string) => rows.find((row) => row[5] === description)!.slice(7, 12);
+  const cells = (description: string) => rows.find(row => row[5] === description)!.slice(7, 12);
   expect(cells('Admin chores')).toEqual(['2026-06-15', '', '2026-06-15', '', '1:30:00']);
   expect(cells('Standup')).toEqual(['2026-06-15', '09:00:00', '2026-06-15', '10:00:00', '1:00:00']);
 
@@ -222,12 +283,21 @@ test('a no-time entry round-trips through the CSV export into another account, a
   await page.getByRole('button', { name: 'Import 2 entries' }).click();
   await expect(summary).toContainText('2 entries imported');
 
-  const imported = async () => (await readAccount(page, fresh.workspaceId)).entries.map((e) => ({
-    description: e.description, all_day: e.all_day, start: e.start, stop: e.stop,
-  }));
+  const imported = async () =>
+    (await readAccount(page, fresh.workspaceId)).entries.map(e => ({
+      description: e.description,
+      all_day: e.all_day,
+      start: e.start,
+      stop: e.stop,
+    }));
   // New York is on summer time, four hours behind UTC: the no-time entry starts at its local midnight.
   const expected = [
-    { description: 'Admin chores', all_day: true, start: '2026-06-15T04:00:00+00:00', stop: '2026-06-15T05:30:00+00:00' },
+    {
+      description: 'Admin chores',
+      all_day: true,
+      start: '2026-06-15T04:00:00+00:00',
+      stop: '2026-06-15T05:30:00+00:00',
+    },
     { description: 'Standup', all_day: false, start: '2026-06-15T13:00:00+00:00', stop: '2026-06-15T14:00:00+00:00' },
   ];
   expect(await imported()).toEqual(expected);

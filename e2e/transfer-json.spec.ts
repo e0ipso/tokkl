@@ -1,8 +1,17 @@
 import { expect, test } from './fixtures.ts';
 import { login, loginAs } from './helpers.ts';
-import { chooseJson, expectEmptyAccount, openSettings, readAccount, transferFixture } from './transfer-tests-helpers.ts';
+import {
+  chooseJson,
+  expectEmptyAccount,
+  openSettings,
+  readAccount,
+  transferFixture,
+} from './transfer-tests-helpers.ts';
 
-test('JSON restore previews without writing, then restores missing entities with their metadata once', async ({ page, data }) => {
+test('JSON restore previews without writing, then restores missing entities with their metadata once', async ({
+  page,
+  data,
+}) => {
   const backup = transferFixture('restore-full.json');
   await login(page);
   // Load the lists first, so seeing the restore later proves the cache refreshed without a reload.
@@ -32,48 +41,114 @@ test('JSON restore previews without writing, then restores missing entities with
   await expect(restore).toHaveCount(0);
 
   const account = await readAccount(page, data.workspaceId);
-  expect(account.clients.map((c) => [c.name, c.notes, c.archived])).toEqual([['Acme', 'Main client', false], ['Dormant', null, true]]);
-  expect(account.projects.map((p) => ({
-    name: p.name, client: p.client_name, color: p.color, active: p.active, is_private: p.is_private, billable: p.billable,
-    rate: p.rate, currency: p.currency, estimated_hours: p.estimated_hours, start_date: p.start_date, end_date: p.end_date,
-  }))).toEqual([
+  expect(account.clients.map(c => [c.name, c.notes, c.archived])).toEqual([
+    ['Acme', 'Main client', false],
+    ['Dormant', null, true],
+  ]);
+  expect(
+    account.projects.map(p => ({
+      name: p.name,
+      client: p.client_name,
+      color: p.color,
+      active: p.active,
+      is_private: p.is_private,
+      billable: p.billable,
+      rate: p.rate,
+      currency: p.currency,
+      estimated_hours: p.estimated_hours,
+      start_date: p.start_date,
+      end_date: p.end_date,
+    })),
+  ).toEqual([
     {
-      name: 'Legacy', client: 'Dormant', color: '#2da608', active: false, is_private: true, billable: false,
-      rate: null, currency: null, estimated_hours: null, start_date: '2019-03-04', end_date: '2019-12-31',
+      name: 'Legacy',
+      client: 'Dormant',
+      color: '#2da608',
+      active: false,
+      is_private: true,
+      billable: false,
+      rate: null,
+      currency: null,
+      estimated_hours: null,
+      start_date: '2019-03-04',
+      end_date: '2019-12-31',
     },
     {
-      name: 'Roadmap', client: null, color: '#0b83d9', active: true, is_private: true, billable: false,
-      rate: null, currency: null, estimated_hours: null, start_date: '2030-05-01', end_date: null,
+      name: 'Roadmap',
+      client: null,
+      color: '#0b83d9',
+      active: true,
+      is_private: true,
+      billable: false,
+      rate: null,
+      currency: null,
+      estimated_hours: null,
+      start_date: '2030-05-01',
+      end_date: null,
     },
     {
-      name: 'Website', client: 'Acme', color: '#d92b2b', active: true, is_private: false, billable: true,
-      rate: 85, currency: 'EUR', estimated_hours: 40, start_date: '2020-01-02', end_date: null,
+      name: 'Website',
+      client: 'Acme',
+      color: '#d92b2b',
+      active: true,
+      is_private: false,
+      billable: true,
+      rate: 85,
+      currency: 'EUR',
+      estimated_hours: 40,
+      start_date: '2020-01-02',
+      end_date: null,
     },
   ]);
-  expect(account.projects.find((p) => p.name === 'Roadmap')!.status).toBe('upcoming');
-  expect(account.tasks.map((t) => [t.name, t.project_name, t.estimated_seconds])).toEqual([['Cleanup', 'Legacy', null], ['Design', 'Website', 7200]]);
+  expect(account.projects.find(p => p.name === 'Roadmap')!.status).toBe('upcoming');
+  expect(account.tasks.map(t => [t.name, t.project_name, t.estimated_seconds])).toEqual([
+    ['Cleanup', 'Legacy', null],
+    ['Design', 'Website', 7200],
+  ]);
   expect(account.tags).toEqual(['ops', 'ux']);
-  // The deleted entry in the file stays out; the others keep their instants, links and tags.
-  expect(account.entries.map((e) => ({
-    description: e.description, start: e.start, stop: e.stop, project: e.project_name, task: e.task_name, tags: e.tags, billable: e.billable,
-  }))).toEqual([
+  expect(
+    account.entries.map(e => ({
+      description: e.description,
+      start: e.start,
+      stop: e.stop,
+      project: e.project_name,
+      task: e.task_name,
+      tags: e.tags,
+      billable: e.billable,
+    })),
+  ).toEqual([
     {
-      description: 'Legacy cleanup', start: '2019-06-03T07:00:00+00:00', stop: '2019-06-03T09:00:00+00:00',
-      project: 'Legacy', task: 'Cleanup', tags: ['ops'], billable: false,
+      description: 'Legacy cleanup',
+      start: '2019-06-03T07:00:00+00:00',
+      stop: '2019-06-03T09:00:00+00:00',
+      project: 'Legacy',
+      task: 'Cleanup',
+      tags: ['ops'],
+      billable: false,
     },
     {
-      description: 'Wireframes', start: '2026-01-15T08:00:00+00:00', stop: '2026-01-15T09:30:00+00:00',
-      project: 'Website', task: 'Design', tags: ['ux'], billable: true,
+      description: 'Wireframes',
+      start: '2026-01-15T08:00:00+00:00',
+      stop: '2026-01-15T09:30:00+00:00',
+      project: 'Website',
+      task: 'Design',
+      tags: ['ux'],
+      billable: true,
     },
     {
-      description: 'Planning', start: '2026-07-15T07:00:00+00:00', stop: '2026-07-15T08:00:00+00:00',
-      project: 'Roadmap', task: null, tags: ['ops', 'ux'], billable: false,
+      description: 'Planning',
+      start: '2026-07-15T07:00:00+00:00',
+      stop: '2026-07-15T08:00:00+00:00',
+      project: 'Roadmap',
+      task: null,
+      tags: ['ops', 'ux'],
+      billable: false,
     },
   ]);
 
-  // The management pages show the restored data without a reload.
   await page.getByRole('link', { name: 'Projects' }).click();
-  const projectRow = (name: string) => page.getByRole('row').filter({ has: page.getByRole('cell', { name, exact: true }) });
+  const projectRow = (name: string) =>
+    page.getByRole('row').filter({ has: page.getByRole('cell', { name, exact: true }) });
   await expect(projectRow('Website')).toContainText('Acme');
   await expect(projectRow('Website')).toContainText('1:30:00');
   await expect(projectRow('Roadmap')).toBeVisible();
@@ -85,7 +160,6 @@ test('JSON restore previews without writing, then restores missing entities with
   await page.getByRole('link', { name: 'Tags' }).click();
   await expect(page.locator('.tag-chip')).toHaveText(['ops', 'ux']);
 
-  // Restoring the same file again adds nothing.
   await openSettings(page);
   await chooseJson(page, backup);
   await expect(summary).toContainText('0 entries to add');
@@ -94,14 +168,17 @@ test('JSON restore previews without writing, then restores missing entities with
   await restore.click();
   await expect(summary).toContainText('0 entries added');
   const again = await readAccount(page, data.workspaceId);
-  expect(again.entries.map((e) => e.id)).toEqual(account.entries.map((e) => e.id));
-  expect(again.projects.map((p) => [p.id, p.active])).toEqual(account.projects.map((p) => [p.id, p.active]));
-  expect(again.clients.map((c) => c.id)).toEqual(account.clients.map((c) => c.id));
-  expect(again.tasks.map((t) => t.id)).toEqual(account.tasks.map((t) => t.id));
+  expect(again.entries.map(e => e.id)).toEqual(account.entries.map(e => e.id));
+  expect(again.projects.map(p => [p.id, p.active])).toEqual(account.projects.map(p => [p.id, p.active]));
+  expect(again.clients.map(c => c.id)).toEqual(account.clients.map(c => c.id));
+  expect(again.tasks.map(t => t.id)).toEqual(account.tasks.map(t => t.id));
   expect(again.tags).toEqual(account.tags);
 });
 
-test('JSON restore skips and reports records with unresolved references and imports the independent ones', async ({ page, data }) => {
+test('JSON restore skips and reports records with unresolved references and imports the independent ones', async ({
+  page,
+  data,
+}) => {
   const backup = transferFixture('restore-broken-refs.json');
   await login(page);
   await page.getByRole('link', { name: 'Projects' }).click();
@@ -135,22 +212,33 @@ test('JSON restore skips and reports records with unresolved references and impo
   await expect(problems).toHaveText(reasons);
 
   const account = await readAccount(page, data.workspaceId);
-  expect(account.projects.map((p) => [p.name, p.client_name, p.active])).toEqual([['Kept', 'Acme', true], ['Shelved', null, false]]);
-  expect(account.tasks.map((t) => [t.name, t.project_name])).toEqual([['Build', 'Kept'], ['Sweep', 'Shelved']]);
+  expect(account.projects.map(p => [p.name, p.client_name, p.active])).toEqual([
+    ['Kept', 'Acme', true],
+    ['Shelved', null, false],
+  ]);
+  expect(account.tasks.map(t => [t.name, t.project_name])).toEqual([
+    ['Build', 'Kept'],
+    ['Sweep', 'Shelved'],
+  ]);
   expect(account.tags).toEqual(['ux']);
-  expect(account.entries.map((e) => [e.description, e.project_name, e.task_name, e.tags])).toEqual([
+  expect(account.entries.map(e => [e.description, e.project_name, e.task_name, e.tags])).toEqual([
     ['Linked', 'Kept', 'Build', ['ux']],
     ['Explicit nulls', null, null, []],
     ['Shelved work', 'Shelved', 'Sweep', []],
   ]);
 
   await page.getByRole('link', { name: 'Projects' }).click();
-  await expect(page.getByRole('row').filter({ has: page.getByRole('cell', { name: 'Kept', exact: true }) })).toContainText('Acme');
+  await expect(
+    page.getByRole('row').filter({ has: page.getByRole('cell', { name: 'Kept', exact: true }) }),
+  ).toContainText('Acme');
   await expect(page.getByRole('cell', { name: 'Orphaned client' })).toHaveCount(0);
   await expect(page.getByRole('cell', { name: 'Bad colour' })).toHaveCount(0);
 });
 
-test('JSON restore committed while a timer runs skips the running entry and keeps the timer', async ({ page, data }) => {
+test('JSON restore committed while a timer runs skips the running entry and keeps the timer', async ({
+  page,
+  data,
+}) => {
   const backup = transferFixture('restore-running.json');
   await login(page);
   const timer = page.getByRole('region', { name: 'Timer' });
@@ -163,19 +251,23 @@ test('JSON restore committed while a timer runs skips the running entry and keep
   await openSettings(page);
   const summary = page.locator('.import-summary').last();
   const problems = summary.locator('.import-errors li');
-  const conflict = 'time_entry 71: Another timer is running here. Stop it and restore again to import this running entry';
+  const conflict =
+    'time_entry 71: Another timer is running here. Stop it and restore again to import this running entry';
   const checkAccount = async () => {
     const current = await (await page.request.get('/api/v9/me/time_entries/current')).json();
     expect(current).toMatchObject({ id: running.id, description: 'Running here', start: running.start, stop: null });
     const account = await readAccount(page, data.workspaceId);
     // The restored entry is off the time resolution grid: a restore keeps the times in the file.
-    expect(account.entries.map((e) => [e.description, e.start, e.stop])).toEqual([
+    expect(account.entries.map(e => [e.description, e.start, e.stop])).toEqual([
       ['Stopped there', '2025-05-06T09:02:37+00:00', '2025-05-06T10:01:12+00:00'],
       ['Running here', running.start, null],
     ]);
   };
 
-  for (const [added, skipped] of [[1, 0], [0, 1]] as const) {
+  for (const [added, skipped] of [
+    [1, 0],
+    [0, 1],
+  ] as const) {
     await chooseJson(page, backup);
     await expect(summary).toContainText(`${added} ${added === 1 ? 'entry' : 'entries'} to add`);
     await expect(summary).toContainText('1 problem');
@@ -192,15 +284,24 @@ test('JSON restore committed while a timer runs skips the running entry and keep
   await expect(timer.getByRole('button', { name: 'Stop timer' })).toBeVisible();
 });
 
-// The backup records the account zone, so a no-time entry restored into a New York account keeps
-// the Madrid date it was made on.
-test('a no-time entry round-trips through the JSON backup into another account, and a second restore adds nothing', async ({ page, data, users }) => {
+// The backup records the account zone, so a no-time entry restored in New York keeps its Madrid date.
+test('a no-time entry round-trips through the JSON backup into another account, and a second restore adds nothing', async ({
+  page,
+  data,
+  users,
+}) => {
   await data.createEntry({ description: 'Standup', start: '2026-06-15T07:00:00Z', stop: '2026-06-15T08:00:00Z' });
   await data.createNoTimeEntry({ description: 'Admin chores', day: '2026-06-15', duration: 5400 });
   await login(page);
   const backup = await (await page.request.get('/api/app/export.json')).body();
-  const chores = JSON.parse(backup.toString()).time_entries.find((e: { description: string }) => e.description === 'Admin chores');
-  expect(chores).toMatchObject({ all_day: true, start: '2026-06-14T22:00:00+00:00', stop: '2026-06-14T23:30:00+00:00' });
+  const chores = JSON.parse(backup.toString()).time_entries.find(
+    (e: { description: string }) => e.description === 'Admin chores',
+  );
+  expect(chores).toMatchObject({
+    all_day: true,
+    start: '2026-06-14T22:00:00+00:00',
+    stop: '2026-06-14T23:30:00+00:00',
+  });
 
   const fresh = await users.create({ timezone: 'America/New_York' });
   await page.context().clearCookies();
@@ -215,12 +316,21 @@ test('a no-time entry round-trips through the JSON backup into another account, 
   await restore.click();
   await expect(summary).toContainText('2 entries added');
 
-  const restored = async () => (await readAccount(page, fresh.workspaceId)).entries.map((e) => ({
-    description: e.description, all_day: e.all_day, start: e.start, stop: e.stop,
-  }));
+  const restored = async () =>
+    (await readAccount(page, fresh.workspaceId)).entries.map(e => ({
+      description: e.description,
+      all_day: e.all_day,
+      start: e.start,
+      stop: e.stop,
+    }));
   // New York is on summer time, four hours behind UTC: the no-time entry starts at its local midnight.
   const expected = [
-    { description: 'Admin chores', all_day: true, start: '2026-06-15T04:00:00+00:00', stop: '2026-06-15T05:30:00+00:00' },
+    {
+      description: 'Admin chores',
+      all_day: true,
+      start: '2026-06-15T04:00:00+00:00',
+      stop: '2026-06-15T05:30:00+00:00',
+    },
     { description: 'Standup', all_day: false, start: '2026-06-15T07:00:00+00:00', stop: '2026-06-15T08:00:00+00:00' },
   ];
   expect(await restored()).toEqual(expected);

@@ -1,11 +1,15 @@
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { test } from 'node:test';
-import { notificationAccess, notifyInBackground, notifySessionPhaseEnd, requestNotificationAccess } from './phaseNotification.ts';
+import {
+  notificationAccess,
+  notifyInBackground,
+  notifySessionPhaseEnd,
+  requestNotificationAccess,
+} from './phaseNotification.ts';
 
-// A minimal window, document and Notification stand in for the browser's. `setup` picks what the
-// page reports: its permission, a permission request's answer, whether the API exists or its
-// constructor throws (as Chrome on Android does), a secure context and the page's visibility.
+// Stand-ins for window, document and Notification; `setup` picks permission, API presence, a throwing
+// constructor (as Chrome on Android), secure context and visibility.
 interface Setup {
   permission?: NotificationPermission | 'throws';
   answer?: NotificationPermission | 'rejects';
@@ -18,12 +22,16 @@ interface Setup {
 const page = { secure: true, hidden: true, focused: false, focusCalls: 0, requests: 0 };
 Object.assign(globalThis, {
   window: {
-    get isSecureContext() { return page.secure; },
+    get isSecureContext() {
+      return page.secure;
+    },
     focus: () => void page.focusCalls++,
   },
   document: {
     hasFocus: () => page.focused,
-    get visibilityState() { return page.hidden ? 'hidden' : 'visible'; },
+    get visibilityState() {
+      return page.hidden ? 'hidden' : 'visible';
+    },
   },
 });
 
@@ -43,7 +51,14 @@ class Shown {
 
 let shown: Shown[] = [];
 
-function setup({ permission = 'granted', answer = 'granted', support = 'works', secure = true, hidden = true, focused = false }: Setup = {}) {
+function setup({
+  permission = 'granted',
+  answer = 'granted',
+  support = 'works',
+  secure = true,
+  hidden = true,
+  focused = false,
+}: Setup = {}) {
   Object.assign(page, { secure, hidden, focused, focusCalls: 0, requests: 0 });
   shown = [];
   if (support === 'missing') {
@@ -76,14 +91,24 @@ function setup({ permission = 'granted', answer = 'granted', support = 'works', 
 
 test('a background notification shows its title, body and tag with the app icon', () => {
   setup();
-  notifyInBackground('Is your timer still running on purpose?', 'Open Tokkl to confirm or review it.', 'tokkl-long-timer-7');
+  notifyInBackground(
+    'Is your timer still running on purpose?',
+    'Open Tokkl to confirm or review it.',
+    'tokkl-long-timer-7',
+  );
   notifyInBackground('Still tracking', 'Check your timer', 'tokkl-long-timer-8');
-  assert.deepEqual(shown.map(({ title, options }) => [title, options.body, options.tag]), [
-    ['Is your timer still running on purpose?', 'Open Tokkl to confirm or review it.', 'tokkl-long-timer-7'],
-    ['Still tracking', 'Check your timer', 'tokkl-long-timer-8'],
-  ]);
+  assert.deepEqual(
+    shown.map(({ title, options }) => [title, options.body, options.tag]),
+    [
+      ['Is your timer still running on purpose?', 'Open Tokkl to confirm or review it.', 'tokkl-long-timer-7'],
+      ['Still tracking', 'Check your timer', 'tokkl-long-timer-8'],
+    ],
+  );
   for (const { options } of shown) assert.equal(options.icon, '/icons/icon-192.png');
-  assert.ok(existsSync(new URL('../../public/icons/icon-192.png', import.meta.url)), 'the icon is a file the app serves');
+  assert.ok(
+    existsSync(new URL('../../public/icons/icon-192.png', import.meta.url)),
+    'the icon is a file the app serves',
+  );
 });
 
 test('a page in view shows no notification, even with permission', () => {
@@ -102,7 +127,10 @@ test('without permission, a secure context or the API, a hidden page shows nothi
   ];
   for (const browser of blocked) {
     setup(browser);
-    assert.doesNotThrow(() => notifyInBackground('Still tracking', 'Check your timer', 'long-timer'), JSON.stringify(browser));
+    assert.doesNotThrow(
+      () => notifyInBackground('Still tracking', 'Check your timer', 'long-timer'),
+      JSON.stringify(browser),
+    );
     assert.deepEqual(shown, [], JSON.stringify(browser));
     assert.equal(page.requests, 0, `a background notification never requests permission: ${JSON.stringify(browser)}`);
   }
@@ -167,11 +195,17 @@ for (const hidden of [false, true]) {
       const notification = notifySessionPhaseEnd('2026-10-27T10:00:00.000Z', phase);
       assert.equal(notification, shown.at(-1));
     }
-    assert.deepEqual(shown.map(({ title }) => title), ['Work phase over', 'Short rest phase over', 'Long rest phase over']);
+    assert.deepEqual(
+      shown.map(({ title }) => title),
+      ['Work phase over', 'Short rest phase over', 'Long rest phase over'],
+    );
     for (const notification of shown) {
       assert.deepEqual(notification.options, {
-        body: 'Choose Next phase or End session in Tokkl.', icon: '/icons/icon-192.png',
-        tag: 'tokkl-pomodoro-session-2026-10-27T10:00:00.000Z', requireInteraction: true, renotify: true,
+        body: 'Choose Next phase or End session in Tokkl.',
+        icon: '/icons/icon-192.png',
+        tag: 'tokkl-pomodoro-session-2026-10-27T10:00:00.000Z',
+        requireInteraction: true,
+        renotify: true,
       });
     }
     notifySessionPhaseEnd('2026-10-27T10:31:00.000Z', 'Short rest');
@@ -195,8 +229,12 @@ test('session notifications stay quiet while focused and focus and close on clic
 });
 
 for (const browser of [
-  { permission: 'default' }, { permission: 'denied' }, { permission: 'throws' },
-  { secure: false }, { support: 'missing' }, { support: 'throws' },
+  { permission: 'default' },
+  { permission: 'denied' },
+  { permission: 'throws' },
+  { secure: false },
+  { support: 'missing' },
+  { support: 'throws' },
 ] satisfies Setup[]) {
   test(`session notifications guard ${JSON.stringify(browser)} without requesting permission`, () => {
     setup({ ...browser, hidden: false });

@@ -12,15 +12,15 @@ constexpr PomodoroField fields[] = {
     PomodoroField::LongRestEvery,
 };
 
-// The field a refused save names. The server answers a value it cannot use
-// with 400 "Invalid <key>: expected an integer from <min> to <max>".
+// The field a refused save names in its Tokkl-Error-Field header. A key
+// that is none of the four is no field's error.
 std::optional<PomodoroField> refusedField(const ApiError &error)
 {
     if (error.kind != ApiError::Kind::Client || error.status != 400) {
         return std::nullopt;
     }
     for (const PomodoroField field : fields) {
-        if (error.message.contains(pomodoroPreferenceKey(field))) {
+        if (error.field == pomodoroPreferenceKey(field)) {
             return field;
         }
     }
@@ -41,9 +41,24 @@ PomodoroPreferences::PomodoroPreferences(Connection *connection, QObject *parent
     onConnectionChanged();
 }
 
+PomodoroLimits PomodoroPreferences::pomodoroLimits() const
+{
+    return m_limits;
+}
+
+QVariantMap PomodoroPreferences::limits() const
+{
+    return m_limits.toVariantMap();
+}
+
 PomodoroConfig PomodoroPreferences::config() const
 {
     return m_config;
+}
+
+QString PomodoroPreferences::owner() const
+{
+    return m_owner;
 }
 
 int PomodoroPreferences::workMinutes() const
@@ -151,6 +166,7 @@ void PomodoroPreferences::refresh()
 
 void PomodoroPreferences::onConnectionChanged()
 {
+    followLimits();
     followOwner();
     const bool online = m_connection && m_connection->state() == Connection::Connected && m_connection->isConnected();
     const bool cameOnline = online && !m_online;
@@ -177,7 +193,17 @@ void PomodoroPreferences::followOwner()
         return;
     }
     m_owner = owner;
-    setConfig(PomodoroConfig());
+    setConfig(m_limits.defaults);
+}
+
+void PomodoroPreferences::followLimits()
+{
+    const std::optional<PomodoroLimits> announced = m_connection ? m_connection->server().pomodoroLimits : std::nullopt;
+    if (!announced || *announced == m_limits) {
+        return;
+    }
+    m_limits = *announced;
+    Q_EMIT limitsChanged();
 }
 
 void PomodoroPreferences::fetch()

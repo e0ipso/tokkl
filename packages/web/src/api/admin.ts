@@ -1,0 +1,51 @@
+import { useQuery } from '@tanstack/react-query';
+import { api } from './client.ts';
+import { list, object } from './decode.ts';
+import { keys } from './keys.ts';
+import { APP } from './paths.ts';
+import type { AdminAccount, CreatedInvite, InstanceSettings, Invite, PasswordResetLink, UserRole } from '@tokkl/types';
+
+/** The server's 403 to non-admins is what protects these routes. */
+const ADMIN = `${APP}/admin`;
+
+export function useAdminUsers() {
+  return useQuery({
+    queryKey: keys.adminUsers,
+    queryFn: ({ signal }) => api.get<AdminAccount[]>(`${ADMIN}/users`, { signal, decode: list }),
+  });
+}
+
+export function useAdminInvites() {
+  return useQuery({
+    queryKey: keys.adminInvites,
+    queryFn: ({ signal }) => api.get<Invite[]>(`${ADMIN}/invites`, { signal, decode: list }),
+  });
+}
+
+/** `enabled` false holds the request until the users list proves admin access. */
+export function useInstanceSettings(enabled = true) {
+  return useQuery({
+    queryKey: keys.adminSettings,
+    queryFn: ({ signal }) => api.get<InstanceSettings>(`${ADMIN}/settings`, { signal, decode: object }),
+    enabled,
+  });
+}
+
+export type AccountChange = { role: UserRole } | { disabled: boolean };
+
+export const adminRequests = {
+  updateUser: (id: number, change: AccountChange) =>
+    api.patch<AdminAccount>(`${ADMIN}/users/${id}`, change, { decode: object }),
+  /** Its API token keeps working. */
+  revokeSessions: (id: number) => api.post(`${ADMIN}/users/${id}/sessions/revoke`),
+  createPasswordReset: (id: number) =>
+    api.post<PasswordResetLink>(`${ADMIN}/users/${id}/password-reset`, undefined, { decode: object }),
+  /** The server checks the typed email against it. */
+  deleteUser: (id: number, email: string) => api.delete(`${ADMIN}/users/${id}`, { email }),
+  createInvite: (body: { role: UserRole; note: string }) =>
+    api.post<CreatedInvite>(`${ADMIN}/invites`, body, { decode: object }),
+  revokeInvite: (id: number) => api.delete(`${ADMIN}/invites/${id}`),
+  /** The reply replaces the cached settings, so it is checked. */
+  saveSettings: (changes: Partial<InstanceSettings>): Promise<InstanceSettings> =>
+    api.put<InstanceSettings>(`${ADMIN}/settings`, changes, { decode: object }),
+};

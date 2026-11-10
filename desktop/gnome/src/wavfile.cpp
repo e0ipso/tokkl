@@ -8,7 +8,7 @@ namespace Tokkl
 
 namespace
 {
-// WAVE_FORMAT_PCM: integer samples.
+// WAVE_FORMAT_PCM
 constexpr quint16 pcmFormat = 1;
 
 quint16 u16(const QByteArray &bytes, qsizetype at)
@@ -41,9 +41,7 @@ std::optional<WavData> readWavFile(const QString &path, QString *error)
         return fail(error, path, QStringLiteral("not a WAV file"));
     }
 
-    // The chunks after the RIFF header: fmt gives the format, data the
-    // samples; anything else (LIST, fact, cue) is skipped. Chunks are
-    // padded to an even length.
+    // Other chunks (LIST, fact, cue) are skipped. Chunks pad to even length.
     WavData wav;
     bool haveFormat = false;
     bool haveData = false;
@@ -92,7 +90,6 @@ std::optional<WavData> readWavFile(const QString &path, QString *error)
     default:
         return fail(error, path, QStringLiteral("%1-bit samples").arg(wav.bitsPerSample));
     }
-    // Whole frames only.
     wav.samples.chop(wav.samples.size() % wav.frameSize());
     if (wav.samples.isEmpty()) {
         return fail(error, path, QStringLiteral("no samples"));

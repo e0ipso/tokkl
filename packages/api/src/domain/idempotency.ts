@@ -1,0 +1,48 @@
+/** Same key and request within the retention answer the record as it is now; another request gets 422. */
+import type { IdempotencyKeysRepository } from './ports.ts';
+import type { Id } from './model.ts';
+import { sha256 } from '../lib/crypto.ts';
+import { unprocessable } from '../lib/errors.ts';
+import { IDEMPOTENCY_KEY_HEADER, type IdempotencyClaim } from '../lib/idempotency.ts';
+
+/** An older key is forgotten and may be used again. */
+export const IDEMPOTENCY_RETENTION_MS = 24 * 60 * 60 * 1000;
+
+export const idempotencyCutoff = (now: Date) => new Date(now.getTime() - IDEMPOTENCY_RETENTION_MS).toISOString();
+
+interface IdempotentCreate<T> {
+  create(): Promise<T>;
+  reference(result: T): Id;
+  /** Read as it is now. */
+  replay(resultId: Id): Promise<T>;
+}
+
+/** Without a claim it simply creates. */
+export async function idempotent<T>(
+  ctx: { idempotencyKeys: IdempotencyKeysRepository },
+  userId: Id,
+  claim: IdempotencyClaim | undefined,
+  steps: IdempotentCreate<T>,
+): Promise<T> {
+  if (!claim) return steps.create();
+  const now = new Date();
+  const cutoff = idempotencyCutoff(now);
+  const keyHash = sha256(`${userId}\n${claim.key}`);
+  const recorded = await ctx.idempotencyKeys.find(keyHash);
+  if (recorded && recorded.createdAt >= cutoff) {
+    if (recorded.fingerprint !== claim.fingerprint)
+      throw unprocessable(`This ${IDEMPOTENCY_KEY_HEADER} was already used with a different request`);
+    return steps.replay(recorded.resultId);
+  }
+  // An expired record the maintenance job has not deleted yet.
+  if (recorded) await ctx.idempotencyKeys.delete(keyHash);
+  const result = await steps.create();
+  await ctx.idempotencyKeys.insert({
+    keyHash,
+    userId,
+    fingerprint: claim.fingerprint,
+    resultId: steps.reference(result),
+    createdAt: now.toISOString(),
+  });
+  return result;
+}

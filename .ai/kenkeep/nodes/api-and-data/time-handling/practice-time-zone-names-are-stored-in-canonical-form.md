@@ -20,11 +20,11 @@ kk_confidence: high
 ---
 `canonicalTimeZone(name)` in `packages/common/time.ts` is the only zone check. It returns `Intl`'s `resolvedOptions().timeZone`, or `null` for a name `Intl` rejects and for offset IDs (a leading `+`, `-` or U+2212). `Intl` itself accepts `+02:00`, but the browser zone list has none and `java.time` refuses offsets past +-18:00, so the helper refuses them first.
 
-`PUT /me` (`packages/api/src/routes/togglV9.ts`) and setup and invite (`readNewAccount` in `packages/api/src/domain/accountValues.ts`) store the canonical name, not the typed one, and answer 400 `Invalid timezone` on `null`. In setup and invite a missing or empty timezone means `UTC`; `null` or any non-string is a 400.
+`PUT /me` (`parseProfileUpdate` in `packages/api/src/commands/accounts.ts`) and setup and invite (`parseNewAccount` in `packages/api/src/commands/accounts.ts`) store the canonical name, not the typed one, and answer 400 `Invalid timezone` on `null`. In setup and invite a missing or empty timezone means `UTC`; `null` or any non-string is a 400.
 
 The canonical form follows the running Node's ICU and its tz backward links, so it can differ from what the user typed. On Node 24.21, `Asia/Kolkata` comes back as `Asia/Calcutta`, `Europe/Kyiv` as `Europe/Kiev` and `EST` as `America/Panama`.
 
-Account input validation in `domain/accountValues.ts` canonicalizes timezone names. `e2e/auth-browser.spec.ts` verifies canonical profile values persist across a real storage restart. Startup accepts only recognized storage ledgers; unsupported legacy SQLite files are refused instead of running a user_version rewrite.
+Account input validation in `commands/accounts.ts` canonicalizes timezone names. `e2e/auth-browser.spec.ts` verifies canonical profile values persist across a real storage restart. Startup accepts only recognized storage ledgers; unsupported legacy SQLite files are refused instead of running a user_version rewrite.
 
 Browsers differ from Node on these names too: Firefox 157 resolves `Asia/Kolkata` and `Europe/Kyiv` to those current names, while Node 24.21 and Chromium 156 give `Asia/Calcutta` and `Europe/Kiev`. Firefox also rejects the older names as a Playwright `timezoneId`. Compare a browser zone with a stored one only after `canonicalTimeZone` on both sides, as `ProfileSection.tsx` does for its zone notice; a plain string compare shows a false mismatch. The committed Playwright config has only Chromium, so `e2e/settings-profile.spec.ts` emulates Firefox naming there with an init script that patches `Intl.DateTimeFormat.prototype.resolvedOptions`. WebKit does not launch on the server host without the system libraries `libmanette-0.2-0` and `libenchant-2-2`, which need sudo to install.
 

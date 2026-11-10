@@ -1,10 +1,20 @@
 import type { FormEvent, ReactNode, Ref } from 'react';
+import { t } from '../../../i18n/messages.ts';
 
-/** One settings section: a card with a title, an optional intro line and its own save button. */
-export function SettingsCard({ id, title, titleRef, intro, children, onSubmit, saveLabel = 'Save', saving = false, saveDisabled = false }: {
+export function SettingsCard({
+  id,
+  title,
+  titleRef,
+  intro,
+  children,
+  onSubmit,
+  saveLabel = t('common.save'),
+  saving = false,
+  saveDisabled = false,
+}: {
   id: string;
   title: string;
-  /** Lets the section move focus to its title, for example when the focused row went away. */
+  /** For example when the focused row went away. */
   titleRef?: Ref<HTMLHeadingElement>;
   intro?: ReactNode;
   children: ReactNode;
@@ -18,14 +28,20 @@ export function SettingsCard({ id, title, titleRef, intro, children, onSubmit, s
   const body = (
     <>
       <div className="settings-card-head">
-        <h2 id={headingId} ref={titleRef} tabIndex={titleRef ? -1 : undefined}>{title}</h2>
+        <h2 id={headingId} ref={titleRef} tabIndex={titleRef ? -1 : undefined}>
+          {title}
+        </h2>
       </div>
       {intro ? <p className="hint settings-intro">{intro}</p> : null}
       {children}
     </>
   );
   if (!onSubmit) {
-    return <section className="card settings-card" id={id} aria-labelledby={headingId}>{body}</section>;
+    return (
+      <section className="card settings-card" id={id} aria-labelledby={headingId}>
+        {body}
+      </section>
+    );
   }
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -37,7 +53,7 @@ export function SettingsCard({ id, title, titleRef, intro, children, onSubmit, s
       {body}
       <div className="settings-actions">
         <button type="submit" className="button button-primary" disabled={saving || saveDisabled}>
-          {saving ? 'Saving…' : saveLabel}
+          {saving ? t('settings.saving') : saveLabel}
         </button>
       </div>
     </form>

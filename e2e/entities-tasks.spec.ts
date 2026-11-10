@@ -3,7 +3,6 @@ import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
 import { EntityApi, entryRow, yesterday } from './entity-tests-helpers.ts';
 
-/** Opens the project editor's task list from the Projects page. */
 async function openTasks(page: Page, project: string) {
   await page.getByRole('link', { name: 'Projects' }).click();
   await page.getByRole('button', { name: `Edit ${project}` }).click();
@@ -11,7 +10,7 @@ async function openTasks(page: Page, project: string) {
   return { editor, tasks: editor.getByRole('region', { name: 'Tasks' }) };
 }
 
-/** Waits for the picker task query to render the expected names, then closes it. */
+/** Waits for the picker task query to render, then closes it. */
 async function expectPickerTasks(page: Page, names: string[]): Promise<void> {
   await page.getByRole('link', { name: 'Timer' }).click();
   await page.getByRole('region', { name: 'Timer' }).getByRole('button', { name: 'Project' }).click();
@@ -22,12 +21,19 @@ async function expectPickerTasks(page: Page, names: string[]): Promise<void> {
   await expect(picker).toBeHidden();
 }
 
-test('a project task is created, renamed, assigned, completed and deleted without losing its entry', async ({ page }) => {
+test('a project task is created, renamed, assigned, completed and deleted without losing its entry', async ({
+  page,
+}) => {
   await login(page);
   const api = await EntityApi.open(page);
   const day = yesterday();
   const project = await api.createProject({ name: 'Platform' });
-  const entry = await api.createEntry({ description: 'Schema work', start: `${day}T08:00:00Z`, stop: `${day}T09:30:00Z`, project_id: project.id });
+  const entry = await api.createEntry({
+    description: 'Schema work',
+    start: `${day}T08:00:00Z`,
+    stop: `${day}T09:30:00Z`,
+    project_id: project.id,
+  });
 
   let { editor, tasks } = await openTasks(page, 'Platform');
   await tasks.getByRole('textbox', { name: 'New task name' }).fill('Design');
@@ -38,14 +44,13 @@ test('a project task is created, renamed, assigned, completed and deleted withou
 
   await tasks.getByRole('textbox', { name: 'Task name', exact: true }).fill('Design review');
   await tasks.getByRole('textbox', { name: 'Task name', exact: true }).press('Enter');
-  await expect.poll(async () => (await api.tasks(project.id)).map((t) => t.name)).toEqual(['Design review']);
+  await expect.poll(async () => (await api.tasks(project.id)).map(t => t.name)).toEqual(['Design review']);
   await editor.getByRole('button', { name: 'Cancel' }).click();
   await page.reload();
   ({ editor, tasks } = await openTasks(page, 'Platform'));
   await expect(tasks.getByRole('textbox', { name: 'Task name', exact: true })).toHaveValue('Design review');
   await editor.getByRole('button', { name: 'Cancel' }).click();
 
-  // Pick the task on the entry from the timer list.
   await page.getByRole('link', { name: 'Timer' }).click();
   const row = entryRow(page, 'Schema work');
   await row.locator('.entry-project').click();
@@ -56,15 +61,15 @@ test('a project task is created, renamed, assigned, completed and deleted withou
   expect(assigned).toMatchObject({ project_id: project.id, task_id: task!.id, duration: 5400 });
   await expectPickerTasks(page, ['Design review']);
 
-  // The task counts the entry's hour and a half.
   ({ editor, tasks } = await openTasks(page, 'Platform'));
-  const taskRow = tasks.getByRole('listitem').filter({ has: page.getByRole('textbox', { name: 'Task name', exact: true }) });
+  const taskRow = tasks
+    .getByRole('listitem')
+    .filter({ has: page.getByRole('textbox', { name: 'Task name', exact: true }) });
   await expect(taskRow.locator('.task-tracked')).toHaveText('1:30:00');
 
   await tasks.getByRole('checkbox', { name: 'Design review is done' }).check();
   await expect.poll(async () => (await api.tasks(project.id))[0]?.active).toBe(false);
   await editor.getByRole('button', { name: 'Cancel' }).click();
-  // A done task leaves the picker, but the entry keeps it.
   await expectPickerTasks(page, []);
   expect(await api.entry(entry.id)).toMatchObject({ project_id: project.id, task_id: task!.id });
   await expect(row.locator('.project-label')).toContainText('Platform: Design review');
@@ -85,15 +90,19 @@ test('a project task is created, renamed, assigned, completed and deleted withou
 
   const after = await api.entry(entry.id);
   expect(after).toMatchObject({
-    id: entry.id, description: 'Schema work', project_id: project.id, task_id: null, start: assigned.start, stop: assigned.stop, duration: 5400,
+    id: entry.id,
+    description: 'Schema work',
+    project_id: project.id,
+    task_id: null,
+    start: assigned.start,
+    stop: assigned.stop,
+    duration: 5400,
   });
   await page.getByRole('link', { name: 'Timer' }).click();
   await expect(row.locator('.project-label')).toHaveText('Platform');
   await expectPickerTasks(page, []);
 });
 
-// The inline confirm replaces the focused "Delete task" button, and a delete takes the whole
-// row away, so focus moves within the task list instead of falling to the page body.
 test('deleting tasks by keyboard keeps focus in the task list', async ({ page }) => {
   await login(page);
   const api = await EntityApi.open(page);
@@ -113,7 +122,6 @@ test('deleting tasks by keyboard keeps focus in the task list', async ({ page })
     await expect(deleteTask(name)).toHaveCount(0);
   };
 
-  // Keep closes the inline confirm and gives focus back to "Delete task".
   await deleteTask('Beta').focus();
   await page.keyboard.press('Enter');
   await expect(keep).toBeFocused();
@@ -121,13 +129,11 @@ test('deleting tasks by keyboard keeps focus in the task list', async ({ page })
   await expect(keep).toHaveCount(0);
   await expect(deleteTask('Beta')).toBeFocused();
 
-  // A deleted task passes focus to the next task's "Delete task", else the previous one's.
   await deleteByKeyboard('Beta');
   await expect(deleteTask('Gamma')).toBeFocused();
   await deleteByKeyboard('Gamma');
   await expect(deleteTask('Alpha')).toBeFocused();
 
-  // With no task left, focus stays in the Tasks region, on the new task field.
   await deleteByKeyboard('Alpha');
   await expect(tasks.getByText('No tasks yet.')).toBeVisible();
   await expect(tasks.getByRole('textbox', { name: 'New task name' })).toBeFocused();
@@ -135,8 +141,6 @@ test('deleting tasks by keyboard keeps focus in the task list', async ({ page })
   expect(await api.tasks(project.id)).toEqual([]);
 });
 
-// An archived project's editor has no new task field, so deleting its last task moves focus
-// to the Tasks heading instead.
 test('deleting the last task of an archived project moves focus to the Tasks heading', async ({ page }) => {
   await login(page);
   const api = await EntityApi.open(page);

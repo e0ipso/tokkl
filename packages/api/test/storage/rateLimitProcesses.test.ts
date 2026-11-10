@@ -3,7 +3,12 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { ACCOUNT_ADDRESS_LIMIT, ADDRESS_LIMIT, PASSWORD_WINDOW_MS, SETUP_CODE_LIMIT } from '../../src/auth/rateLimit.ts';
+import {
+  ACCOUNT_ADDRESS_LIMIT,
+  ADDRESS_LIMIT,
+  PASSWORD_WINDOW_MS,
+  SETUP_CODE_LIMIT,
+} from '../../src/auth/rateLimit.ts';
 import { databaseUrl, startApi, type ApiProcess } from './support/apiProcess.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 
@@ -11,15 +16,22 @@ const EMAIL = 'ada@example.test';
 const PASSWORD = 'correct horse battery';
 const WINDOW_SECONDS = PASSWORD_WINDOW_MS / 1000;
 
-const post = (proc: ApiProcess, path: string, body: unknown) => fetch(proc.base + path, {
-  method: 'POST',
-  headers: { 'content-type': 'application/json', 'x-tokkl-csrf': '1' },
-  body: JSON.stringify(body),
-});
-const setupWith = (proc: ApiProcess, code: string) => post(proc, '/api/app/setup', { email: EMAIL, password: PASSWORD, fullname: 'Ada', timezone: 'Europe/Madrid', setup_code: code });
+const post = (proc: ApiProcess, path: string, body: unknown) =>
+  fetch(proc.base + path, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-tokkl-csrf': '1' },
+    body: JSON.stringify(body),
+  });
+const setupWith = (proc: ApiProcess, code: string) =>
+  post(proc, '/api/app/setup', {
+    email: EMAIL,
+    password: PASSWORD,
+    fullname: 'Ada',
+    timezone: 'Europe/Madrid',
+    setup_code: code,
+  });
 const login = (proc: ApiProcess, password: string) => post(proc, '/api/app/login', { email: EMAIL, password });
 
-/** Sorted statuses of `count` parallel requests, alternating between two processes. */
 async function parallelStatuses(count: number, request: (i: number) => Promise<Response>): Promise<number[]> {
   const responses = await Promise.all(Array.from({ length: count }, (_, i) => request(i)));
   return responses.map(response => response.status).sort();
@@ -30,11 +42,14 @@ async function expectStatus(response: Response, status: number, what: string): P
   assert.equal(response.status, status, `${what}: ${text}`);
 }
 
-/** A refusal from the limiter: 429 with a whole number of seconds inside the window. */
+/** 429 with a whole number of seconds inside the window. */
 async function expectRefused(response: Response, what: string): Promise<void> {
   await expectStatus(response, 429, what);
   const retryAfter = Number(response.headers.get('retry-after'));
-  assert.ok(Number.isInteger(retryAfter) && retryAfter >= 1 && retryAfter <= WINDOW_SECONDS, `${what}: Retry-After ${response.headers.get('retry-after')}`);
+  assert.ok(
+    Number.isInteger(retryAfter) && retryAfter >= 1 && retryAfter <= WINDOW_SECONDS,
+    `${what}: Retry-After ${response.headers.get('retry-after')}`,
+  );
 }
 
 test('postgres: failure limits are shared by two API processes and survive a restart', { timeout: 240000 }, async t => {
@@ -42,10 +57,16 @@ test('postgres: failure limits are shared by two API processes and survive a res
   assert.ok(fixture.config.backend === 'postgres');
   const root = mkdtempSync(join(tmpdir(), 'tokkl-limits-'));
   const processes: ApiProcess[] = [];
-  // Every child goes before the database does.
   t.after(async () => {
     for (const proc of processes) if (proc.child.exitCode === null) proc.child.kill('SIGTERM');
-    await Promise.allSettled(processes.map(proc => new Promise<void>(resolve => proc.child.exitCode === null ? proc.child.once('exit', () => resolve()) : resolve())));
+    await Promise.allSettled(
+      processes.map(
+        proc =>
+          new Promise<void>(resolve =>
+            proc.child.exitCode === null ? proc.child.once('exit', () => resolve()) : resolve(),
+          ),
+      ),
+    );
     await fixture.cleanup();
     rmSync(root, { recursive: true, force: true });
   });
@@ -56,7 +77,6 @@ test('postgres: failure limits are shared by two API processes and survive a res
   };
 
   await t.test('setup codes: wrong codes sent to A and B count toward one limit', async () => {
-    // Setup stays incomplete here, so this case gets its own database.
     const namespace = await fixture.namespace!();
     const url = databaseUrl(namespace.config);
     const a = await start(url, 'setup-a');
@@ -79,7 +99,8 @@ test('postgres: failure limits are shared by two API processes and survive a res
     const b = await start(url, 'links-b');
     const link = (proc: ApiProcess) => fetch(`${proc.base}/api/app/invites/not-a-token`);
     const left = 5;
-    for (let i = 0; i < ADDRESS_LIMIT - left; i++) await expectStatus(await link(i % 2 === 0 ? a : b), 404, `bad link ${i + 1}`);
+    for (let i = 0; i < ADDRESS_LIMIT - left; i++)
+      await expectStatus(await link(i % 2 === 0 ? a : b), 404, `bad link ${i + 1}`);
     const statuses = await parallelStatuses(4 * left, i => link(i % 2 === 0 ? a : b));
     assert.deepEqual(statuses, [...Array(left).fill(404), ...Array(3 * left).fill(429)]);
     await a.stop();

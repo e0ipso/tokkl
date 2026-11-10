@@ -1,13 +1,4 @@
-# The backend QML module the widget imports. The API client, the credential
-# store interface, connection state and timer controller are the tokklcore
-# library from desktop/core, which the module and the tests link. The
-# tokklkde library adds KDE Wallet and the types QML creates; qmltypes.h
-# gives the classes their QML names.
-
-# The KDE side: the KDE Wallet store, the connection types the widget
-# creates from QML, which inject it, the Pomodoro store in the widget's own
-# configuration, the timer state client and Pomodoro session wiring and the
-# alarm player. Qt Multimedia is linked here only; the core never sees it.
+# Qt Multimedia is linked here only; the core never sees it.
 add_library(tokklkde STATIC
     alarmplayer.cpp
     alarmplayer.h
@@ -15,29 +6,26 @@ add_library(tokklkde STATIC
     appletpomodorostore.h
     kdeconnection.cpp
     kdeconnection.h
-    kdepomodoro.cpp
-    kdepomodoro.h
     kdetimerstate.cpp
     kdetimerstate.h
     kwalletcredentialstore.cpp
     kwalletcredentialstore.h
     pomodorolengthsclient.cpp
     pomodorolengthsclient.h
+    pomodorolengthssaves.cpp
+    pomodorolengthssaves.h
     pomodorosoundcatalogue.cpp
     pomodorosoundcatalogue.h
 )
 set_target_properties(tokklkde PROPERTIES POSITION_INDEPENDENT_CODE ON)
-# The alarm player finds the installed widget's sounds by the widget's id.
 target_compile_definitions(tokklkde PRIVATE
     TOKKL_PLASMOID_ID="${TOKKL_PLASMOID_ID}"
 )
-# Multimedia and Qml are public: the headers of the alarm player and the
-# Pomodoro wiring include theirs.
+# Public: alarmplayer.h includes Qt Multimedia headers.
 target_link_libraries(tokklkde
     PUBLIC
         tokklcore
         Qt6::Multimedia
-        Qt6::Qml
     PRIVATE
         KF6::Wallet
         Plasma::Plasma
@@ -55,6 +43,8 @@ target_sources(tokklbackend PRIVATE
     companion.h
     qmltypes.h
 )
+# The core's tr() catalog; QML strings use KI18n (see translations.h).
+ecm_create_qm_loader(tokklbackend tokklcore_qt)
 
 target_compile_definitions(tokklbackend PRIVATE
     TOKKL_VERSION_STRING="${TOKKL_RESOLVED_VERSION}"

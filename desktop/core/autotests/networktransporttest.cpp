@@ -1,5 +1,4 @@
-// NetworkTransport against an in-process HTTP server on the loopback
-// interface. No other host is contacted.
+// Uses an in-process HTTP server on the loopback interface only.
 
 #include "transport.h"
 
@@ -16,11 +15,9 @@ using namespace Tokkl;
 
 namespace
 {
-// Not the KDE widget's "tokkl-kde", so the User-Agent shows the name is
-// passed in.
+// Not the KDE widget's "tokkl-kde", so the User-Agent shows the name is passed in.
 const QString clientName = QStringLiteral("tokkl-test");
 
-// Answers each request with a canned response, or not at all.
 class LoopbackServer : public QObject
 {
     Q_OBJECT
@@ -59,8 +56,7 @@ private:
     QHash<QTcpSocket *, QByteArray> m_buffer;
 };
 
-// Holds each connection open after the request, so a test writes the
-// response a piece at a time.
+// Holds each connection open so a test writes the response a piece at a time.
 class StreamServer : public QObject
 {
     Q_OBJECT
@@ -87,7 +83,6 @@ public:
         return QUrl(QStringLiteral("http://127.0.0.1:%1%2").arg(m_server.serverPort()).arg(path));
     }
 
-    // One chunk of a chunked body.
     void writeChunk(const QByteArray &data)
     {
         socket->write(QByteArray::number(data.size(), 16) + "\r\n" + data + "\r\n");
@@ -105,7 +100,6 @@ private:
 const QByteArray streamHead = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream; charset=utf-8\r\nCache-Control: no-store\r\n"
                               "Connection: close\r\nTransfer-Encoding: chunked\r\n\r\n";
 
-// What a stream delivered.
 struct StreamLog {
     QByteArray data;
     int chunks = 0;
@@ -129,8 +123,7 @@ QByteArray httpResponse(const QByteArray &statusLine, const QByteArray &headers,
         + headers + "\r\n" + body;
 }
 
-// The header fields of a raw request, by lower-case name. Field names are
-// case-insensitive, and Qt 6.8 sends them in lower case.
+// Field names are case-insensitive, and Qt 6.8 sends them in lower case.
 QHash<QByteArray, QByteArray> headerFields(const QByteArray &request)
 {
     QHash<QByteArray, QByteArray> fields;
@@ -186,10 +179,21 @@ private Q_SLOTS:
         QCOMPARE(fields.value("accept"), QByteArray("application/json"));
         QCOMPARE(fields.value("user-agent"), QByteArray("tokkl-test/" TOKKL_VERSION_STRING));
 
-        // A cookie the server set is not sent back.
+        QVERIFY(!fields.contains("idempotency-key"));
+
         sendAndWait(transport, HttpRequest{"GET", server.url(QStringLiteral("/api/v9/me")), "Basic eA==", {}});
         QCOMPARE(server.requests.size(), 2);
         QVERIFY(!headerFields(server.requests.last()).contains("cookie"));
+    }
+
+    void idempotencyKeyHeader()
+    {
+        LoopbackServer server;
+        server.response = httpResponse("200 OK", "", "{}");
+        NetworkTransport transport(clientName);
+        sendAndWait(transport, HttpRequest{"POST", server.url(QStringLiteral("/api/app/timer/start")), "Basic eA==", "{}", "0123456789abcdef0123456789abcdef"});
+        QCOMPARE(server.requests.size(), 1);
+        QCOMPARE(headerFields(server.requests.first()).value("idempotency-key"), QByteArray("0123456789abcdef0123456789abcdef"));
     }
 
     void jsonBody()
@@ -215,7 +219,6 @@ private Q_SLOTS:
         QCOMPARE(response.status, 302);
         QCOMPARE(response.location, target.url(QStringLiteral("/steal")).toEncoded());
         QTest::qWait(100);
-        // The credentials never reached the redirect target.
         QVERIFY(target.requests.isEmpty());
     }
 
@@ -229,11 +232,120 @@ private Q_SLOTS:
         QCOMPARE(response.retryAfter, QByteArray("120"));
     }
 
+    void errorHeadersAreRead()
+    {
+        LoopbackServer server;
+        server.response = httpResponse("400 Bad Request",
+                                       "Tokkl-Error-Code: invalid_preference\r\nTokkl-Error-Field: pomodoro_focus_interval_in_minutes\r\n",
+                                       "\"Invalid pomodoro_focus_interval_in_minutes\"");
+        NetworkTransport transport(clientName);
+        const HttpResponse response = sendAndWait(transport, HttpRequest{"POST", server.url(QStringLiteral("/api/v9/me/preferences")), "Basic eA==", "{}"});
+        QCOMPARE(response.status, 400);
+        QCOMPARE(response.errorCode, QByteArray("invalid_preference"));
+        QCOMPARE(response.errorField, QByteArray("pomodoro_focus_interval_in_minutes"));
+    }
+
+    // A 2xx whose body breaks off is a network failure, even when the part that
+    // arrived would decode.
+    void truncatedBody_data()
+    {
+        QTest::addColumn<QByteArray>("statusLine");
+        QTest::addColumn<bool>("finished");
+        QTest::newRow("200") << QByteArray("200 OK") << false;
+        QTest::newRow("201") << QByteArray("201 Created") << false;
+        QTest::newRow("404") << QByteArray("404 Not Found") << true;
+        QTest::newRow("500") << QByteArray("500 Internal Server Error") << true;
+    }
+
+    void truncatedBody()
+    {
+        QFETCH(QByteArray, statusLine);
+        QFETCH(bool, finished);
+        LoopbackServer server;
+        // Promises 100 bytes, sends a complete JSON value, then closes.
+        server.response = "HTTP/1.1 " + statusLine + "\r\nContent-Type: application/json\r\nContent-Length: 100\r\nConnection: close\r\n\r\n{\"id\":5}";
+        NetworkTransport transport(clientName);
+        const HttpResponse response = sendAndWait(transport, HttpRequest{"GET", server.url(QStringLiteral("/api/v9/me")), "Basic c2VjcmV0", {}});
+        if (finished) {
+            QVERIFY(response.outcome == HttpResponse::Outcome::Finished);
+            QCOMPARE(response.status, QByteArray(statusLine).left(3).toInt());
+        } else {
+            QVERIFY(response.outcome == HttpResponse::Outcome::NetworkError);
+            QCOMPARE(response.status, 0);
+            QVERIFY(response.body.isEmpty());
+            QVERIFY(!response.errorString.isEmpty());
+            QVERIFY(!response.errorString.contains(QLatin1String("c2VjcmV0")));
+        }
+    }
+
+    void completeBody()
+    {
+        LoopbackServer server;
+        server.response = httpResponse("200 OK", "", "{\"id\":5}");
+        NetworkTransport transport(clientName);
+        const HttpResponse response = sendAndWait(transport, HttpRequest{"GET", server.url(QStringLiteral("/api/v9/me")), "Basic eA==", {}});
+        QVERIFY(response.outcome == HttpResponse::Outcome::Finished);
+        QCOMPARE(response.body, QByteArray("{\"id\":5}"));
+    }
+
+    void announcedBodyOverLimit_data()
+    {
+        QTest::addColumn<QByteArray>("statusLine");
+        QTest::addColumn<int>("size");
+        QTest::addColumn<bool>("fits");
+        QTest::newRow("200 at the limit") << QByteArray("200 OK") << 1000 << true;
+        QTest::newRow("200 over") << QByteArray("200 OK") << 1001 << false;
+        QTest::newRow("404 over") << QByteArray("404 Not Found") << 5000 << false;
+    }
+
+    void announcedBodyOverLimit()
+    {
+        QFETCH(QByteArray, statusLine);
+        QFETCH(int, size);
+        QFETCH(bool, fits);
+        LoopbackServer server;
+        const QByteArray body = "\"" + QByteArray(size - 2, 'x') + "\"";
+        server.response = httpResponse(statusLine, "", body);
+        NetworkTransport transport(clientName, nullptr, {.maxResponseBytes = 1000});
+        const HttpResponse response = sendAndWait(transport, HttpRequest{"GET", server.url(QStringLiteral("/api/v9/me")), "Basic c2VjcmV0", {}});
+        if (fits) {
+            QVERIFY(response.outcome == HttpResponse::Outcome::Finished);
+            QCOMPARE(response.body, body);
+        } else {
+            QVERIFY(response.outcome == HttpResponse::Outcome::NetworkError);
+            QCOMPARE(response.status, 0);
+            QVERIFY(response.body.isEmpty());
+            QVERIFY(response.errorString.contains(QLatin1String("1000")));
+            QVERIFY(!response.errorString.contains(QLatin1String("c2VjcmV0")));
+        }
+    }
+
+    void unannouncedBodyOverLimit()
+    {
+        StreamServer server;
+        NetworkTransport transport(clientName, nullptr, {.maxResponseBytes = 1000});
+        std::optional<HttpResponse> result;
+        PendingReply *reply = transport.send(HttpRequest{"GET", server.url(QStringLiteral("/api/v9/workspaces/1/projects")), "Basic eA==", {}});
+        connect(reply, &PendingReply::finished, reply, [&result](const HttpResponse &response) {
+            result = response;
+        });
+        QTRY_VERIFY(server.socket);
+        server.socket->write("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\n\r\n");
+        server.writeChunk("[" + QByteArray(600, ' '));
+        QTest::qWait(100);
+        QVERIFY(!result.has_value());
+        server.writeChunk(QByteArray(600, ' '));
+        // The server never ends the body, and the request timeout is far.
+        QTRY_VERIFY_WITH_TIMEOUT(result.has_value(), 5000);
+        QVERIFY(result->outcome == HttpResponse::Outcome::NetworkError);
+        QVERIFY(result->body.isEmpty());
+        delete reply;
+    }
+
     void timeout()
     {
         LoopbackServer server; // reads the request, never answers
-        NetworkTransport transport(clientName);
-        transport.setTimeout(300);
+        NetworkTransport transport(clientName, nullptr, {.timeoutMs = 300});
         const HttpResponse response = sendAndWait(transport, HttpRequest{"GET", server.url(QStringLiteral("/api/v9/me")), "Basic eA==", {}});
         QVERIFY(response.outcome == HttpResponse::Outcome::Timeout);
         QCOMPARE(server.requests.size(), 1);
@@ -271,7 +383,6 @@ private Q_SLOTS:
         delete reply;
     }
 
-    // A stream delivers each piece of the body as it arrives, then ends once.
     void streamDeliversChunks()
     {
         StreamServer server;
@@ -293,7 +404,6 @@ private Q_SLOTS:
         QVERIFY(log.chunks >= 2);
         QVERIFY(log.finished.isEmpty());
 
-        // The server ends the stream cleanly.
         server.socket->write("0\r\n\r\n");
         server.socket->disconnectFromHost();
         QTRY_COMPARE(log.finished.size(), 1);
@@ -303,16 +413,10 @@ private Q_SLOTS:
         delete stream;
     }
 
-    // There is no overall timeout, only one for a silence: each piece of data
-    // restarts it.
     void streamIdleTimeout()
     {
         StreamServer server;
-        NetworkTransport transport(clientName);
-        // More than twice the 25 s between the server's keep-alive events.
-        QCOMPARE(transport.streamIdleTimeout(), 60000);
-        transport.setTimeout(100);
-        transport.setStreamIdleTimeout(1000);
+        NetworkTransport transport(clientName, nullptr, {.timeoutMs = 100, .streamIdleTimeoutMs = 1000});
         PendingStream *stream = transport.openStream(HttpRequest{"GET", server.url(QStringLiteral("/api/app/timer/events")), "Basic eA==", {}});
         StreamLog log(stream);
         QTRY_VERIFY(server.socket);
@@ -330,7 +434,6 @@ private Q_SLOTS:
         delete stream;
     }
 
-    // A refused stream delivers no data; its answer comes with the end.
     void streamRefused()
     {
         LoopbackServer server;
@@ -342,6 +445,20 @@ private Q_SLOTS:
         QVERIFY(log.finished.first().outcome == HttpResponse::Outcome::Finished);
         QCOMPARE(log.finished.first().status, 403);
         QCOMPARE(log.finished.first().body, QByteArray("\"Invalid credentials\""));
+        QCOMPARE(log.chunks, 0);
+        delete stream;
+    }
+
+    void streamRefusedOverLimit()
+    {
+        LoopbackServer server;
+        server.response = httpResponse("403 Forbidden", "", "\"" + QByteArray(2000, 'x') + "\"");
+        NetworkTransport transport(clientName, nullptr, {.maxResponseBytes = 1000});
+        PendingStream *stream = transport.openStream(HttpRequest{"GET", server.url(QStringLiteral("/api/app/timer/events")), "Basic eA==", {}});
+        StreamLog log(stream);
+        QTRY_COMPARE(log.finished.size(), 1);
+        QVERIFY(log.finished.first().outcome == HttpResponse::Outcome::NetworkError);
+        QVERIFY(log.finished.first().body.isEmpty());
         QCOMPARE(log.chunks, 0);
         delete stream;
     }

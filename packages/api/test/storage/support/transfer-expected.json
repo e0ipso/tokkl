@@ -6,12 +6,8 @@
       "rows": 4,
       "created": 3,
       "skipped_duplicates": 0,
-      "created_projects": [
-        "Website (ACME)"
-      ],
-      "created_clients": [
-        "ACME"
-      ],
+      "created_projects": ["Website (ACME)"],
+      "created_clients": ["ACME"],
       "errors": [
         {
           "row": 3,
@@ -36,12 +32,8 @@
       "rows": 4,
       "created": 3,
       "skipped_duplicates": 0,
-      "created_projects": [
-        "Website (ACME)"
-      ],
-      "created_clients": [
-        "ACME"
-      ],
+      "created_projects": ["Website (ACME)"],
+      "created_clients": ["ACME"],
       "errors": [
         {
           "row": 3,
@@ -326,14 +318,8 @@
           "stop": "2026-10-05T09:31:40+00:00",
           "duration": 5420,
           "description": "Homepage, hero",
-          "tags": [
-            "Alpha",
-            "zebra"
-          ],
-          "tag_ids": [
-            2,
-            1
-          ],
+          "tags": ["Alpha", "zebra"],
+          "tag_ids": [2, 1],
           "duronly": true,
           "all_day": false,
           "at": "2026-10-30T12:00:00+00:00",
@@ -719,12 +705,8 @@
           "stop": "2026-10-28T08:13:43+00:00",
           "duration": 816,
           "description": "linked",
-          "tags": [
-            "label"
-          ],
-          "tag_ids": [
-            3
-          ],
+          "tags": ["label"],
+          "tag_ids": [3],
           "duronly": true,
           "all_day": false,
           "at": "2026-10-30T12:00:00+00:00",
@@ -859,14 +841,8 @@
           "stop": "2026-10-05T09:31:40+00:00",
           "duration": 5420,
           "description": "Homepage, hero",
-          "tags": [
-            "Alpha",
-            "zebra"
-          ],
-          "tag_ids": [
-            2,
-            1
-          ],
+          "tags": ["Alpha", "zebra"],
+          "tag_ids": [2, 1],
           "duronly": true,
           "all_day": false,
           "at": "2026-10-30T12:00:00+00:00",

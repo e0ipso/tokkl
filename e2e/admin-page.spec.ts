@@ -3,15 +3,18 @@ import { EMAIL } from './fixtures.ts';
 import { login, loginAs } from './helpers.ts';
 import { PHONE, expectFits, expectNoPageOverflow, openMore, tap } from './mobile-tests-helpers.ts';
 
-// The admin area in the web app. The setup account is the e2e server's only admin;
-// the users fixture adds regular accounts through invites, and the data fixture deletes them
-// afterwards.
+// The setup account is the e2e server's only admin; the users fixture adds regular accounts through invites.
 
 const LAST_ADMIN = 'At least one active admin must remain';
 
-test('an admin changes a role, disables and enables an account, revokes its sessions and deletes it', async ({ page, data, users, runtimeErrors }) => {
+test('an admin changes a role, disables and enables an account, revokes its sessions and deletes it', async ({
+  page,
+  data,
+  users,
+  runtimeErrors,
+}) => {
   const rita = await users.create({ fullname: 'Regular Rita' });
-  const accountOf = async () => (await data.listUsers()).find((user) => user.email === rita.account.email);
+  const accountOf = async () => (await data.listUsers()).find(user => user.email === rita.account.email);
   await login(page);
   await openAdmin(page);
 
@@ -41,7 +44,6 @@ test('an admin changes a role, disables and enables an account, revokes its sess
   await row.getByRole('button', { name: `Revoke sessions of ${rita.account.email}` }).click();
   await expect(page.getByText(`Signed ${rita.account.email} out of every browser.`)).toBeVisible();
 
-  // Delete asks for the email, says it cannot be undone and points to disabling instead.
   await row.getByRole('button', { name: `Delete ${rita.account.email}` }).click();
   const dialog = page.getByRole('dialog', { name: `Delete ${rita.account.email}?` });
   await expect(dialog).toContainText('It cannot be undone.');
@@ -55,11 +57,18 @@ test('an admin changes a role, disables and enables an account, revokes its sess
 
   // The server checks the email too; its 400 shows on the same field.
   runtimeErrors.allowResponse({
-    status: 400, method: 'DELETE', path: /^\/api\/app\/admin\/users\/\d+$/, reason: 'the server refuses an email that differs from the account',
+    status: 400,
+    method: 'DELETE',
+    path: /^\/api\/app\/admin\/users\/\d+$/,
+    reason: 'the server refuses an email that differs from the account',
   });
-  await page.route(`**/api/app/admin/users/${rita.userId}`, async (route) => {
-    await route.continue({ postData: JSON.stringify({ email: 'someone-else@e2e.example' }) });
-  }, { times: 1 });
+  await page.route(
+    `**/api/app/admin/users/${rita.userId}`,
+    async route => {
+      await route.continue({ postData: JSON.stringify({ email: 'someone-else@e2e.example' }) });
+    },
+    { times: 1 },
+  );
   await confirmEmail.fill(rita.account.email);
   await dialog.getByRole('button', { name: 'Delete account' }).click();
   await expect(await describedError(confirmEmail)).toHaveText("Enter the account's email to confirm the deletion");
@@ -88,13 +97,11 @@ test('an admin creates an invite, sees its link once, and revokes it', async ({ 
 
   const row = inviteRow(page, 'For Sam in finance');
   await expect(row).toContainText('Admin');
-  // The list never carries the link, here or in what the server sends for it.
   await expect(page.locator('#invites table')).not.toContainText(token);
   const listed = await data.inviteList();
   expect(listed).toHaveLength(1);
   expect(JSON.stringify(listed)).not.toContain(token);
 
-  // The link works, and it is gone from the page after a reload.
   const lookup = await page.request.get(`/api/app/invites/${token}`);
   expect(await lookup.json()).toEqual({ role: 'admin' });
   await page.reload();
@@ -109,26 +116,29 @@ test('an admin creates an invite, sees its link once, and revokes it', async ({ 
   expect(await data.inviteList()).toEqual([]);
 });
 
-// The admin gets a one-time link and passes it on; the admin never sees or sets the password.
-test('an admin issues a password reset link, sees it once, and a new one replaces it', async ({ page, data, users }) => {
+test('an admin issues a password reset link, sees it once, and a new one replaces it', async ({
+  page,
+  data,
+  users,
+}) => {
   const rita = await users.create({ fullname: 'Regular Rita' });
   await login(page);
   await openAdmin(page);
   await expect(userRow(page, EMAIL).getByRole('button', { name: /^Reset password of / })).toHaveCount(0);
 
-  const reset = userRow(page, rita.account.email).getByRole('button', { name: `Reset password of ${rita.account.email}` });
+  const reset = userRow(page, rita.account.email).getByRole('button', {
+    name: `Reset password of ${rita.account.email}`,
+  });
   const linkOf = page.getByLabel(`Password reset link for ${rita.account.email}`, { exact: true });
   await reset.click();
   await expect(linkOf).toHaveText(/^http:\/\/127\.0\.0\.1:\d+\/reset\/[\w-]+$/);
   await expect(page.locator('#users')).toContainText('works once, for 24 hours');
-  // A reset replaces the API token, so the admin is told the user's apps must sign in again.
   await expect(page.locator('#users')).toContainText('replaces their API token');
   const first = (await linkOf.textContent())!.split('/reset/')[1]!;
   const check = (token: string) => page.request.get(`/api/app/password-resets/${token}`);
   expect(await (await check(first)).json()).toEqual({ email: rita.account.email });
   expect(JSON.stringify(await data.listUsers())).not.toContain(first);
 
-  // A second link replaces the first, which stops working.
   await reset.click();
   await expect(linkOf).not.toHaveText(new RegExp(first));
   const second = (await linkOf.textContent())!.split('/reset/')[1]!;
@@ -141,7 +151,6 @@ test('an admin issues a password reset link, sees it once, and a new one replace
   expect(await page.content()).not.toContain(second);
 });
 
-// The one-time invite and reset links are shown once, so Copy link must hand over the exact link.
 test('Copy link puts the invite link and the reset link on the clipboard', async ({ page, users, baseURL }) => {
   const rita = await users.create();
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: baseURL });
@@ -157,14 +166,22 @@ test('Copy link puts the invite link and the reset link on the clipboard', async
   expect(await clipboard()).toBe(invite);
 
   const usersCard = page.locator('#users');
-  await userRow(page, rita.account.email).getByRole('button', { name: `Reset password of ${rita.account.email}` }).click();
-  const reset = (await page.getByLabel(`Password reset link for ${rita.account.email}`, { exact: true }).textContent())!;
+  await userRow(page, rita.account.email)
+    .getByRole('button', { name: `Reset password of ${rita.account.email}` })
+    .click();
+  const reset = (await page
+    .getByLabel(`Password reset link for ${rita.account.email}`, { exact: true })
+    .textContent())!;
   await usersCard.getByRole('button', { name: 'Copy link' }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Reset link copied' })).toBeVisible();
   expect(await clipboard()).toBe(reset);
 });
 
-test('an admin updates the instance settings, and an out-of-range value shows the server error on its field', async ({ page, data, runtimeErrors }) => {
+test('an admin updates the instance settings, and an out-of-range value shows the server error on its field', async ({
+  page,
+  data,
+  runtimeErrors,
+}) => {
   await login(page);
   await openAdmin(page);
   const card = page.locator('#instance');
@@ -180,7 +197,10 @@ test('an admin updates the instance settings, and an out-of-range value shows th
   expect(await data.instanceSettings()).toEqual({ session_days: 14, invite_days: 3, time_resolution_minutes: 5 });
 
   runtimeErrors.allowResponse({
-    status: 400, method: 'PUT', path: /^\/api\/app\/admin\/settings$/, reason: 'invite_days 91 is over the 90-day limit',
+    status: 400,
+    method: 'PUT',
+    path: /^\/api\/app\/admin\/settings$/,
+    reason: 'invite_days 91 is over the 90-day limit',
   });
   await inviteDays.fill('91');
   await card.getByRole('button', { name: 'Save' }).click();
@@ -189,14 +209,18 @@ test('an admin updates the instance settings, and an out-of-range value shows th
   await expect(sessionDays).not.toHaveAttribute('aria-invalid', 'true');
   expect(await data.instanceSettings()).toEqual({ session_days: 14, invite_days: 3, time_resolution_minutes: 5 });
 
-  // Typing clears the error; a value that is not a whole number never reaches the server.
   await inviteDays.fill('');
   await expect(inviteDays).not.toHaveAttribute('aria-invalid', 'true');
   await card.getByRole('button', { name: 'Save' }).click();
   await expect(await describedError(inviteDays)).toHaveText('Enter a whole number of days');
 });
 
-test('an admin saves the time resolution, every account reads it on /me, and a value that does not divide an hour shows the server error', async ({ page, data, users, runtimeErrors }) => {
+test('an admin saves the time resolution, every account reads it on /me, and a value that does not divide an hour shows the server error', async ({
+  page,
+  data,
+  users,
+  runtimeErrors,
+}) => {
   const rita = await users.create();
   expect(await rita.me()).toMatchObject({ role: 'user', time_resolution_minutes: 5 });
   await login(page);
@@ -204,13 +228,16 @@ test('an admin saves the time resolution, every account reads it on /me, and a v
   const card = page.locator('#instance');
   const resolution = card.getByLabel('Time resolution (minutes)');
   await expect(resolution).toHaveValue('5');
-  await expect(card.getByText('Starts and stops move to the nearest multiple of this many minutes. A timer that rounds to zero goes to the trash, and a typed entry that rounds to zero is refused. Existing entries change only when they are edited.')).toBeVisible();
+  await expect(
+    card.getByText(
+      'Starts and stops move to the nearest multiple of this many minutes. A timer that rounds to zero goes to the trash, and a typed entry that rounds to zero is refused. Existing entries change only when they are edited.',
+    ),
+  ).toBeVisible();
 
   await resolution.fill('15');
   await card.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByText('Instance settings saved')).toBeVisible();
   expect(await data.instanceSettings()).toEqual({ session_days: 30, invite_days: 7, time_resolution_minutes: 15 });
-  // The admin's save is what a regular account, which cannot read the admin settings, now gets on /me.
   expect(await rita.me()).toMatchObject({ role: 'user', time_resolution_minutes: 15 });
   expect(await data.me()).toMatchObject({ role: 'admin', time_resolution_minutes: 15 });
   await page.reload();
@@ -218,24 +245,29 @@ test('an admin saves the time resolution, every account reads it on /me, and a v
   await expect(resolution).toHaveValue('15');
 
   runtimeErrors.allowResponse({
-    status: 400, method: 'PUT', path: /^\/api\/app\/admin\/settings$/, reason: 'a time resolution of 7 minutes does not divide an hour',
+    status: 400,
+    method: 'PUT',
+    path: /^\/api\/app\/admin\/settings$/,
+    reason: 'a time resolution of 7 minutes does not divide an hour',
   });
   await resolution.fill('7');
   await card.getByRole('button', { name: 'Save' }).click();
-  await expect(await describedError(resolution))
-    .toHaveText('Invalid time_resolution_minutes: expected one of 1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60');
+  await expect(await describedError(resolution)).toHaveText(
+    'Invalid time_resolution_minutes: expected one of 1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60',
+  );
   await expect(resolution).toBeFocused();
   await expect(card.getByLabel('Session length (days)')).not.toHaveAttribute('aria-invalid', 'true');
   expect((await data.instanceSettings()).time_resolution_minutes).toBe(15);
 
-  // A value that is not a whole number never reaches the server, and the message names minutes.
   await resolution.fill('');
   await card.getByRole('button', { name: 'Save' }).click();
   await expect(await describedError(resolution)).toHaveText('Enter a whole number of minutes');
 });
 
-// Another admin's change arrives with a background refetch while this admin is typing.
-test('a refetch keeps an unsaved instance setting and its focus, and updates the untouched one', async ({ page, data }) => {
+test('a refetch keeps an unsaved instance setting and its focus, and updates the untouched one', async ({
+  page,
+  data,
+}) => {
   await login(page);
   await openAdmin(page);
   const card = page.locator('#instance');
@@ -245,7 +277,7 @@ test('a refetch keeps an unsaved instance setting and its focus, and updates the
 
   await sessionDays.fill('21');
   await data.saveInstanceSettings({ session_days: 45, invite_days: 5 });
-  // Window focus refetches stale queries, at most once a second (packages/web/src/main.tsx).
+  // Window focus refetches stale queries, at most once a second.
   await expect(async () => {
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
     await expect(inviteDays).toHaveValue('5', { timeout: 1500 });
@@ -260,9 +292,16 @@ test('a refetch keeps an unsaved instance setting and its focus, and updates the
   await expect(inviteDays).toHaveValue('5');
 });
 
-test('demoting or disabling the last active admin shows the 400 next to that control', async ({ page, data, runtimeErrors }) => {
+test('demoting or disabling the last active admin shows the 400 next to that control', async ({
+  page,
+  data,
+  runtimeErrors,
+}) => {
   runtimeErrors.allowResponse({
-    status: 400, method: 'PATCH', path: /^\/api\/app\/admin\/users\/\d+$/, reason: 'the setup account is the only active admin',
+    status: 400,
+    method: 'PATCH',
+    path: /^\/api\/app\/admin\/users\/\d+$/,
+    reason: 'the setup account is the only active admin',
   });
   await login(page);
   await openAdmin(page);
@@ -284,23 +323,29 @@ test('demoting or disabling the last active admin shows the 400 next to that con
   await expect(row.getByText('Active', { exact: true })).toBeVisible();
   await expect(disable).toBeFocused();
 
-  // Errors stay inline: no toast repeats them.
   await expect(page.locator('.toast')).toHaveCount(0);
   const [account] = await data.listUsers();
   expect(account).toMatchObject({ email: EMAIL, role: 'admin', disabled_at: null });
 });
 
-test('a regular user sees no Admin entry, and opening /admin shows the server\'s 403 message', async ({ page, users, runtimeErrors }) => {
+test("a regular user sees no Admin entry, and opening /admin shows the server's 403 message", async ({
+  page,
+  users,
+  runtimeErrors,
+}) => {
   const rita = await users.create();
   runtimeErrors.allowResponse({
-    status: 403, method: 'GET', path: /^\/api\/app\/admin\/users$/, reason: 'a regular user opens /admin directly',
+    status: 403,
+    method: 'GET',
+    path: /^\/api\/app\/admin\/users$/,
+    reason: 'a regular user opens /admin directly',
   });
   await loginAs(page, rita.account);
   const nav = page.getByRole('navigation', { name: 'Main' });
   await expect(nav.getByRole('link', { name: 'Settings' })).toBeVisible();
   await expect(nav.getByRole('link', { name: 'Admin' })).toHaveCount(0);
 
-  const refused = page.waitForResponse((response) => response.url().endsWith('/api/app/admin/users'));
+  const refused = page.waitForResponse(response => response.url().endsWith('/api/app/admin/users'));
   await page.goto('/admin');
   expect((await refused).status()).toBe(403);
   await expect(page.getByRole('heading', { level: 1, name: 'Admin' })).toBeVisible();
@@ -308,8 +353,6 @@ test('a regular user sees no Admin entry, and opening /admin shows the server\'s
   await expect(page.locator('#users')).toHaveCount(0);
 });
 
-// When a row goes away, focus moves to the same control in the next row, else the
-// previous row, else the section heading. Closing a new link returns focus to what created it.
 test('revoking invites by keyboard keeps focus in the invites section', async ({ page, data }) => {
   for (const note of ['Invite A', 'Invite B', 'Invite C']) await data.createInvite({ role: 'user', note });
   await login(page);
@@ -347,9 +390,9 @@ test('deleting users by keyboard keeps focus in the users section', async ({ pag
   const sam = await users.create({ fullname: 'Regular Sam' });
   await login(page);
   await openAdmin(page);
-  const button = (email: string, action: string) => userRow(page, email).getByRole('button', { name: `${action} ${email}` });
+  const button = (email: string, action: string) =>
+    userRow(page, email).getByRole('button', { name: `${action} ${email}` });
 
-  // A reset link's Done button goes away with the link; focus goes back to the button that made it.
   await button(rita.account.email, 'Reset password of').focus();
   await page.keyboard.press('Enter');
   const done = page.locator('#users').getByRole('button', { name: 'Done' });
@@ -371,12 +414,10 @@ test('deleting users by keyboard keeps focus in the users section', async ({ pag
   };
   await remove(rita.account.email);
   await expect(button(sam.account.email, 'Delete')).toBeFocused();
-  // Only the signed-in admin is left, and its row has no Delete button.
   await remove(sam.account.email);
   await expect(page.locator('#users').getByRole('heading', { name: 'Users' })).toBeFocused();
 });
 
-// A dialog closed without acting gives focus back to the control that opened it.
 test('closing the delete dialog without deleting returns focus to its Delete button', async ({ page, users }) => {
   const rita = await users.create({ fullname: 'Regular Rita' });
   await login(page);
@@ -392,7 +433,6 @@ test('closing the delete dialog without deleting returns focus to its Delete but
     ['Escape', () => page.keyboard.press('Escape')],
     ['Cancel', () => pressButton('Cancel')],
     ['Close', () => pressButton('Close')],
-    // A press on the backdrop must not leave focus on the page behind it.
     ['a backdrop click', () => page.mouse.click(5, 5)],
   ];
   for (const [how, close] of closers) {
@@ -405,9 +445,10 @@ test('closing the delete dialog without deleting returns focus to its Delete but
   }
 });
 
-// A field changed back to the server's value is no longer an edit, so a refetch updates it,
-// and saving sends only the fields that are still edited.
-test('an instance setting restored to the server value follows refetches, and saving sends only edited fields', async ({ page, data }) => {
+test('an instance setting restored to the server value follows refetches, and saving sends only edited fields', async ({
+  page,
+  data,
+}) => {
   const before = await data.instanceSettings();
   try {
     await login(page);
@@ -421,23 +462,23 @@ test('an instance setting restored to the server value follows refetches, and sa
     await sessionDays.fill(String(before.session_days));
     const changed = before.session_days === 60 ? 61 : 60;
     await data.saveInstanceSettings({ session_days: changed, invite_days: before.invite_days });
-    // Window focus refetches stale queries, at most once a second (packages/web/src/main.tsx).
+    // Window focus refetches stale queries, at most once a second.
     await expect(async () => {
       await page.evaluate(() => window.dispatchEvent(new Event('focus')));
       await expect(sessionDays).toHaveValue(String(changed), { timeout: 1500 });
     }).toPass();
-    // With no field edited, Save sends nothing.
     await card.getByRole('button', { name: 'Save' }).click();
     await expect(page.getByText('No changes to save')).toBeVisible();
 
-    // Another admin changes the session length while this one edits only the invite lifetime.
     const invite = before.invite_days === 10 ? 11 : 10;
     await inviteDays.fill(String(invite));
     await data.saveInstanceSettings({ session_days: 90, invite_days: before.invite_days });
     await card.getByRole('button', { name: 'Save' }).click();
     await expect(page.getByText('Instance settings saved')).toBeVisible();
     expect(await data.instanceSettings()).toEqual({
-      session_days: 90, invite_days: invite, time_resolution_minutes: before.time_resolution_minutes,
+      session_days: 90,
+      invite_days: invite,
+      time_resolution_minutes: before.time_resolution_minutes,
     });
     await expect(sessionDays).toHaveValue('90');
     await expect(inviteDays).toHaveValue(String(invite));
@@ -446,14 +487,15 @@ test('an instance setting restored to the server value follows refetches, and sa
   }
 });
 
-// The admin types the old value back while the save is still on its way.
 test('a value typed while a save is pending stays after the response, and Save sends it', async ({ page, data }) => {
   const before = await data.instanceSettings();
   const changed = before.session_days === 60 ? 61 : 60;
   const sent: unknown[] = [];
   let release = () => {};
-  const held = new Promise<void>((resolve) => { release = resolve; });
-  await page.route('**/api/app/admin/settings', async (route) => {
+  const held = new Promise<void>(resolve => {
+    release = resolve;
+  });
+  await page.route('**/api/app/admin/settings', async route => {
     if (route.request().method() !== 'PUT') return route.fallback();
     sent.push(route.request().postDataJSON());
     if (sent.length === 1) await held;
@@ -481,19 +523,26 @@ test('a value typed while a save is pending stays after the response, and Save s
   await expect(sessionDays).toHaveValue(String(before.session_days));
 });
 
-// When the pending save fails, the server's value has not changed, so a value typed back to
-// it is no longer an edit, while a different value typed meanwhile stays one.
-test('after a failed save, a value typed back to the server value is no longer an edit', async ({ page, data, runtimeErrors }) => {
+test('after a failed save, a value typed back to the server value is no longer an edit', async ({
+  page,
+  data,
+  runtimeErrors,
+}) => {
   const before = await data.instanceSettings();
   const changed = before.session_days === 60 ? 61 : 60;
   const invite = before.invite_days === 10 ? 11 : 10;
   runtimeErrors.allowResponse({
-    status: 503, method: 'PUT', path: /^\/api\/app\/admin\/settings$/, reason: 'the held save is answered with an outage',
+    status: 503,
+    method: 'PUT',
+    path: /^\/api\/app\/admin\/settings$/,
+    reason: 'the held save is answered with an outage',
   });
   let sent = 0;
   let release = () => {};
-  const held = new Promise<void>((resolve) => { release = resolve; });
-  await page.route('**/api/app/admin/settings', async (route) => {
+  const held = new Promise<void>(resolve => {
+    release = resolve;
+  });
+  await page.route('**/api/app/admin/settings', async route => {
     if (route.request().method() !== 'PUT') return route.fallback();
     sent += 1;
     await held;
@@ -517,11 +566,10 @@ test('after a failed save, a value typed back to the server value is no longer a
   await expect(inviteDays).toHaveValue(String(invite));
   expect(await data.instanceSettings()).toEqual(before);
 
-  // Another admin's change reaches the field that is no longer edited, not the one that is.
   const other = before.session_days === 90 ? 91 : 90;
   await data.saveInstanceSettings({ session_days: other, invite_days: before.invite_days });
   try {
-    // Window focus refetches stale queries, at most once a second (packages/web/src/main.tsx).
+    // Window focus refetches stale queries, at most once a second.
     await expect(async () => {
       await page.evaluate(() => window.dispatchEvent(new Event('focus')));
       await expect(sessionDays).toHaveValue(String(other), { timeout: 1500 });
@@ -532,16 +580,17 @@ test('after a failed save, a value typed back to the server value is no longer a
   }
 });
 
-test('every admin control is reachable by keyboard and shows a focus ring',async ({ page, data, users }) => {
+test('every admin control is reachable by keyboard and shows a focus ring', async ({ page, data, users }) => {
   await users.create();
   await data.createInvite({ role: 'user', note: 'Keyboard check' });
   await login(page);
   await openAdmin(page);
   await expect(inviteRow(page, 'Keyboard check')).toBeVisible();
 
-  const total = await page.getByRole('main').evaluate((main) => {
-    const controls = [...main.querySelectorAll<HTMLElement>('a[href], button, select, input, textarea')]
-      .filter((control) => !(control as HTMLButtonElement).disabled);
+  const total = await page.getByRole('main').evaluate(main => {
+    const controls = [...main.querySelectorAll<HTMLElement>('a[href], button, select, input, textarea')].filter(
+      control => !(control as HTMLButtonElement).disabled,
+    );
     controls.forEach((control, index) => control.setAttribute('data-keyboard-check', String(index)));
     return controls.length;
   });

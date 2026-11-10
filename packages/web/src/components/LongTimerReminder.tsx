@@ -1,82 +1,65 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useSyncExternalStore } from 'react';
 import { useIsMutating } from '@tanstack/react-query';
 import { Link } from 'wouter';
-import { keys, useCurrentEntry, useMe, usePreferences } from '../api/hooks.ts';
-import { useNow } from '../lib/settings.ts';
+import { useMe, usePreferences } from '../api/account.ts';
+import { useCurrentEntry } from '../api/timerHooks.ts';
+import { keys } from '../api/keys.ts';
+import { useClockSelector } from '../lib/clock.ts';
 import { notifyInBackground } from './phaseNotification.ts';
+import { createReminderStore, reminderKey } from './reminderStore.ts';
+import { t } from '../i18n/messages.ts';
 
-interface Reminder {
-  timer: string;
-  notified: boolean;
-  confirmed: boolean;
-}
+const reminders = createReminderStore(() => window.localStorage, window);
 
-function read(key: string): Reminder | null {
-  try {
-    const value: unknown = JSON.parse(localStorage.getItem(key) ?? 'null');
-    if (value && typeof value === 'object' && 'timer' in value && typeof value.timer === 'string'
-      && 'notified' in value && typeof value.notified === 'boolean'
-      && 'confirmed' in value && typeof value.confirmed === 'boolean') return value as Reminder;
-  } catch {
-    // Blocked storage and old or damaged values leave the reminder usable in this tab.
-  }
-  return null;
-}
-
-/** A timer's start time is part of its identity, so correcting it resets the confirmation. */
+/** Asks once per timer whether it still runs on purpose; the start time is part of its identity. */
 export function LongTimerReminder() {
   const { data: me } = useMe();
   const { data: prefs } = usePreferences();
   const { data: current } = useCurrentEntry();
   const prefsSaving = useIsMutating({ mutationKey: keys.preferences }) > 0;
-  const now = useNow(1000).getTime();
-  const [, refresh] = useState(0);
-  const memory = useRef<{ key: string; value: Reminder } | null>(null);
-  const key = `tokkl.longTimerReminder.${me?.id ?? 0}`;
+  const key = reminderKey(me?.id ?? 0);
   const timer = current ? `${current.id}:${current.start}` : null;
   const hours = prefs?.long_timer_reminder_hours ?? 8;
-  const due = !!me && !!prefs && prefs.long_timer_reminder_enabled && !!current
-    && now - Date.parse(current.start) > hours * 3_600_000;
-  const stored = read(key) ?? (memory.current?.key === key ? memory.current.value : null);
+  const enabled = Boolean(me && prefs?.long_timer_reminder_enabled);
+  const startMs = current ? Date.parse(current.start) : null;
+  // Checked every second, but this re-renders only when the timer passes the limit.
+  const overdue = useClockSelector(
+    1000,
+    useCallback(now => startMs !== null && now - startMs > hours * 3_600_000, [startMs, hours]),
+  );
+  const due = enabled && overdue;
+  const stored = useSyncExternalStore(reminders.subscribe, () => reminders.read(key));
   const confirmed = stored?.timer === timer && stored.confirmed;
-
-  const write = (value: Reminder) => {
-    memory.current = { key, value };
-    try {
-      localStorage.setItem(key, JSON.stringify(value));
-    } catch {
-      // Keep confirmation in memory when browser storage is unavailable.
-    }
-    refresh((revision) => revision + 1);
-  };
-
-  useEffect(() => {
-    const changed = (event: StorageEvent) => {
-      if (event.key === key || event.key === null) refresh((revision) => revision + 1);
-    };
-    window.addEventListener('storage', changed);
-    return () => window.removeEventListener('storage', changed);
-  }, [key]);
+  const meId = me?.id;
 
   useEffect(() => {
     if (!due || !timer || confirmed || prefsSaving) return;
     // Re-read just before sending so another tab's notification or confirmation takes precedence.
-    const latest = read(key) ?? (memory.current?.key === key ? memory.current.value : null);
+    const latest = reminders.read(key);
     if (latest?.timer === timer && (latest.confirmed || latest.notified)) return;
-    write({ timer, notified: true, confirmed: false });
-    notifyInBackground('Is your timer still running on purpose?',
-      `Your timer has been running for more than ${hours} ${hours === 1 ? 'hour' : 'hours'}. Open Tokkl to confirm or review it.`,
-      `tokkl-long-timer-${me?.id}`);
-  });
+    reminders.write(key, { timer, notified: true, confirmed: false });
+    notifyInBackground(
+      t('timer.reminderNotificationTitle'),
+      t('timer.reminderNotificationBody', { count: hours }),
+      `tokkl-long-timer-${meId}`,
+    );
+  }, [due, timer, confirmed, prefsSaving, key, hours, meId]);
 
   if (!due || confirmed || !timer) return null;
   return (
-    <div className="timer-reminder" role="status" aria-label="Long-running timer reminder">
-      <span>Your timer has been running for more than {hours} {hours === 1 ? 'hour' : 'hours'}. Is it still running on purpose?</span>
+    <div className="timer-reminder" role="status" aria-label={t('timer.reminderLabel')}>
+      <span>{t('timer.reminderText', { count: hours })}</span>
       <div className="inline-controls">
-        <button type="button" className="button button-ghost"
-          onClick={() => write({ timer, notified: true, confirmed: true })}>Keep running</button>
-        <Link href="/" className="button button-ghost">Review timer</Link>
+        <button
+          type="button"
+          className="button button-ghost"
+          onClick={() => reminders.write(key, { timer, notified: true, confirmed: true })}
+        >
+          {t('timer.reminderKeep')}
+        </button>
+        <Link href="/" className="button button-ghost">
+          {t('timer.reminderReview')}
+        </Link>
       </div>
     </div>
   );

@@ -41,11 +41,17 @@ The extension needs GNOME Shell 46, 47, 48, 49, 50 or 51. Each GitHub release ca
 gnome-extensions install --force tokkl-gnome-extension-<version>.zip
 ```
 
-To use the extension from a checkout instead, pack it first:
+To use the extension from a checkout instead, pack it first. The extension reads the D-Bus interface from `org.tokkl.Timer1.xml` next to its modules, and the checkout keeps that file only in `dbus/`, so pack a copy with it:
 
 ```sh
-gnome-extensions pack desktop/gnome/extension --force --out-dir=/tmp \
-    --extra-source=indicator.js --extra-source=projectindicator.js --extra-source=timer1.js \
+rm -rf /tmp/tokkl-extension && cp -r desktop/gnome/extension /tmp/tokkl-extension
+cp desktop/gnome/dbus/org.tokkl.Timer1.xml /tmp/tokkl-extension/
+gnome-extensions pack /tmp/tokkl-extension --force --out-dir=/tmp \
+    --extra-source=compat.js --extra-source=indicator.js \
+    --extra-source=menumodel.js \
+    --extra-source=projectindicator.js --extra-source=projectindicatorview.js \
+    --extra-source=timer1.js --extra-source=timer1proxy.js --extra-source=timerrequests.js --extra-source=typedsecret.js \
+    --extra-source=org.tokkl.Timer1.xml \
     --extra-source=tokkl.png --extra-source=tokkl-symbolic.symbolic.png \
     --extra-source=hourglass.svg --extra-source=hourglass-symbolic.svg
 gnome-extensions install --force /tmp/tokkl@canpicasoft.com.shell-extension.zip
@@ -58,6 +64,10 @@ gnome-extensions enable tokkl@canpicasoft.com
 ```
 
 To upgrade, install the new zip, then log out and in. To remove it, run `gnome-extensions uninstall tokkl@canpicasoft.com`.
+
+### Supported service versions
+
+The extension updates from extensions.gnome.org and the service from a package, so a new extension often talks to an older `tokkl-timerd`. The oldest service it supports is InterfaceVersion 2, the first `tokkl-timerd` after 2.1.0 (`InterfaceVersion` in `dbus/org.tokkl.Timer1.xml` has the version history). `OLDEST_SUPPORTED_INTERFACE_VERSION` in `extension/timer1.js` states the same floor. Against an older service, or one without the `InterfaceVersion` property, the menu shows "This timer service is too old; update tokkl-timerd." with nothing to choose, the extension settings show the same line with their rows insensitive, and neither calls any of its methods. The service in turn needs a Tokkl server from the first release after 2.1.0, and says so in its `ErrorString` against an older one.
 
 ## Connect to Tokkl
 
@@ -102,15 +112,28 @@ When a phase reaches its planned end, `tokkl-timerd` plays the sound chosen for 
 
 Three Shell differences matter to the button. From 50 on, the panel button opens its menu from a click gesture; before 50, from its event handler. The extension handles primary clicks in both. From 51 on, the menu takes Space, Return and Down from a key controller on the button. The extension adds a key controller of its own that runs first and takes Space and Return. Before 51 it takes them in its event handler, before the menu sees them. From 50 on, setting the Billable switch from code also reports it as toggled, so the extension ignores toggles it caused itself.
 
+## Translations
+
+The extension's strings use gettext under the domain `tokkl-gnome-extension`.
+The service's messages, which reach the extension as they are
+(`ErrorString`, `SessionMessage`, the errors of method calls), use Qt's
+`tr()`: the core's catalogue `tokklcore_qt` and the service's own
+`tokkl_timerd_qt`. The service loads both at start for the session's locale,
+from
+`share/locale/<lang>/LC_MESSAGES/<catalogue>.qm` in the XDG data dirs, the
+layout KDE uses for the same core catalogue. No translations ship yet, so
+everything shows in English. `desktop/core/src/translations.h` has the
+details.
+
 ## Check it
 
-`extension/timer1.js` and `extension/projectindicator.js` hold the parts that need no GNOME Shell: the interface the extension expects, elapsed time, the status words and what the project indicator draws. Node runs its tests, and `npm test` includes them:
+`extension/timer1.js`, `extension/menumodel.js` and `extension/projectindicator.js` hold the parts that need no GNOME Shell: elapsed time, the status words, the menu the service's `Actions` describe and what the project indicator draws. Node runs its tests, and `npm test` includes them:
 
 ```sh
 node --test 'desktop/gnome/extension/**/*.test.js'
 ```
 
-One test compares the extension's copy of the interface with `dbus/org.tokkl.Timer1.xml`, so a change to the service's interface fails until the extension follows it.
+The extension has no copy of the interface: `scripts/pack-extension.sh` packs `dbus/org.tokkl.Timer1.xml` into the zip, and the extension builds its proxy from that file, so the service, the extension, the tests and the mock below read one description.
 
 `extension/ci/check.sh` runs the extension in a real GNOME Shell, one container per listed version (Ubuntu 24.04 for 46, Fedora 41 to 45 for 47 to 51). In each, it packs and installs the extension, starts a headless GNOME Shell and drives the button with a virtual pointer and keyboard against `ci/mock-timer.js`, a stand-in for `tokkl-timerd` that keeps a timer in memory. It then opens the settings in the Extensions app's own window and checks what reaches `Configure`. It needs Docker (or `CONTAINER_ENGINE=podman`) and takes a few minutes per version:
 

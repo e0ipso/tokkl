@@ -1,0 +1,93 @@
+import type { TaskSearch } from '../../src/domain/queries.ts';
+
+/** Task `i` is named `NAMES[i]`, in project `i % 3`, active unless `i % 3 === 0`. */
+// Case folding beyond ASCII (Kelvin sign, dotted I, sharp s, final sigma), accents, ties after
+// folding, punctuation, digits, LIKE wildcards and characters outside the BMP.
+export const NAMES = [
+  'alpha',
+  'Alpha',
+  'ALPHA',
+  'Ébène',
+  'ebene',
+  'Kelvin K',
+  'XK',
+  'kelvin k',
+  'İstanbul',
+  'istanbul',
+  'Straße',
+  'STRASSE',
+  'ΟΔΟΣ',
+  'a_b',
+  'a-b',
+  'a b',
+  'a%b',
+  '10',
+  '9',
+  'ñandú',
+  '😀 smile',
+  'Zeta',
+  'zeta ',
+];
+
+type GoldenQuery = Omit<TaskSearch, 'projectId'> & { project?: number };
+
+/** A search, its page window, the task names it answers in order, and its total count. */
+export const GOLDEN: Array<[GoldenQuery, { page: number; perPage: number }, string[], number]> = [
+  [
+    { sortField: 'name', sortOrder: 'ASC' },
+    { page: 1, perPage: 200 },
+    [
+      '😀 smile',
+      '10',
+      '9',
+      'a b',
+      'a_b',
+      'a-b',
+      'a%b',
+      'alpha',
+      'Alpha',
+      'ALPHA',
+      'ebene',
+      'Ébène',
+      'istanbul',
+      'İstanbul',
+      'Kelvin K',
+      'kelvin k',
+      'ñandú',
+      'STRASSE',
+      'Straße',
+      'XK',
+      'Zeta',
+      'zeta',
+      'ΟΔΟΣ',
+    ],
+    23,
+  ],
+  [{ sortField: 'name', sortOrder: 'DESC', search: 'k' }, { page: 1, perPage: 200 }, ['XK', 'kelvin k', 'Kelvin K'], 3],
+  [{ sortField: 'name', sortOrder: 'ASC', search: 'K' }, { page: 1, perPage: 200 }, ['Kelvin K', 'kelvin k', 'XK'], 3],
+  [{ sortField: 'name', sortOrder: 'ASC', search: 'xk' }, { page: 1, perPage: 200 }, ['XK'], 1],
+  [{ sortField: 'name', sortOrder: 'ASC', search: 'İ' }, { page: 1, perPage: 200 }, ['İstanbul'], 1],
+  [{ sortField: 'name', sortOrder: 'ASC', search: 'i̇' }, { page: 1, perPage: 200 }, ['İstanbul'], 1],
+  [{ sortField: 'name', sortOrder: 'ASC', search: 'é' }, { page: 1, perPage: 200 }, ['Ébène'], 1],
+  [{ sortField: 'name', sortOrder: 'ASC', search: 'ß' }, { page: 1, perPage: 200 }, ['Straße'], 1],
+  [{ sortField: 'name', sortOrder: 'ASC', search: 'ς' }, { page: 1, perPage: 200 }, ['ΟΔΟΣ'], 1],
+  [{ sortField: 'name', sortOrder: 'ASC', search: '%' }, { page: 1, perPage: 200 }, ['a%b'], 1],
+  [{ sortField: 'name', sortOrder: 'ASC', search: '_' }, { page: 1, perPage: 200 }, ['a_b'], 1],
+  [{ sortField: 'name', sortOrder: 'ASC', search: '😀' }, { page: 1, perPage: 200 }, ['😀 smile'], 1],
+  [
+    { sortField: 'name', sortOrder: 'ASC', search: ' ' },
+    { page: 1, perPage: 200 },
+    ['😀 smile', 'a b', 'Kelvin K', 'kelvin k'],
+    4,
+  ],
+  [{ sortField: 'created_at', sortOrder: 'ASC' }, { page: 2, perPage: 3 }, ['ΟΔΟΣ', 'a%b', '😀 smile'], 23],
+  [{ sortField: 'created_at', sortOrder: 'DESC', search: 'A' }, { page: 2, perPage: 3 }, ['zeta', 'a-b', 'Straße'], 14],
+  [
+    { sortField: 'name', sortOrder: 'ASC', active: true, project: 1, changedSince: '2026-10-12T09:00:00.000Z' },
+    { page: 1, perPage: 200 },
+    ['a_b', 'ebene', 'kelvin k', 'ñandú', 'zeta'],
+    5,
+  ],
+  [{ sortField: 'name', sortOrder: 'DESC', active: false }, { page: 1.5, perPage: 2.5 }, ['Zeta', 'XK'], 8],
+  [{ sortField: 'created_at', sortOrder: 'ASC' }, { page: 9, perPage: 3 }, [], 23],
+];

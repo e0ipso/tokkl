@@ -1,7 +1,5 @@
 #include "pulsealarmbackend.h"
 
-#include "wavfile.h"
-
 #include <QThread>
 
 #include <pulse/error.h>
@@ -14,9 +12,8 @@ namespace Tokkl
 
 namespace
 {
-// What the server buffers ahead: enough for a busy machine, little enough
-// that a stop is heard at once. The samples go in pieces smaller than
-// that, so the thread sees a stop request between two pieces.
+// Small enough that a stop is heard at once; pieces are smaller still so
+// the thread sees a stop request between them.
 constexpr pa_usec_t bufferMicroseconds = 200000;
 constexpr pa_usec_t pieceMicroseconds = 50000;
 
@@ -37,9 +34,7 @@ pa_sample_format_t sampleFormat(quint16 bitsPerSample)
 }
 }
 
-// One playback stream on its own thread. play() starts the thread, which
-// connects, writes the samples (once, or until asked to stop) and
-// disconnects. stop() asks and waits.
+// One playback stream per thread, connected only while playing.
 class PulseStream : public QThread
 {
     Q_OBJECT
@@ -73,7 +68,6 @@ public:
     }
 
 Q_SIGNALS:
-    // Emitted from the thread.
     void failed(const QString &message);
 
 protected:
@@ -122,7 +116,6 @@ protected:
                 // Drop what the server still holds, so the stop is heard now.
                 pa_simple_flush(stream, &error);
             } else {
-                // Let the end of the sound play out before the stream closes.
                 pa_simple_drain(stream, &error);
             }
         }
@@ -142,9 +135,11 @@ PulseAlarmBackend::PulseAlarmBackend(const QString &applicationName, QObject *pa
     , m_alarm(new PulseStream(applicationName, QStringLiteral("Pomodoro alarm"), true, this))
     , m_preview(new PulseStream(applicationName, QStringLiteral("Sound preview"), false, this))
 {
-    // Across threads, so queued to this object's thread.
     connect(m_alarm, &PulseStream::failed, this, &PulseAlarmBackend::errorOccurred);
     connect(m_preview, &PulseStream::failed, this, &PulseAlarmBackend::errorOccurred);
+    connect(this, &PulseAlarmBackend::errorOccurred, this, [this](const QString &message) {
+        reportFailure(message);
+    });
 }
 
 PulseAlarmBackend::~PulseAlarmBackend()
@@ -170,14 +165,18 @@ void PulseAlarmBackend::stop()
 
 void PulseAlarmBackend::play(PulseStream *stream, const QString &file)
 {
-    QString error;
-    const std::optional<WavData> wav = readWavFile(file, &error);
-    if (!wav) {
-        stream->stop();
-        Q_EMIT errorOccurred(error);
-        return;
+    auto cached = m_sounds.constFind(file);
+    if (cached == m_sounds.cend()) {
+        QString error;
+        const std::optional<WavData> wav = readWavFile(file, &error);
+        if (!wav) {
+            stream->stop();
+            Q_EMIT errorOccurred(error);
+            return;
+        }
+        cached = m_sounds.insert(file, *wav);
     }
-    stream->play(file, *wav);
+    stream->play(file, *cached);
 }
 
 }

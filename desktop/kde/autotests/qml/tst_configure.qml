@@ -4,14 +4,12 @@ import QtTest
 import com.canpicasoft.tokkl.backend
 import Tokkl.Test
 
-// The Configure pages on a scripted wallet and network. Plasma's dialog
-// disables Apply once saveConfig() returns and enables it again when the
-// page emits configurationChanged or changes a cfg_ property.
+// Plasma's dialog disables Apply once saveConfig() returns and enables it
+// again on configurationChanged or a cfg_ property change.
 Item {
     width: 500
     height: 700
 
-    // The Connection page (configGeneral.qml).
     TestCase {
         id: testCase
 
@@ -51,7 +49,6 @@ Item {
             verify(page);
             setup = wallet.setupOf(page);
             verify(setup, "the page has a connection setup");
-            // The page reads the stored secret once the address settles.
             wait(500);
             tryCompare(setup, "busy", false);
             changedSpy.target = page;
@@ -70,7 +67,6 @@ Item {
             compare(page.cfg_monochromeIcon, false);
         }
 
-        // As the user typing a secret and pressing Apply.
         function applySecret(secret) {
             setup.editSecret(secret);
             page.saveConfig();
@@ -83,12 +79,10 @@ Item {
             compare(savedSpy.signalArguments[0][0], false);
             compare(changedSpy.count, 1, "the page asks for Apply again");
             compare(wallet.storedToken(instance), "");
-            // The typed secret and the reason stay on the page for another try.
             compare(setup.secret, "tok-refused");
             verify(setup.walletError !== "");
             verify(setup.walletError.indexOf("tok-refused") < 0);
 
-            // Apply again once the wallet works: saved, and nothing more to apply.
             wallet.setRefused(false);
             savedSpy.clear();
             changedSpy.clear();
@@ -107,7 +101,6 @@ Item {
             compare(changedSpy.count, 0);
         }
 
-        // Apply with nothing new to save writes nothing and asks for nothing.
         function test_nothingToSaveLeavesApplyDisabled() {
             page.saveConfig();
             compare(savedSpy.count, 1);
@@ -118,9 +111,6 @@ Item {
         }
     }
 
-    // The Pomodoro page (configPomodoro.qml). It reads and saves the
-    // account's lengths through a connection of its own, and keeps the
-    // sound of each transition in a cfg_ property.
     TestCase {
         id: pomodoroCase
 
@@ -146,6 +136,11 @@ Item {
             signalName: "configurationChanged"
         }
 
+        Component {
+            id: saveStatusComponent
+            TokklLengthsSaveStatus {}
+        }
+
         function meBody() {
             return JSON.stringify({
                 id: 3,
@@ -156,7 +151,7 @@ Item {
             });
         }
 
-        // The whole preferences object, with a key of another client.
+        // Includes a key of another client.
         function lengthsBody(work, shortRest, longRest, every) {
             return JSON.stringify({
                 pomodoro_focus_interval_in_minutes: work,
@@ -167,10 +162,6 @@ Item {
             });
         }
 
-        // Opens the page as Plasma does, with a token stored for the
-        // instance unless token is empty. cached holds the four lengths the
-        // panel last knew, as the widget's settings pass them; by default
-        // the settings' defaults.
         function openPage(token, cached) {
             network.reset();
             if (token !== "") {
@@ -201,7 +192,6 @@ Item {
             pomodoroChangedSpy.clear();
         }
 
-        // Answers the page's /me, then its read of the lengths.
         function connectPage(work, shortRest, longRest, every) {
             tryVerify(() => network.pending("GET", "/me") >= 0, 3000, "the page validates the account");
             network.respond(network.pending("GET", "/me"), 200, meBody());
@@ -229,7 +219,6 @@ Item {
             }
         }
 
-        // As the user pressing the up arrow in a length field.
         function stepUp(name) {
             const spinBox = findChild(field(name), "spinBox");
             verify(spinBox, name);
@@ -239,8 +228,6 @@ Item {
 
         function test_loadsLengthsFromServer() {
             openPage("tok-pomodoro", [40, 8, 20, 3]);
-            // Until the server's lengths are read, the ones the panel last
-            // knew show, read-only.
             compare(values(), [40, 8, 20, 3]);
             verifyReadOnly();
             tryVerify(() => network.pending("GET", "/me") >= 0, 3000, "the page validates the account");
@@ -255,8 +242,6 @@ Item {
                 verify(field(name).enabled, name);
             }
             tryCompare(findChild(page, "lengthsNote"), "visible", false);
-            // Loading changes no setting, so Apply stays off, and the
-            // panel's lengths are left to the panel.
             compare(pomodoroChangedSpy.count, 0);
             compare(cachedValues(), [40, 8, 20, 3]);
         }
@@ -267,14 +252,12 @@ Item {
             network.failNetwork(network.pending("GET", "/me"));
             tryCompare(lengths, "connecting", false);
 
-            // The lengths the panel last knew, read-only, and why.
             compare(values(), [40, 8, 20, 3]);
             verifyReadOnly();
             const note = findChild(page, "lengthsNote");
             verify(note.visible);
             compare(note.text, "Changing the lengths needs a connection to your Tokkl server. Check the Connection page.");
 
-            // Nothing to send and nothing to apply.
             page.saveConfig();
             compare(network.pending("POST", "/me/preferences"), -1);
             wait(50);
@@ -289,8 +272,6 @@ Item {
             compare(field("shortRestMinutes").value, 11);
             compare(pomodoroChangedSpy.count, 1, "a changed length turns Apply on");
 
-            // A length changed on the web meanwhile shows in its untouched
-            // field, and the typed one stays.
             lengths.preferences.refresh();
             network.respond(network.pending("GET", "/me/preferences"), 200, lengthsBody(45, 10, 20, 3));
             compare(values(), [45, 11, 20, 3]);
@@ -306,8 +287,6 @@ Item {
             wait(50);
             compare(pomodoroChangedSpy.count, 1, "nothing is left to apply");
 
-            // Saved, the field follows the server again, and Apply sends
-            // nothing more.
             lengths.preferences.refresh();
             network.respond(network.pending("GET", "/me/preferences"), 200, lengthsBody(45, 12, 20, 3));
             compare(field("shortRestMinutes").value, 12);
@@ -325,7 +304,7 @@ Item {
                 pomodoro_long_break_every: 4
             });
             const reason = "Invalid pomodoro_long_break_every: expected an integer from 1 to 12";
-            network.respond(post, 400, JSON.stringify(reason));
+            network.refuse(post, "pomodoro_long_break_every", JSON.stringify(reason));
 
             const error = findChild(field("longRestEvery"), "error");
             verify(error);
@@ -334,11 +313,9 @@ Item {
             for (const name of ["workMinutes", "shortRestMinutes", "longRestMinutes"]) {
                 verify(!findChild(field(name), "error").visible, name);
             }
-            // The typed value stays, and the dialog asks for Apply again.
             compare(field("longRestEvery").value, 4);
             compare(pomodoroChangedSpy.count, 2);
 
-            // Accepted on the next Apply: the error goes.
             page.saveConfig();
             network.respond(network.pending("POST", "/me/preferences"), 200, lengthsBody(50, 10, 20, 4));
             verify(!error.visible);
@@ -347,8 +324,38 @@ Item {
             compare(pomodoroChangedSpy.count, 2);
         }
 
+        function test_refusalAfterTheDialogClosedReachesThePanel() {
+            openPage("tok-pomodoro");
+            connectPage(50, 10, 20, 3);
+            const status = createTemporaryObject(saveStatusComponent, pomodoroCase, {
+                connection: lengths.connection
+            });
+            compare(status.refusal, "");
+            stepUp("workMinutes");
+            page.saveConfig();
+            const post = network.pending("POST", "/me/preferences");
+            verify(post >= 0, "Apply sends the lengths");
+
+            // QML reads the page's objects as null from here on; the save keeps the
+            // C++ connection and preferences until the answer.
+            page.destroy();
+            tryVerify(() => lengths === null, 3000, "the page and its lengths client are gone");
+            const reason = "Invalid pomodoro_focus_interval_in_minutes: expected an integer from 1 to 180";
+            network.refuse(post, "pomodoro_focus_interval_in_minutes", JSON.stringify(reason));
+            compare(status.refusal, reason);
+
+            openPage("tok-pomodoro");
+            connectPage(50, 10, 20, 3);
+            status.connection = lengths.connection;
+            compare(status.refusal, reason);
+            stepUp("workMinutes");
+            page.saveConfig();
+            compare(status.refusal, "");
+            network.respond(network.pending("POST", "/me/preferences"), 200, lengthsBody(51, 10, 20, 3));
+            compare(status.refusal, "");
+        }
+
         function test_lengthsAreReadOnlyWithoutAnAccount() {
-            // No secret stored, so the account is never validated.
             openPage("");
             tryCompare(lengths, "connecting", false);
             compare(values(), [25, 5, 15, 4]);
@@ -365,8 +372,6 @@ Item {
             connectPage(40, 8, 20, 3);
             stepUp("workMinutes");
 
-            // The server stops answering. The account stays known, so the
-            // lengths last read stay, but they cannot be changed.
             lengths.connection.refreshAccount();
             network.failNetwork(network.pending("GET", "/me"));
             compare(values(), [41, 8, 20, 3]);
@@ -375,8 +380,6 @@ Item {
             }
             tryCompare(findChild(page, "lengthsNote"), "visible", true);
 
-            // Apply cannot send the typed length. It stays, and the page
-            // asks for Apply again once Plasma has turned Apply off.
             pomodoroChangedSpy.clear();
             page.saveConfig();
             compare(network.pending("POST", "/me/preferences"), -1);
@@ -397,9 +400,6 @@ Item {
             compare(page.cfg_shortRestToWorkSound, ids[ids.indexOf("short-rest-to-work") + 1]);
             compare(page.cfg_workToShortRestSound, "work-to-short-rest");
 
-            // A setting from Plasma shows in its picker. An id the catalogue
-            // lacks shows the default of the transition, which the alarm
-            // plays for it.
             page.cfg_workToLongRestSound = "short-rest-to-work";
             compare(findChild(field("workToLongRestSound"), "sound").currentText, TokklPomodoroSounds.label("short-rest-to-work"));
             page.cfg_longRestToWorkSound = "no-such-sound";

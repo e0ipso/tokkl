@@ -1,5 +1,4 @@
-// The smallest shell that can host an applet in a test: one screen and an
-// empty containment, which Plasma creates when the requested plugin does not
+// Plasma creates an empty containment when the requested plugin does not
 // exist.
 
 #pragma once

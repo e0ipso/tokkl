@@ -15,8 +15,8 @@ _None yet._
 ## Components (what exists)
 - Open [**GNOME Shell extension panel button and menu**](map-gnome-shell-extension-panel-button-and-menu.md) to learn about: desktop/gnome/extension drives tokkl-timerd; Shell 46-51; click and key activation; Shell 50 click gesture; Shell 51 key controller #gnome #desktop #tooling
 - Open [**GNOME Shell extension CI harnesses and Shell version matrix**](map-gnome-shell-extension-ci-harnesses-and-shell-version-matrix.md) to learn about: check.sh mock harness per Shell version; realservice.sh against real timerd; waitFor drawn state; gnome-extension CI matrix 46-51 #gnome #ci #testing #desktop
-- Open [**GNOME Shell extension packaging and preferences**](map-gnome-shell-extension-packaging-and-preferences.md) to learn about: pack-extension.sh packs every *.js and *.png as extra sources; panel logo tokkl.png; prefs.js keeps only non-secret fields in GSettings #gnome #desktop #tooling #packaging
-- Open [**GNOME Shell extension project indicator and chosen project label**](map-gnome-shell-extension-project-indicator-and-chosen-project-label.md) to learn about: projectindicator.js decides, indicator.js draws; pulse check lifts enable-animations; chosenProjectLabel falls back to ChosenProjectName #gnome #desktop #tooling
+- Open [**GNOME Shell extension packaging and preferences**](map-gnome-shell-extension-packaging-and-preferences.md) to learn about: pack-extension.sh packs every *.js, *.png and *.svg and the D-Bus interface description as extra sources; panel logo tokkl.png; prefs.js keeps only non-secret fields in GSettings #gnome #desktop #tooling #packaging
+- Open [**GNOME Shell extension project indicator and chosen project label**](map-gnome-shell-extension-project-indicator-and-chosen-project-label.md) to learn about: projectindicator.js decides, indicator.js draws; pulse check lifts enable-animations; chosenProjectLabel words the service's ChosenProjectLabel parts #gnome #desktop #tooling
 
 ## By topic
 
@@ -26,8 +26,8 @@ _None yet._
 - Open [**Desktop app identifiers use the canpicasoft.com domain**](../practice-desktop-app-identifiers-use-the-canpicasoft-com-domain.md) — KDE, macOS and GNOME identifiers use com.canpicasoft.tokkl / tokkl@canpicasoft.com, never com.github.e0ipso or e0ipso.github.com.
 ### #gnome
 - Open [**GNOME Shell extension panel button and menu**](map-gnome-shell-extension-panel-button-and-menu.md) — desktop/gnome/extension drives tokkl-timerd; Shell 46-51; click and key activation; Shell 50 click gesture; Shell 51 key controller
-- Open [**GNOME Shell extension project indicator and chosen project label**](map-gnome-shell-extension-project-indicator-and-chosen-project-label.md) — projectindicator.js decides, indicator.js draws; pulse check lifts enable-animations; chosenProjectLabel falls back to ChosenProjectName
-- Open [**GNOME Shell extension packaging and preferences**](map-gnome-shell-extension-packaging-and-preferences.md) — pack-extension.sh packs every *.js and *.png as extra sources; panel logo tokkl.png; prefs.js keeps only non-secret fields in GSettings
+- Open [**GNOME Shell extension project indicator and chosen project label**](map-gnome-shell-extension-project-indicator-and-chosen-project-label.md) — projectindicator.js decides, indicator.js draws; pulse check lifts enable-animations; chosenProjectLabel words the service's ChosenProjectLabel parts
+- Open [**GNOME Shell extension packaging and preferences**](map-gnome-shell-extension-packaging-and-preferences.md) — pack-extension.sh packs every *.js, *.png and *.svg and the D-Bus interface description as extra sources; panel logo tokkl.png; prefs.js keeps only non-secret fields in GSettings
 ### #tooling
 - Open [**Release stages, KDE semantic-release plugin and GNOME assets**](../kde-companion/kde-ci-and-release-pipeline/map-release-stages-kde-semantic-release-plugin-and-gnome-assets.md) — A push to main runs release-version, two kde-release legs, then release; the plugin gates on the manifests; GNOME assets upload after.
 - Open [**KDE and core CI jobs**](../kde-companion/kde-ci-and-release-pipeline/map-kde-and-core-ci-jobs.md) — The kde job builds, tests and checks the DEB and RPM in pinned containers; core checks Qt Core-only links; baseline floors; manual checks.
@@ -39,7 +39,7 @@ _None yet._
 ### #packaging
 - Open [**KDE native packaging: DEB, RPM and the version mapping**](../kde-companion/map-kde-native-packaging.md) — tokkl-kde DEB and RPM are built and checked only in containers; scripts/native-version.sh is the one version mapping.
 - Open [**KDE release upgrade check: previous-package.sh and --previous-package**](../kde-companion/map-kde-release-upgrade-check-from-the-published-predecessor.md) — Release legs upgrade from the newest older published tokkl-kde asset, checked by size and SHA-256, or from a 0.0.0 build when none is usable.
-- Open [**GNOME Shell extension packaging and preferences**](map-gnome-shell-extension-packaging-and-preferences.md) — pack-extension.sh packs every *.js and *.png as extra sources; panel logo tokkl.png; prefs.js keeps only non-secret fields in GSettings
+- Open [**GNOME Shell extension packaging and preferences**](map-gnome-shell-extension-packaging-and-preferences.md) — pack-extension.sh packs every *.js, *.png and *.svg and the D-Bus interface description as extra sources; panel logo tokkl.png; prefs.js keeps only non-secret fields in GSettings
 ### #testing
 - Open [**E2E isolation: worker accounts, the reset fixture and the error guard**](../testing/e2e-suite/practice-e2e-isolation-worker-accounts-the-reset-fixture-and-the-error-guard.md) — Each worker has its own admin; the data fixture wipes that user's data; runtimeErrors fails tests unless a spec allows the failure.
 - Open [**Writing e2e specs: areas, shared helpers and extra accounts**](../testing/e2e-suite/practice-writing-e2e-specs-areas-shared-helpers-and-extra-accounts.md) — Specs live by area with per-area helpers; ReportApi, transfer fixtures, disposable servers, the users fixture and login.

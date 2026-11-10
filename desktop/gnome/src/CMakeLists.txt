@@ -1,7 +1,5 @@
-# tokklgnome: org.tokkl.Timer1 on tokklcore, with the adaptor generated from
-# the interface description in dbus/, and the alarm player that turns the
-# service's ringing state into calls on an AlarmBackend. Qt Core, Network and
-# DBus only, so the tests build without QtKeychain or libpulse.
+# tokklgnome needs only Qt Core, Network and DBus, so the tests build
+# without QtKeychain or libpulse.
 
 set(_tokkl_adaptor_sources)
 qt_add_dbus_adaptor(_tokkl_adaptor_sources
@@ -12,9 +10,8 @@ qt_add_dbus_adaptor(_tokkl_adaptor_sources
     Timer1Adaptor)
 
 add_library(tokklgnome STATIC
-    alarmbackend.h
-    alarmplayer.cpp
-    alarmplayer.h
+    servicesettings.cpp
+    servicesettings.h
     timerservice.cpp
     timerservice.h
     wavfile.cpp
@@ -31,7 +28,8 @@ target_link_libraries(tokklgnome
 )
 
 if(TOKKL_GNOME_DAEMON)
-    # The QtKeychain credential store, apart so its test can link it.
+    # Separate so its test can link it.
+    add_subdirectory("${TOKKL_CORE_DIR}/keychain" keychain)
     add_library(tokklkeychain STATIC
         keychaincredentialstore.cpp
         keychaincredentialstore.h
@@ -39,12 +37,10 @@ if(TOKKL_GNOME_DAEMON)
     target_include_directories(tokklkeychain PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(tokklkeychain
         PUBLIC
-            tokklcore
-        PRIVATE
-            Qt6Keychain::Qt6Keychain
+            tokklqtkeychain
     )
 
-    # The sound server backend of the alarm, apart so its test can link it.
+    # Separate so its test can link it.
     add_library(tokklalarm STATIC
         pulsealarmbackend.cpp
         pulsealarmbackend.h
@@ -56,7 +52,6 @@ if(TOKKL_GNOME_DAEMON)
             PkgConfig::PulseSimple
     )
 
-    # The bundled sounds, where the player looks for them.
     set(_tokkl_sounds_dir "${CMAKE_INSTALL_DATADIR}/tokkl-timerd/sounds")
 
     add_executable(tokkl-timerd main.cpp)

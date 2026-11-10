@@ -8,12 +8,13 @@ const NOW = new Date('2026-01-01T10:00:00Z');
 const totalTime = (page: Page) => page.locator('.report-totals div', { hasText: 'Total time' }).locator('dd');
 const rangeButton = (page: Page) => page.locator('.range-button');
 
-/** Waits for the URL to carry exactly this range, then for the report to show it. */
 async function expectRange(page: Page, from: string, to: string, label: string, total: string | null) {
-  await expect.poll(() => {
-    const params = new URL(page.url()).searchParams;
-    return `${params.get('from')}..${params.get('to')}`;
-  }).toBe(`${from}..${to}`);
+  await expect
+    .poll(() => {
+      const params = new URL(page.url()).searchParams;
+      return `${params.get('from')}..${params.get('to')}`;
+    })
+    .toBe(`${from}..${to}`);
   await expect(rangeButton(page)).toContainText(label);
   if (total === null) await expect(page.getByText('No time tracked in this range')).toBeVisible();
   else await expect(totalTime(page)).toHaveText(total);
@@ -31,8 +32,10 @@ async function chooseCustom(page: Page, from: string, to: string) {
   await page.getByRole('button', { name: 'Apply' }).click();
 }
 
-test('preset and custom ranges step by exact dates across month and year boundaries and follow the first weekday', async ({ page, api }) => {
-  // One entry on each side of the two week boundaries around New Year.
+test('preset and custom ranges step by exact dates across month and year boundaries and follow the first weekday', async ({
+  page,
+  api,
+}) => {
   await api.entry({ description: 'Sunday 28 Dec', start: '2025-12-28T10:00:00Z', stop: '2025-12-28T11:00:00Z' });
   await api.entry({ description: 'Monday 29 Dec', start: '2025-12-29T10:00:00Z', stop: '2025-12-29T12:00:00Z' });
   await api.entry({ description: 'Sunday 4 Jan', start: '2026-01-04T10:00:00Z', stop: '2026-01-04T13:00:00Z' });
@@ -41,7 +44,6 @@ test('preset and custom ranges step by exact dates across month and year boundar
   await page.clock.setFixedTime(NOW);
   await login(page);
 
-  // Weeks start on Monday: this week runs from Monday 29 December to Sunday 4 January.
   await page.goto('/reports');
   await expect(rangeButton(page)).toContainText('This week');
   await expect(rangeButton(page)).toContainText('29 Dec 2025 to 4 Jan 2026');
@@ -54,7 +56,6 @@ test('preset and custom ranges step by exact dates across month and year boundar
   await page.keyboard.press('ArrowRight');
   await expectRange(page, '2026-01-05', '2026-01-11', '5 Jan to 11 Jan', '4:00:00');
 
-  // Weeks start on Sunday: this week runs from Sunday 28 December to Saturday 3 January.
   await api.setWeekStart(0);
   await page.goto('/reports?range=this_week');
   await expect(rangeButton(page)).toContainText('28 Dec 2025 to 3 Jan 2026');
@@ -65,7 +66,6 @@ test('preset and custom ranges step by exact dates across month and year boundar
   await page.keyboard.press('ArrowRight');
   await expectRange(page, '2026-01-04', '2026-01-10', '4 Jan to 10 Jan', '7:00:00');
 
-  // Whole months move by calendar months, whatever their length.
   await choosePreset(page, 'This month');
   await expect(rangeButton(page)).toContainText('1 Jan to 31 Jan');
   await expect(totalTime(page)).toHaveText('7:00:00');
@@ -77,14 +77,12 @@ test('preset and custom ranges step by exact dates across month and year boundar
   for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowRight');
   await expectRange(page, '2026-02-01', '2026-02-28', '1 Feb to 28 Feb', null);
 
-  // Years step back to the previous calendar year.
   await choosePreset(page, 'This year');
   await expect(rangeButton(page)).toContainText('1 Jan to 31 Dec');
   await page.keyboard.press('ArrowLeft');
   await expectRange(page, '2025-01-01', '2025-12-31', '1 Jan to 31 Dec 2025', '3:00:00');
   await expect(rangeButton(page)).toContainText('Last year');
 
-  // A custom range of days moves by its own length, across the new year.
   await chooseCustom(page, '2025-12-27', '2025-12-29');
   await expectRange(page, '2025-12-27', '2025-12-29', '27 Dec to 29 Dec 2025', '3:00:00');
   await page.getByRole('button', { name: 'Next period' }).click();
@@ -94,7 +92,6 @@ test('preset and custom ranges step by exact dates across month and year boundar
   for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowLeft');
   await expectRange(page, '2025-12-24', '2025-12-26', '24 Dec to 26 Dec 2025', null);
 
-  // A custom range of whole months moves by that many calendar months.
   await chooseCustom(page, '2025-11-01', '2025-12-31');
   await expectRange(page, '2025-11-01', '2025-12-31', '1 Nov to 31 Dec 2025', '3:00:00');
   await page.keyboard.press('ArrowRight');
@@ -110,13 +107,16 @@ test('a saved report URL restores every control and the matching results', async
   const beta = await api.project({ name: 'Beta', client_id: acme });
   const gamma = await api.project({ name: 'Gamma' });
 
-  // 103 matches lasting 5 to 515 minutes, multiples of the default 5-minute time resolution so the
-  // server stores them unchanged; odd ones are tagged "draft".
+  // Multiples of the default 5-minute resolution, so the server stores them unchanged; odd ones are tagged "draft".
   for (let i = 1; i <= 103; i++) {
     const start = Date.UTC(2025, 10, 1 + (i % 61), 9);
     await api.entry({
-      description: `match ${String(i).padStart(3, '0')}`, project_id: alpha, billable: true,
-      start: iso(start), stop: iso(start + i * 5 * 60_000), tags: i % 2 ? ['draft'] : [],
+      description: `match ${String(i).padStart(3, '0')}`,
+      project_id: alpha,
+      billable: true,
+      start: iso(start),
+      stop: iso(start + i * 5 * 60_000),
+      tags: i % 2 ? ['draft'] : [],
     });
   }
   // Each of these fails exactly one filter, and lasts longer than any match.
@@ -126,12 +126,19 @@ test('a saved report URL restores every control and the matching results', async
   await api.entry({ description: 'match paid', project_id: alpha, billable: true, tags: ['paid'], ...long });
   await api.entry({ description: 'match unbilled', project_id: alpha, billable: false, ...long });
   await api.entry({ description: 'other work', project_id: alpha, billable: true, ...long });
-  await api.entry({ description: 'match late', project_id: alpha, billable: true, start: '2026-01-02T12:00:00Z', stop: '2026-01-02T21:00:00Z' });
+  await api.entry({
+    description: 'match late',
+    project_id: alpha,
+    billable: true,
+    start: '2026-01-02T12:00:00Z',
+    stop: '2026-01-02T21:00:00Z',
+  });
   const paid = await api.tagId('paid');
 
   // In the order the app writes its parameters, so an unchanged state keeps the URL as is.
-  const search = `?from=2025-11-01&to=2025-12-31&tab=detailed&group=clients&sub=tags&projects=not.${beta}&clients=${acme}`
-    + `&tags=not.${paid}&billable=billable&q=match&sort=duration&dir=asc&page=2&rows=clients`;
+  const search =
+    `?from=2025-11-01&to=2025-12-31&tab=detailed&group=clients&sub=tags&projects=not.${beta}&clients=${acme}` +
+    `&tags=not.${paid}&billable=billable&q=match&sort=duration&dir=asc&page=2&rows=clients`;
   await page.clock.setFixedTime(NOW);
   await login(page);
   await page.goto(`/reports${search}`);
@@ -139,9 +146,13 @@ test('a saved report URL restores every control and the matching results', async
   const pager = page.getByRole('navigation', { name: 'Pages' });
   await expect(pager).toContainText('101 to 103 of 103');
   const rows = page.locator('tr.entry-row');
-  await expect.poll(async () => (await cellTexts(rows)).map((cells) => [cells[1], cells[6]])).toEqual([
-    ['match 101', '8:25:00'], ['match 102', '8:30:00'], ['match 103', '8:35:00'],
-  ]);
+  await expect
+    .poll(async () => (await cellTexts(rows)).map(cells => [cells[1], cells[6]]))
+    .toEqual([
+      ['match 101', '8:25:00'],
+      ['match 102', '8:30:00'],
+      ['match 103', '8:35:00'],
+    ]);
   expect(new URL(page.url()).search).toBe(search);
   await expect(rangeButton(page)).toContainText('1 Nov to 31 Dec 2025');
   const tabs = page.getByRole('tablist', { name: 'Report type' });
@@ -155,18 +166,23 @@ test('a saved report URL restores every control and the matching results', async
   await expect(filters.getByRole('combobox', { name: 'Billable' })).toHaveValue('billable');
   await expect(filters.getByLabel('Filter by description')).toHaveValue('match');
   await filters.getByRole('button', { name: /Tag.*not paid/ }).click();
-  await expect(page.getByRole('group', { name: 'Tag filter mode' }).getByRole('button', { name: 'Is not' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(
+    page.getByRole('group', { name: 'Tag filter mode' }).getByRole('button', { name: 'Is not' }),
+  ).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByRole('checkbox', { name: 'paid' })).toBeChecked();
   await expect(page.getByRole('checkbox', { name: 'draft' })).not.toBeChecked();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('checkbox', { name: 'paid' })).toBeHidden();
 
-  // 5 × (1 + 2 + ... + 103) minutes; odd matches are tagged "draft".
-  const all = hms(103 * 104 / 2 * 5 * 60);
+  const all = hms(((103 * 104) / 2) * 5 * 60);
   await tabs.getByRole('tab', { name: 'Weekly' }).click();
-  await expect(page.getByRole('group', { name: 'Rows' }).getByRole('button', { name: 'Clients' })).toHaveAttribute('aria-pressed', 'true');
-  await expect.poll(async () => (await cellTexts(page.locator('.weekly-table tbody tr')))
-    .map((cells) => [cells[0], cells.at(-1)])).toEqual([['ACME', all]]);
+  await expect(page.getByRole('group', { name: 'Rows' }).getByRole('button', { name: 'Clients' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await expect
+    .poll(async () => (await cellTexts(page.locator('.weekly-table tbody tr'))).map(cells => [cells[0], cells.at(-1)]))
+    .toEqual([['ACME', all]]);
 
   await tabs.getByRole('tab', { name: 'Summary' }).click();
   const breakdown = page.getByRole('region', { name: 'Breakdown' });
@@ -175,26 +191,41 @@ test('a saved report URL restores every control and the matching results', async
   await expect(page.locator('.report-totals div', { hasText: 'Entries' }).locator('dd')).toHaveText('103');
   await expect(totalTime(page)).toHaveText(all);
   await breakdown.getByRole('button', { name: 'Show tag breakdown for ACME' }).click();
-  await expect.poll(async () => (await cellTexts(breakdown.locator('tbody tr'))).map((cells) => [cells[0], cells[1]])).toEqual([
-    ['ACME', all],
-    ['draft', hms(52 * 52 * 5 * 60)],
-    ['Without tags', hms(51 * 52 * 5 * 60)],
-  ]);
-  // The page number survives tab changes, so returning to the detailed tab shows the same rows.
+  await expect
+    .poll(async () => (await cellTexts(breakdown.locator('tbody tr'))).map(cells => [cells[0], cells[1]]))
+    .toEqual([
+      ['ACME', all],
+      ['draft', hms(52 * 52 * 5 * 60)],
+      ['Without tags', hms(51 * 52 * 5 * 60)],
+    ]);
   await tabs.getByRole('tab', { name: 'Detailed' }).click();
   await expect(pager).toContainText('101 to 103 of 103');
 });
 
-test('"Is not" chosen before any client or tag option stays negated and excludes the option picked next', async ({ page, api }) => {
+test('"Is not" chosen before any client or tag option stays negated and excludes the option picked next', async ({
+  page,
+  api,
+}) => {
   const alpha = await api.project({ name: 'Alpha', client_id: await api.client('ACME') });
   const globex = await api.client('Globex');
   const beta = await api.project({ name: 'Beta', client_id: globex });
-  await api.entry({ description: 'Kickoff', project_id: alpha, tags: ['scope'], start: '2026-01-05T09:00:00Z', stop: '2026-01-05T10:00:00Z' });
-  await api.entry({ description: 'Research', project_id: beta, tags: ['invoiced'], start: '2026-01-06T09:00:00Z', stop: '2026-01-06T11:00:00Z' });
+  await api.entry({
+    description: 'Kickoff',
+    project_id: alpha,
+    tags: ['scope'],
+    start: '2026-01-05T09:00:00Z',
+    stop: '2026-01-05T10:00:00Z',
+  });
+  await api.entry({
+    description: 'Research',
+    project_id: beta,
+    tags: ['invoiced'],
+    start: '2026-01-06T09:00:00Z',
+    stop: '2026-01-06T11:00:00Z',
+  });
   const invoiced = await api.tagId('invoiced');
   await login(page);
 
-  // The project case runs on the phone in e2e/mobile-reports.spec.ts.
   for (const { label, param, option, id } of [
     { label: 'Client', param: 'clients', option: 'Globex', id: globex },
     { label: 'Tag', param: 'tags', option: 'invoiced', id: invoiced },
@@ -226,9 +257,10 @@ test('"Is not" chosen before any client or tag option stays negated and excludes
   }
 });
 
-// The reports description search is the shared SearchBox; typing still filters the
-// report through the URL, and clearing it brings every entry back.
-test('typing in the description search filters the report and the URL, and clearing it restores both', async ({ page, api }) => {
+test('typing in the description search filters the report and the URL, and clearing it restores both', async ({
+  page,
+  api,
+}) => {
   await api.entry({ description: 'Design review', start: '2025-12-29T10:00:00Z', stop: '2025-12-29T11:00:00Z' });
   await api.entry({ description: 'Standup', start: '2025-12-30T10:00:00Z', stop: '2025-12-30T12:00:00Z' });
   await login(page);

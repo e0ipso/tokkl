@@ -93,22 +93,18 @@ for (const file of copiedIcons) copyIcon(file);
 // Maskable icons retain their opaque tile because the launcher crops them to its own shape.
 for (const size of [16, 32, 48, 192, 512]) {
   const name = size < 100 ? `favicon-${size}.png` : `icon-${size}.png`;
-  magick([LOGO, '-resize', `${size}x${size}`, '-dither', 'None', ...PALETTE],
-    `${PUBLIC}icons/${name}`, 'png8');
+  magick([LOGO, '-resize', `${size}x${size}`, '-dither', 'None', ...PALETTE], `${PUBLIC}icons/${name}`, 'png8');
 }
-execFileSync('magick', [
-  ...[16, 32, 48].map((size) => `${PUBLIC}icons/favicon-${size}.png`),
-  ...STRIP, `${PUBLIC}favicon.ico`,
-], { stdio: 'inherit' });
+execFileSync(
+  'magick',
+  [...[16, 32, 48].map(size => `${PUBLIC}icons/favicon-${size}.png`), ...STRIP, `${PUBLIC}favicon.ico`],
+  { stdio: 'inherit' },
+);
 
 // The maskable icons ship as undithered 256-colour PNG8 files. As supplied, the 512 and 1024 sizes
 // exceed the 100 KB and 128 KB budgets in e2e/pwa.spec.ts. The pack's icon-1024.png is not served,
 // because it stays over 100 KB even quantised.
-const quantisedIcons = [
-  'icons/maskable-192.png',
-  'icons/maskable-512.png',
-  'icons/maskable-1024.png',
-];
+const quantisedIcons = ['icons/maskable-192.png', 'icons/maskable-512.png', 'icons/maskable-1024.png'];
 for (const file of quantisedIcons) {
   magick([`${ICON_PACK}${file}`, '-dither', 'None', ...PALETTE], `${PUBLIC}${file}`, 'png8');
 }
@@ -137,9 +133,15 @@ magick([LOGO, '-resize', '96x96'], kdeLogo, 'png32');
 // The software scene graph does not tint icon masks, so pre-coloured monochrome assets
 // also keep the logo readable there. The hardware renderer tints them to the exact panel ink.
 // PanelButton.qml draws the logo at Kirigami's smallMedium icon size, 22px.
-for (const [name, outline, value] of [['dark', OUTLINE_BLACK, '0'], ['light', OUTLINE_WHITE, '100%']] as const) {
-  magick([...panelOutline(outline, 22), '-resize', '96x96', ...ink(value)],
-    `${KDE_PACKAGE}contents/images/tokkl-mono-${name}.png`, 'png32');
+for (const [name, outline, value] of [
+  ['dark', OUTLINE_BLACK, '0'],
+  ['light', OUTLINE_WHITE, '100%'],
+] as const) {
+  magick(
+    [...panelOutline(outline, 22), '-resize', '96x96', ...ink(value)],
+    `${KDE_PACKAGE}contents/images/tokkl-mono-${name}.png`,
+    'png32',
+  );
 }
 for (const size of [32, 48, 64, 96, 128, 256]) {
   if (size === 96) {
@@ -154,8 +156,11 @@ for (const size of [32, 48, 64, 96, 128, 256]) {
 // 16px panel icon size. It is a full-colour RGBA PNG at 32px, so it stays sharp at twice that size.
 magick([LOGO, '-resize', '32x32'], `${GNOME_EXTENSION}tokkl.png`, 'png32');
 // GNOME's symbolic PNG loader maps black RGB pixels to the panel foreground and keeps alpha.
-magick([...panelOutline(OUTLINE_BLACK, 16), '-resize', '32x32', ...ink('0')],
-  `${GNOME_EXTENSION}tokkl-symbolic.symbolic.png`, 'png32');
+magick(
+  [...panelOutline(OUTLINE_BLACK, 16), '-resize', '32x32', ...ink('0')],
+  `${GNOME_EXTENSION}tokkl-symbolic.symbolic.png`,
+  'png32',
+);
 
 // The macOS build turns the iconset into Tokkl.icns with `iconutil -c icns`, and Info.plist names
 // it in CFBundleIconFile. iconutil takes the files by these names: each size at 1x and 2x, from 16
@@ -172,7 +177,13 @@ for (const points of [16, 32, 128, 256, 512]) {
 
 // The monochrome menu bar logo is the outline at 16 points, 1x and 2x. The status item fills its
 // alpha with the menu bar's label colour, so only the alpha matters; the ink is black.
-for (const [pixels, name] of [[16, 'mono_16x16.png'], [32, 'mono_16x16@2x.png']] as const) {
-  magick([...panelOutline(OUTLINE_BLACK, 16), '-resize', `${pixels}x${pixels}`, ...ink('0')],
-    `${MACOS_RESOURCES}${name}`, 'png32');
+for (const [pixels, name] of [
+  [16, 'mono_16x16.png'],
+  [32, 'mono_16x16@2x.png'],
+] as const) {
+  magick(
+    [...panelOutline(OUTLINE_BLACK, 16), '-resize', `${pixels}x${pixels}`, ...ink('0')],
+    `${MACOS_RESOURCES}${name}`,
+    'png32',
+  );
 }

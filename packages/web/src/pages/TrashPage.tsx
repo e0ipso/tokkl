@@ -1,62 +1,71 @@
 import { useState } from 'react';
-import { api } from '../api/client.ts';
-import { keys, useRestoreEntry } from '../api/hooks.ts';
-import type { TimeEntry } from '../api/types.ts';
+import { entryRequests, useRestoreEntry, useTrash, useTrashTotal } from '../api/entries.ts';
+import { stale } from '../api/keys.ts';
+import type { TimeEntry } from '@tokkl/types';
 import { EmptyState } from '../components/EmptyState.tsx';
 import { Icon } from '../components/Icon.tsx';
 import { LoadError, Loading } from '../components/PageState.tsx';
-import { ProjectDot } from '../components/Pickers.tsx';
+import { ProjectDot } from '../components/ProjectLabel.tsx';
 import { useToast } from '../components/Toast.tsx';
-import { localDay } from '../lib/entryTime.ts';
-import { duration, entrySeconds, formatDate, formatTime, useSettings, type Settings } from '../lib/settings.ts';
-import { useAction, useTrash } from './manage/queries.ts';
-import { ConfirmModal, plural } from './manage/ui.tsx';
-import './manage/manage.css';
-
-function dateTime(iso: string, settings: Settings): string {
-  return `${formatDate(localDay(iso, settings.timeZone), settings.dateFormat)} ${formatTime(iso, settings)}`;
-}
+import { useSettings } from '../api/settings.ts';
+import { duration, formatDateTime } from '../lib/format.ts';
+import { type Settings } from '../lib/settings.ts';
+import { entrySeconds } from '../lib/snapping.ts';
+import { useAction } from '../components/useAction.ts';
+import { ConfirmModal } from './manage/ui.tsx';
+import { trashLimitNotice } from './trashLimit.ts';
+import { t } from '../i18n/messages.ts';
 
 function TrashRow({ entry, settings }: { entry: TimeEntry; settings: Settings }) {
   const toast = useToast();
   const restore = useRestoreEntry();
   const purge = useAction({
-    mutationFn: () => api.delete(`/api/app/trash/${entry.id}`),
-    invalidate: [keys.trash],
-    success: 'Deleted the entry for good',
+    mutationFn: () => entryRequests.purge(entry.id),
+    invalidate: stale.trash,
+    success: t('manage.purged'),
   });
 
   return (
     <tr>
-      <td>{entry.description || <span className="muted">No description</span>}</td>
+      <td>{entry.description || <span className="muted">{t('manage.noDescription')}</span>}</td>
       <td>
         {entry.project_id !== null || entry.project_name ? (
           <span className="project-label">
             <ProjectDot color={entry.project_color} />
-            <span className="project-label-name">{entry.project_name ?? 'Unknown project'}</span>
+            <span className="project-label-name">{entry.project_name ?? t('manage.unknownProject')}</span>
           </span>
-        ) : <span className="muted">No project</span>}
+        ) : (
+          <span className="muted">{t('manage.noProject')}</span>
+        )}
       </td>
-      <td className="num">{dateTime(entry.start, settings)}</td>
-      <td className="num">{entry.stop ? duration(entrySeconds(entry, new Date()), settings) : <span className="muted">Running</span>}</td>
-      <td className="num">{entry.server_deleted_at ? dateTime(entry.server_deleted_at, settings) : null}</td>
+      <td className="num">{formatDateTime(entry.start, settings)}</td>
+      <td className="num">
+        {entry.stop ? (
+          duration(entrySeconds(entry, new Date()), settings)
+        ) : (
+          <span className="muted">{t('manage.running')}</span>
+        )}
+      </td>
+      <td className="num">{entry.server_deleted_at ? formatDateTime(entry.server_deleted_at, settings) : null}</td>
       <td className="manage-actions">
         <button
           type="button"
           className="button button-ghost"
           disabled={restore.isPending}
-          onClick={() => restore.mutate(entry.id, {
-            onSuccess: () => toast.show('Entry restored'),
-            onError: (error) => toast.error(error),
-          })}
+          onClick={() =>
+            restore.mutate(entry.id, {
+              onSuccess: () => toast.show(t('manage.entryRestored')),
+              onError: error => toast.error(error),
+            })
+          }
         >
-          <Icon name="undo" size={16} /> Restore
+          <Icon name="undo" size={16} /> {t('manage.restore')}
         </button>
         <button
           type="button"
           className="icon-button"
-          aria-label="Delete forever"
-          title="Delete forever"
+          aria-label={t('manage.deleteForever')}
+          title={t('manage.deleteForever')}
           disabled={purge.isPending}
           onClick={() => purge.mutate()}
         >
@@ -70,19 +79,20 @@ function TrashRow({ entry, settings }: { entry: TimeEntry; settings: Settings })
 export function TrashPage() {
   const settings = useSettings();
   const { data: entries, isLoading, error, refetch } = useTrash();
+  const limitNotice = trashLimitNotice(useTrashTotal().data);
   const [confirmEmpty, setConfirmEmpty] = useState(false);
 
   const empty = useAction<void, { deleted: number }>({
-    mutationFn: () => api.delete<{ deleted: number }>('/api/app/trash'),
-    invalidate: [keys.trash],
-    success: (result) => `Deleted ${plural(result.deleted, 'entry', 'entries')} for good`,
+    mutationFn: entryRequests.emptyTrash,
+    invalidate: stale.trash,
+    success: result => t('manage.trashEmptied', { count: result.deleted }),
     onSuccess: () => setConfirmEmpty(false),
   });
 
   return (
     <div className="page manage-page">
       <header className="page-header">
-        <h1>Trash</h1>
+        <h1>{t('manage.trashTitle')}</h1>
         <span className="spacer" />
         <button
           type="button"
@@ -90,18 +100,18 @@ export function TrashPage() {
           disabled={!entries || entries.length === 0}
           onClick={() => setConfirmEmpty(true)}
         >
-          <Icon name="trash" size={16} /> Empty trash
+          <Icon name="trash" size={16} /> {t('manage.emptyTrash')}
         </button>
       </header>
-      <p className="hint manage-intro">
-        Toggl Track has no trash. Here, deleted time entries stay until you restore them or delete them for good.
-      </p>
+      <p className="hint manage-intro">{t('manage.trashIntro')}</p>
 
-      {error ? <LoadError message={`Could not load the trash: ${error.message}`} onRetry={() => void refetch()} /> : null}
-      {isLoading ? <Loading label="Loading the trash…" /> : null}
+      {error ? (
+        <LoadError message={t('manage.trashLoadFailed', { message: error.message })} onRetry={() => void refetch()} />
+      ) : null}
+      {isLoading ? <Loading label={t('manage.loadingTrash')} /> : null}
       {entries && entries.length === 0 ? (
-        <EmptyState icon={<Icon name="trash" size={32} />} title="The trash is empty">
-          Deleted entries wash up here until you restore them or delete them for good.
+        <EmptyState icon={<Icon name="trash" size={32} />} title={t('manage.trashEmpty')}>
+          {t('manage.trashEmptyBody')}
         </EmptyState>
       ) : null}
 
@@ -110,35 +120,38 @@ export function TrashPage() {
           <table className="table">
             <thead>
               <tr>
-                <th>Description</th>
-                <th>Project</th>
-                <th className="num">Started</th>
-                <th className="num">Duration</th>
-                <th className="num">Deleted</th>
-                <th><span className="visually-hidden">Actions</span></th>
+                <th>{t('manage.description')}</th>
+                <th>{t('manage.project')}</th>
+                <th className="num">{t('manage.started')}</th>
+                <th className="num">{t('manage.duration')}</th>
+                <th className="num">{t('manage.deleted')}</th>
+                <th>
+                  <span className="visually-hidden">{t('manage.actions')}</span>
+                </th>
               </tr>
             </thead>
             <tbody>
-              {entries.map((entry) => <TrashRow key={entry.id} entry={entry} settings={settings} />)}
+              {entries.map(entry => (
+                <TrashRow key={entry.id} entry={entry} settings={settings} />
+              ))}
             </tbody>
           </table>
         </div>
       ) : null}
-      {entries && entries.length >= 1000 ? (
-        <p className="hint manage-footnote">Showing the 1000 most recently deleted entries.</p>
-      ) : null}
+      {entries && limitNotice ? <p className="hint manage-footnote">{limitNotice}</p> : null}
 
       {confirmEmpty && entries ? (
         <ConfirmModal
-          title="Empty the trash?"
-          confirmLabel="Empty trash"
+          title={t('manage.emptyTrashTitle')}
+          confirmLabel={t('manage.emptyTrash')}
           busy={empty.isPending}
           onConfirm={() => empty.mutate()}
           onClose={() => setConfirmEmpty(false)}
         >
           <p>
-            This deletes {entries.length >= 1000 ? 'every entry' : plural(entries.length, 'entry', 'entries')} in the trash for good.
-            You can't undo this.
+            {entries.length >= 1000
+              ? t('manage.emptyTrashAll')
+              : t('manage.emptyTrashCount', { count: entries.length })}
           </p>
         </ConfirmModal>
       ) : null}

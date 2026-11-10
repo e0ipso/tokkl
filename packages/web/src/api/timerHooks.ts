@@ -1,108 +1,230 @@
-import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { queryOptions, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { api } from './client.ts';
-import { keys } from './hooks.ts';
-import { getClockOffset, setClockOffset } from './serverClock.ts';
+import { postCreate } from './idempotency.ts';
+import { invalidate } from './invalidate.ts';
+import { keys, stale } from './keys.ts';
+import { getClockOffset, serverNow, setClockOffset } from './serverClock.ts';
 import {
-  TIMER_ACTION_KEY, TimerActionError, explainTimerActionError, planTimerUpdate, revisionToSend, settleOtherWrites,
+  TimerActionError,
+  clearTimerUnknown,
+  explainTimerActionError,
+  explainTimerConflict,
+  isOutcomeUnknown,
+  isTimerUnknown,
+  markTimerUnknown,
+  timerStateOf,
+  planTimerUpdate,
+  revisionToSend,
+  settleOtherWrites,
 } from './timerState.ts';
 import { useTimerStreaming } from './timerStreaming.ts';
-import type { TimeEntryInput, TimerState } from './types.ts';
-import { useNow } from '../lib/settings.ts';
+import type { TimeEntry, TimeEntryInput, TimerState } from '@tokkl/types';
+import { useNow } from '../lib/clock.ts';
 
 const POLL_MS = 30_000;
 const timerPath = '/api/app/timer';
 const pomodoroPath = '/api/app/pomodoro';
 
-/**
- * Takes a state into the caches: the timer, the running entry and the clock offset. A state older
- * than the cached one is dropped and the cached state is returned. When the state moved past the
- * cached one, lists built from entries refetch, because the change started, stopped or discarded
- * entries. Every source of states (stream, poll, action reply, conflict) goes through here.
- */
+/** Every state source goes through here. Older states are dropped; a newer one refetches all entry-derived data. */
 export function acceptTimerState(qc: QueryClient, state: TimerState): TimerState {
   const cached = qc.getQueryData<TimerState>(keys.timer);
   const update = planTimerUpdate(cached, state, Date.now());
   if (!update) return cached ?? state;
   qc.setQueryData(keys.timer, update.state);
-  qc.setQueryData(keys.current, update.current);
   if (update.offset !== null) setClockOffset(update.offset);
-  if (update.changed) {
-    void qc.invalidateQueries({ queryKey: keys.entries });
-    void qc.invalidateQueries({ queryKey: keys.report });
-    void qc.invalidateQueries({ queryKey: keys.trash });
-  }
+  if (update.changed) void invalidate(qc, stale.timerChanged);
   return update.state;
 }
 
-async function readTimerState(qc: QueryClient): Promise<TimerState> {
-  return acceptTimerState(qc, await api.get<TimerState>(timerPath));
+async function readTimerState(qc: QueryClient, signal?: AbortSignal): Promise<TimerState> {
+  return acceptTimerState(qc, await api.get(timerPath, { signal, decode: timerStateOf }));
 }
 
-/**
- * The server-owned timer state. It polls every 30 s only while the stream is down, and refetches
- * on window focus. The stream, the poll and every action write through `acceptTimerState`.
- */
-export function useTimerState() {
-  const qc = useQueryClient();
-  const streaming = useTimerStreaming();
-  return useQuery({
+/** Polls every 30 s only while the stream is down. Writes go through `acceptTimerState`. */
+function timerQuery(qc: QueryClient, streaming: boolean) {
+  return queryOptions({
     queryKey: keys.timer,
-    queryFn: () => readTimerState(qc),
+    queryFn: ({ signal }) => readTimerState(qc, signal),
     refetchInterval: streaming ? false : POLL_MS,
     // Views mounting together share one read; focus still refetches once a second has passed.
     staleTime: 1000,
+    // A 403 here means the credential is gone; /me decides what the app shows then.
+    meta: { sessionProbe: true },
   });
 }
 
-/** The server's time, corrected by the offset taken with the latest state. Re-renders every `intervalMs` like `useNow`. */
-export function useServerNow(intervalMs = 1000): Date {
-  useNow(intervalMs);
-  return new Date(Date.now() + getClockOffset());
+export function useTimerState() {
+  const qc = useQueryClient();
+  return useQuery(timerQuery(qc, useTimerStreaming()));
 }
 
-/**
- * The revision actions send: the cached one, read first if the state has not loaded yet. An edit
- * still in flight, such as the running entry's description saved as the user clicks Next phase,
- * moves the revision, so the action waits for it and reads the state again (see `revisionToSend`).
- */
+const runningEntryOf = (state: TimerState): TimeEntry | null => state.running_entry;
+
+/** No query of its own, so a slow reply elsewhere can never restore an entry a newer state replaced. */
+export function useCurrentEntry() {
+  const qc = useQueryClient();
+  return useQuery({ ...timerQuery(qc, useTimerStreaming()), select: runningEntryOf });
+}
+
+/** Corrected by the offset taken with the latest state; re-renders every `intervalMs`. */
+export function useServerNow(intervalMs = 1000): Date {
+  return serverNow(useNow(intervalMs).getTime(), getClockOffset());
+}
+
+function seenState(qc: QueryClient): Promise<TimerState> {
+  return qc.ensureQueryData({ queryKey: keys.timer, queryFn: ({ signal }) => readTimerState(qc, signal) });
+}
+
+/** Waits for an in-flight edit that moves the revision, then reads the state again (see `revisionToSend`). */
 async function currentRevision(qc: QueryClient): Promise<number> {
-  const seen = await qc.ensureQueryData({ queryKey: keys.timer, queryFn: () => readTimerState(qc) });
+  const seen = await seenState(qc);
   if (!(await settleOtherWrites(qc))) return seen.revision;
   return revisionToSend(seen, await readTimerState(qc));
 }
 
-/**
- * Timer actions run even while the browser reports being offline. TanStack's default would hold
- * them until the connection returns and then send them late; they fail at once instead, with the
- * offline message.
- */
-const actionOptions = { mutationKey: TIMER_ACTION_KEY, networkMode: 'always' } as const;
+/** After an unknown outcome: `refuse` fails a write on a moved state; `adopt` takes it, for edits naming an entry. */
+type TimerWriteGuard = 'refuse' | 'adopt';
+
+/** Reads the state after an unknown-outcome write; a failed read keeps the next write from going out. */
+async function reconcileTimer(qc: QueryClient, guard: TimerWriteGuard): Promise<void> {
+  if (!isTimerUnknown(qc)) return;
+  const seen = qc.getQueryData<TimerState>(keys.timer);
+  const fresh = await readTimerState(qc);
+  clearTimerUnknown(qc);
+  if (guard === 'refuse' && seen && fresh.revision !== seen.revision) throw new TimerActionError('conflict', fresh);
+}
 
 /**
- * Posts a timer action. The reply is the new state. A 409 replaces the cached state with the one in
- * its body and fails with a `TimerActionError` of kind `conflict`; no reply at all fails with kind
- * `offline`. Both carry the message to show. Other failures keep their `ApiError`.
+ * After an unknown outcome (502, unreadable reply) the next write reads the state first: v9 writes carry no
+ * revision, so a retry after a landed write would apply twice.
  */
-async function postAction(qc: QueryClient, path: string, body: Record<string, unknown> | undefined): Promise<TimerState> {
+export async function timerWrite<T>(
+  qc: QueryClient,
+  request: () => Promise<T>,
+  guard: TimerWriteGuard = 'refuse',
+): Promise<T> {
+  await reconcileTimer(qc, guard);
   try {
-    return acceptTimerState(qc, await api.post<TimerState>(path, body));
+    return await request();
   } catch (error) {
-    const explained = explainTimerActionError(error);
+    if (isOutcomeUnknown(error)) markTimerUnknown(qc);
+    throw error;
+  }
+}
+
+/** A conflict that carries a state hands it to the caches. */
+async function explainedTimerWrite<T>(
+  qc: QueryClient,
+  request: () => Promise<T>,
+  explain: (error: unknown) => unknown,
+  guard: TimerWriteGuard = 'refuse',
+): Promise<T> {
+  try {
+    return await timerWrite(qc, request, guard);
+  } catch (error) {
+    const explained = explain(error);
     if (explained instanceof TimerActionError && explained.state) acceptTimerState(qc, explained.state);
     throw explained;
   }
+}
+
+/** No reply fails with the offline `TimerActionError`; a 409 with a state hands it to the caches. */
+export function attemptTimerRequest<T>(qc: QueryClient, request: () => Promise<T>): Promise<T> {
+  return explainedTimerWrite(qc, request, explainTimerActionError);
+}
+
+/** Fail at once while offline instead of TanStack's default of holding the action and sending it late. */
+const actionOptions = { networkMode: 'always' } as const;
+
+/** Builds the body once the state is reconciled. A reply that is not a whole state fails without touching caches. */
+async function postAction(
+  qc: QueryClient,
+  path: string,
+  body: () => Promise<Record<string, unknown>>,
+): Promise<TimerState> {
+  return attemptTimerRequest(qc, async () =>
+    acceptTimerState(qc, await api.post(path, await body(), { decode: timerStateOf })),
+  );
+}
+
+/** Sent with an `Idempotency-Key`, so a start whose reply was lost is retried without a second entry. */
+async function postStart(qc: QueryClient, path: string, body: () => Promise<Record<string, unknown>>) {
+  return attemptTimerRequest(qc, async () =>
+    acceptTimerState(qc, await postCreate(path, await body(), { decode: timerStateOf })),
+  );
 }
 
 function useRevisionAction(path: string) {
   const qc = useQueryClient();
   return useMutation<TimerState, Error, void>({
     ...actionOptions,
-    mutationFn: async () => postAction(qc, path, { revision: await currentRevision(qc) }),
+    mutationFn: () => postAction(qc, path, async () => ({ revision: await currentRevision(qc) })),
   });
 }
 
-/** Fields of a Pomodoro start: the entry's fields and the session lengths, in minutes, for this session only. */
-export interface StartPomodoroInput extends Pick<TimeEntryInput, 'description' | 'project_id' | 'task_id' | 'billable' | 'tag_ids'> {
+/** Its workspace never changes this way. */
+export type RunningEntryChanges = Pick<
+  TimeEntryInput,
+  'description' | 'project_id' | 'task_id' | 'billable' | 'tags' | 'tag_ids' | 'start'
+>;
+
+/**
+ * Names the entry, not a revision, so another device's tag does not refuse it; once `id` stops running the
+ * server answers a conflict. Sent as a `MOVES_TIMER` write, so it does not wait for those.
+ */
+export function editRunningEntry(qc: QueryClient, id: number, changes: RunningEntryChanges): Promise<TimerState> {
+  return explainedTimerWrite(
+    qc,
+    async () =>
+      acceptTimerState(qc, await api.post(`${timerPath}/edit`, { ...changes, entry_id: id }, { decode: timerStateOf })),
+    explainTimerConflict,
+    'adopt',
+  );
+}
+
+interface StartTimerInput extends Pick<TimeEntryInput, 'description' | 'project_id' | 'task_id' | 'billable'> {
+  tags?: string[];
+  tag_ids?: number[];
+  workspace_id?: number;
+  start?: string;
+  created_with?: string;
+}
+
+/** A running entry stops at the new start; a pause chain or Pomodoro session ends. */
+export async function startTimer(qc: QueryClient, input: StartTimerInput): Promise<TimerState> {
+  return postStart(qc, `${timerPath}/start`, async () => ({
+    created_with: 'tokkl-web',
+    ...input,
+    revision: await currentRevision(qc),
+  }));
+}
+
+/** Conflicts when the timer moved on. */
+export async function stopTimer(qc: QueryClient, stop?: string): Promise<TimerState> {
+  return postAction(qc, `${timerPath}/stop`, async () => ({ revision: await currentRevision(qc), stop }));
+}
+
+export function useStartTimer() {
+  const qc = useQueryClient();
+  return useMutation<TimerState, Error, StartTimerInput>({
+    ...actionOptions,
+    mutationFn: input => startTimer(qc, input),
+  });
+}
+
+export function useStopTimer() {
+  const qc = useQueryClient();
+  return useMutation<TimerState, Error, { stop?: string }>({
+    ...actionOptions,
+    mutationFn: ({ stop }) => stopTimer(qc, stop),
+  });
+}
+
+/** Session lengths in minutes, for this session only. */
+interface StartPomodoroInput extends Pick<
+  TimeEntryInput,
+  'description' | 'project_id' | 'task_id' | 'billable' | 'tag_ids'
+> {
   tags?: string[];
   workspace_id?: number;
   created_with?: string;
@@ -112,40 +234,46 @@ export interface StartPomodoroInput extends Pick<TimeEntryInput, 'description' |
   long_rest_every?: number;
 }
 
-/** Starts a Pomodoro session. Fails with the conflict message while another device runs one. */
+/** Conflicts while another device runs one or the timer moved on. Carries an `Idempotency-Key`. */
+export async function startPomodoro(qc: QueryClient, input: StartPomodoroInput): Promise<TimerState> {
+  return postStart(qc, pomodoroPath, async () => ({
+    created_with: 'tokkl-web',
+    ...input,
+    revision: await currentRevision(qc),
+  }));
+}
+
 export function useStartPomodoro() {
   const qc = useQueryClient();
   return useMutation<TimerState, Error, StartPomodoroInput>({
     ...actionOptions,
-    mutationFn: (input) => postAction(qc, pomodoroPath, { created_with: 'tokkl-web', ...input }),
+    mutationFn: input => startPomodoro(qc, input),
   });
 }
 
-/** Confirms the next phase of the session, at the cached revision. */
 export function useNextPhase() {
   return useRevisionAction(`${pomodoroPath}/next`);
 }
 
-/** Ends the session, at the cached revision. */
 export function useEndPomodoro() {
   return useRevisionAction(`${pomodoroPath}/end`);
 }
 
-/** Pauses the running timer. Pause needs no revision: the server pauses whatever runs. */
-export function usePauseTimer() {
-  const qc = useQueryClient();
-  return useMutation<TimerState, Error, void>({
-    ...actionOptions,
-    mutationFn: () => postAction(qc, `${timerPath}/pause`, undefined),
-  });
+/** When the timer moved on, the server answers a conflict instead of pausing what the user did not see. */
+export function pauseTimer(qc: QueryClient): Promise<TimerState> {
+  return postAction(qc, `${timerPath}/pause`, async () => ({ revision: await currentRevision(qc) }));
 }
 
-/** Resumes the paused chain, at the cached revision. */
+export function usePauseTimer() {
+  const qc = useQueryClient();
+  return useMutation<TimerState, Error, void>({ ...actionOptions, mutationFn: () => pauseTimer(qc) });
+}
+
 export function useResumeTimer() {
   return useRevisionAction(`${timerPath}/resume`);
 }
 
-/** Ends the paused chain without resuming (Stop while paused), at the cached revision. */
+/** Stop while paused. */
 export function useDiscardPause() {
   return useRevisionAction(`${timerPath}/discard`);
 }

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useMe, usePreferences, useWorkspace } from '../api/hooks.ts';
+import { useMe, usePreferences, useWorkspace } from '../api/account.ts';
+import { usePomodoroLimits } from '../api/auth.ts';
 import { Icon } from '../components/Icon.tsx';
 import { LoadError, Loading } from '../components/PageState.tsx';
 import { logOut } from '../lib/session.ts';
@@ -11,23 +12,22 @@ import { PreferencesSection } from './manage/settings/PreferencesSection.tsx';
 import { ProfileSection } from './manage/settings/ProfileSection.tsx';
 import { SettingsCard } from './manage/settings/SettingsCard.tsx';
 import { WorkspaceSection } from './manage/settings/WorkspaceSection.tsx';
-import './manage/manage.css';
+import { t } from '../i18n/messages.ts';
 
 const SECTIONS = [
-  ['profile', 'Profile'],
-  ['password', 'Password'],
-  ['preferences', 'Preferences'],
-  ['workspace', 'Workspace'],
-  ['api-token', 'API token'],
-  ['data', 'Data'],
-  ['session', 'Session'],
+  ['profile', 'settings.sectionProfile'],
+  ['password', 'settings.sectionPassword'],
+  ['preferences', 'settings.sectionPreferences'],
+  ['workspace', 'settings.sectionWorkspace'],
+  ['api-token', 'settings.sectionApiToken'],
+  ['data', 'settings.sectionData'],
+  ['session', 'settings.sectionSession'],
 ] as const;
 
 function SessionSection() {
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
-  // Like the sidebar button: the tab forgets the session even when the request fails, and the
-  // reload shows what the server says. After a failure the reloaded app says logout failed.
+  // Like the sidebar button: the tab forgets the session even when the request fails.
   const logout = () => {
     setBusy(true);
     logOut(qc)
@@ -35,9 +35,9 @@ function SessionSection() {
       .finally(() => window.location.reload());
   };
   return (
-    <SettingsCard id="session" title="Session" intro="Log out of this browser. To log out everywhere else, change your password.">
+    <SettingsCard id="session" title={t('settings.sectionSession')} intro={t('settings.sessionIntro')}>
       <button type="button" className="button button-ghost" disabled={busy} onClick={logout}>
-        <Icon name="logout" size={16} /> Log out
+        <Icon name="logout" size={16} /> {t('shell.logOut')}
       </button>
     </SettingsCard>
   );
@@ -46,31 +46,57 @@ function SessionSection() {
 export function SettingsPage() {
   const { data: me } = useMe();
   const { data: prefs, error: prefsError, refetch: refetchPrefs } = usePreferences();
+  const { data: limits, error: limitsError, refetch: refetchLimits } = usePomodoroLimits();
+  const preferencesError = prefsError ?? limitsError;
+  const retryPreferences = () => {
+    if (prefsError) void refetchPrefs();
+    if (limitsError) void refetchLimits();
+  };
   const { data: workspace, error: workspaceError, refetch: refetchWorkspace } = useWorkspace();
 
   return (
     <div className="page manage-page settings-page">
       <header className="page-header">
-        <h1>Settings</h1>
+        <h1>{t('settings.title')}</h1>
       </header>
-      <nav className="settings-nav" aria-label="Settings sections">
-        {SECTIONS.map(([id, label]) => <a key={id} href={`#${id}`}>{label}</a>)}
+      <nav className="settings-nav" aria-label={t('settings.sectionsLabel')}>
+        {SECTIONS.map(([id, label]) => (
+          <a key={id} href={`#${id}`}>
+            {t(label)}
+          </a>
+        ))}
       </nav>
 
       {me ? <ProfileSection me={me} /> : null}
       <PasswordSection />
-      {prefs ? <PreferencesSection prefs={prefs} /> : (
-        <SettingsCard id="preferences" title="Preferences">
-          {prefsError ? (
-            <LoadError message={`Could not load preferences: ${prefsError.message}`} onRetry={() => void refetchPrefs()} className="is-compact" />
-          ) : <Loading label="Loading preferences…" className="is-compact" />}
+      {prefs && limits ? (
+        <PreferencesSection prefs={prefs} limits={limits} />
+      ) : (
+        <SettingsCard id="preferences" title={t('settings.sectionPreferences')}>
+          {preferencesError ? (
+            <LoadError
+              message={t('settings.preferencesLoadFailed', { message: preferencesError.message })}
+              onRetry={retryPreferences}
+              className="is-compact"
+            />
+          ) : (
+            <Loading label={t('settings.loadingPreferences')} className="is-compact" />
+          )}
         </SettingsCard>
       )}
-      {workspace ? <WorkspaceSection workspace={workspace} /> : (
-        <SettingsCard id="workspace" title="Workspace">
+      {workspace ? (
+        <WorkspaceSection workspace={workspace} />
+      ) : (
+        <SettingsCard id="workspace" title={t('settings.sectionWorkspace')}>
           {workspaceError ? (
-            <LoadError message={`Could not load the workspace: ${workspaceError.message}`} onRetry={() => void refetchWorkspace()} className="is-compact" />
-          ) : <Loading label="Loading the workspace…" className="is-compact" />}
+            <LoadError
+              message={t('settings.workspaceLoadFailed', { message: workspaceError.message })}
+              onRetry={() => void refetchWorkspace()}
+              className="is-compact"
+            />
+          ) : (
+            <Loading label={t('settings.loadingWorkspace')} className="is-compact" />
+          )}
         </SettingsCard>
       )}
       {me ? <ApiTokenSection me={me} /> : null}

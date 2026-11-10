@@ -1,16 +1,8 @@
-// The copies of the Pomodoro mode glyph each companion ships, against its
-// masters in desktop/core/assets: the SVGs are the masters byte for byte,
-// and the macOS menu bar PNGs are 8-bit RGBA at 16 points, 1x and 2x. After
-// changing a master, copy it again and render the PNGs from desktop/ with
-// Qt SVG, which keeps whole-pixel edges sharp where ImageMagick's own SVG
-// renderer bleeds a pixel past them:
-//
+// Render the PNGs from desktop/ with Qt SVG; ImageMagick's renderer bleeds a pixel:
 //   ksvgtopng 16 16 core/assets/hourglass.svg /tmp/hourglass.png
 //   magick /tmp/hourglass.png -strip -define png:exclude-chunks=date,time \
 //       png32:macos/resources/hourglass_16x16.png
-//
-// and the same at 32 for hourglass_16x16@2x.png, and from hourglass-mono.svg
-// for hourglass_mono_16x16.png and its @2x.
+// Use 32 for the @2x files and hourglass-mono.svg for the mono ones.
 
 #include <QFile>
 #include <QTest>
@@ -80,8 +72,7 @@ private Q_SLOTS:
         }
     }
 
-    // Read from the PNG signature and the IHDR chunk that must follow it,
-    // as the core may not load Qt Gui's image readers.
+    // Read from the PNG header, as the core may not load Qt Gui's image readers.
     void macPngs()
     {
         QFETCH(QString, path);

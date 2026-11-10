@@ -1,5 +1,3 @@
-// Instance URLs, Basic credentials and the API's JSON shapes.
-
 #include "apitypes.h"
 #include "instanceurl.h"
 #include "transport.h"
@@ -14,7 +12,6 @@ using namespace Tokkl;
 
 namespace
 {
-// A state with a running Pomodoro session, as GET /api/app/timer sends it.
 QJsonObject sessionState()
 {
     const QJsonObject entry{
@@ -66,7 +63,6 @@ QJsonObject sessionState()
     };
 }
 
-// A paused chain: nothing runs.
 QJsonObject pausedState()
 {
     QJsonObject state = sessionState();
@@ -89,8 +85,7 @@ QJsonObject pausedState()
     return state;
 }
 
-// Replaces the value at a slash-separated path of object keys, or removes it
-// when value is undefined.
+// Replaces the value at a slash-separated key path; undefined removes it.
 QJsonValue withValue(const QJsonValue &root, QStringView path, const QJsonValue &value)
 {
     const qsizetype slash = path.indexOf(QLatin1Char('/'));
@@ -202,7 +197,6 @@ private Q_SLOTS:
         QCOMPARE(me->id, 3);
         QCOMPARE(me->defaultWorkspaceId, 9);
         QCOMPARE(me->fullname, QStringLiteral("Bea"));
-        // The token in the response is never kept.
         QVERIFY(!me->toVariantMap().values().contains(QVariant(QStringLiteral("SECRET"))));
 
         QVERIFY(!Tokkl::decodeMe(*parseJsonBody(R"({"id":3,"email":"b@example.com"})")));
@@ -224,7 +218,6 @@ private Q_SLOTS:
         QTest::newRow("string") << QByteArray(R"(,"time_resolution_minutes":"15")") << 1;
     }
 
-    // An invalid resolution does not refuse the account.
     void decodeMeTimeResolution()
     {
         QFETCH(QByteArray, field);
@@ -233,6 +226,164 @@ private Q_SLOTS:
         QVERIFY(me);
         QCOMPARE(me->timeResolutionMinutes, minutes);
         QCOMPARE(me->toVariantMap().value(QStringLiteral("timeResolutionMinutes")), QVariant(minutes));
+    }
+
+    void statusServerApi_data()
+    {
+        QTest::addColumn<int>("status"); // 0 for no HTTP answer
+        QTest::addColumn<QByteArray>("body");
+        QTest::addColumn<qint64>("version");
+        QTest::addColumn<QStringList>("capabilities");
+        QTest::addColumn<bool>("supported");
+
+        const QByteArray limits = R"("pomodoro_limits":{"work_minutes":{"min":1,"max":180,"default":25},)"
+                                  R"("short_rest_minutes":{"min":1,"max":60,"default":5},"long_rest_minutes":{"min":1,"max":60,"default":15},)"
+                                  R"("long_rest_every":{"min":1,"max":12,"default":4}})";
+        const QByteArray current = R"({"setup_required":false,"api_version":1,"capabilities":)"
+                                   R"(["app-preferences","timer-actions","timer-edit","pomodoro-revision","pause-revision","timer-edit-entry","idempotency-keys",)"
+                                   R"("catalog-revision","latest-entry"],)"
+            + limits + "}";
+        const QByteArray withoutLimits = R"({"api_version":1,"capabilities":)"
+                                         R"(["app-preferences","timer-actions","pomodoro-revision","pause-revision","timer-edit-entry","idempotency-keys",)"
+                                         R"("catalog-revision","latest-entry"]})";
+        const QStringList all{QStringLiteral("app-preferences"),
+                              QStringLiteral("timer-actions"),
+                              QStringLiteral("timer-edit"),
+                              QStringLiteral("pomodoro-revision"),
+                              QStringLiteral("pause-revision"),
+                              QStringLiteral("timer-edit-entry"),
+                              QStringLiteral("idempotency-keys"),
+                              QStringLiteral("catalog-revision"),
+                              QStringLiteral("latest-entry")};
+        QTest::newRow("older server") << 200 << QByteArray(R"({"setup_required":false})") << qint64(0) << QStringList() << false;
+        QTest::newRow("current server") << 200 << current << qint64(1) << all << true;
+        QTest::newRow("no Pomodoro limits") << 200 << withoutLimits << qint64(1)
+                                            << QStringList{QStringLiteral("app-preferences"),
+                                                           QStringLiteral("timer-actions"),
+                                                           QStringLiteral("pomodoro-revision"),
+                                                           QStringLiteral("pause-revision"),
+                                                           QStringLiteral("timer-edit-entry"),
+                                                           QStringLiteral("idempotency-keys"),
+                                                           QStringLiteral("catalog-revision"),
+                                                           QStringLiteral("latest-entry")}
+                                            << false;
+        QTest::newRow("before pause revisions")
+            << 200 << QByteArray(R"({"api_version":1,"capabilities":["app-preferences","timer-actions","timer-edit","pomodoro-revision"]})") << qint64(1)
+            << QStringList{QStringLiteral("app-preferences"), QStringLiteral("timer-actions"), QStringLiteral("timer-edit"), QStringLiteral("pomodoro-revision")}
+            << false;
+        for (const QString &missing : {QStringLiteral("catalog-revision"), QStringLiteral("latest-entry")}) {
+            QStringList rest = all;
+            rest.removeAll(missing);
+            QTest::addRow("without %s", qPrintable(missing))
+                << 200 << QByteArray(current).replace(QByteArray(",\"" + missing.toUtf8() + "\""), "") << qint64(1) << rest << false;
+        }
+        QTest::newRow("version 0 with every capability") << 200 << QByteArray(current).replace("\"api_version\":1", "\"api_version\":0") << qint64(0) << all
+                                                         << false;
+        QTest::newRow("unknown names kept") << 200 << QByteArray(R"({"api_version":2,"capabilities":["timer-actions","time-travel",7,null]})") << qint64(2)
+                                            << QStringList{QStringLiteral("timer-actions"), QStringLiteral("time-travel")} << false;
+        QTest::newRow("unreadable") << 200 << QByteArray(R"({"api_version":"1","capabilities":"timer-actions"})") << qint64(0) << QStringList() << false;
+        QTest::newRow("not an object") << 200 << QByteArray(R"(["timer-actions"])") << qint64(0) << QStringList() << false;
+        QTest::newRow("not JSON") << 200 << QByteArray("<html></html>") << qint64(0) << QStringList() << false;
+        QTest::newRow("refused") << 404 << current << qint64(0) << QStringList() << false;
+        QTest::newRow("server error") << 503 << QByteArray() << qint64(0) << QStringList() << false;
+        QTest::newRow("no answer") << 0 << QByteArray() << qint64(0) << QStringList() << false;
+    }
+
+    // Only api_version 1 or later with every ServerFloor capability is supported.
+    void statusServerApi()
+    {
+        QFETCH(int, status);
+        QFETCH(QByteArray, body);
+        QFETCH(qint64, version);
+        QFETCH(QStringList, capabilities);
+        QFETCH(bool, supported);
+        HttpResponse response;
+        if (status) {
+            response.outcome = HttpResponse::Outcome::Finished;
+            response.status = status;
+            response.body = body;
+        }
+        const ServerApi server = serverApiFromResponse(response);
+        QCOMPARE(server.version, version);
+        QCOMPARE(server.capabilities, capabilities);
+        QCOMPARE(server.isSupported(), supported);
+    }
+
+    void pomodoroLimits_data()
+    {
+        QTest::addColumn<QByteArray>("limits");
+        QTest::addColumn<bool>("read");
+        const QByteArray rest = R"("short_rest_minutes":{"min":1,"max":60,"default":5},"long_rest_minutes":{"min":2,"max":90,"default":20},)"
+                                R"("long_rest_every":{"min":1,"max":12,"default":4})";
+        QTest::newRow("read") << QByteArray(R"({"work_minutes":{"min":5,"max":240,"default":30},)" + rest + "}") << true;
+        QTest::newRow("default below min") << QByteArray(R"({"work_minutes":{"min":5,"max":240,"default":4},)" + rest + "}") << false;
+        QTest::newRow("max below default") << QByteArray(R"({"work_minutes":{"min":5,"max":20,"default":30},)" + rest + "}") << false;
+        QTest::newRow("zero") << QByteArray(R"({"work_minutes":{"min":0,"max":240,"default":30},)" + rest + "}") << false;
+        QTest::newRow("not a number") << QByteArray(R"({"work_minutes":{"min":"5","max":240,"default":30},)" + rest + "}") << false;
+        QTest::newRow("a length missing") << QByteArray("{" + rest + "}") << false;
+        QTest::newRow("not an object") << QByteArray("[]") << false;
+    }
+
+    // Read only whole: integers with 1 <= min <= default <= max.
+    void pomodoroLimits()
+    {
+        QFETCH(QByteArray, limits);
+        QFETCH(bool, read);
+        const ServerApi server = decodeServerApi(QJsonDocument::fromJson("{\"pomodoro_limits\":" + limits + "}").object());
+        QCOMPARE(server.pomodoroLimits.has_value(), read);
+        if (read) {
+            QCOMPARE(server.pomodoroLimits->workMinutes.min, 5);
+            QCOMPARE(server.pomodoroLimits->workMinutes.max, 240);
+            QCOMPARE(server.pomodoroLimits->defaults.workMinutes, 30);
+            QCOMPARE(server.pomodoroLimits->longRestMinutes.min, 2);
+            QCOMPARE(server.pomodoroLimits->range(PomodoroField::LongRestMinutes).max, 90);
+            QCOMPARE(server.pomodoroLimits->defaults.longRestMinutes, 20);
+            const QVariantMap map = server.pomodoroLimits->toVariantMap();
+            QCOMPARE(map.value(QStringLiteral("workMinutes")).toMap().value(QStringLiteral("max")).toInt(), 240);
+            QCOMPARE(map.value(QStringLiteral("longRestEvery")).toMap().value(QStringLiteral("default")).toInt(), 4);
+        }
+    }
+
+    void preferencesFollowTheLimits()
+    {
+        PomodoroLimits limits = PomodoroLimits::placeholder();
+        limits.workMinutes = PomodoroRange{5, 240};
+        limits.defaults.workMinutes = 30;
+        limits.longRestEvery = PomodoroRange{1, 6};
+        limits.defaults.longRestEvery = 3;
+        const std::optional<PomodoroConfig> config = decodePomodoroPreferences(
+            *parseJsonBody(R"({"pomodoro_focus_interval_in_minutes":200,"pomodoro_long_break_every":8,"pomodoro_break_interval_in_minutes":7})"),
+            limits);
+        QVERIFY(config);
+        QCOMPARE(config->workMinutes, 200);
+        QCOMPARE(config->longRestEvery, 3);
+        QCOMPARE(config->shortRestMinutes, 7);
+        QCOMPARE(config->longRestMinutes, PomodoroConfig().longRestMinutes);
+        const std::optional<PomodoroConfig> low = decodePomodoroPreferences(*parseJsonBody(R"({"pomodoro_focus_interval_in_minutes":4})"), limits);
+        QCOMPARE(low->workMinutes, 30);
+    }
+
+    void serverFloor()
+    {
+        QCOMPARE(ServerFloor::apiVersion, 1);
+        QCOMPARE(ServerFloor::capabilities(),
+                 (QStringList{QStringLiteral("app-preferences"),
+                              QStringLiteral("timer-actions"),
+                              QStringLiteral("pause-revision"),
+                              QStringLiteral("pomodoro-revision"),
+                              QStringLiteral("timer-edit-entry"),
+                              QStringLiteral("idempotency-keys"),
+                              QStringLiteral("catalog-revision"),
+                              QStringLiteral("latest-entry")}));
+    }
+
+    // An earlier server sent the announcement in /me.
+    void decodeMeAcceptsServerApi()
+    {
+        const std::optional<Me> me = Tokkl::decodeMe(*parseJsonBody(
+            R"({"id":3,"email":"b@example.com","default_workspace_id":9,"api_version":1,"capabilities":["app-preferences","timer-actions"]})"));
+        QVERIFY(me);
+        QCOMPARE(me->id, 3);
     }
 
     void decodeEntries()
@@ -276,6 +427,38 @@ private Q_SLOTS:
         QVERIFY(Tokkl::decodeProjects(*parseJsonBody("[]"))->isEmpty());
         QVERIFY(!Tokkl::decodeProjects(*parseJsonBody("null")));
         QVERIFY(!Tokkl::decodeProjects(*parseJsonBody(R"([{"id":1}])")));
+    }
+
+    void decodeLatestEntry()
+    {
+        const QByteArray body = R"({"id":6,"workspace_id":9,"project_id":4,"billable":true,"start":"2026-10-16T08:00:00Z",
+            "stop":"2026-10-16T09:30:00Z","duration":5400,"description":"","tags":[],"project_active":true,"project_billable":true})";
+        const auto latest = Tokkl::decodeLatestEntry(*parseJsonBody(body));
+        QVERIFY(latest && latest->has_value());
+        QCOMPARE((*latest)->entry.id, 6);
+        QCOMPARE((*latest)->entry.projectId.value_or(0), 4);
+        QVERIFY((*latest)->projectActive);
+        QVERIFY((*latest)->projectBillable);
+
+        const auto none = Tokkl::decodeLatestEntry(*parseJsonBody("null"));
+        QVERIFY(none && !none->has_value());
+        // Without a project the flags are null, which reads as false.
+        const auto bare = Tokkl::decodeLatestEntry(*parseJsonBody(R"({"id":6,"workspace_id":9,"project_id":null,"start":"2026-10-16T08:00:00Z",)"
+                                                                  R"("stop":null,"duration":-1,"project_active":null,"project_billable":null})"));
+        QVERIFY(bare && bare->has_value());
+        QVERIFY(!(*bare)->projectActive);
+        QVERIFY(!Tokkl::decodeLatestEntry(*parseJsonBody("[]")));
+        QVERIFY(!Tokkl::decodeLatestEntry(*parseJsonBody(R"({"id":6,"workspace_id":9,"start":"2026-10-16T08:00:00Z","duration":1,"project_active":"yes"})")));
+    }
+
+    void decodeCatalogRevision()
+    {
+        QCOMPARE(Tokkl::decodeCatalogRevision(*parseJsonBody(R"({"revision":0})")).value_or(-1), qint64(0));
+        QCOMPARE(Tokkl::decodeCatalogRevision(*parseJsonBody(R"({"revision":42})")).value_or(-1), qint64(42));
+        QVERIFY(!Tokkl::decodeCatalogRevision(*parseJsonBody(R"({"revision":-1})")));
+        QVERIFY(!Tokkl::decodeCatalogRevision(*parseJsonBody(R"({"revision":"42"})")));
+        QVERIFY(!Tokkl::decodeCatalogRevision(*parseJsonBody(R"({})")));
+        QVERIFY(!Tokkl::decodeCatalogRevision(*parseJsonBody("42")));
     }
 
     void errors_data()
@@ -329,6 +512,25 @@ private Q_SLOTS:
         QVERIFY(errorFromResponse(refused).message.contains(QLatin1String("Connection refused")));
     }
 
+    void errorHeadersReachTheError()
+    {
+        HttpResponse response;
+        response.outcome = HttpResponse::Outcome::Finished;
+        response.status = 400;
+        response.body = "\"Invalid pomodoro_focus_interval_in_minutes\"";
+        response.errorCode = " invalid_preference ";
+        response.errorField = "pomodoro_focus_interval_in_minutes";
+        const ApiError error = errorFromResponse(response);
+        QVERIFY(error.kind == ApiError::Kind::Client);
+        QCOMPARE(error.code, QStringLiteral("invalid_preference"));
+        QCOMPARE(error.field, QStringLiteral("pomodoro_focus_interval_in_minutes"));
+
+        response.errorCode.clear();
+        response.errorField.clear();
+        QVERIFY(errorFromResponse(response).code.isEmpty());
+        QVERIFY(errorFromResponse(response).field.isEmpty());
+    }
+
     void redirectsHideCredentials()
     {
         HttpResponse response;
@@ -341,15 +543,43 @@ private Q_SLOTS:
         QVERIFY(!message.contains(QLatin1String("token")));
     }
 
+    void asksToWait_data()
+    {
+        QTest::addColumn<int>("status"); // 0 for no HTTP answer
+        QTest::addColumn<QByteArray>("retryAfter");
+        QTest::addColumn<bool>("waits");
+        QTest::newRow("429") << 429 << QByteArray() << true;
+        QTest::newRow("429 with Retry-After") << 429 << QByteArray("30") << true;
+        QTest::newRow("503 with Retry-After") << 503 << QByteArray("30") << true;
+        QTest::newRow("503 with a date") << 503 << QByteArray("Wed, 21 Oct 2026 07:28:00 GMT") << true;
+        QTest::newRow("503 alone") << 503 << QByteArray() << false;
+        QTest::newRow("503 with a blank header") << 503 << QByteArray("  ") << false;
+        QTest::newRow("502 with Retry-After") << 502 << QByteArray("30") << false;
+        QTest::newRow("no answer") << 0 << QByteArray("30") << false;
+    }
+
+    void asksToWait()
+    {
+        QFETCH(int, status);
+        QFETCH(QByteArray, retryAfter);
+        QFETCH(bool, waits);
+        HttpResponse response;
+        response.outcome = status ? HttpResponse::Outcome::Finished : HttpResponse::Outcome::Timeout;
+        response.status = status;
+        response.retryAfter = retryAfter;
+        QCOMPARE(Tokkl::asksToWait(response), waits);
+    }
+
     void encodeStart()
     {
         StartEntry entry;
         entry.start = QDateTime(QDate(2026, 10, 16), QTime(8, 0), QTimeZone::fromSecondsAheadOfUtc(7200));
         entry.projectId = 4;
         entry.billable = true;
-        const QJsonObject body = QJsonDocument::fromJson(encodeStartEntry(entry, 9, QStringLiteral("tokkl-test"))).object();
+        const QJsonObject body = QJsonDocument::fromJson(encodeTimerStart(3, entry, 9, QStringLiteral("tokkl-test"))).object();
         QCOMPARE(body.value(QLatin1String("workspace_id")).toInteger(), 9);
-        QCOMPARE(body.value(QLatin1String("duration")).toInteger(), -1);
+        QCOMPARE(body.value(QLatin1String("revision")).toInteger(), 3);
+        QVERIFY(!body.contains(QLatin1String("duration")));
         QCOMPARE(body.value(QLatin1String("created_with")).toString(), QStringLiteral("tokkl-test"));
         QCOMPARE(body.value(QLatin1String("start")).toString(), QStringLiteral("2026-10-16T06:00:00Z"));
         QCOMPARE(body.value(QLatin1String("project_id")).toInteger(), 4);
@@ -358,7 +588,7 @@ private Q_SLOTS:
 
         StartEntry bare;
         bare.start = QDateTime::currentDateTimeUtc();
-        const QJsonObject bareBody = QJsonDocument::fromJson(encodeStartEntry(bare, 9, QStringLiteral("tokkl-test"))).object();
+        const QJsonObject bareBody = QJsonDocument::fromJson(encodeTimerStart(3, bare, 9, QStringLiteral("tokkl-test"))).object();
         QVERIFY(bareBody.value(QLatin1String("project_id")).isNull());
         QVERIFY(!bareBody.contains(QLatin1String("billable")));
     }
@@ -433,7 +663,6 @@ private Q_SLOTS:
         QVERIFY(paused->pause->billable);
         QCOMPARE(paused->pause->cloneEntryId, std::nullopt);
 
-        // A user who never ran a timer is at revision 0.
         const std::optional<TimerState> idle = decodeText(R"({"revision":0,"server_time":"2026-10-16T09:00:00.000Z","running_entry":null,"pause":null,"pomodoro":null,"discarded_pomodoro":null})");
         QVERIFY(idle);
         QCOMPARE(idle->revision, 0);
@@ -474,7 +703,6 @@ private Q_SLOTS:
         QTest::newRow("pause clone id zero") << withValue(paused, u"pause/clone_entry_id", 0);
     }
 
-    // Any value of the wrong shape refuses the whole state.
     void timerStateIsStrict()
     {
         QFETCH(QJsonValue, state);
@@ -488,16 +716,16 @@ private Q_SLOTS:
         PomodoroStart start;
         start.projectId = 11;
         start.billable = true;
-        const QJsonObject body = QJsonDocument::fromJson(encodePomodoroStart(start, 7, QStringLiteral("tokkl-test"))).object();
+        const QJsonObject body = QJsonDocument::fromJson(encodePomodoroStart(start, 7, QStringLiteral("tokkl-test"), 5)).object();
         QCOMPARE(body.value(QLatin1String("workspace_id")).toInteger(), 7);
+        QCOMPARE(body.value(QLatin1String("revision")).toInteger(), 5);
         QCOMPARE(body.value(QLatin1String("project_id")).toInteger(), 11);
         QCOMPARE(body.value(QLatin1String("billable")), QJsonValue(true));
         QCOMPARE(body.value(QLatin1String("created_with")).toString(), QStringLiteral("tokkl-test"));
         QCOMPARE(body.value(QLatin1String("description")).toString(), QString());
-        // The session lengths are the account's preferences unless set.
         QVERIFY(!body.contains(QLatin1String("work_minutes")));
 
-        const QJsonObject plain = QJsonDocument::fromJson(encodePomodoroStart(PomodoroStart(), 7, QStringLiteral("tokkl-test"))).object();
+        const QJsonObject plain = QJsonDocument::fromJson(encodePomodoroStart(PomodoroStart(), 7, QStringLiteral("tokkl-test"), 5)).object();
         QVERIFY(plain.value(QLatin1String("project_id")).isNull());
         QVERIFY(!plain.contains(QLatin1String("billable")));
     }

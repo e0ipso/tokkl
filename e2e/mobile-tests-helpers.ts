@@ -1,10 +1,9 @@
 import { readFile } from 'node:fs/promises';
 import { expect, type Locator, type Page } from '@playwright/test';
 
-/** The phone settings e2e/mobile.spec.ts uses. Pass to `test.use` in each mobile spec. */
 export const PHONE = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } as const;
 
-/** The page itself never scrolls sideways; wide tables scroll inside their own wrapper. */
+/** Wide tables scroll inside their own wrapper, never the page. */
 export async function expectNoPageOverflow(page: Page): Promise<void> {
   const { scrollWidth, clientWidth } = await page.evaluate(() => ({
     scrollWidth: document.documentElement.scrollWidth,
@@ -13,7 +12,6 @@ export async function expectNoPageOverflow(page: Page): Promise<void> {
   expect(scrollWidth, 'the page scrolls horizontally').toBeLessThanOrEqual(clientWidth);
 }
 
-/** The element lies wholly inside the viewport once scrolled to, so nothing of it is cut off. */
 export async function expectFits(locator: Locator): Promise<void> {
   await locator.scrollIntoViewIfNeeded();
   const box = await locator.boundingBox();
@@ -26,37 +24,28 @@ export async function expectFits(locator: Locator): Promise<void> {
   expect(edges.bottom, 'clipped at the bottom').toBeLessThanOrEqual(viewport.height + 0.5);
 }
 
-/**
- * Taps a control after checking it fits the screen. Playwright's tap also checks that the control
- * itself receives the touch, so a control under the fixed bottom navigation fails here.
- */
+/** Playwright's tap also checks the control gets the touch, so one under the fixed bottom navigation fails. */
 export async function tap(locator: Locator): Promise<void> {
   await expectFits(locator);
   await locator.tap();
 }
 
-/** The pages the phone keeps in the More sheet instead of the bottom bar. */
 const MORE_PAGES = new Set(['Reports', 'Clients', 'Tags', 'Trash']);
 
-/** Taps More in the bottom navigation and returns the sheet it opens, which sits inside the navigation. */
+/** The sheet sits inside the navigation. */
 export async function openMore(page: Page): Promise<Locator> {
   const nav = page.getByRole('navigation', { name: 'Main' });
   await tap(nav.getByRole('button', { name: 'More', exact: true }));
   const sheet = nav.getByRole('dialog', { name: 'More' });
   await expect(sheet).toBeVisible();
-  // Visible can mean the sheet is still sliding up from below the viewport. Wait for its
-  // opening animation before checking link bounds, including frames delayed by a busy runner.
-  await sheet.evaluate(async (element) => {
-    await Promise.all(element.getAnimations().map((animation) => animation.finished));
+  // Visible can mean the sheet is still sliding up; wait for its opening animation before checking link bounds.
+  await sheet.evaluate(async element => {
+    await Promise.all(element.getAnimations().map(animation => animation.finished));
   });
   return sheet;
 }
 
-/**
- * Taps a link in the bottom navigation, or in the More sheet for Reports, Clients, Tags and Trash,
- * and waits for its page. The sheet closes on navigation, so for those pages the More button carries the
- * active state.
- */
+/** The sheet closes on navigation, so for its pages the More button carries the active state. */
 export async function tapNav(page: Page, name: string): Promise<void> {
   const nav = page.getByRole('navigation', { name: 'Main' });
   if (MORE_PAGES.has(name)) {
@@ -69,22 +58,22 @@ export async function tapNav(page: Page, name: string): Promise<void> {
     const link = nav.getByRole('link', { name, exact: true });
     await tap(link);
     await expect(link).toHaveAttribute('aria-current', 'page');
-    await expect(page.getByRole('heading', { level: 1 }).or(page.getByRole('region', { name: 'Timer' })).first()).toBeVisible();
+    await expect(
+      page
+        .getByRole('heading', { level: 1 })
+        .or(page.getByRole('region', { name: 'Timer' }))
+        .first(),
+    ).toBeVisible();
   }
   await expectNoPageOverflow(page);
 }
 
-/**
- * Closes an open popover the way a finger does, with a tap on plain text such as a heading. Pick
- * text away from the popover: Chromium snaps a touch to a nearby control, so a tap on bare margin
- * next to the popover lands inside it.
- */
+/** Tap plain text away from the popover: Chromium snaps a touch to a nearby control. */
 export async function tapOutside(text: Locator): Promise<void> {
   await expect(text).toBeVisible();
   await text.tap();
 }
 
-/** Taps a control that downloads a file and returns the file's name and text. */
 export async function tapDownload(page: Page, control: Locator): Promise<{ filename: string; text: string }> {
   const download = page.waitForEvent('download');
   await tap(control);
@@ -92,8 +81,11 @@ export async function tapDownload(page: Page, control: Locator): Promise<{ filen
   return { filename: file.suggestedFilename(), text: await readFile(await file.path(), 'utf8') };
 }
 
-/** Taps a file-picking control and answers the chooser it opens. */
-export async function tapUpload(page: Page, control: Locator, file: { name: string; mimeType: string; buffer: Buffer }): Promise<void> {
+export async function tapUpload(
+  page: Page,
+  control: Locator,
+  file: { name: string; mimeType: string; buffer: Buffer },
+): Promise<void> {
   const chooser = page.waitForEvent('filechooser');
   await tap(control);
   await (await chooser).setFiles(file);

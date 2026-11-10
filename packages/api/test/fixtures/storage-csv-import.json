@@ -9,12 +9,8 @@
       "rows": 3,
       "created": 2,
       "skipped_duplicates": 0,
-      "created_projects": [
-        "Website (ACME)"
-      ],
-      "created_clients": [
-        "ACME"
-      ],
+      "created_projects": ["Website (ACME)"],
+      "created_clients": ["ACME"],
       "errors": [
         {
           "row": 3,
@@ -49,12 +45,8 @@
       "rows": 3,
       "created": 2,
       "skipped_duplicates": 0,
-      "created_projects": [
-        "Website (ACME)"
-      ],
-      "created_clients": [
-        "ACME"
-      ],
+      "created_projects": ["Website (ACME)"],
+      "created_clients": ["ACME"],
       "errors": [
         {
           "row": 3,
@@ -151,14 +143,8 @@
         "stop": "2026-10-05T09:31:40+00:00",
         "duration": 5420,
         "description": "Homepage, hero",
-        "tags": [
-          "Alpha",
-          "zebra"
-        ],
-        "tag_ids": [
-          "<id>",
-          "<id>"
-        ],
+        "tags": ["Alpha", "zebra"],
+        "tag_ids": ["<id>", "<id>"],
         "duronly": true,
         "all_day": false,
         "at": "2026-10-30T12:00:00+00:00",

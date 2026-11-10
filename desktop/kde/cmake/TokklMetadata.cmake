@@ -1,13 +1,6 @@
-# Metadata stamping for the KDE companion. The version it stamps comes from
-# tokkl_resolve_version() in desktop/core/cmake/TokklVersion.cmake.
-#
-# Works in project mode and in script mode (cmake -P), so the tests can call
-# it without configuring a project.
+# Works in script mode (cmake -P), so tests call it without a project.
 
 # tokkl_stamp_metadata(INPUT <metadata.json> OUTPUT <metadata.json> VERSION <version>)
-#
-# Copies the widget metadata with KPlugin.Version set to VERSION. The source
-# metadata carries no version, so there is nothing to keep in sync by hand.
 function(tokkl_stamp_metadata)
     cmake_parse_arguments(PARSE_ARGV 0 ARG "" "INPUT;OUTPUT;VERSION" "")
 

@@ -1,29 +1,27 @@
 #include "timerstateclient.h"
 
 #include "clock.h"
+#include "logging.h"
 #include "transport.h"
 
 #include <algorithm>
+#include <cstdlib>
 #include <utility>
 
 namespace Tokkl
 {
 
-TimerStateClient::TimerStateClient(Connection *connection, Clock *clock, QObject *parent)
-    : QObject(parent)
+TimerStateClient::TimerStateClient(Connection &connection, Clock &clock, QObject *parent)
+    : SessionState(parent)
     , m_connection(connection)
     , m_clock(clock)
+    , m_generation(connection.generation())
 {
-    if (m_connection) {
-        m_generation = m_connection->generation();
-        connect(m_connection, &Connection::stateChanged, this, &TimerStateClient::onConnectionStateChanged);
-        // A bind to another account under the same state sends only this.
-        connect(m_connection, &Connection::accountChanged, this, &TimerStateClient::onConnectionStateChanged);
-        connect(m_connection, &Connection::generationChanged, this, &TimerStateClient::onGenerationChanged);
-    }
-    if (m_clock) {
-        connect(m_clock, &Clock::ticked, this, &TimerStateClient::onTick);
-    }
+    connect(&m_connection, &Connection::stateChanged, this, &TimerStateClient::onConnectionStateChanged);
+    // A bind to another account under the same state sends only this.
+    connect(&m_connection, &Connection::accountChanged, this, &TimerStateClient::onConnectionStateChanged);
+    connect(&m_connection, &Connection::generationChanged, this, &TimerStateClient::onGenerationChanged);
+    connect(&m_clock, &Clock::ticked, this, &TimerStateClient::onTick);
     onConnectionStateChanged();
 }
 
@@ -37,7 +35,12 @@ TimerStateClient::~TimerStateClient()
 
 Connection *TimerStateClient::connection() const
 {
-    return m_connection;
+    return &m_connection;
+}
+
+Clock &TimerStateClient::clock() const
+{
+    return m_clock;
 }
 
 const std::optional<TimerState> &TimerStateClient::state() const
@@ -62,15 +65,12 @@ qint64 TimerStateClient::serverOffsetMs() const
 
 QDateTime TimerStateClient::serverNow() const
 {
-    const QDateTime now = m_clock ? m_clock->now() : QDateTime::currentDateTimeUtc();
-    return now.addMSecs(m_offsetMs);
+    return m_clock.now().addMSecs(m_offsetMs);
 }
-
-// ----- reading the state ---------------------------------------------------
 
 bool TimerStateClient::readable() const
 {
-    return m_connection && m_connection->isConnected() && !m_connection->rateLimitedUntil().isValid();
+    return m_connection.isConnected() && !m_connection.rateLimitedUntil().isValid();
 }
 
 void TimerStateClient::refresh()
@@ -89,13 +89,11 @@ void TimerStateClient::requestRead(bool fresh)
     }
     m_reading = true;
     m_readAgain = false;
-    if (m_clock) {
-        m_nextPoll = m_clock->now().addMSecs(pollIntervalMs);
-    }
+    m_nextPoll = m_clock.now().addMSecs(pollIntervalMs);
     QPointer<TimerStateClient> self(this);
     const quint64 generation = m_generation;
     const quint64 serial = ++m_readsSent;
-    m_connection->fetchTimerState([self, generation, serial](const ApiResult<TimerState> &result) {
+    m_connection.fetchTimerState([self, generation, serial](const ApiResult<TimerState> &result) {
         if (!self || generation != self->m_generation) {
             return;
         }
@@ -142,21 +140,24 @@ bool TimerStateClient::adopt(const TimerState &state)
         return false;
     }
     m_state = state;
-    m_offsetMs = m_clock ? m_clock->now().msecsTo(state.serverTime) : 0;
+    setOffset(m_clock.now().msecsTo(state.serverTime));
     Q_EMIT stateChanged();
     return true;
 }
 
-// ----- connection and clock ------------------------------------------------
+void TimerStateClient::setOffset(qint64 offsetMs)
+{
+    if (offsetMs == m_offsetMs) {
+        return;
+    }
+    m_offsetMs = offsetMs;
+    Q_EMIT offsetChanged();
+}
 
 void TimerStateClient::onConnectionStateChanged()
 {
-    if (!m_connection) {
-        return;
-    }
-    const Connection::State state = m_connection->state();
-    const bool up = m_connection->isConnected() && state == Connection::Connected;
-    // A new account, or back from a connectivity failure or a cooldown.
+    const Connection::State state = m_connection.state();
+    const bool up = m_connection.isConnected() && state == Connection::Connected;
     const bool cameUp = up && (!m_started || m_lastState != Connection::Connected);
     m_lastState = state;
     if (!cameUp) {
@@ -171,48 +172,60 @@ void TimerStateClient::onConnectionStateChanged()
 
 void TimerStateClient::onGenerationChanged()
 {
-    m_generation = m_connection ? m_connection->generation() : 0;
+    m_generation = m_connection.generation();
     closeStream();
     m_reconnectAt = QDateTime();
     m_backoffMs = reconnectMinMs;
+    m_retryFloorMs = 0;
     m_reading = false;
     m_readAgain = false;
     m_nextPoll = QDateTime();
     m_started = false;
-    m_offsetMs = 0;
+    setOffset(0);
     // The write belonged to the earlier account.
     setSettling(false);
     if (m_state) {
         m_state.reset();
         Q_EMIT stateChanged();
     }
+    Q_EMIT accountReset();
 }
 
 void TimerStateClient::resumed()
 {
-    refresh();
-    if (!m_connection || !m_connection->isConnected()) {
+    const QDateTime now = m_clock.now();
+    if (m_wokeAt.isValid() && std::abs(m_wokeAt.msecsTo(now)) <= resumeGapMs) {
         return;
     }
-    // A stream from before the sleep may be dead without knowing it yet.
-    closeStream();
-    openStream();
+    wake(now);
+}
+
+void TimerStateClient::wake(const QDateTime &now)
+{
+    m_wokeAt = now;
+    // Gaps count from the wake, so a tick that arrives late after the
+    // platform reported it reports nothing more.
+    m_lastTick = now;
+    refresh();
+    if (m_connection.isConnected()) {
+        // A stream from before the sleep may be dead without knowing it yet.
+        closeStream();
+        openStream();
+    }
+    Q_EMIT woke();
 }
 
 void TimerStateClient::onTick()
 {
-    if (!m_clock) {
-        return;
-    }
-    const QDateTime now = m_clock->now();
+    const QDateTime now = m_clock.now();
     const qint64 gap = m_lastTick.isValid() ? m_lastTick.msecsTo(now) : 0;
     m_lastTick = now;
     if (gap > resumeGapMs || gap < -resumeGapMs) {
-        resumed();
+        wake(now);
         return;
     }
     // A clock set back would otherwise postpone the reconnect or the poll.
-    if (m_reconnectAt.isValid() && (now >= m_reconnectAt || now.msecsTo(m_reconnectAt) > reconnectMaxMs)) {
+    if (m_reconnectAt.isValid() && (now >= m_reconnectAt || now.msecsTo(m_reconnectAt) > reconnectLongestMs)) {
         openStream();
     }
     if ((!m_streaming || m_settling) && (!m_nextPoll.isValid() || now >= m_nextPoll || now.msecsTo(m_nextPoll) > pollIntervalMs)) {
@@ -220,15 +233,13 @@ void TimerStateClient::onTick()
     }
 }
 
-// ----- the event stream ----------------------------------------------------
-
 void TimerStateClient::openStream()
 {
     m_reconnectAt = QDateTime();
-    if (!m_connection || !m_connection->isConnected()) {
+    if (!m_connection.isConnected()) {
         return;
     }
-    PendingStream *stream = m_connection->openTimerEvents();
+    PendingStream *stream = m_connection.openTimerEvents();
     if (!stream) {
         scheduleReconnect(); // a cooldown
         return;
@@ -256,10 +267,10 @@ void TimerStateClient::closeStream()
 
 void TimerStateClient::scheduleReconnect()
 {
-    if (!m_clock) {
-        return;
-    }
-    m_reconnectAt = m_clock->now().addMSecs(m_backoffMs);
+    const int baseMs = std::max(m_backoffMs, m_retryFloorMs);
+    const int waitMs = retryWaitMs(baseMs, m_clock);
+    m_reconnectAt = m_clock.now().addMSecs(waitMs);
+    qCDebug(lcNet) << "Event stream reconnects in" << waitMs << "ms";
     m_backoffMs = std::min(m_backoffMs * 2, reconnectMaxMs);
 }
 
@@ -267,11 +278,11 @@ void TimerStateClient::onStreamEnded()
 {
     // The connection refused the credentials, or the stream belongs to an
     // earlier generation.
-    if (!m_connection || m_connection->generation() != m_generation) {
+    if (m_connection.generation() != m_generation) {
         return;
     }
     const bool delivered = m_streaming;
-    if (delivered && m_clock && m_streamingSince.isValid() && m_streamingSince.msecsTo(m_clock->now()) >= reconnectMaxMs) {
+    if (delivered && m_streamingSince.isValid() && m_streamingSince.msecsTo(m_clock.now()) >= reconnectMaxMs) {
         m_backoffMs = reconnectMinMs;
     }
     ++m_streamSerial;
@@ -280,7 +291,6 @@ void TimerStateClient::onStreamEnded()
     m_event = PendingEvent();
     setStreaming(false);
     if (delivered) {
-        // The state may have changed after the last event.
         refresh();
     }
     scheduleReconnect();
@@ -294,6 +304,13 @@ void TimerStateClient::onStreamData(const QByteArray &data)
     QByteArray buffer = std::exchange(m_buffer, QByteArray()) + data;
     qsizetype start = 0;
     for (qsizetype end = buffer.indexOf('\n'); end >= 0 && serial == m_streamSerial; end = buffer.indexOf('\n', start)) {
+        // Counted before the line is read, so an event over the limit never
+        // reaches the parser, even when it arrives whole.
+        m_event.bytes += end + 1 - start;
+        if (m_event.bytes > maxEventBytes) {
+            dropOversizedStream();
+            return;
+        }
         QByteArrayView line(buffer.constData() + start, end - start);
         if (line.endsWith('\r')) {
             line.chop(1);
@@ -305,11 +322,26 @@ void TimerStateClient::onStreamData(const QByteArray &data)
         return;
     }
     m_buffer = buffer.mid(start);
-    if (m_buffer.size() + m_event.data.size() > maxEventBytes) {
-        // Not a stream of timer states.
-        closeStream();
-        scheduleReconnect();
+    if (m_event.bytes + m_buffer.size() > maxEventBytes) {
+        dropOversizedStream();
     }
+}
+
+void TimerStateClient::dropOversizedStream()
+{
+    qCWarning(lcNet) << "Event stream sent more than" << maxEventBytes << "bytes for one event; dropped";
+    closeStream();
+    scheduleReconnect();
+}
+
+void TimerStateClient::dropUnreadableStream()
+{
+    // Its keep-alives would hold it open, and the states after this one may be
+    // just as unreadable.
+    qCWarning(lcNet) << "Event stream sent a timer event Tokkl could not read; dropped";
+    closeStream();
+    refresh();
+    scheduleReconnect();
 }
 
 void TimerStateClient::readLine(QByteArrayView line)
@@ -335,8 +367,21 @@ void TimerStateClient::readLine(QByteArrayView line)
         }
         m_event.data += value;
         m_event.hasData = true;
+    } else if (field == "retry") {
+        readRetry(value);
     }
-    // id, retry and any other field are not used.
+}
+
+void TimerStateClient::readRetry(QByteArrayView value)
+{
+    // ASCII digits only, as the event stream format says; anything else is
+    // ignored. A longer wait than the cap means the cap.
+    if (value.isEmpty() || value.size() > 9 || !std::all_of(value.begin(), value.end(), [](char c) {
+            return c >= '0' && c <= '9';
+        })) {
+        return;
+    }
+    m_retryFloorMs = std::min(int(value.toInt()), reconnectMaxMs);
 }
 
 void TimerStateClient::dispatchEvent()
@@ -348,6 +393,7 @@ void TimerStateClient::dispatchEvent()
     const std::optional<QJsonValue> json = parseJsonBody(event.data);
     const std::optional<TimerState> state = json ? decodeTimerState(*json) : std::nullopt;
     if (!state) {
+        dropUnreadableStream();
         return;
     }
     setStreaming(true);
@@ -360,11 +406,9 @@ void TimerStateClient::setStreaming(bool streaming)
         return;
     }
     m_streaming = streaming;
-    m_streamingSince = streaming && m_clock ? m_clock->now() : QDateTime();
+    m_streamingSince = streaming ? m_clock.now() : QDateTime();
     Q_EMIT streamingChanged();
 }
-
-// ----- actions -------------------------------------------------------------
 
 TimerStateClient::ActionCallback TimerStateClient::adopting(ActionCallback done)
 {
@@ -374,6 +418,7 @@ TimerStateClient::ActionCallback TimerStateClient::adopting(ActionCallback done)
             if (result.state) {
                 self->adopt(*result.state);
             } else if (result.outcome == TimerActionResult::Outcome::Unknown) {
+                qCInfo(lcTimer) << "Timer action outcome unknown; settling by reads:" << result.error.message;
                 // Settled by what the server holds, never by sending again.
                 self->settle();
             }
@@ -401,26 +446,32 @@ void TimerStateClient::refuseLater(const ActionCallback &done, const QString &me
         Qt::QueuedConnection);
 }
 
-void TimerStateClient::withRevision(void (Connection::*action)(qint64, ActionCallback), ActionCallback done)
+void TimerStateClient::withRevision(const std::function<void(Connection &, qint64, ActionCallback)> &action, ActionCallback done)
 {
-    if (!m_connection) {
-        refuseLater(done, tr("Not connected to a Tokkl account."));
-        return;
-    }
     if (!m_state) {
         refuseLater(done, tr("The timer has not been read yet."));
         return;
     }
-    (m_connection->*action)(m_state->revision, adopting(std::move(done)));
+    action(m_connection, m_state->revision, adopting(std::move(done)));
+}
+
+void TimerStateClient::start(const StartEntry &entry, ActionCallback done)
+{
+    withRevision(
+        [entry](Connection &connection, qint64 revision, ActionCallback adopted) {
+            connection.startTimer(revision, entry, std::move(adopted));
+        },
+        std::move(done));
+}
+
+void TimerStateClient::stop(ActionCallback done)
+{
+    withRevision(&Connection::stopTimer, std::move(done));
 }
 
 void TimerStateClient::pause(ActionCallback done)
 {
-    if (!m_connection) {
-        refuseLater(done, tr("Not connected to a Tokkl account."));
-        return;
-    }
-    m_connection->pauseTimer(adopting(std::move(done)));
+    withRevision(&Connection::pauseTimer, std::move(done));
 }
 
 void TimerStateClient::resume(ActionCallback done)
@@ -433,13 +484,18 @@ void TimerStateClient::discard(ActionCallback done)
     withRevision(&Connection::discardPause, std::move(done));
 }
 
+void TimerStateClient::edit(qint64 entryId, const TimeEntryUpdate &update, ActionCallback done)
+{
+    m_connection.editTimer(entryId, update, adopting(std::move(done)));
+}
+
 void TimerStateClient::startPomodoro(const PomodoroStart &start, ActionCallback done)
 {
-    if (!m_connection) {
-        refuseLater(done, tr("Not connected to a Tokkl account."));
-        return;
-    }
-    m_connection->startPomodoro(start, adopting(std::move(done)));
+    withRevision(
+        [start](Connection &connection, qint64 revision, ActionCallback adopted) {
+            connection.startPomodoro(revision, start, std::move(adopted));
+        },
+        std::move(done));
 }
 
 void TimerStateClient::nextPhase(ActionCallback done)

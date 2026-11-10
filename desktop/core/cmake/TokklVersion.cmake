@@ -1,23 +1,11 @@
-# Version resolution for the Tokkl desktop projects.
-#
-# The desktop companions and their shared core ship with the Tokkl release
-# they belong to, so they have no version of their own: the default comes
-# from the root package.json and a release build passes the resolved shared
-# version explicitly.
-#
-# Works in project mode and in script mode (cmake -P), so the tests can call
-# these functions without configuring a project.
+# Works in script mode (cmake -P) too, so tests call these without a project.
 
-# Same shape semantic-release produces: MAJOR.MINOR.PATCH with optional
-# pre-release and build parts.
+# The shape semantic-release produces: MAJOR.MINOR.PATCH[-pre][+build].
 set(TOKKL_SEMVER_REGEX
     "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\\+[0-9A-Za-z.-]+)?$")
 
 # tokkl_resolve_version(<out-var> PACKAGE_JSON <path> [OVERRIDE <version>])
-#
-# Sets <out-var> to OVERRIDE when it is non-empty, otherwise to the "version"
-# field of PACKAGE_JSON. Fails on a missing file, a missing field or a value
-# that is not a semantic version.
+# OVERRIDE when non-empty, else the package.json version; fails unless semver.
 function(tokkl_resolve_version out_var)
     cmake_parse_arguments(PARSE_ARGV 1 ARG "" "PACKAGE_JSON;OVERRIDE" "")
 
@@ -45,9 +33,7 @@ function(tokkl_resolve_version out_var)
     set(${out_var} "${version}" PARENT_SCOPE)
 endfunction()
 
-# tokkl_version_core(<out-var> <version>)
-#
-# Sets <out-var> to MAJOR.MINOR.PATCH, the part CMake's project(VERSION) accepts.
+# tokkl_version_core(<out-var> <version>): MAJOR.MINOR.PATCH for project(VERSION).
 function(tokkl_version_core out_var version)
     if(NOT version MATCHES "${TOKKL_SEMVER_REGEX}")
         message(FATAL_ERROR "\"${version}\" is not a semantic version.")

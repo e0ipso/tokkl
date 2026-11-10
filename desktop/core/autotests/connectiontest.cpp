@@ -1,14 +1,17 @@
-// The connection state machine and the Configure page helper, driven through
-// a scripted transport and credential store.
-
 #include "connection.h"
+#include "connectionsettings.h"
 #include "connectionsetup.h"
+#include "cooldown.h"
 #include "fakes.h"
 
+#include <QDir>
+#include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSignalSpy>
+#include <QSettings>
+#include <QTemporaryDir>
 #include <QTest>
 
 using namespace Tokkl;
@@ -19,34 +22,25 @@ const QString instance = QStringLiteral("https://example.test/tokkl");
 const QString token = QStringLiteral("tok-7f3a9c");
 const QString password = QStringLiteral("hunter2-pw");
 
-QByteArray meBody(qint64 id, qint64 workspace, const QString &email = QStringLiteral("bea@example.test"))
+// Carries the API token so the log check covers it.
+QByteArray meWithToken(qint64 id, qint64 workspace)
 {
-    return QJsonDocument(QJsonObject{
-                             {QStringLiteral("id"), id},
-                             {QStringLiteral("api_token"), token},
-                             {QStringLiteral("email"), email},
-                             {QStringLiteral("fullname"), QStringLiteral("Bea")},
-                             {QStringLiteral("timezone"), QStringLiteral("UTC")},
-                             {QStringLiteral("default_workspace_id"), workspace},
-                             {QStringLiteral("beginning_of_week"), 1},
-                         })
-        .toJson(QJsonDocument::Compact);
+    QJsonObject me = QJsonDocument::fromJson(meBody(id, workspace)).object();
+    me.insert(QStringLiteral("api_token"), token);
+    return json(me);
 }
 
-QByteArray entryBody(qint64 id, qint64 workspace, bool running = true)
+QByteArray stateBody(qint64 revision = 1)
 {
-    QJsonObject entry{
-        {QStringLiteral("id"), id},
-        {QStringLiteral("workspace_id"), workspace},
-        {QStringLiteral("project_id"), QJsonValue::Null},
-        {QStringLiteral("billable"), false},
-        {QStringLiteral("start"), QStringLiteral("2026-10-16T08:00:00+00:00")},
-        {QStringLiteral("stop"), running ? QJsonValue(QJsonValue::Null) : QJsonValue(QStringLiteral("2026-10-16T09:00:00+00:00"))},
-        {QStringLiteral("duration"), running ? -1792137600 : 3600},
-        {QStringLiteral("description"), QString()},
-        {QStringLiteral("tags"), QJsonArray()},
-    };
-    return QJsonDocument(entry).toJson(QJsonDocument::Compact);
+    return QJsonDocument(QJsonObject{
+                             {QStringLiteral("revision"), revision},
+                             {QStringLiteral("server_time"), QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs)},
+                             {QStringLiteral("running_entry"), QJsonValue::Null},
+                             {QStringLiteral("pause"), QJsonValue::Null},
+                             {QStringLiteral("pomodoro"), QJsonValue::Null},
+                             {QStringLiteral("discarded_pomodoro"), QJsonValue::Null},
+                         })
+        .toJson(QJsonDocument::Compact);
 }
 
 QByteArray projectsBody(qint64 workspace)
@@ -75,11 +69,11 @@ class ConnectionTest : public QObject
 {
     Q_OBJECT
 
-    // A connection with its fakes, connected as a validated account.
     struct Fixture {
         FakeTransport transport;
         FakeCredentialStore store;
-        Connection connection{&transport, &store, testClientName()};
+        FakeClock clock;
+        Connection connection{&transport, &store, clock, testClientName()};
     };
 
     static QString tokenKey(const QString &url = instance)
@@ -92,7 +86,6 @@ class ConnectionTest : public QObject
         return credentialKey(parseInstanceUrl(url), AuthMode::Password, email);
     }
 
-    // Configure token auth and answer /me with the given workspace.
     static bool connectAccount(Fixture &f, qint64 userId = 3, qint64 workspace = 7)
     {
         f.store.secrets.insert(tokenKey(), token);
@@ -103,20 +96,8 @@ class ConnectionTest : public QObject
             })) {
             return false;
         }
-        f.transport.respondLast(FakeTransport::answer(200, meBody(userId, workspace)));
+        f.transport.respondLast(FakeTransport::answer(200, meWithToken(userId, workspace)));
         return f.connection.state() == Connection::Connected;
-    }
-
-    // Fill every piece of account data and next-start choice.
-    static bool populate(Fixture &f)
-    {
-        f.connection.fetchProjects();
-        f.transport.respondLast(FakeTransport::answer(200, projectsBody(f.connection.workspaceId())));
-        f.connection.fetchCurrentEntry();
-        f.transport.respondLast(FakeTransport::answer(200, entryBody(5, f.connection.workspaceId())));
-        f.connection.setNextProjectId(11);
-        f.connection.setNextBillable(true);
-        return f.connection.projects().size() == 1 && f.connection.currentEntry().has_value();
     }
 
     static void verifyCleared(const Connection &connection)
@@ -126,11 +107,6 @@ class ConnectionTest : public QObject
         QVERIFY(!connection.account().has_value());
         QCOMPARE(connection.workspaceId(), 0);
         QVERIFY(connection.accountMap().isEmpty());
-        QVERIFY(connection.projects().isEmpty());
-        QVERIFY(!connection.currentEntry().has_value());
-        QVERIFY(connection.currentEntryVariant().isNull());
-        QVERIFY(!connection.nextProjectId().has_value());
-        QVERIFY(!connection.nextBillable());
     }
 
 private Q_SLOTS:
@@ -142,7 +118,6 @@ private Q_SLOTS:
     void cleanupTestCase()
     {
         qInstallMessageHandler(previousHandler);
-        // No secret or Basic credential was logged by any test.
         const QByteArray basic = basicAuthorization(AuthMode::Token, QString(), token);
         for (const QString &line : std::as_const(logLines)) {
             QVERIFY2(!line.contains(token) && !line.contains(password) && !line.contains(QString::fromLatin1(basic.mid(6))), qPrintable(line));
@@ -156,7 +131,6 @@ private Q_SLOTS:
         QCOMPARE(f.connection.authModeString(), QStringLiteral("token"));
         QCOMPARE(f.connection.state(), Connection::Unconfigured);
         QTest::qWait(10);
-        // A blank address never opens the wallet or the network.
         QCOMPARE(f.store.reads, 0);
         QVERIFY(f.transport.requests.isEmpty());
     }
@@ -196,15 +170,13 @@ private Q_SLOTS:
         f.connection.setEmail(QStringLiteral("Bea@example.test"));
         f.connection.setInstanceUrl(instance);
         QTRY_COMPARE(f.transport.requests.size(), 1);
-        // The three settings changed in one go: one wallet read.
         QCOMPARE(f.store.reads, 1);
         QCOMPARE(f.transport.requests.first().authorization, QByteArray("Basic ") + QByteArray("Bea@example.test:hunter2-pw").toBase64());
-        f.transport.respondLast(FakeTransport::answer(200, meBody(3, 7)));
+        f.transport.respondLast(FakeTransport::answer(200, meWithToken(3, 7)));
         QCOMPARE(f.connection.state(), Connection::Connected);
         QCOMPARE(f.connection.account()->email, QStringLiteral("bea@example.test"));
     }
 
-    // A page of distinct projects: ids first .. first + count - 1.
     static QByteArray projectPage(int first, int count, qint64 workspace)
     {
         QJsonArray projects;
@@ -221,12 +193,11 @@ private Q_SLOTS:
     {
         Fixture f;
         QVERIFY(connectAccount(f, 3, 42));
-        std::optional<ApiResult<QList<Project>>> received;
-        f.connection.fetchProjects([&received](const ApiResult<QList<Project>> &result) {
+        std::optional<ApiResult<ProjectList>> received;
+        f.connection.fetchProjects([&received](const ApiResult<ProjectList> &result) {
             received = result;
         });
         const qsizetype before = f.transport.requests.size();
-        // Every page up to the limit is full and new.
         for (int page = 1; page <= Connection::maxProjectPages; ++page) {
             QVERIFY(!received);
             f.transport.respondLast(FakeTransport::answer(200, projectPage((page - 1) * Connection::projectPageSize + 1, Connection::projectPageSize, 42)));
@@ -236,32 +207,29 @@ private Q_SLOTS:
         QCOMPARE(f.transport.requests.size(), before + Connection::maxProjectPages - 1);
         QVERIFY(received);
         QVERIFY(received->ok());
-        QCOMPARE(received->value->size(), Connection::maxProjectPages * Connection::projectPageSize);
-        // The truncated list is reported, not passed off as the whole list.
-        QVERIFY(f.connection.projectsIncomplete());
-        QCOMPARE(f.connection.projectList().size(), Connection::maxProjectPages * Connection::projectPageSize);
+        QCOMPARE(received->value->projects.size(), Connection::maxProjectPages * Connection::projectPageSize);
+        QVERIFY(received->value->incomplete);
 
-        // A short last page ends the reading as complete, and clears the flag.
         received.reset();
-        f.connection.fetchProjects([&received](const ApiResult<QList<Project>> &result) {
+        f.connection.fetchProjects([&received](const ApiResult<ProjectList> &result) {
             received = result;
         });
         f.transport.respondLast(FakeTransport::answer(200, projectPage(1, Connection::projectPageSize, 42)));
         f.transport.respondLast(FakeTransport::answer(200, projectPage(1000, 3, 42)));
         QVERIFY(received && received->ok());
-        QVERIFY(!f.connection.projectsIncomplete());
-        QCOMPARE(received->value->size(), Connection::projectPageSize + 3);
+        QVERIFY(!received->value->incomplete);
+        QCOMPARE(received->value->projects.size(), Connection::projectPageSize + 3);
 
         // A full page of nothing new is a server ignoring the paging, and
         // also ends the reading as before.
         received.reset();
-        f.connection.fetchProjects([&received](const ApiResult<QList<Project>> &result) {
+        f.connection.fetchProjects([&received](const ApiResult<ProjectList> &result) {
             received = result;
         });
         f.transport.respondLast(FakeTransport::answer(200, projectPage(1, Connection::projectPageSize, 42)));
         f.transport.respondLast(FakeTransport::answer(200, projectPage(1, Connection::projectPageSize, 42)));
         QVERIFY(received && received->ok());
-        QVERIFY(!f.connection.projectsIncomplete());
+        QVERIFY(!received->value->incomplete);
     }
 
     void projectsFollowEveryPage()
@@ -280,29 +248,28 @@ private Q_SLOTS:
         };
 
         QList<Project> received;
-        f.connection.fetchProjects([&received](const ApiResult<QList<Project>> &result) {
+        f.connection.fetchProjects([&received](const ApiResult<ProjectList> &result) {
             QVERIFY(result.ok());
-            received = *result.value;
+            received = result.value->projects;
         });
         f.transport.respondLast(FakeTransport::answer(200, page(1, Connection::projectPageSize, 42)));
         QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/v9/workspaces/42/projects?active=true&page=2&per_page=200"));
         QVERIFY(received.isEmpty());
-        // Another workspace's project is never offered.
         f.transport.respondLast(FakeTransport::answer(200, page(1000, 1, 42).chopped(1) + ',' + page(1001, 1, 9).sliced(1)));
         QCOMPARE(received.size(), Connection::projectPageSize + 1);
-        QCOMPARE(f.connection.projectList().size(), Connection::projectPageSize + 1);
         QCOMPARE(received.last().id, 1000);
 
         // A server that ignores the paging parameters sends the same full
         // page again; reading stops there.
         const qsizetype before = f.transport.requests.size();
-        f.connection.fetchProjects();
+        f.connection.fetchProjects([&received](const ApiResult<ProjectList> &result) {
+            received = result.value->projects;
+        });
         f.transport.respondLast(FakeTransport::answer(200, page(1, Connection::projectPageSize, 42)));
         f.transport.respondLast(FakeTransport::answer(200, page(1, Connection::projectPageSize, 42)));
         QCOMPARE(f.transport.requests.size(), before + 2);
-        QCOMPARE(f.connection.projectList().size(), Connection::projectPageSize);
+        QCOMPARE(received.size(), Connection::projectPageSize);
 
-        // One project, archived or not, of the bound workspace only.
         std::optional<Project> archived;
         f.connection.fetchProject(33, [&archived](const ApiResult<Project> &result) {
             archived = result.value;
@@ -311,6 +278,80 @@ private Q_SLOTS:
         f.transport.respondLast(FakeTransport::answer(200, R"({"id":33,"workspace_id":42,"name":"Old","active":false})"));
         QVERIFY(archived);
         QVERIFY(!archived->active);
+    }
+
+    void catalogRevisionOfTheWorkspace()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f, 3, 42));
+        f.transport.holdCatalog = true;
+        std::optional<ApiResult<qint64>> received;
+        f.connection.fetchCatalogRevision([&received](const ApiResult<qint64> &result) {
+            received = result;
+        });
+        QCOMPARE(f.transport.catalogRequests.size(), 1);
+        QCOMPARE(f.transport.catalogRequests.last().url.path(), QStringLiteral("/tokkl/api/app/workspaces/42/catalog"));
+        f.transport.respondCatalog(0, FakeTransport::catalogAt(17));
+        QVERIFY(received && received->ok());
+        QCOMPARE(*received->value, 17);
+
+        received.reset();
+        f.connection.fetchCatalogRevision([&received](const ApiResult<qint64> &result) {
+            received = result;
+        });
+        f.transport.respondCatalog(1, FakeTransport::answer(403, "\"User does not have access to this resource.\""));
+        QVERIFY(received && !received->ok());
+        QCOMPARE(received->error.kind, ApiError::Kind::Forbidden);
+    }
+
+    void settingsRoundTrip()
+    {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        const QString file = dir.filePath(QStringLiteral("tokkl.conf"));
+        {
+            QSettings settings(file, QSettings::IniFormat);
+            QCOMPARE(ConnectionSettings::read(settings), ConnectionSettings{});
+            QVERIFY((ConnectionSettings{instance, QStringLiteral("password"), QStringLiteral("bea@example.test")}.write(settings)));
+        }
+        QSettings settings(file, QSettings::IniFormat);
+        QCOMPARE(settings.value(QStringLiteral("instanceUrl")).toString(), instance);
+        QCOMPARE(settings.value(QStringLiteral("authMode")).toString(), QStringLiteral("password"));
+        QCOMPARE(settings.value(QStringLiteral("email")).toString(), QStringLiteral("bea@example.test"));
+        const ConnectionSettings read = ConnectionSettings::read(settings);
+        QCOMPARE(read.instanceUrl, instance);
+
+        Fixture f;
+        read.applyTo(f.connection);
+        QCOMPARE(f.connection.instanceUrl(), instance);
+        QCOMPARE(f.connection.authMode(), AuthMode::Password);
+        QCOMPARE(f.connection.email(), QStringLiteral("bea@example.test"));
+    }
+
+    // QSettings keeps the first error it meets, so a write after a failed one
+    // must still report its own outcome.
+    void settingsWriteAfterAFailedOne()
+    {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        const QString file = dir.filePath(QStringLiteral("tokkl.conf"));
+        QSettings settings(file, QSettings::IniFormat);
+        settings.setValue(QStringLiteral("monochromeIcon"), true);
+        QVERIFY(QDir().mkpath(file));
+        QVERIFY(!(ConnectionSettings{instance, QStringLiteral("token"), QString()}.write(settings)));
+        QVERIFY(!settings.contains(ConnectionSettings::instanceUrlKey));
+
+        QVERIFY(QDir(file).removeRecursively());
+        const ConnectionSettings next{instance, QStringLiteral("password"), QStringLiteral("bea@example.test")};
+        QVERIFY(next.write(settings));
+        QCOMPARE(ConnectionSettings::read(settings), next);
+        QFile written(file);
+        QVERIFY(written.open(QIODevice::ReadOnly));
+        const QByteArray content = written.readAll();
+        QVERIFY(content.contains("authMode=password"));
+        QVERIFY(content.contains("email=bea@example.test"));
+        QVERIFY(content.contains("monochromeIcon=true"));
+        QVERIFY((ConnectionSettings{instance, QStringLiteral("token"), QString()}.write(settings)));
     }
 
     void webUrlCarriesNoCredentials()
@@ -334,34 +375,28 @@ private Q_SLOTS:
         QCOMPARE(f.connection.workspaceId(), 42);
         QCOMPARE(f.connection.accountMap().value(QStringLiteral("defaultWorkspaceId")).toLongLong(), 42);
 
-        f.connection.fetchProjects();
+        std::optional<ApiResult<ProjectList>> projects;
+        f.connection.fetchProjects([&projects](const ApiResult<ProjectList> &result) {
+            projects = result;
+        });
         QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/v9/workspaces/42/projects?active=true&page=1&per_page=200"));
         f.transport.respondLast(FakeTransport::answer(200, projectsBody(42)));
-        QCOMPARE(f.connection.projectList().size(), 1);
+        QVERIFY(projects && projects->ok());
+        QCOMPARE(projects->value->projects.size(), 1);
 
         StartEntry start;
         start.start = QDateTime::currentDateTimeUtc();
         start.projectId = 11;
-        f.connection.startEntry(start);
+        f.connection.startTimer(1, start);
         const HttpRequest post = f.transport.requests.last();
         QCOMPARE(post.method, QByteArray("POST"));
-        QCOMPARE(path(post), QStringLiteral("/tokkl/api/v9/workspaces/42/time_entries"));
+        QCOMPARE(path(post), QStringLiteral("/tokkl/api/app/timer/start"));
         QCOMPARE(QJsonDocument::fromJson(post.body).object().value(QLatin1String("workspace_id")).toInteger(), 42);
-        f.transport.respondLast(FakeTransport::answer(200, entryBody(5, 42)));
-        QCOMPARE(f.connection.currentEntry()->id, 5);
 
-        TimeEntryUpdate update;
-        update.description = QStringLiteral("Deep work");
-        f.connection.updateEntry(5, update);
-        QCOMPARE(f.transport.requests.last().method, QByteArray("PUT"));
-        QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/v9/workspaces/42/time_entries/5"));
-        f.transport.respondLast(FakeTransport::answer(200, entryBody(5, 42)));
-
-        f.connection.stopEntry(5);
-        QCOMPARE(f.transport.requests.last().method, QByteArray("PATCH"));
-        QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/v9/workspaces/42/time_entries/5/stop"));
-        f.transport.respondLast(FakeTransport::answer(200, entryBody(5, 42, false)));
-        QVERIFY(!f.connection.currentEntry().has_value());
+        PomodoroStart session;
+        f.connection.startPomodoro(1, session);
+        QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/app/pomodoro"));
+        QCOMPARE(QJsonDocument::fromJson(f.transport.requests.last().body).object().value(QLatin1String("workspace_id")).toInteger(), 42);
 
         for (const HttpRequest &request : std::as_const(f.transport.requests)) {
             QVERIFY2(!path(request).contains(QLatin1String("/workspaces/1/")), qPrintable(path(request)));
@@ -373,33 +408,34 @@ private Q_SLOTS:
         Fixture f;
         QVERIFY(connectAccount(f));
 
-        std::optional<ApiResult<std::optional<TimeEntry>>> current;
-        f.connection.fetchCurrentEntry([&](const auto &result) {
+        std::optional<ApiResult<TimerState>> current;
+        f.connection.fetchTimerState([&](const auto &result) {
             current = result;
         });
-        QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/v9/me/time_entries/current"));
-        f.transport.respondLast(FakeTransport::answer(200, "null"));
+        QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/app/timer"));
+        f.transport.respondLast(FakeTransport::answer(200, stateBody(4)));
         QVERIFY(current && current->ok());
-        QVERIFY(!current->value->has_value());
+        QCOMPARE(current->value->revision, 4);
+        QVERIFY(!current->value->runningEntry);
 
         std::optional<ApiResult<Me>> me;
         f.connection.fetchMe([&](const auto &result) {
             me = result;
         });
-        f.transport.respondLast(FakeTransport::answer(200, meBody(3, 7)));
+        f.transport.respondLast(FakeTransport::answer(200, meWithToken(3, 7)));
         QVERIFY(me && me->ok());
         QCOMPARE(me->value->defaultWorkspaceId, 7);
 
-        std::optional<ApiResult<TimeEntry>> stopped;
-        f.connection.stopEntry(99, [&](const auto &result) {
-            stopped = result;
+        std::optional<ApiResult<Project>> project;
+        f.connection.fetchProject(99, [&](const auto &result) {
+            project = result;
         });
-        f.transport.respondLast(FakeTransport::answer(404, "\"Time entry not found\""));
-        QVERIFY(stopped && !stopped->ok());
-        QVERIFY(stopped->error.kind == ApiError::Kind::Client);
-        QCOMPARE(stopped->error.message, QStringLiteral("Time entry not found"));
+        f.transport.respondLast(FakeTransport::answer(404, "\"Project not found\""));
+        QVERIFY(project && !project->ok());
+        QVERIFY(project->error.kind == ApiError::Kind::Client);
+        QCOMPARE(project->error.message, QStringLiteral("Project not found"));
 
-        std::optional<ApiResult<QList<Project>>> projects;
+        std::optional<ApiResult<ProjectList>> projects;
         f.connection.fetchProjects([&](const auto &result) {
             projects = result;
         });
@@ -412,13 +448,14 @@ private Q_SLOTS:
     void operationsNeedAnAccount()
     {
         Fixture f;
-        std::optional<ApiResult<TimeEntry>> result;
+        std::optional<TimerActionResult> result;
         StartEntry start;
         start.start = QDateTime::currentDateTimeUtc();
-        f.connection.startEntry(start, [&](const auto &r) {
+        f.connection.startTimer(1, start, [&](const TimerActionResult &r) {
             result = r;
         });
         QTRY_VERIFY(result.has_value());
+        QVERIFY(result->outcome == TimerActionResult::Outcome::Refused);
         QVERIFY(result->error.kind == ApiError::Kind::NotConnected);
         QVERIFY(f.transport.requests.isEmpty());
     }
@@ -452,21 +489,17 @@ private Q_SLOTS:
     {
         Fixture f;
         QVERIFY(connectAccount(f));
-        QVERIFY(populate(f));
         f.store.failure = CredentialResult::Status::Unavailable;
         f.connection.reconnect();
         QTRY_COMPARE(f.connection.state(), Connection::WalletError);
         verifyCleared(f.connection);
     }
 
-    // The store reports every write: secretChanged when it kept the secret,
-    // secretWriteFailed with the status and no secret when it did not.
     void storeReportsWritesWithoutTheSecret()
     {
         class ReportingStore : public FakeCredentialStore
         {
         public:
-            // A failed result that still carries a secret must not pass it on.
             void reportLeaky(const QString &key)
             {
                 reportWrite(key, CredentialResult{CredentialResult::Status::Failed, QStringLiteral("leaked-secret")});
@@ -500,14 +533,11 @@ private Q_SLOTS:
         QVERIFY(failed.last().second.secret.isEmpty());
     }
 
-    // A settings page saves a secret for the connection's own account and the
-    // store refuses: the connection drops the account and says the new
-    // credentials were not saved, even when the page is already gone.
+    // The connection drops the account even when the settings page is gone.
     void refusedWriteForTheOwnKeyShowsWalletError()
     {
         Fixture f;
         QVERIFY(connectAccount(f));
-        QVERIFY(populate(f));
         const qsizetype requests = f.transport.requests.size();
 
         f.store.failure = CredentialResult::Status::Unavailable;
@@ -523,16 +553,12 @@ private Q_SLOTS:
         QVERIFY(!f.connection.errorString().contains(QLatin1String("refused-secret")));
         verifyCleared(f.connection);
 
-        // The old secret is still in the store, but nothing is validated or
-        // sent with it until the user reconnects.
         QTest::qWait(20);
         QCOMPARE(f.connection.state(), Connection::WalletError);
         QCOMPARE(f.transport.requests.size(), requests);
     }
 
-    // A wallet read that started before the refused write answers after it,
-    // with the old secret. It belongs to an older generation and cannot
-    // replace the error.
+    // The earlier read belongs to an older generation and cannot replace the error.
     void refusedWriteOutranksAnEarlierRead()
     {
         Fixture f;
@@ -552,7 +578,6 @@ private Q_SLOTS:
         QCOMPARE(f.transport.requests.size(), requests);
     }
 
-    // A refused write for another account leaves this one connected.
     void refusedWriteForAnotherKeyIsIgnored()
     {
         Fixture f;
@@ -564,9 +589,8 @@ private Q_SLOTS:
         QVERIFY(f.connection.isConnected());
     }
 
-    // A settings page may save the secret before Plasma hands the matching
-    // settings to the connection. The refusal is kept and shown on the
-    // reload those settings start, without reading the store.
+    // A settings page may save the secret before Plasma hands the connection the
+    // matching settings; the reload those settings start shows the refusal.
     void refusedWriteBeforeTheSettingsShowsOnReload()
     {
         Fixture f;
@@ -583,16 +607,13 @@ private Q_SLOTS:
         QCOMPARE(f.store.reads, 0);
         QVERIFY(f.transport.requests.isEmpty());
 
-        // Reconnect clears it and uses what the store holds.
         f.connection.reconnect();
         QTRY_COMPARE(f.transport.requests.size(), 1);
-        f.transport.respondLast(FakeTransport::answer(200, meBody(3, 7)));
+        f.transport.respondLast(FakeTransport::answer(200, meWithToken(3, 7)));
         QCOMPARE(f.connection.state(), Connection::Connected);
         QCOMPARE(f.transport.requests.last().authorization, basicAuthorization(AuthMode::Token, QString(), token));
     }
 
-    // The kept refusal lasts until the next reload only, and it is shown
-    // only when that reload is for its key.
     void refusedWriteBeforeOtherSettingsIsDropped()
     {
         Fixture f;
@@ -607,8 +628,6 @@ private Q_SLOTS:
         QVERIFY(!f.connection.errorString().contains(QLatin1String("not saved")));
     }
 
-    // A later successful write of the same key replaces the refusal: before
-    // the settings arrive, and while the connection shows it.
     void successfulWriteClearsARefusal()
     {
         Fixture f;
@@ -619,7 +638,7 @@ private Q_SLOTS:
 
         f.connection.setInstanceUrl(instance);
         QTRY_COMPARE(f.transport.requests.size(), 1);
-        f.transport.respondLast(FakeTransport::answer(200, meBody(3, 7)));
+        f.transport.respondLast(FakeTransport::answer(200, meWithToken(3, 7)));
         QCOMPARE(f.connection.state(), Connection::Connected);
 
         f.store.failure = CredentialResult::Status::Disabled;
@@ -633,7 +652,7 @@ private Q_SLOTS:
         f.store.write(tokenKey(), fresh, this, [](const CredentialResult &) { });
         QTRY_COMPARE(f.transport.requests.size(), 2);
         QCOMPARE(f.transport.requests.last().authorization, basicAuthorization(AuthMode::Token, QString(), fresh));
-        f.transport.respondLast(FakeTransport::answer(200, meBody(3, 7)));
+        f.transport.respondLast(FakeTransport::answer(200, meWithToken(3, 7)));
         QCOMPARE(f.connection.state(), Connection::Connected);
     }
 
@@ -641,7 +660,6 @@ private Q_SLOTS:
     {
         Fixture f;
         QVERIFY(connectAccount(f));
-        QVERIFY(populate(f));
         QSignalSpy accountChanged(&f.connection, &Connection::accountChanged);
 
         f.connection.refreshAccount();
@@ -653,27 +671,25 @@ private Q_SLOTS:
         verifyCleared(f.connection);
         QVERIFY(accountChanged.count() >= 1);
 
-        // Writes are blocked and automatic retries do nothing.
         const qsizetype sent = f.transport.requests.size();
-        std::optional<ApiResult<TimeEntry>> write;
-        f.connection.stopEntry(5, [&](const auto &r) {
+        std::optional<TimerActionResult> write;
+        f.connection.stopTimer(1, [&](const TimerActionResult &r) {
             write = r;
         });
         QTRY_VERIFY(write.has_value());
+        QVERIFY(write->outcome == TimerActionResult::Outcome::Refused);
         QVERIFY(write->error.kind == ApiError::Kind::AuthenticationPaused);
         f.connection.refreshAccount();
         QTest::qWait(20);
         QCOMPARE(f.transport.requests.size(), sent);
 
-        // The wallet keeps the secret for correction.
         QCOMPARE(f.store.secrets.value(tokenKey()), token);
         QCOMPARE(f.store.writes, 0);
 
-        // An explicit reconnect validates again.
         f.connection.reconnect();
         QTRY_COMPARE(f.transport.requests.size(), sent + 1);
         QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/v9/me"));
-        f.transport.respondLast(FakeTransport::answer(200, meBody(3, 7)));
+        f.transport.respondLast(FakeTransport::answer(200, meWithToken(3, 7)));
         QCOMPARE(f.connection.state(), Connection::Connected);
     }
 
@@ -697,8 +713,7 @@ private Q_SLOTS:
     {
         Fixture f;
         QVERIFY(connectAccount(f));
-        QVERIFY(populate(f));
-        std::optional<ApiResult<QList<Project>>> result;
+        std::optional<ApiResult<ProjectList>> result;
         f.connection.fetchProjects([&](const auto &r) {
             result = r;
         });
@@ -708,15 +723,12 @@ private Q_SLOTS:
         QVERIFY(f.connection.isConnected());
     }
 
-    // fetchMe() validates the account like refreshAccount(); a workspace
-    // operation leaves a 403 to its caller.
     void fetchMeForbiddenPausesAuthentication()
     {
         Fixture f;
         QVERIFY(connectAccount(f));
-        QVERIFY(populate(f));
 
-        std::optional<ApiResult<QList<Project>>> projects;
+        std::optional<ApiResult<ProjectList>> projects;
         f.connection.fetchProjects([&](const auto &r) {
             projects = r;
         });
@@ -737,25 +749,23 @@ private Q_SLOTS:
         QVERIFY(f.connection.errorString().contains(QLatin1String("Incorrect username and/or password")));
         verifyCleared(f.connection);
         QVERIFY(accountChanged.count() >= 1);
-        // As for a 401: the request belonged to the account that is gone.
         QVERIFY(!answered);
 
-        // Writes are blocked and automatic retries do nothing.
         const qsizetype sent = f.transport.requests.size();
-        std::optional<ApiResult<TimeEntry>> write;
-        f.connection.stopEntry(5, [&](const auto &r) {
+        std::optional<TimerActionResult> write;
+        f.connection.stopTimer(1, [&](const TimerActionResult &r) {
             write = r;
         });
         QTRY_VERIFY(write.has_value());
+        QVERIFY(write->outcome == TimerActionResult::Outcome::Refused);
         QVERIFY(write->error.kind == ApiError::Kind::AuthenticationPaused);
         f.connection.refreshAccount();
         QTest::qWait(20);
         QCOMPARE(f.transport.requests.size(), sent);
 
-        // A 401 from fetchMe() is handled the same way.
         f.connection.reconnect();
         QTRY_COMPARE(f.transport.requests.size(), sent + 1);
-        f.transport.respondLast(FakeTransport::answer(200, meBody(3, 7)));
+        f.transport.respondLast(FakeTransport::answer(200, meWithToken(3, 7)));
         QCOMPARE(f.connection.state(), Connection::Connected);
         f.connection.fetchMe();
         f.transport.respondLast(FakeTransport::answer(401, "\"Invalid credentials\""));
@@ -764,9 +774,8 @@ private Q_SLOTS:
         verifyCleared(f.connection);
     }
 
-    // The current entry request validates the account like /me: the
-    // middleware answers 403 or 401 there for refused credentials.
-    void currentEntryRefusedPausesAuthentication_data()
+    // The middleware answers 403 or 401 on the timer state for refused credentials.
+    void timerStateRefusedPausesAuthentication_data()
     {
         QTest::addColumn<int>("status");
         QTest::addColumn<QByteArray>("body");
@@ -774,45 +783,42 @@ private Q_SLOTS:
         QTest::newRow("401") << 401 << QByteArray("\"Invalid credentials\"");
     }
 
-    void currentEntryRefusedPausesAuthentication()
+    void timerStateRefusedPausesAuthentication()
     {
         QFETCH(int, status);
         QFETCH(QByteArray, body);
         Fixture f;
         QVERIFY(connectAccount(f));
-        QVERIFY(populate(f));
         QSignalSpy accountChanged(&f.connection, &Connection::accountChanged);
 
         bool answered = false;
-        f.connection.fetchCurrentEntry([&](const auto &) {
+        f.connection.fetchTimerState([&](const auto &) {
             answered = true;
         });
-        QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/v9/me/time_entries/current"));
+        QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/app/timer"));
         f.transport.respondLast(FakeTransport::answer(status, body));
         QCOMPARE(f.connection.state(), Connection::AuthenticationFailed);
         QVERIFY(f.connection.errorString().contains(QString::fromUtf8(body).remove(QLatin1Char('"'))));
         verifyCleared(f.connection);
         QVERIFY(accountChanged.count() >= 1);
-        // The request belonged to the account that is gone.
         QVERIFY(!answered);
 
-        // Writes are blocked and automatic retries do nothing.
         const qsizetype sent = f.transport.requests.size();
-        std::optional<ApiResult<TimeEntry>> write;
-        f.connection.stopEntry(5, [&](const auto &r) {
+        std::optional<TimerActionResult> write;
+        f.connection.stopTimer(1, [&](const TimerActionResult &r) {
             write = r;
         });
         QTRY_VERIFY(write.has_value());
+        QVERIFY(write->outcome == TimerActionResult::Outcome::Refused);
         QVERIFY(write->error.kind == ApiError::Kind::AuthenticationPaused);
         f.connection.refreshAccount();
         QTest::qWait(20);
         QCOMPARE(f.transport.requests.size(), sent);
 
-        // An explicit reconnect validates again.
         f.connection.reconnect();
         QTRY_COMPARE(f.transport.requests.size(), sent + 1);
         QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/v9/me"));
-        f.transport.respondLast(FakeTransport::answer(200, meBody(3, 7)));
+        f.transport.respondLast(FakeTransport::answer(200, meWithToken(3, 7)));
         QCOMPARE(f.connection.state(), Connection::Connected);
     }
 
@@ -824,21 +830,25 @@ private Q_SLOTS:
         f.connection.setEmail(QStringLiteral("bea@example.test"));
         f.connection.setInstanceUrl(instance);
         QTRY_COMPARE(f.transport.requests.size(), 1);
-        f.transport.respondLast(FakeTransport::answer(429, "\"Too many failed login attempts, try again later\"", "1"));
+        f.transport.respondLast(FakeTransport::answer(429, "\"Too many failed login attempts, try again later\"", "120"));
         QCOMPARE(f.connection.state(), Connection::RateLimited);
-        QVERIFY(f.connection.rateLimitedUntil().isValid());
+        QCOMPARE(f.connection.rateLimitedUntil(), f.clock.now().addSecs(120));
         QVERIFY(f.connection.errorString().contains(QLatin1String("Too many")));
         QVERIFY(!f.connection.canWrite());
 
         // Nothing is sent during the cooldown, even on explicit reconnect.
+        // The wait runs on the connection's clock.
+        f.clock.advance(119000);
         f.connection.refreshAccount();
         f.connection.reconnect();
-        QTest::qWait(300);
+        QTest::qWait(10);
         QCOMPARE(f.transport.requests.size(), 1);
+        QCOMPARE(f.connection.state(), Connection::RateLimited);
 
-        // Afterwards the connection validates again by itself.
-        QTRY_COMPARE_WITH_TIMEOUT(f.transport.requests.size(), 2, 3000);
-        f.transport.respondLast(FakeTransport::answer(200, meBody(3, 7)));
+        f.clock.advance(1000);
+        QVERIFY(!f.connection.rateLimitedUntil().isValid());
+        QTRY_COMPARE(f.transport.requests.size(), 2);
+        f.transport.respondLast(FakeTransport::answer(200, meWithToken(3, 7)));
         QCOMPARE(f.connection.state(), Connection::Connected);
         QVERIFY(!f.connection.rateLimitedUntil().isValid());
     }
@@ -847,28 +857,81 @@ private Q_SLOTS:
     {
         Fixture f;
         QVERIFY(connectAccount(f));
-        QVERIFY(populate(f));
-        std::optional<ApiResult<QList<Project>>> limited;
+        std::optional<ApiResult<ProjectList>> limited;
         f.connection.fetchProjects([&](const auto &r) {
             limited = r;
         });
         f.transport.respondLast(FakeTransport::answer(429, "\"Too many failed login attempts, try again later\""));
         QVERIFY(limited && limited->error.kind == ApiError::Kind::RateLimited);
         QCOMPARE(f.connection.state(), Connection::RateLimited);
-        // The account stays; only requests wait.
         QVERIFY(f.connection.isConnected());
         QVERIFY(!f.connection.canWrite());
-        const qint64 wait = QDateTime::currentDateTimeUtc().msecsTo(f.connection.rateLimitedUntil());
-        QVERIFY2(wait > Connection::defaultCooldownMs - 5000 && wait <= Connection::defaultCooldownMs, qPrintable(QString::number(wait)));
+        QCOMPARE(f.clock.now().msecsTo(f.connection.rateLimitedUntil()), Cooldown::defaultMs);
 
         const qsizetype sent = f.transport.requests.size();
-        std::optional<ApiResult<std::optional<TimeEntry>>> refused;
-        f.connection.fetchCurrentEntry([&](const auto &r) {
+        std::optional<ApiResult<TimerState>> refused;
+        f.connection.fetchTimerState([&](const auto &r) {
             refused = r;
         });
         QTRY_VERIFY(refused.has_value());
         QVERIFY(refused->error.kind == ApiError::Kind::RateLimited);
         QCOMPARE(f.transport.requests.size(), sent);
+    }
+
+    // Otherwise a clock set far back would block for the time it went back.
+    void rateLimitEndsWhenTheClockIsSetBack()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f));
+        f.connection.fetchProjects();
+        f.transport.respondLast(FakeTransport::answer(429, "\"Too many requests\"", "120"));
+        QCOMPARE(f.connection.state(), Connection::RateLimited);
+        f.clock.advance(-2 * Cooldown::maxMs);
+        QCOMPARE(f.connection.state(), Connection::Connected);
+        QVERIFY(!f.connection.rateLimitedUntil().isValid());
+        QVERIFY(f.connection.canWrite());
+    }
+
+    void unavailableWithRetryAfterCoolsDown()
+    {
+        {
+            Fixture f;
+            QVERIFY(connectAccount(f));
+            std::optional<ApiResult<ProjectList>> refused;
+            f.connection.fetchProjects([&](const auto &r) {
+                refused = r;
+            });
+            f.transport.respondLast(FakeTransport::answer(503, "\"Report queue is full\"", "120"));
+            QVERIFY(refused && refused->error.kind == ApiError::Kind::Server);
+            QCOMPARE(f.connection.state(), Connection::RateLimited);
+            QVERIFY(f.connection.isConnected());
+            QVERIFY(!f.connection.canWrite());
+            QCOMPARE(f.clock.now().msecsTo(f.connection.rateLimitedUntil()), 120000);
+            const qsizetype sent = f.transport.requests.size();
+            f.connection.fetchTimerState();
+            QTest::qWait(10);
+            QCOMPARE(f.transport.requests.size(), sent);
+        }
+        {
+            Fixture f;
+            f.store.secrets.insert(tokenKey(), token);
+            f.connection.setInstanceUrl(instance);
+            QTRY_COMPARE(f.transport.requests.size(), 1);
+            f.transport.respondLast(FakeTransport::answer(503, QByteArray(), "1"));
+            QCOMPARE(f.connection.state(), Connection::RateLimited);
+            f.clock.advance(1000);
+            QTRY_COMPARE(f.transport.requests.size(), 2);
+            f.transport.respondLast(FakeTransport::answer(200, meWithToken(3, 7)));
+            QCOMPARE(f.connection.state(), Connection::Connected);
+        }
+        {
+            Fixture f;
+            f.transport.status = FakeTransport::answer(503, QByteArray(), "60");
+            f.store.secrets.insert(tokenKey(), token);
+            f.connection.setInstanceUrl(instance);
+            QTRY_COMPARE(f.connection.state(), Connection::RateLimited);
+            QVERIFY(f.transport.requests.isEmpty());
+        }
     }
 
     void transientFailuresAreNotAuthenticationFailures_data()
@@ -888,7 +951,6 @@ private Q_SLOTS:
         HttpResponse response = FakeTransport::failure(HttpResponse::Outcome(outcome), QStringLiteral("Connection refused"));
         response.status = status;
 
-        // Before any account is bound: disconnected, not failed, and nothing paused.
         {
             Fixture f;
             f.store.secrets.insert(tokenKey(), token);
@@ -902,22 +964,18 @@ private Q_SLOTS:
             QCOMPARE(f.transport.requests.size(), 2);
         }
 
-        // With a bound account: the data stays, marked stale, and writes may still try.
         {
             Fixture f;
             QVERIFY(connectAccount(f));
-            QVERIFY(populate(f));
-            f.connection.fetchCurrentEntry();
+            f.connection.fetchTimerState();
             f.transport.respondLast(response);
             QCOMPARE(f.connection.state(), Connection::Disconnected);
             QVERIFY(f.connection.isStale());
             QVERIFY(f.connection.isConnected());
             QVERIFY(f.connection.canWrite());
-            QCOMPARE(f.connection.currentEntry()->id, 5);
-            QCOMPARE(f.connection.projects().size(), 1);
 
-            f.connection.fetchCurrentEntry();
-            f.transport.respondLast(FakeTransport::answer(200, "null"));
+            f.connection.fetchTimerState();
+            f.transport.respondLast(FakeTransport::answer(200, stateBody()));
             QCOMPARE(f.connection.state(), Connection::Connected);
             QVERIFY(!f.connection.isStale());
         }
@@ -941,21 +999,17 @@ private Q_SLOTS:
     {
         Fixture f;
         QVERIFY(connectAccount(f));
-        QVERIFY(populate(f));
         const quint64 generation = f.connection.generation();
 
-        // A request is in flight when the address changes.
-        f.connection.fetchCurrentEntry();
+        f.connection.fetchTimerState();
         QPointer<FakeReply> pending = f.transport.replies.last();
 
         f.connection.setInstanceUrl(QStringLiteral("https://other.example.test"));
-        // Cleared at once, before any new reply.
         verifyCleared(f.connection);
         QVERIFY(f.connection.generation() > generation);
         QVERIFY(pending && pending->aborted);
 
-        // The old answer arrives late and changes nothing.
-        pending->deliver(FakeTransport::answer(200, entryBody(77, 7)));
+        pending->deliver(FakeTransport::answer(200, stateBody()));
         verifyCleared(f.connection);
     }
 
@@ -971,14 +1025,12 @@ private Q_SLOTS:
     {
         QFETCH(QString, change);
         Fixture f;
-        // Password mode, so the email names the account.
         f.store.secrets.insert(passwordKey(QStringLiteral("bea@example.test")), password);
         f.connection.setAuthModeString(QStringLiteral("password"));
         f.connection.setEmail(QStringLiteral("bea@example.test"));
         f.connection.setInstanceUrl(instance);
         QTRY_COMPARE(f.transport.requests.size(), 1);
-        f.transport.respondLast(FakeTransport::answer(200, meBody(3, 7)));
-        QVERIFY(populate(f));
+        f.transport.respondLast(FakeTransport::answer(200, meWithToken(3, 7)));
 
         f.connection.fetchProjects();
         QPointer<FakeReply> pending = f.transport.replies.last();
@@ -987,7 +1039,6 @@ private Q_SLOTS:
         } else if (change == QLatin1String("email")) {
             f.connection.setEmail(QStringLiteral("cai@example.test"));
         } else {
-            // The Configure dialog saved a new password for this account.
             f.store.write(passwordKey(QStringLiteral("bea@example.test")), QStringLiteral("new-pw"), &f.store, [](const CredentialResult &) {});
         }
         verifyCleared(f.connection);
@@ -996,8 +1047,7 @@ private Q_SLOTS:
         verifyCleared(f.connection);
 
         if (change == QLatin1String("secret")) {
-            // /me, projects, current entry, the aborted projects request, then /me again.
-            QTRY_COMPARE(f.transport.requests.size(), 5);
+            QTRY_COMPARE(f.transport.requests.size(), 3);
             QCOMPARE(f.transport.requests.last().authorization, QByteArray("Basic ") + QByteArray("bea@example.test:new-pw").toBase64());
         }
     }
@@ -1014,12 +1064,11 @@ private Q_SLOTS:
         f.connection.setInstanceUrl(QStringLiteral("https://other.example.test"));
         QTRY_COMPARE(f.transport.requests.size(), 2);
 
-        // The first instance answers after the switch: ignored.
-        oldMe->deliver(FakeTransport::answer(200, meBody(3, 7)));
+        oldMe->deliver(FakeTransport::answer(200, meWithToken(3, 7)));
         QVERIFY(!f.connection.isConnected());
         QCOMPARE(f.connection.state(), Connection::Connecting);
 
-        f.transport.respondLast(FakeTransport::answer(200, meBody(8, 12)));
+        f.transport.respondLast(FakeTransport::answer(200, meWithToken(8, 12)));
         QCOMPARE(f.connection.workspaceId(), 12);
         QCOMPARE(f.connection.account()->id, 8);
     }
@@ -1029,32 +1078,226 @@ private Q_SLOTS:
         Fixture f;
         QVERIFY(connectAccount(f));
         bool called = false;
-        f.connection.fetchCurrentEntry([&](const auto &) {
+        f.connection.fetchTimerState([&](const auto &) {
             called = true;
         });
         QPointer<FakeReply> pending = f.transport.replies.last();
         f.connection.setEmail(QStringLiteral("ignored-in-token-mode@example.test"));
         f.connection.setAuthModeString(QStringLiteral("password"));
-        pending->deliver(FakeTransport::answer(200, entryBody(5, 7)));
+        pending->deliver(FakeTransport::answer(200, stateBody()));
         QTest::qWait(10);
         QVERIFY(!called);
-        QVERIFY(!f.connection.currentEntry().has_value());
     }
 
     void identityChangeOnRevalidation()
     {
         Fixture f;
         QVERIFY(connectAccount(f, 3, 7));
-        QVERIFY(populate(f));
         const quint64 generation = f.connection.generation();
         f.connection.refreshAccount();
-        // Same credentials, another account and workspace: nothing carries over.
-        f.transport.respondLast(FakeTransport::answer(200, meBody(4, 8)));
+        f.transport.respondLast(FakeTransport::answer(200, meWithToken(4, 8)));
         QVERIFY(f.connection.generation() > generation);
         QCOMPARE(f.connection.workspaceId(), 8);
-        QVERIFY(f.connection.projects().isEmpty());
-        QVERIFY(!f.connection.currentEntry().has_value());
-        QVERIFY(!f.connection.nextProjectId().has_value());
+    }
+
+    void currentServerAnnouncesTheAppRoutes()
+    {
+        Fixture f;
+        f.transport.holdStatus = true;
+        f.store.secrets.insert(tokenKey(), token);
+        f.connection.setInstanceUrl(instance);
+        QTRY_COMPARE(f.transport.statusRequests.size(), 1);
+        QCOMPARE(f.transport.statusRequests.first().method, QByteArray("GET"));
+        QCOMPARE(f.transport.statusRequests.first().url.toString(), QStringLiteral("https://example.test/tokkl/api/app/status"));
+
+        QTest::qWait(10);
+        QVERIFY(f.transport.requests.isEmpty());
+        QCOMPARE(f.connection.state(), Connection::Connecting);
+        QVERIFY(!f.connection.canWrite());
+        QCOMPARE(f.connection.server(), ServerApi());
+
+        f.transport.respondStatus(0, FakeTransport::currentStatus());
+        QCOMPARE(f.transport.requests.size(), 1);
+        QCOMPARE(path(f.transport.requests.first()), QStringLiteral("/tokkl/api/v9/me"));
+        f.transport.respondLast(FakeTransport::answer(200, meWithToken(3, 7)));
+        QCOMPARE(f.connection.state(), Connection::Connected);
+        const ServerApi server = f.connection.server();
+        QCOMPARE(server.version, 1);
+        QVERIFY(server.isSupported());
+
+        f.connection.fetchPreferences();
+        QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/app/me/preferences"));
+    }
+
+    void olderServerIsRefused_data()
+    {
+        QTest::addColumn<HttpResponse>("status");
+        QJsonObject partial = currentServerApi();
+        partial.insert(QStringLiteral("capabilities"), QJsonArray{QStringLiteral("app-preferences"), QStringLiteral("timer-actions"), QStringLiteral("timer-edit")});
+        QTest::newRow("no announcement") << FakeTransport::olderStatus();
+        QTest::newRow("some capabilities") << FakeTransport::answer(200, QJsonDocument(partial).toJson(QJsonDocument::Compact));
+        QTest::newRow("not found") << FakeTransport::answer(404, "\"Not found\"");
+        QTest::newRow("not JSON") << FakeTransport::answer(200, "<html></html>");
+    }
+
+    // /me still goes out, so a wrong address or refused credentials say so.
+    void olderServerIsRefused()
+    {
+        QFETCH(HttpResponse, status);
+        Fixture f;
+        f.transport.status = status;
+        f.store.secrets.insert(tokenKey(), token);
+        f.connection.setInstanceUrl(instance);
+        QTRY_COMPARE(f.transport.requests.size(), 1);
+        QCOMPARE(f.transport.statusRequests.size(), 1);
+        QJsonObject me = QJsonDocument::fromJson(meWithToken(3, 7)).object();
+        me.insert(QStringLiteral("api_version"), 1);
+        me.insert(QStringLiteral("capabilities"), currentServerApi().value(QStringLiteral("capabilities")));
+        f.transport.respondLast(FakeTransport::answer(200, QJsonDocument(me).toJson(QJsonDocument::Compact)));
+        QCOMPARE(f.connection.state(), Connection::Error);
+        QCOMPARE(f.connection.errorString(), QStringLiteral("This Tokkl server is too old for this app; update the server."));
+        verifyCleared(f.connection);
+        QCOMPARE(f.connection.server(), ServerApi());
+        QTest::qWait(10);
+        QCOMPARE(f.transport.requests.size(), 1);
+
+        f.transport.status = FakeTransport::currentStatus();
+        f.connection.reconnect();
+        QTRY_COMPARE(f.transport.requests.size(), 2);
+        QCOMPARE(f.transport.statusRequests.size(), 2);
+        f.transport.respondLast(FakeTransport::answer(200, meWithToken(3, 7)));
+        QCOMPARE(f.connection.state(), Connection::Connected);
+        QVERIFY(f.connection.server().isSupported());
+    }
+
+    void refusedCredentialsOutrankAnOlderServer()
+    {
+        Fixture f;
+        f.transport.status = FakeTransport::olderStatus();
+        f.store.secrets.insert(tokenKey(), token);
+        f.connection.setInstanceUrl(instance);
+        QTRY_COMPARE(f.transport.requests.size(), 1);
+        f.transport.respondLast(FakeTransport::answer(403, "\"Incorrect username and/or password\""));
+        QCOMPARE(f.connection.state(), Connection::AuthenticationFailed);
+    }
+
+    void statusFailureFailsTheValidation_data()
+    {
+        QTest::addColumn<HttpResponse>("status");
+        QTest::addColumn<int>("state");
+        QTest::newRow("no answer") << FakeTransport::failure(HttpResponse::Outcome::NetworkError, QStringLiteral("Host unreachable"))
+                                   << int(Connection::Disconnected);
+        QTest::newRow("timeout") << FakeTransport::failure(HttpResponse::Outcome::Timeout) << int(Connection::Disconnected);
+        QTest::newRow("server error") << FakeTransport::answer(502, QByteArray()) << int(Connection::Disconnected);
+        QTest::newRow("rate limited") << FakeTransport::answer(429, "\"Too many requests\"", "120") << int(Connection::RateLimited);
+    }
+
+    void statusFailureFailsTheValidation()
+    {
+        QFETCH(HttpResponse, status);
+        QFETCH(int, state);
+        Fixture f;
+        f.transport.status = status;
+        f.store.secrets.insert(tokenKey(), token);
+        f.connection.setInstanceUrl(instance);
+        QTRY_COMPARE(f.transport.statusRequests.size(), 1);
+        QTRY_COMPARE(int(f.connection.state()), state);
+        QVERIFY(f.transport.requests.isEmpty());
+        QVERIFY(!f.connection.isConnected());
+    }
+
+    // 30 s, doubling per failure in a row up to 2 min, plus jitter; 30 s after a success.
+    void accountRetriesBackOffWithTheClocksJitter()
+    {
+        FakeClock clock;
+        RetryBackoff retry(Connection::retryBaseMs, Connection::retryMaxMs);
+        QCOMPARE(retry.next(clock), 30000);
+        QCOMPARE(retry.next(clock), 60000);
+        QCOMPARE(retry.next(clock), 120000);
+        QCOMPARE(retry.next(clock), 120000);
+        clock.jitter = 40000;
+        QCOMPARE(retry.next(clock), 120000 + 29999);
+        retry.reset();
+        QCOMPARE(retry.next(clock), 30000 + 7499);
+        clock.jitter = 1000;
+        QCOMPARE(retry.next(clock), 61000);
+    }
+
+    void statusAskedAgainAfterANetworkFailure()
+    {
+        Fixture f;
+        f.transport.status = FakeTransport::failure(HttpResponse::Outcome::NetworkError, QStringLiteral("Host unreachable"));
+        f.store.secrets.insert(tokenKey(), token);
+        f.connection.setInstanceUrl(instance);
+        QTRY_COMPARE(f.connection.state(), Connection::Disconnected);
+        QCOMPARE(f.transport.statusRequests.size(), 1);
+        QVERIFY(f.transport.requests.isEmpty());
+
+        f.transport.status = FakeTransport::currentStatus();
+        f.connection.refreshAccount();
+        QTRY_COMPARE(f.transport.requests.size(), 1);
+        QCOMPARE(f.transport.statusRequests.size(), 2);
+        f.transport.respondLast(FakeTransport::answer(200, meWithToken(3, 7)));
+        QCOMPARE(f.connection.state(), Connection::Connected);
+        QVERIFY(f.connection.server().isSupported());
+
+        f.connection.refreshAccount();
+        QTRY_COMPARE(f.transport.requests.size(), 2);
+        QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/v9/me"));
+        QCOMPARE(f.transport.statusRequests.size(), 2);
+    }
+
+    void statusIsReadOncePerGeneration()
+    {
+        Fixture f;
+        QVERIFY(connectAccount(f));
+        QCOMPARE(f.transport.statusRequests.size(), 1);
+
+        f.connection.refreshAccount();
+        f.transport.respondLast(FakeTransport::answer(200, meWithToken(3, 7)));
+        f.connection.refreshAccount();
+        f.transport.respondLast(FakeTransport::answer(200, meWithToken(4, 8)));
+        QCOMPARE(f.connection.workspaceId(), 8);
+        QVERIFY(f.connection.server().isSupported());
+        QTest::qWait(10);
+        QCOMPARE(f.transport.statusRequests.size(), 1);
+
+        f.transport.status = FakeTransport::olderStatus();
+        f.store.secrets.insert(tokenKey(QStringLiteral("https://other.example.test")), token);
+        const qsizetype before = f.transport.requests.size();
+        f.connection.setInstanceUrl(QStringLiteral("https://other.example.test"));
+        QCOMPARE(f.connection.server(), ServerApi());
+        QTRY_COMPARE(f.transport.requests.size(), before + 1);
+        QCOMPARE(f.transport.statusRequests.size(), 2);
+        QCOMPARE(f.transport.statusRequests.last().url.toString(), QStringLiteral("https://other.example.test/api/app/status"));
+        f.transport.respondLast(FakeTransport::answer(200, meWithToken(3, 7)));
+        QCOMPARE(f.connection.state(), Connection::Error);
+        QCOMPARE(f.connection.server(), ServerApi());
+    }
+
+    void statusInFlight()
+    {
+        Fixture f;
+        f.transport.holdStatus = true;
+        f.store.secrets.insert(tokenKey(), token);
+        f.connection.setInstanceUrl(instance);
+        QTRY_COMPARE(f.transport.statusRequests.size(), 1);
+        f.connection.refreshAccount();
+        QVERIFY(f.transport.requests.isEmpty());
+
+        f.store.secrets.insert(tokenKey(QStringLiteral("https://other.example.test")), token);
+        f.connection.setInstanceUrl(QStringLiteral("https://other.example.test"));
+        QVERIFY(f.transport.statusReplies.first()->aborted);
+        QTRY_COMPARE(f.transport.statusRequests.size(), 2);
+        f.transport.respondStatus(0, FakeTransport::currentStatus());
+        QVERIFY(f.transport.requests.isEmpty());
+
+        f.transport.respondStatus(1, FakeTransport::currentStatus());
+        QCOMPARE(f.transport.requests.size(), 1);
+        QCOMPARE(f.transport.requests.first().url.toString(), QStringLiteral("https://other.example.test/api/v9/me"));
+        f.transport.respondLast(FakeTransport::answer(200, meWithToken(3, 7)));
+        QCOMPARE(f.connection.state(), Connection::Connected);
+        QVERIFY(f.connection.server().isSupported());
     }
 
     void nonTokklAnswer()
@@ -1068,8 +1311,6 @@ private Q_SLOTS:
         QVERIFY(!f.connection.isConnected());
     }
 
-    // ----- Configure page helper ---------------------------------------------
-
     void setupSavesAndLoadsSecrets()
     {
         FakeTransport transport;
@@ -1079,7 +1320,6 @@ private Q_SLOTS:
         setup.setAccount(instance + QLatin1Char('/'), QStringLiteral("token"), QString());
         setup.editSecret(QStringLiteral("  ") + token + QStringLiteral("\n"));
         setup.saveSecret();
-        // Same key as the connection uses, and pasted whitespace dropped.
         QTRY_COMPARE(store.secrets.value(tokenKey()), token);
         QTRY_VERIFY(!setup.isBusy());
 
@@ -1095,7 +1335,6 @@ private Q_SLOTS:
         reopened.loadSecret();
         QTRY_COMPARE(reopened.secret(), token);
         QTRY_VERIFY(!reopened.isBusy());
-        // Apply with the stored secret unchanged writes nothing.
         reopened.saveSecret();
         QCOMPARE(store.writes, 2);
 
@@ -1128,8 +1367,7 @@ private Q_SLOTS:
         QTRY_COMPARE(reading.walletError(), message);
     }
 
-    // The callback form of saveSecret tells the caller when the store has
-    // kept the secret, so a settings window can wait for it before closing.
+    // A settings window waits for the store before closing.
     void setupReportsWhenTheSecretIsSaved()
     {
         FakeTransport transport;
@@ -1140,13 +1378,11 @@ private Q_SLOTS:
             results.append(saved);
         };
 
-        // Nothing to write: done runs at once, with true.
         setup.setAccount(instance, QStringLiteral("token"), QString());
         setup.saveSecret(this, record);
         QCOMPARE(results, QList<bool>{true});
         QCOMPARE(store.writes, 0);
 
-        // A write: done waits for the store's answer.
         results.clear();
         setup.editSecret(token);
         setup.saveSecret(this, record);
@@ -1156,13 +1392,11 @@ private Q_SLOTS:
         QCOMPARE(setup.walletError(), QString());
         QVERIFY(!setup.isBusy());
 
-        // The stored secret again: nothing to write, true at once.
         results.clear();
         setup.saveSecret(this, record);
         QCOMPARE(results, QList<bool>{true});
         QCOMPARE(store.writes, 1);
 
-        // A refused write: false, and walletError says why without the secret.
         results.clear();
         store.failure = CredentialResult::Status::Unavailable;
         setup.editSecret(QStringLiteral("refused-secret"));
@@ -1174,7 +1408,6 @@ private Q_SLOTS:
         QCOMPARE(store.secrets.value(tokenKey()), token);
         QVERIFY(!setup.isBusy());
 
-        // A context gone before the answer: the write still lands, done never runs.
         results.clear();
         store.failure = CredentialResult::Status::Ok;
         setup.editSecret(QStringLiteral("late-secret"));
@@ -1186,18 +1419,8 @@ private Q_SLOTS:
         QCoreApplication::processEvents();
         QVERIFY(results.isEmpty());
         QCOMPARE(setup.walletError(), QString());
-
-        // No credential store: false at once.
-        ConnectionSetup storeless(&transport, nullptr);
-        storeless.setAccount(instance, QStringLiteral("token"), QString());
-        storeless.editSecret(token);
-        storeless.saveSecret(this, record);
-        QCOMPARE(results, QList<bool>{false});
-        QVERIFY(!storeless.walletError().isEmpty());
     }
 
-    // A secret read from the wallet for one account is never tested against
-    // or saved under another one.
     void setupClearsASecretOnAccountChange()
     {
         FakeTransport transport;
@@ -1211,7 +1434,6 @@ private Q_SLOTS:
         setup.loadSecret();
         QTRY_COMPARE(setup.secret(), token);
 
-        // Another address with nothing stored.
         setup.setAccount(other, QStringLiteral("token"), QString());
         QCOMPARE(setup.secret(), QString());
         setup.testAccount();
@@ -1224,7 +1446,6 @@ private Q_SLOTS:
         QCOMPARE(store.writes, 0);
         QVERIFY(!store.secrets.contains(tokenKey(other)));
 
-        // The same address with another sign-in method or email.
         setup.setAccount(instance, QStringLiteral("token"), QString());
         setup.loadSecret();
         QTRY_COMPARE(setup.secret(), token);
@@ -1240,8 +1461,6 @@ private Q_SLOTS:
         QVERIFY(transport.requests.isEmpty());
         QCOMPARE(store.writes, 0);
 
-        // Only the account matters: the same address written differently, or
-        // an email typed during token sign-in, keeps the secret.
         setup.setAccount(instance, QStringLiteral("token"), QString());
         setup.loadSecret();
         QTRY_COMPARE(setup.secret(), token);
@@ -1256,7 +1475,6 @@ private Q_SLOTS:
         store.secrets.insert(tokenKey(), token);
         ConnectionSetup setup(&transport, &store);
 
-        // The read for the first address finishes after the page moved on.
         setup.setAccount(instance, QStringLiteral("token"), QString());
         setup.loadSecret();
         setup.setAccount(QStringLiteral("https://other.example.test"), QStringLiteral("token"), QString());
@@ -1266,7 +1484,6 @@ private Q_SLOTS:
         setup.saveSecret();
         QCOMPARE(store.writes, 0);
 
-        // Also while the address is incomplete.
         setup.setAccount(instance, QStringLiteral("token"), QString());
         setup.loadSecret();
         setup.setAccount(QStringLiteral("https://"), QStringLiteral("token"), QString());
@@ -1296,14 +1513,12 @@ private Q_SLOTS:
         QCOMPARE(transport.requests.size(), 1);
         QCOMPARE(transport.requests.last().url.host(), QStringLiteral("other.example.test"));
         QCOMPARE(transport.requests.last().authorization, basicAuthorization(AuthMode::Token, QString(), typed));
-        transport.respondLast(FakeTransport::answer(200, meBody(4, 9)));
+        transport.respondLast(FakeTransport::answer(200, meWithToken(4, 9)));
 
         setup.saveSecret();
         QTRY_COMPARE(store.secrets.value(tokenKey(other)), typed);
         QCOMPARE(store.secrets.value(tokenKey()), token);
 
-        // Once saved, the secret belongs to that account like a loaded one,
-        // even before the write finishes.
         setup.editSecret(QStringLiteral("replacement"));
         setup.saveSecret();
         setup.setAccount(instance, QStringLiteral("token"), QString());
@@ -1312,7 +1527,6 @@ private Q_SLOTS:
         QCOMPARE(store.secrets.value(tokenKey(other)), QStringLiteral("replacement"));
         QCOMPARE(store.secrets.value(tokenKey()), token);
 
-        // A typed secret wins over a stored one that arrives later.
         setup.setAccount(other, QStringLiteral("token"), QString());
         setup.editSecret(typed);
         setup.loadSecret();
@@ -1332,11 +1546,10 @@ private Q_SLOTS:
         QVERIFY(setup.isBusy());
         QCOMPARE(transport.requests.last().url.toString(), QStringLiteral("https://example.test/sub/path/api/v9/me"));
         QCOMPARE(transport.requests.last().authorization, QByteArray("Basic ") + (token + QStringLiteral(":api_token")).toUtf8().toBase64());
-        transport.respondLast(FakeTransport::answer(200, meBody(3, 42)));
+        transport.respondLast(FakeTransport::answer(200, meWithToken(3, 42)));
         QCOMPARE(setup.testResult(), ConnectionSetup::Succeeded);
         QVERIFY(setup.testMessage().contains(QLatin1String("42")));
         QVERIFY(!setup.isBusy());
-        // Testing never touches the wallet.
         QCOMPARE(store.reads + store.writes, 0);
 
         setup.testConnection(instance, QStringLiteral("password"), QStringLiteral("bea@example.test"), password);
@@ -1346,12 +1559,11 @@ private Q_SLOTS:
         QVERIFY(setup.testMessage().contains(QLatin1String("Incorrect username and/or password")));
         QVERIFY(!setup.testMessage().contains(password));
 
-        // A newer test wins over a slower older one.
         setup.testConnection(instance, QStringLiteral("token"), QString(), token);
         QPointer<FakeReply> older = transport.replies.last();
         setup.testConnection(instance, QStringLiteral("token"), QString(), QStringLiteral("second"));
         QVERIFY(older->aborted);
-        older->deliver(FakeTransport::answer(200, meBody(3, 7)));
+        older->deliver(FakeTransport::answer(200, meWithToken(3, 7)));
         QCOMPARE(setup.testResult(), ConnectionSetup::Testing);
         transport.respondLast(FakeTransport::answer(429, "\"Too many failed login attempts, try again later\""));
         QCOMPARE(setup.testResult(), ConnectionSetup::Failed);
@@ -1365,13 +1577,33 @@ private Q_SLOTS:
         QVERIFY(finished.count() > 0);
     }
 
+    // The cases of insecureurls.json, which the GNOME extension also follows.
+    void setupFlagsPlainHttp_data()
+    {
+        QTest::addColumn<QString>("url");
+        QTest::addColumn<bool>("insecure");
+        QFile file(QStringLiteral(TOKKL_INSECURE_URLS));
+        QVERIFY(file.open(QIODevice::ReadOnly));
+        const QJsonArray cases = QJsonDocument::fromJson(file.readAll()).object().value(QStringLiteral("cases")).toArray();
+        QVERIFY(cases.size() > 10);
+        for (const QJsonValue &value : cases) {
+            const QJsonObject item = value.toObject();
+            const QString url = item.value(QStringLiteral("url")).toString();
+            QTest::newRow(qPrintable(url.isEmpty() ? QStringLiteral("(empty)") : url)) << url << item.value(QStringLiteral("insecure")).toBool();
+        }
+    }
+
     void setupFlagsPlainHttp()
     {
+        QFETCH(QString, url);
+        QFETCH(bool, insecure);
         ConnectionSetup setup(nullptr, nullptr);
-        QVERIFY(setup.isInsecure(QStringLiteral("http://tokkl.example.test")));
-        QVERIFY(!setup.isInsecure(QStringLiteral("https://tokkl.example.test")));
-        QVERIFY(!setup.isInsecure(QStringLiteral("http://localhost:8080")));
-        QVERIFY(!setup.isInsecure(QStringLiteral("http://127.0.0.1:8080")));
+        QCOMPARE(setup.isInsecure(url), insecure);
+    }
+
+    void setupRefusesUserInfo()
+    {
+        ConnectionSetup setup(nullptr, nullptr);
         QVERIFY(setup.urlError(QStringLiteral("https://u:p@example.test")).contains(QLatin1String("user name")));
         QCOMPARE(setup.urlError(instance), QString());
     }
@@ -1382,7 +1614,6 @@ private Q_SLOTS:
         QCOMPARE(setup.persistedUrl(QStringLiteral(" HTTPS://Example.test:443/tokkl/ ")), instance);
         QCOMPARE(setup.persistedUrl(QStringLiteral("http://127.0.0.1:8080/")), QStringLiteral("http://127.0.0.1:8080"));
         QCOMPARE(setup.persistedUrl(instance), instance);
-        // Normalizing twice changes nothing, so the field and the setting agree.
         const QString once = setup.persistedUrl(QStringLiteral("https://example.test/a%20b/"));
         QCOMPARE(setup.persistedUrl(once), once);
 

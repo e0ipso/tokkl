@@ -49,17 +49,21 @@ trap 'rm -rf "$work"' EXIT
 
 uuid="$(jq -r .uuid "$extension_dir/metadata.json")"
 # The files the extension runs from, with the logo and the hourglass the top
-# bar button shows; tests/ and ci/ stay behind.
+# bar button shows; tests/ and ci/ stay behind. The D-Bus interface
+# description comes from desktop/gnome/dbus, its only copy in the checkout;
+# timer1proxy.js reads it next to itself.
 mkdir -p "$work/source"
 cp -a "$extension_dir"/*.js "$extension_dir"/*.png "$extension_dir"/*.svg "$extension_dir/stylesheet.css" \
     "$extension_dir/schemas" "$work/source/"
+cp "$extension_dir/../dbus/org.tokkl.Timer1.xml" "$work/source/"
 jq --arg version "$version" '. + {"version-name": $version}' "$extension_dir/metadata.json" \
     > "$work/source/metadata.json"
 
 # gnome-extensions pack adds only its standard files by itself; the other
-# modules and the pictures go in as extra sources.
+# modules, the pictures and the interface description go in as extra
+# sources.
 extra=()
-for file in "$work/source"/*.js "$work/source"/*.png "$work/source"/*.svg; do
+for file in "$work/source"/*.js "$work/source"/*.png "$work/source"/*.svg "$work/source"/*.xml; do
     case "$(basename "$file")" in
         extension.js|prefs.js) ;;
         *) extra+=("--extra-source=$(basename "$file")") ;;

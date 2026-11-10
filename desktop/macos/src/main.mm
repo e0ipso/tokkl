@@ -1,10 +1,10 @@
-// Tokkl for the macOS menu bar: the platform parts handed to MenuBarApp.
-
+#include "clock.h"
 #include "keychaincredentialstore.h"
 #include "macalarmplayer.h"
 #include "macloginitem.h"
 #include "macstatusitem.h"
 #include "menubarapp.h"
+#include "translations.h"
 #include "transport.h"
 
 #include <QApplication>
@@ -35,12 +35,13 @@ void bringToFront()
 int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
-    // QSettings keeps the nonsecret settings in
-    // ~/Library/Preferences/com.canpicasoft.Tokkl.plist.
+    // Settings go to ~/Library/Preferences/com.canpicasoft.Tokkl.plist.
     QApplication::setOrganizationDomain(QStringLiteral("canpicasoft.com"));
     QApplication::setApplicationName(QStringLiteral("Tokkl"));
     QApplication::setApplicationVersion(QStringLiteral(TOKKL_VERSION_STRING));
-    // Closing the settings window leaves the menu bar item running.
+    const QStringList localeDirs{QCoreApplication::applicationDirPath() + QStringLiteral("/../Resources/locale")};
+    Tokkl::installTranslations(Tokkl::coreCatalog, localeDirs);
+    Tokkl::installTranslations(QStringLiteral("tokkl_macos_qt"), localeDirs);
     QApplication::setQuitOnLastWindowClosed(false);
 
     const std::unique_ptr<Tokkl::Transport> transport(Tokkl::MenuBarApp::createTransport());
@@ -49,17 +50,24 @@ int main(int argc, char *argv[])
     Tokkl::MacLoginItem loginItem;
     Tokkl::MacAlarmPlayer alarmPlayer;
     QSettings settings;
+    Tokkl::SystemClock clock;
 
-    Tokkl::MenuBarApp tokkl(transport.get(), &store, &statusItem, &loginItem, &alarmPlayer, &settings);
+    Tokkl::MenuBarApp tokkl(transport.get(),
+                            &store,
+                            statusItem,
+                            loginItem,
+                            alarmPlayer,
+                            settings,
+                            clock,
+                            QCoreApplication::applicationDirPath() + QStringLiteral("/../Resources/sounds"));
     QObject::connect(&tokkl, &Tokkl::MenuBarApp::settingsShown, &tokkl, &bringToFront);
-    // The configured base URL only: it never holds credentials.
+    // The configured base URL never holds credentials.
     QObject::connect(&tokkl, &Tokkl::MenuBarApp::openUrlRequested, &tokkl, [](const QUrl &url) {
         QDesktopServices::openUrl(url);
     });
     QObject::connect(&tokkl, &Tokkl::MenuBarApp::quitRequested, &app, &QCoreApplication::quit, Qt::QueuedConnection);
 
-    // Read the timer and the Pomodoro session at once after sleep instead of
-    // waiting for a late tick.
+    // The core counts this and the late tick that follows as one wake.
     QPointer<Tokkl::MenuBarApp> menuBarApp(&tokkl);
     id wakeObserver = [NSWorkspace.sharedWorkspace.notificationCenter addObserverForName:NSWorkspaceDidWakeNotification
                                                                                   object:nil

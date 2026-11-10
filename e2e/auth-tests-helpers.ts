@@ -12,28 +12,27 @@ const FIRST_PORT = Number(process.env.E2E_PORT ?? 8095) + 50;
 const DAY_MS = 86_400_000;
 
 export const SETUP_CODE = 'AUTH-TESTS-SETUP';
-/** The header the web client sends; login, setup and invite acceptance refuse requests without it. */
+/** Login, setup and invite acceptance refuse requests without it. */
 export const CSRF = { 'X-Tokkl-CSRF': '1' };
 export const ACCOUNT = { email: 'owner@auth.example', password: 'first password 1', fullname: 'Auth Owner' };
 
 export interface ServerOptions {
-  /** 0 to 9, picks the port E2E_PORT + 50 + slot. */
+  /** Picks the port E2E_PORT + 50 + slot. */
   slot: number;
   /** Reuse a data directory from an earlier start, to restart the same account. */
   dataDir?: string;
-  /** Shifts only the server's Date by this many milliseconds, so session expiry needs no waiting. */
+  /** Shifts only the server's Date, so session expiry needs no waiting. */
   clockShiftMs?: number;
 }
 
 export interface DisposableServer {
   baseURL: string;
   dataDir: string;
-  /** Everything the server process has written to stdout and stderr so far. */
   output: () => string;
   stop: () => Promise<void>;
 }
 
-/** Replaces Date in the server process with one that runs `shiftMs` ahead. Nothing else changes. */
+/** Nothing but Date changes. */
 function clockShiftImport(shiftMs: number): string {
   const code = `
     const RealDate = Date;
@@ -54,7 +53,7 @@ async function waitForHealth(baseURL: string, child: ChildProcess, log: () => st
     } catch {
       // Not listening yet.
     }
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await new Promise(resolve => setTimeout(resolve, 100));
   }
   throw new Error(`Disposable server at ${baseURL} did not become healthy:\n${log()}`);
 }
@@ -66,15 +65,26 @@ async function startServer(options: ServerOptions): Promise<DisposableServer> {
   const args = options.clockShiftMs ? ['--import', clockShiftImport(options.clockShiftMs)] : [];
   const child = spawn(process.execPath, [...args, 'packages/api/src/index.ts'], {
     cwd: ROOT,
-    env: { ...process.env, PORT: String(port), HOST: '127.0.0.1', TOKKL_DATA_DIR: dataDir, TOKKL_DATABASE_URL: `sqlite://${join(dataDir,'tokkl.sqlite')}`, TOKKL_SETUP_CODE: SETUP_CODE },
+    env: {
+      ...process.env,
+      PORT: String(port),
+      HOST: '127.0.0.1',
+      TOKKL_DATA_DIR: dataDir,
+      TOKKL_DATABASE_URL: `sqlite://${join(dataDir, 'tokkl.sqlite')}`,
+      TOKKL_SETUP_CODE: SETUP_CODE,
+    },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let output = '';
-  child.stdout!.on('data', (chunk) => { output += chunk; });
-  child.stderr!.on('data', (chunk) => { output += chunk; });
+  child.stdout!.on('data', chunk => {
+    output += chunk;
+  });
+  child.stderr!.on('data', chunk => {
+    output += chunk;
+  });
   const stop = async () => {
     if (child.exitCode === null && child.signalCode === null) {
-      const exited = new Promise((resolve) => child.once('exit', resolve));
+      const exited = new Promise(resolve => child.once('exit', resolve));
       child.kill('SIGTERM');
       await exited;
     }
@@ -88,7 +98,6 @@ async function startServer(options: ServerOptions): Promise<DisposableServer> {
   return { baseURL, dataDir, output: () => output, stop };
 }
 
-/** Starts disposable servers for one scenario; stops them and deletes their data afterwards. */
 export class ServerPool {
   private readonly running: DisposableServer[] = [];
   private readonly dataDirs = new Set<string>();
@@ -124,10 +133,10 @@ export function days(count: number): number {
   return count * DAY_MS;
 }
 
-/** Password and setup code counters run over a 15-minute window (packages/api/src/auth/rateLimit.ts). */
+/** As in packages/api/src/auth/rateLimit.ts. */
 export const LIMIT_WINDOW_SECONDS = 15 * 60;
 
-/** The whole seconds a limiter 429 says to wait: an integer from 1 to the window. */
+/** An integer from 1 to the window. */
 export function retryAfter(response: { headers(): Record<string, string> }): number {
   const value = response.headers()['retry-after'];
   expect(value, 'a 429 carries Retry-After').toMatch(/^\d+$/);
@@ -141,11 +150,13 @@ export function basic(username: string, password: string): string {
   return `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`;
 }
 
-/** Creates the account on a fresh disposable server through the API and returns its API token. */
 export async function createAccount(baseURL: string): Promise<{ apiToken: string }> {
   const api = await request.newContext({ baseURL });
   try {
-    const setup = await api.post('/api/app/setup', { headers: CSRF, data: { setup_code: SETUP_CODE, ...ACCOUNT, timezone: 'Europe/Madrid' } });
+    const setup = await api.post('/api/app/setup', {
+      headers: CSRF,
+      data: { setup_code: SETUP_CODE, ...ACCOUNT, timezone: 'Europe/Madrid' },
+    });
     expect(setup.status()).toBe(200);
     const me = await api.get('/api/v9/me');
     expect(me.status()).toBe(200);
@@ -155,8 +166,11 @@ export async function createAccount(baseURL: string): Promise<{ apiToken: string
   }
 }
 
-/** Runs `use` with a request context that sends the given Authorization header, then disposes it. */
-export async function withAuth<T>(baseURL: string, authorization: string, use: (api: APIRequestContext) => Promise<T>): Promise<T> {
+export async function withAuth<T>(
+  baseURL: string,
+  authorization: string,
+  use: (api: APIRequestContext) => Promise<T>,
+): Promise<T> {
   const api = await request.newContext({ baseURL, extraHTTPHeaders: { authorization } });
   try {
     return await use(api);
@@ -165,40 +179,33 @@ export async function withAuth<T>(baseURL: string, authorization: string, use: (
   }
 }
 
-/** Creates an invite as an admin, through the API, and returns its /invite/<token> path. */
 export async function createInvite(baseURL: string, apiToken: string, role: 'admin' | 'user'): Promise<string> {
-  return withAuth(baseURL, basic(apiToken, 'api_token'), async (api) => {
+  return withAuth(baseURL, basic(apiToken, 'api_token'), async api => {
     const response = await api.post('/api/app/admin/invites', { data: { role } });
     expect(response.status()).toBe(200);
-    const { url } = await response.json() as { url: string };
+    const { url } = (await response.json()) as { url: string };
     expect(url).toMatch(/^\/invite\/[\w-]+$/);
     return url;
   });
 }
 
-/**
- * Issues a password reset link for the account with `email`, as an admin through the API, and
- * returns its /reset/<token> path.
- */
 export async function createPasswordReset(baseURL: string, apiToken: string, email: string): Promise<string> {
-  return withAuth(baseURL, basic(apiToken, 'api_token'), async (api) => {
-    const users = await (await api.get('/api/app/admin/users')).json() as Array<{ id: number; email: string }>;
-    const user = users.find((account) => account.email === email);
+  return withAuth(baseURL, basic(apiToken, 'api_token'), async api => {
+    const users = (await (await api.get('/api/app/admin/users')).json()) as Array<{ id: number; email: string }>;
+    const user = users.find(account => account.email === email);
     expect(user, `an account for ${email}`).toBeDefined();
     const response = await api.post(`/api/app/admin/users/${user!.id}/password-reset`);
     expect(response.status()).toBe(200);
-    const { url } = await response.json() as { url: string };
+    const { url } = (await response.json()) as { url: string };
     expect(url).toMatch(/^\/reset\/[\w-]+$/);
     return url;
   });
 }
 
-/** The API path behind an /invite/<token> link: GET looks the invite up, POST accepts it. */
 export function inviteApiPath(invite: string): string {
   return invite.replace(/^\/invite\//, '/api/app/invites/');
 }
 
-/** The API path behind a /reset/<token> link: GET looks the link up, POST sets the password. */
 export function resetApiPath(reset: string): string {
   return reset.replace(/^\/reset\//, '/api/app/password-resets/');
 }
@@ -208,28 +215,26 @@ export interface InvitedAccount {
   password: string;
   apiToken: string;
   workspaceId: number;
-  /** The tokkl_session cookie value the acceptance set. */
   session: string;
 }
 
-/** Accepts an invite over the API, as the web form does, and returns the new account's credentials. */
 export async function acceptInvite(baseURL: string, invite: string, email: string): Promise<InvitedAccount> {
   const password = `${email} password`;
   const api = await request.newContext({ baseURL });
   try {
     const accept = await api.post(inviteApiPath(invite), {
-      headers: CSRF, data: { email, password, fullname: email, timezone: 'Europe/Madrid' },
+      headers: CSRF,
+      data: { email, password, fullname: email, timezone: 'Europe/Madrid' },
     });
     expect(accept.status()).toBe(200);
-    const session = (await api.storageState()).cookies.find((c) => c.name === 'tokkl_session')!.value;
-    const me = await (await api.get('/api/v9/me')).json() as { api_token: string; default_workspace_id: number };
+    const session = (await api.storageState()).cookies.find(c => c.name === 'tokkl_session')!.value;
+    const me = (await (await api.get('/api/v9/me')).json()) as { api_token: string; default_workspace_id: number };
     return { email, password, apiToken: me.api_token, workspaceId: me.default_workspace_id, session };
   } finally {
     await api.dispose();
   }
 }
 
-/** Logs in through the form and waits for the timer page. */
 export async function logInThroughForm(page: Page, baseURL: string, password = ACCOUNT.password): Promise<void> {
   await page.goto(baseURL);
   await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible();
@@ -239,7 +244,6 @@ export async function logInThroughForm(page: Page, baseURL: string, password = A
   await expect(page.getByRole('region', { name: 'Timer' })).toBeVisible();
 }
 
-/** Status of GET /api/v9/me sent with only the given session cookie, from outside any browser. */
 export async function meWithSession(baseURL: string, session: string): Promise<number> {
   const api = await request.newContext({ baseURL, extraHTTPHeaders: { cookie: `tokkl_session=${session}` } });
   try {
@@ -249,7 +253,6 @@ export async function meWithSession(baseURL: string, session: string): Promise<n
   }
 }
 
-/** Status of GET /api/v9/me with HTTP Basic credentials and no cookie. */
 export async function meWithBasic(baseURL: string, authorization: string): Promise<number> {
   const api = await request.newContext({ baseURL, extraHTTPHeaders: { authorization } });
   try {
@@ -260,7 +263,7 @@ export async function meWithBasic(baseURL: string, authorization: string): Promi
 }
 
 export async function sessionCookie(page: Page, baseURL: string): Promise<string> {
-  const cookie = (await page.context().cookies(baseURL)).find((c) => c.name === 'tokkl_session');
+  const cookie = (await page.context().cookies(baseURL)).find(c => c.name === 'tokkl_session');
   expect(cookie, 'the browser holds a session cookie').toBeDefined();
   return cookie!.value;
 }

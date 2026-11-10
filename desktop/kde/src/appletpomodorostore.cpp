@@ -34,6 +34,7 @@ void AppletPomodoroStore::setApplet(QObject *applet)
     }
     m_applet = applet;
     Q_EMIT appletChanged();
+    Q_EMIT sourceChanged();
 }
 
 bool AppletPomodoroStore::loadPomodoroMode()

@@ -1,0 +1,12 @@
+dist/
+node_modules/
+test-results/
+playwright-report/
+data/
+docs/
+.ai/
+.agents/
+.claude/
+CHANGELOG.md
+package-lock.json
+e2e/**/*-snapshots/

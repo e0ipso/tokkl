@@ -2,7 +2,16 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -34,8 +43,13 @@ function runScript(job: string, step: string): string {
     if (line.trim() !== '' && line.search(/\S/) <= keyIndent) break;
     body.push(line);
   }
-  const indent = Math.min(...body.filter((l) => l.trim() !== '').map((l) => l.search(/\S/)));
-  return body.map((l) => l.slice(indent)).join('\n').trimEnd() + '\n';
+  const indent = Math.min(...body.filter(l => l.trim() !== '').map(l => l.search(/\S/)));
+  return (
+    body
+      .map(l => l.slice(indent))
+      .join('\n')
+      .trimEnd() + '\n'
+  );
 }
 
 type Sandbox = { root: string; dir: string; ghLog: string; put: (name: string, content?: string) => void };
@@ -78,9 +92,9 @@ const DEB = 'tokkl-timerd_1.2.3_amd64.deb';
 const RPM = 'tokkl-timerd-1.2.3-1.fc44.x86_64.rpm';
 const ZIP = 'tokkl-gnome-extension-1.2.3.zip';
 
-test('gnome-publish attaches the DEB, the RPM and the zip with their labels', (t) => {
+test('gnome-publish attaches the DEB, the RPM and the zip with their labels', t => {
   const box = sandbox(t);
-  [DEB, RPM, ZIP].forEach((name) => box.put(name));
+  [DEB, RPM, ZIP].forEach(name => box.put(name));
   const result = runStep(box, GNOME_PUBLISH, { TAG: 'v1.2.3' });
   assert.equal(result.status, 0, result.stderr);
   assert.deepEqual(result.gh, [
@@ -96,14 +110,14 @@ test('gnome-publish attaches the DEB, the RPM and the zip with their labels', (t
   ]);
 });
 
-test('gnome-publish matches the native version of a prerelease, not the tag', (t) => {
+test('gnome-publish matches the native version of a prerelease, not the tag', t => {
   // The packages carry native-version.sh's form of the version; the zip keeps the tag's.
   const box = sandbox(t);
   const native = execFileSync(NATIVE_VERSION, ['1.3.0-rc.1'], { encoding: 'utf8' }).trim();
   assert.notEqual(native, '1.3.0-rc.1');
   const deb = `tokkl-timerd_${native}_amd64.deb`;
   const rpm = `tokkl-timerd-${native}-1.fc44.x86_64.rpm`;
-  [deb, rpm, 'tokkl-gnome-extension-1.3.0-rc.1.zip'].forEach((name) => box.put(name));
+  [deb, rpm, 'tokkl-gnome-extension-1.3.0-rc.1.zip'].forEach(name => box.put(name));
   const result = runStep(box, GNOME_PUBLISH, { TAG: 'v1.3.0-rc.1' });
   assert.equal(result.status, 0, result.stderr);
   assert.equal(result.gh?.[3], `${box.dir}/${deb}#tokkl-timerd DEB for Debian 13 (amd64)`);
@@ -116,9 +130,9 @@ for (const [missing, present] of [
   ['the zip', [DEB, RPM]],
   ['everything', []],
 ] as const) {
-  test(`gnome-publish uploads nothing when ${missing} is missing`, (t) => {
+  test(`gnome-publish uploads nothing when ${missing} is missing`, t => {
     const box = sandbox(t);
-    present.forEach((name) => box.put(name));
+    present.forEach(name => box.put(name));
     const result = runStep(box, GNOME_PUBLISH, { TAG: 'v1.2.3' });
     assert.equal(result.status, 1);
     assert.equal(result.gh, null);
@@ -126,34 +140,34 @@ for (const [missing, present] of [
   });
 }
 
-test('gnome-publish uploads nothing when two DEBs or two RPMs are in the artifact', (t) => {
+test('gnome-publish uploads nothing when two DEBs or two RPMs are in the artifact', t => {
   for (const extra of ['tokkl-timerd_1.2.2_amd64.deb', 'tokkl-timerd-1.2.2-1.fc44.x86_64.rpm']) {
     const box = sandbox(t);
-    [DEB, RPM, ZIP, extra].forEach((name) => box.put(name));
+    [DEB, RPM, ZIP, extra].forEach(name => box.put(name));
     const result = runStep(box, GNOME_PUBLISH, { TAG: 'v1.2.3' });
     assert.equal(result.status, 1, extra);
     assert.equal(result.gh, null, extra);
   }
 });
 
-test('gnome-publish refuses a zip built for another version', (t) => {
+test('gnome-publish refuses a zip built for another version', t => {
   const box = sandbox(t);
-  [DEB, RPM, 'tokkl-gnome-extension-1.2.2.zip'].forEach((name) => box.put(name));
+  [DEB, RPM, 'tokkl-gnome-extension-1.2.2.zip'].forEach(name => box.put(name));
   const result = runStep(box, GNOME_PUBLISH, { TAG: 'v1.2.3' });
   assert.equal(result.status, 1);
   assert.equal(result.gh, null);
 });
 
-test('gnome-publish fails when the upload fails', (t) => {
+test('gnome-publish fails when the upload fails', t => {
   const box = sandbox(t);
-  [DEB, RPM, ZIP].forEach((name) => box.put(name));
+  [DEB, RPM, ZIP].forEach(name => box.put(name));
   writeFileSync(join(box.root, 'bin', 'gh'), '#!/usr/bin/env bash\necho "HTTP 404" >&2\nexit 1\n');
   const result = runStep(box, GNOME_PUBLISH, { TAG: 'v1.2.3' });
   assert.equal(result.status, 1);
   assert.match(result.stderr, /HTTP 404/);
 });
 
-test('macos-publish attaches the DMG for the tag with its label', (t) => {
+test('macos-publish attaches the DMG for the tag with its label', t => {
   const box = sandbox(t);
   box.put('Tokkl-1.2.3-arm64.dmg');
   const result = runStep(box, MACOS_PUBLISH, { TAG: 'v1.2.3' });
@@ -169,7 +183,7 @@ test('macos-publish attaches the DMG for the tag with its label', (t) => {
   ]);
 });
 
-test('macos-publish uploads nothing when the DMG for the tag is missing', (t) => {
+test('macos-publish uploads nothing when the DMG for the tag is missing', t => {
   const box = sandbox(t);
   box.put('Tokkl-1.2.2-arm64.dmg');
   const result = runStep(box, MACOS_PUBLISH, { TAG: 'v1.2.3' });
@@ -180,7 +194,7 @@ test('macos-publish uploads nothing when the DMG for the tag is missing', (t) =>
 for (const job of ['gnome-release', 'macos-release']) {
   const script = runScript(job, 'Check the version');
 
-  test(`${job} takes VERSION from a tag that matches package.json`, (t) => {
+  test(`${job} takes VERSION from a tag that matches package.json`, t => {
     const box = sandbox(t);
     writeFileSync(join(box.root, 'package.json'), JSON.stringify({ version: '1.2.3' }));
     const githubEnv = join(box.root, 'github.env');
@@ -190,7 +204,7 @@ for (const job of ['gnome-release', 'macos-release']) {
     assert.equal(readFileSync(githubEnv, 'utf8'), 'VERSION=1.2.3\n');
   });
 
-  test(`${job} stops when package.json at the tag holds another version`, (t) => {
+  test(`${job} stops when package.json at the tag holds another version`, t => {
     const box = sandbox(t);
     writeFileSync(join(box.root, 'package.json'), JSON.stringify({ version: '1.2.2' }));
     const githubEnv = join(box.root, 'github.env');
@@ -214,10 +228,14 @@ function recordSandbox(t: { after: (fn: () => void) => void }) {
   writeFileSync(join(scripts, 'native-version.sh'), readFileSync(NATIVE_VERSION));
   chmodSync(join(scripts, 'native-version.sh'), 0o755);
   const git = (...args: string[]) =>
-    execFileSync('git', ['-c', 'user.name=Test', '-c', 'user.email=test@example.com', '-c', 'commit.gpgsign=false', ...args], {
-      cwd: box.root,
-      encoding: 'utf8',
-    }).trim();
+    execFileSync(
+      'git',
+      ['-c', 'user.name=Test', '-c', 'user.email=test@example.com', '-c', 'commit.gpgsign=false', ...args],
+      {
+        cwd: box.root,
+        encoding: 'utf8',
+      },
+    ).trim();
   git('init', '--quiet');
   git('add', 'desktop');
   git('commit', '--quiet', '-m', 'test: fixture');
@@ -225,14 +243,15 @@ function recordSandbox(t: { after: (fn: () => void) => void }) {
   const output = join(box.root, 'kde');
   mkdirSync(output);
   const release = join(box.root, 'kde-release');
-  const run = (env: Record<string, string>) => runStep(box, RECORD, { OUTPUT: output, DIR: release, REVISION: revision, ...env });
+  const run = (env: Record<string, string>) =>
+    runStep(box, RECORD, { OUTPUT: output, DIR: release, REVISION: revision, ...env });
   return { box, revision, output, release, run };
 }
 
 const sha256Of = (content: string) => createHash('sha256').update(content).digest('hex');
 
 for (const format of ['deb', 'ubuntu-deb'] as const) {
-  test(`kde-release records ${format} separately with a manifest`, (t) => {
+  test(`kde-release records ${format} separately with a manifest`, t => {
     const { revision, output, release, run } = recordSandbox(t);
     const name = `tokkl-kde_1.2.3_amd64${format === 'ubuntu-deb' ? '-ubuntu26.04' : ''}.deb`;
     writeFileSync(join(output, name), 'deb bytes');
@@ -252,7 +271,7 @@ for (const format of ['deb', 'ubuntu-deb'] as const) {
   });
 }
 
-test('kde-release records the RPM of a prerelease under its native version', (t) => {
+test('kde-release records the RPM of a prerelease under its native version', t => {
   const { revision, output, release, run } = recordSandbox(t);
   const name = 'tokkl-kde-1.3.0~rc1-1.fc44.x86_64.rpm';
   writeFileSync(join(output, name), 'rpm bytes');
@@ -268,7 +287,7 @@ test('kde-release records the RPM of a prerelease under its native version', (t)
   });
 });
 
-test('kde-release records nothing when the checkout is not the revision being released', (t) => {
+test('kde-release records nothing when the checkout is not the revision being released', t => {
   const { output, release, run } = recordSandbox(t);
   writeFileSync(join(output, 'tokkl-kde_1.2.3_amd64.deb'), 'deb bytes');
   const result = run({ FORMAT: 'deb', VERSION: '1.2.3', REVISION: '0'.repeat(40) });
@@ -283,9 +302,9 @@ for (const [format, files] of [
   ['rpm', ['tokkl-kde-1.2.2-1.fc44.x86_64.rpm']],
   ['rpm', ['tokkl-kde-1.2.3-1.fc43.x86_64.rpm', 'tokkl-kde-1.2.3-1.fc44.x86_64.rpm']],
 ] as const) {
-  test(`kde-release records nothing for ${format} when the output holds only ${files.join(' and ')}`, (t) => {
+  test(`kde-release records nothing for ${format} when the output holds only ${files.join(' and ')}`, t => {
     const { output, release, run } = recordSandbox(t);
-    files.forEach((name) => writeFileSync(join(output, name), 'bytes'));
+    files.forEach(name => writeFileSync(join(output, name), 'bytes'));
     const result = run({ FORMAT: format, VERSION: '1.2.3' });
     assert.equal(result.status, 1);
     assert.match(result.stdout, new RegExp(`::error::expected one tokkl-kde ${format} for 1\\.2\\.3 in `));

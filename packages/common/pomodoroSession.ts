@@ -1,15 +1,6 @@
 /**
- * The Pomodoro session: work phases separated by short rests, with a long rest after every few work
- * phases. Unlike the timer-tied cycle in pomodoro.ts, a phase changes only when the user confirms
- * Next phase. Confirming before the planned end skips the rest of the phase, and a phase confirmed
- * after its planned end has run overtime. The user can end the session at any time.
- *
- * These functions read no clock, keep no state and know nothing about stored preferences. The
- * caller passes every instant. The server runs them to apply the session rules.
- *
- * A pomodoro is a work phase plus the rest after it. Its time entry runs from the work start to the
- * next confirmed work start, or to the instant the session ends. The next pomodoro starts at the
- * previous one's exact, unsnapped end, so their snapped entries share a boundary.
+ * A phase changes only when the user confirms Next phase. Pure: the caller passes every instant.
+ * A pomodoro's entry runs to the next confirmed work start, unsnapped, so consecutive entries share a boundary.
  */
 
 const MINUTE_MS = 60_000;
@@ -19,11 +10,9 @@ export type SessionPhaseKind = 'work' | 'shortRest' | 'longRest';
 export type TransitionKind = 'workToShortRest' | 'shortRestToWork' | 'workToLongRest' | 'longRestToWork';
 
 export interface PomodoroSessionConfig {
-  /** Length of a work phase, in whole minutes. */
+  /** Whole minutes, as are both rests. */
   workMinutes: number;
-  /** Length of a short rest, in whole minutes. */
   shortRestMinutes: number;
-  /** Length of a long rest, in whole minutes. */
   longRestMinutes: number;
   /** A long rest follows every this many ended work phases. */
   longRestEvery: number;
@@ -41,7 +30,6 @@ export const DEFAULT_POMODORO_SESSION_CONFIG: Readonly<PomodoroSessionConfig> = 
   longRestEvery: 4,
 });
 
-/** The inclusive range of whole numbers each config value accepts. */
 export const POMODORO_SESSION_CONFIG_RANGES: Readonly<Record<keyof PomodoroSessionConfig, Readonly<ConfigRange>>> =
   Object.freeze({
     workMinutes: Object.freeze({ min: 1, max: 180 }),
@@ -54,10 +42,7 @@ export interface SessionPhase {
   kind: SessionPhaseKind;
   /** When the phase started: the session start or the instant the previous phase was confirmed. */
   startedAt: Date;
-  /**
-   * Work phases ended since the session started or the last long rest ended. A work phase counts
-   * the ones before it; a rest counts the work phase it follows.
-   */
+  /** Work phases ended since the session start or the last long rest; a rest counts the work phase it follows. */
   completed: number;
 }
 
@@ -68,12 +53,10 @@ export interface PhaseChange {
   skipped: boolean;
 }
 
-/** The first phase of a session started at `at`: a work phase with no ended work phases before it. */
 export function startSession(at: Date): SessionPhase {
   return { kind: 'work', startedAt: new Date(instant(at)), completed: 0 };
 }
 
-/** The instant `phase` reaches its planned length. */
 export function plannedEnd(phase: SessionPhase, config: PomodoroSessionConfig = DEFAULT_POMODORO_SESSION_CONFIG): Date {
   checkConfig(config);
   checkPhase(phase);
@@ -81,9 +64,8 @@ export function plannedEnd(phase: SessionPhase, config: PomodoroSessionConfig = 
 }
 
 /**
- * The transition that ends `phase`. A work phase that brings the count up to `longRestEvery`, or
- * past it after the setting was lowered, is followed by a long rest; any other by a short rest.
- * Every rest is followed by work.
+ * A work phase that brings the count to `longRestEvery`, or past it after the setting was lowered,
+ * is followed by a long rest; any other by a short rest. Every rest is followed by work.
  */
 export function transitionKind(
   phase: SessionPhase,
@@ -102,9 +84,8 @@ export function transitionKind(
 }
 
 /**
- * The phase that starts when the user confirms Next phase at `at`. A confirm before the planned end
- * is a skip; an ended work phase counts toward the long rest whether skipped or not. The count
- * starts again from zero after a long rest.
+ * A confirm before the planned end is a skip; an ended work phase counts toward the long rest either way.
+ * The count restarts from zero after a long rest.
  */
 export function nextPhase(
   phase: SessionPhase,

@@ -1,5 +1,9 @@
 #include "macalarmplayer.h"
 
+#include "logging.h"
+
+#include <QCoreApplication>
+
 #import <AppKit/AppKit.h>
 
 // Compiled with ARC.
@@ -9,13 +13,25 @@ namespace Tokkl
 
 namespace
 {
-// The sound for file, or nil, with the reason logged, when NSSound cannot
-// open it.
-NSSound *openSound(const QString &file)
+QString tr(const char *text)
+{
+    return QCoreApplication::translate("Tokkl::MacAlarmPlayer", text);
+}
+
+// nil, with the reason logged and in failure, when the sound cannot start.
+NSSound *startSound(const QString &file, bool loops, QString *failure)
 {
     NSSound *sound = [[NSSound alloc] initWithContentsOfFile:file.toNSString() byReference:YES];
-    if (!sound) {
-        qWarning("Tokkl: the alarm sound %s cannot play", qPrintable(file));
+    if (sound == nil) {
+        qCWarning(Tokkl::lcAlarm) << "NSSound cannot open the alarm sound" << file;
+        *failure = tr("%1 cannot be opened").arg(file);
+        return nil;
+    }
+    sound.loops = loops ? YES : NO;
+    if (![sound play]) {
+        qCWarning(Tokkl::lcAlarm) << "NSSound does not play the alarm sound" << file;
+        *failure = tr("%1 does not play").arg(file);
+        return nil;
     }
     return sound;
 }
@@ -46,12 +62,11 @@ void MacAlarmPlayer::loop(const QString &file)
     }
     [d->loop stop];
     d->loopFile = file;
-    d->loop = openSound(file);
-    if (d->loop == nil) {
-        return;
+    QString failure;
+    d->loop = startSound(file, true, &failure);
+    if (!failure.isEmpty()) {
+        reportFailure(failure);
     }
-    d->loop.loops = YES;
-    [d->loop play];
 }
 
 void MacAlarmPlayer::stop()
@@ -61,11 +76,14 @@ void MacAlarmPlayer::stop()
     d->loopFile.clear();
 }
 
-void MacAlarmPlayer::preview(const QString &file)
+void MacAlarmPlayer::playOnce(const QString &file)
 {
     [d->preview stop];
-    d->preview = openSound(file);
-    [d->preview play];
+    QString failure;
+    d->preview = startSound(file, false, &failure);
+    if (!failure.isEmpty()) {
+        reportFailure(failure);
+    }
 }
 
 }

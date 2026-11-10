@@ -120,12 +120,6 @@ void ConnectionSetup::setWalletError(const QString &message)
     }
 }
 
-// The store's own wording, or the platform-neutral text once the store is gone.
-QString ConnectionSetup::credentialMessage(const CredentialResult &result) const
-{
-    return m_store ? m_store->message(result) : result.message();
-}
-
 void ConnectionSetup::setAccount(const QString &url, const QString &authMode, const QString &email)
 {
     m_url = url;
@@ -150,7 +144,7 @@ void ConnectionSetup::editSecret(const QString &secret)
 void ConnectionSetup::loadSecret()
 {
     const QString key = m_accountKey;
-    if (key.isEmpty() || !m_store) {
+    if (key.isEmpty()) {
         return;
     }
     setBusy(1);
@@ -160,7 +154,7 @@ void ConnectionSetup::loadSecret()
             return; // the page shows another account now
         }
         if (!result.ok() && result.status != CredentialResult::Status::NotFound) {
-            setWalletError(credentialMessage(result));
+            setWalletError(m_store->message(result));
             return;
         }
         setWalletError(QString());
@@ -192,11 +186,6 @@ void ConnectionSetup::saveSecret(QObject *context, std::function<void(bool saved
     }
     // From now on the field belongs to this account.
     m_secretOwner = key;
-    if (!m_store) {
-        setWalletError(CredentialResult{CredentialResult::Status::Unavailable, {}}.message());
-        done(false);
-        return;
-    }
     setWalletError(QString());
     setBusy(1);
     QPointer<QObject> guard(context);
@@ -206,7 +195,7 @@ void ConnectionSetup::saveSecret(QObject *context, std::function<void(bool saved
             m_storedKey = key;
             m_storedSecret = submitted;
         } else {
-            setWalletError(credentialMessage(result));
+            setWalletError(m_store->message(result));
         }
         if (guard) {
             done(result.ok());
@@ -262,18 +251,13 @@ void ConnectionSetup::testConnection(const QString &url, const QString &authMode
         }
         m_testReply.clear();
         setBusy(-1);
-        if (response.outcome == HttpResponse::Outcome::Finished && response.status >= 200 && response.status < 300) {
-            const std::optional<QJsonValue> json = parseJsonBody(response.body);
-            const std::optional<Me> me = json ? decodeMe(*json) : std::nullopt;
-            if (!me) {
-                finishTest(Failed, tr("The address did not answer like a Tokkl instance. Check the instance URL."));
-                return;
-            }
-            const QString name = me->fullname.isEmpty() ? me->email : QStringLiteral("%1 (%2)").arg(me->fullname, me->email);
-            finishTest(Succeeded, tr("Connected as %1, workspace %2.").arg(name).arg(me->defaultWorkspaceId));
+        const ApiResult<Me> me = meFromResponse(response);
+        if (me.ok()) {
+            const QString name = me.value->fullname.isEmpty() ? me.value->email : QStringLiteral("%1 (%2)").arg(me.value->fullname, me.value->email);
+            finishTest(Succeeded, tr("Connected as %1, workspace %2.").arg(name).arg(me.value->defaultWorkspaceId));
             return;
         }
-        const ApiError error = errorFromResponse(response);
+        const ApiError &error = me.error;
         if (error.kind == ApiError::Kind::Forbidden || error.kind == ApiError::Kind::Unauthorized) {
             finishTest(Failed, tr("The instance refused these credentials (%1).").arg(error.message));
         } else {

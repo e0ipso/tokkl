@@ -1,13 +1,15 @@
 import { useState } from 'react';
-import { api } from '../../../api/client.ts';
-import { keys } from '../../../api/hooks.ts';
-import type { Me } from '../../../api/types.ts';
+import { accountRequests } from '../../../api/account.ts';
+import { stale } from '../../../api/keys.ts';
+import type { Me } from '@tokkl/types';
 import { Icon } from '../../../components/Icon.tsx';
 import { useToast } from '../../../components/Toast.tsx';
 import { copyText } from '../../../lib/clipboard.ts';
 import { ConfirmModal } from '../ui.tsx';
-import { useAction, V9 } from '../queries.ts';
+import { useAction } from '../../../components/useAction.ts';
 import { SettingsCard } from './SettingsCard.tsx';
+import { t } from '../../../i18n/messages.ts';
+import { tx } from '../../../i18n/rich.ts';
 
 export function ApiTokenSection({ me }: { me: Me }) {
   const toast = useToast();
@@ -15,10 +17,10 @@ export function ApiTokenSection({ me }: { me: Me }) {
   const [confirmReset, setConfirmReset] = useState(false);
   const origin = window.location.origin;
 
-  const reset = useAction<void, string>({
-    mutationFn: () => api.post<string>(`${V9}/me/reset_token`),
-    invalidate: [keys.me],
-    success: 'New API token created. Update the tools that use it.',
+  const reset = useAction({
+    mutationFn: accountRequests.resetApiToken,
+    invalidate: stale.credentials,
+    success: t('settings.tokenReset'),
     onSuccess: () => {
       setConfirmReset(false);
       setRevealed(true);
@@ -26,47 +28,50 @@ export function ApiTokenSection({ me }: { me: Me }) {
   });
 
   const copy = () => {
-    copyText(me.api_token, 'Could not copy. Show the token and copy it by hand.').then(() => toast.show('API token copied'), (error: unknown) => toast.error(error));
+    copyText(me.api_token, t('settings.tokenCopyFailed')).then(
+      () => toast.show(t('settings.tokenCopied')),
+      (error: unknown) => toast.error(error),
+    );
   };
 
   return (
-    <SettingsCard
-      id="api-token"
-      title="API token"
-      intro="Tools that speak the Toggl Track API use this token to read and write your data. Treat it like a password."
-    >
+    <SettingsCard id="api-token" title={t('settings.token')} intro={t('settings.tokenIntro')}>
       <div className="token-row">
-        <code className="token-value" aria-label={revealed ? 'API token' : 'API token, hidden'}>
+        <code className="token-value" aria-label={revealed ? t('settings.token') : t('settings.tokenHidden')}>
           {revealed ? me.api_token : '•'.repeat(32)}
         </code>
         <button type="button" className="button button-ghost" onClick={() => setRevealed(!revealed)}>
-          {revealed ? 'Hide' : 'Show'}
+          {revealed ? t('settings.hide') : t('settings.show')}
         </button>
         <button type="button" className="button button-ghost" onClick={copy}>
-          <Icon name="copy" size={16} /> Copy
+          <Icon name="copy" size={16} /> {t('settings.copy')}
         </button>
         <span className="spacer" />
         <button type="button" className="button button-danger-ghost" onClick={() => setConfirmReset(true)}>
-          Reset token
+          {t('settings.resetToken')}
         </button>
       </div>
 
-      <h3 className="settings-subheading">Try it</h3>
-      <pre className="code-block"><code>{`curl -u <token>:api_token ${origin}/api/v9/me`}</code></pre>
+      <h3 className="settings-subheading">{t('settings.tryIt')}</h3>
+      <pre className="code-block">
+        <code>{`curl -u <token>:api_token ${origin}/api/v9/me`}</code>
+      </pre>
       <p className="hint">
-        Any tool that lets you change the Toggl base URL can use this server. Point it at <code>{origin}/api/v9</code>,
-        and the reports API at <code>{origin}/reports/api/v3</code>.
+        {tx('settings.apiBase', {
+          api: <code>{origin}/api/v9</code>,
+          reports: <code>{origin}/reports/api/v3</code>,
+        })}
       </p>
 
       {confirmReset ? (
         <ConfirmModal
-          title="Reset the API token?"
-          confirmLabel="Reset token"
+          title={t('settings.resetTokenTitle')}
+          confirmLabel={t('settings.resetToken')}
           busy={reset.isPending}
           onConfirm={() => reset.mutate()}
           onClose={() => setConfirmReset(false)}
         >
-          <p>The current token stops working right away. Every tool or script that uses it fails until you give it the new one.</p>
+          <p>{t('settings.resetTokenBody')}</p>
         </ConfirmModal>
       ) : null}
     </SettingsCard>

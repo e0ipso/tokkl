@@ -52,6 +52,7 @@ The container runs as UID 1000 and writes only to `/data`, its default `TOKKL_DA
 | `TOKKL_DATA_DIR` | `./data` | Default SQLite folder |
 | `TOKKL_DATABASE_URL` | absent | Database selector; absence selects `<data dir>/tokkl.sqlite`. An empty or invalid value fails startup. |
 | `TOKKL_TRUST_PROXY` | absent | Reverse proxies whose forwarded headers are trusted. Empty or `0` trusts none. A positive number trusts that many proxy hops. A comma-separated list of IP addresses or CIDR ranges trusts those proxies. The client address for login rate limiting is the `X-Forwarded-For` entry the outermost trusted proxy added; `X-Forwarded-Proto: https` enables Secure cookies and HSTS. Any other value fails startup. Trust only proxies the app is reachable through. |
+| `TOKKL_LOG_LEVEL` | `info` | Least severe log line written: `debug`, `info`, `warn`, `error` or `silent`, in any letter case. Logs are JSON lines; `warn` and `error` go to stderr, the rest to stdout. Any other value fails startup. |
 | `TOKKL_SESSION_DAYS` | `30` | New-session lifetime until overridden on the Admin page; existing expiries stay unchanged. |
 | `TOKKL_SETUP_CODE` | random | Fixed first-admin setup code for scripted installs. Several instances need the same value on each; see [Running several instances](#running-several-instances). |
 | `TOKKL_WEB_ROOT` | `dist/web` | Built web app folder |
@@ -99,6 +100,10 @@ Startup checks the selected engine version, acquires migration ownership, initia
 
 Settings → Data exports the signed-in account's accessible workspace data. JSON restore maps records into the importing account's default workspace, skips duplicates and reports records it cannot import. It preserves imported entry times. It does not restore credentials, API tokens, sessions, invites, instance settings or all accounts. It is not a lossless instance migration between database engines.
 
+Exports and the detailed CSV reports (the web app's detailed CSV and the Reports API v3 `search/time_entries.csv`) run in a download lane of their own, separate from reports, so a slow download never holds up anyone's reports. The lane has 8 places per instance, and an account may hold 2 of them; a full lane answers 503 `Report queue is full` with `Retry-After: 2`. One download may run for at most 15 minutes. One that runs longer is stopped: if nothing was sent yet it answers 503 `Download took too long` with `Retry-After: 60`, otherwise the connection is cut. The download streams: the server reads and writes the entries a batch at a time and keeps at most about 1 MB ahead of what the client has read. A client that reads nothing for 30 seconds is disconnected. A failure after the download started cuts the connection, so a partial file is never presented as complete.
+
+An instance runs at most four imports (JSON restore and Toggl CSV) at once, and one per account. A file may be up to 50 MB, and the running imports may hold at most 64 MiB of files in all, counted by each request's `Content-Length` (an upload without one counts as 50 MB). So two large files never run together, but a single file within the limit is always taken when no other import runs. Another import is refused with 503 `Too many imports are running` and `Retry-After: 5` before its file is uploaded. An import runs in one transaction; if the client disconnects, the import stops at its next record and rolls back, so nothing of it is kept.
+
 For a full instance backup, stop the application and use your database's consistent backup procedure. With SQLite, retain the database and any `-wal`/`-shm` files as one consistent set; copying only a live main file can omit committed data. With server engines, preserve the database using the engine's backup/restore tooling and retain deployment configuration and secrets separately. Restore a full backup into the same backend and a compatible schema before starting the application. Test recovery on a disposable deployment.
 
 ## Upgrading
@@ -123,7 +128,7 @@ location /api/app/timer/events {
 }
 ```
 
-Each user may hold 10 streams on each instance. Opening an 11th on the same instance closes the oldest there, so a user whose streams spread across several instances may hold more in total.
+Each user may hold 10 streams on each instance. Opening an 11th on the same instance closes the oldest there, so a user whose streams spread across several instances may hold more in total. An instance holds at most 1000 streams in all. Past that it answers a new one with a 503 and `Retry-After`, and clients poll until they reconnect.
 
 ## Running several instances
 

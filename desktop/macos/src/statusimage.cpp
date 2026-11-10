@@ -22,8 +22,6 @@ StatusImage StatusImage::compose(const ProjectIndicator &indicator, bool monochr
     return image;
 }
 
-// The 1x and 2x images of a 16 point resource such as
-// :/tokkl/logo/icon_16x16.png.
 static QList<QImage> readPair(const QString &path)
 {
     QImage normal(QStringLiteral(":/tokkl/%1_16x16.png").arg(path));

@@ -1,5 +1,6 @@
 import { parseDateKey } from '@tokkl/common/time';
-import type { JsonObject, JsonValue, UtcInstant, DateOnly } from './domain.ts';
+import { BoundedCache } from '../lib/boundedCache.ts';
+import type { JsonObject, JsonValue, UtcInstant } from '../domain/model.ts';
 
 // Errors describe the expected representation, never the stored value.
 export function safeInteger(value: unknown): number {
@@ -15,7 +16,7 @@ export function entityId(value: unknown): number {
   if (number <= 0) throw new Error('Invalid storage ID');
   return number;
 }
-/** Finite amounts retain JS number range. IDs, durations and counts use safeInteger. */
+/** IDs, durations and counts use safeInteger. */
 export function finiteNumber(value: unknown): number {
   if (typeof value !== 'number' && !(typeof value === 'string' && /^-?\d+(?:\.\d+)?(?:e[+-]?\d+)?$/i.test(value))) {
     throw new Error('Invalid storage number');
@@ -26,7 +27,8 @@ export function finiteNumber(value: unknown): number {
 }
 export function booleanValue(value: unknown): boolean {
   if (value === true || value === 1 || value === 1n || value === '1' || value === 't' || value === 'true') return true;
-  if (value === false || value === 0 || value === 0n || value === '0' || value === 'f' || value === 'false') return false;
+  if (value === false || value === 0 || value === 0n || value === '0' || value === 'f' || value === 'false')
+    return false;
   throw new Error('Invalid storage boolean');
 }
 function copyJson(value: unknown, ancestors: Set<object>): JsonValue {
@@ -35,8 +37,9 @@ function copyJson(value: unknown, ancestors: Set<object>): JsonValue {
   if (typeof value !== 'object' || ancestors.has(value)) throw new Error('Invalid storage JSON');
   ancestors.add(value);
   try {
-    if (Array.isArray(value)) return Array.from(value, (item) => copyJson(item, ancestors));
-    if (Object.getPrototypeOf(value) !== Object.prototype && Object.getPrototypeOf(value) !== null) throw new Error('Invalid storage JSON');
+    if (Array.isArray(value)) return Array.from(value, item => copyJson(item, ancestors));
+    if (Object.getPrototypeOf(value) !== Object.prototype && Object.getPrototypeOf(value) !== null)
+      throw new Error('Invalid storage JSON');
     return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, copyJson(item, ancestors)]));
   } finally {
     ancestors.delete(value);
@@ -51,36 +54,36 @@ export function jsonValue(value: unknown): JsonValue {
 }
 export function jsonObject(value: unknown): JsonObject {
   const normalized = jsonValue(value);
-  if (normalized === null || typeof normalized !== 'object' || Array.isArray(normalized)) throw new Error('Invalid storage JSON object');
+  if (normalized === null || typeof normalized !== 'object' || Array.isArray(normalized))
+    throw new Error('Invalid storage JSON object');
   return normalized;
 }
-const instantDates = new Map<string, boolean>();
+const instantDates = new BoundedCache<string, boolean>(128);
 function validInstantDate(day: string): boolean {
-  const known = instantDates.get(day);
-  if (known !== undefined) return known;
-  const valid = parseDateKey(day) !== null;
-  instantDates.set(day, valid);
-  if (instantDates.size > 128) instantDates.delete(instantDates.keys().next().value!);
-  return valid;
+  return instantDates.get(day) ?? instantDates.set(day, parseDateKey(day) !== null);
 }
-/** Native timestamps must be configured in UTC; text timestamps must explicitly carry their zone. */
+/** Native timestamps must be UTC; text timestamps must carry their zone. */
 export function utcInstant(value: unknown): UtcInstant {
   if (value instanceof Date && Number.isFinite(value.getTime())) return value.toISOString();
   if (typeof value !== 'string') throw new Error('Invalid storage instant');
   const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,3})?(?:Z|([+-])(\d{2}):(\d{2}))$/.exec(value);
-  if (!match || !validInstantDate(match[1]!) || Number(match[2]) > 23 || Number(match[3]) > 59 || Number(match[4]) > 59
-    || Number(match[6] ?? 0) > 23 || Number(match[7] ?? 0) > 59) throw new Error('Invalid storage instant');
+  if (
+    !match ||
+    !validInstantDate(match[1]!) ||
+    Number(match[2]) > 23 ||
+    Number(match[3]) > 59 ||
+    Number(match[4]) > 59 ||
+    Number(match[6] ?? 0) > 23 ||
+    Number(match[7] ?? 0) > 59
+  )
+    throw new Error('Invalid storage instant');
   if (value.length === 24 && value.endsWith('Z')) return value;
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) throw new Error('Invalid storage instant');
   return date.toISOString();
 }
-export function dateOnly(value: unknown): DateOnly {
-  if (typeof value !== 'string' || !parseDateKey(value)) throw new Error('Invalid storage date');
-  return value;
-}
 
-/** For native SQL timestamp text only, on sessions explicitly configured to UTC by the factory. */
+/** Only for native timestamp text on sessions the factory set to UTC. */
 export function utcSqlInstant(value: unknown): UtcInstant {
   if (typeof value !== 'string') throw new Error('Invalid storage instant');
   const match = /^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?)(Z|[+-]\d{2}(?::\d{2})?)?$/.exec(value);

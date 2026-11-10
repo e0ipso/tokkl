@@ -1,0 +1,356 @@
+/* Timer bar: the page hero. A heavier frame, a display-face clock and one large start and stop
+   button. No texture: the description field sits on plain surface. */
+.timer-bar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  flex-wrap: wrap;
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+  border-width: 2px;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+}
+.timer-bar.is-running {
+  border-color: var(--state-running);
+}
+/* The visible sign that the timer runs, beside the clock, so the border colour is not the only one. */
+.timer-running {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--state-running);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.timer-running-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: currentColor;
+  animation: pulse 1.6s infinite;
+}
+/* Paused says so in text beside the frozen clock, which is not a button while paused. */
+.timer-paused {
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.timer-description {
+  position: relative;
+  flex: 1 1 280px;
+  min-width: 0;
+}
+.timer-description input {
+  width: 100%;
+  border: none;
+  background: transparent;
+  font-size: var(--text-lg);
+  font-weight: 600;
+  padding: var(--space-2) var(--space-1);
+}
+.timer-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  min-width: 0;
+}
+/* Project, tags and billable as chunky chips: 40px tall with a 2px outline. A chosen project
+   outlines its chip in the project colour mix (see the table at .project-dot), other set chips in
+   primary. */
+.timer-attr {
+  height: 40px;
+  min-width: 40px;
+  padding: 0 var(--space-3);
+  gap: 6px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-pill);
+  font-weight: 600;
+}
+.timer-attr.active:not(.billable) {
+  color: var(--text);
+  border-color: var(--primary);
+}
+.timer-project.active {
+  border-color: color-mix(in srgb, var(--project-color, var(--muted)) 60%, var(--project-mix));
+}
+.timer-project .project-label {
+  max-width: 180px;
+}
+.timer-project .project-dot {
+  width: 14px;
+  height: 14px;
+}
+.timer-attr.billable-toggle {
+  width: 40px;
+  padding: 0;
+}
+.timer-attr.billable-toggle:not(.billable) {
+  border-color: currentColor;
+}
+/* The clock: the running time, the idle duration field and the manual range readout. */
+.timer-clock,
+.manual-duration {
+  font-size: var(--text-3xl);
+  font-weight: 800;
+  line-height: 1.1;
+}
+.timer-clock {
+  min-width: 4.4em;
+  text-align: right;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-md);
+}
+.timer-clock:hover {
+  background: var(--surface-2);
+}
+.timer-clock.is-paused {
+  cursor: default;
+}
+.timer-clock.is-paused:hover {
+  background: none;
+}
+.timer-clock-input {
+  width: 4.8em;
+}
+.timer-clock-input::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+/* The Pomodoro session banner and the long-timer reminder, shown above the page. */
+.pomodoro-banner,
+.timer-reminder {
+  flex-basis: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--state-selected);
+  font-weight: 600;
+}
+.content > .pomodoro-banner {
+  margin-bottom: var(--space-3);
+}
+.pomodoro-session-banner {
+  flex-wrap: wrap;
+}
+.timer-reminder {
+  flex-wrap: wrap;
+  margin-bottom: var(--space-3);
+}
+.timer-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-width: 56px;
+  height: 56px;
+  padding: 0 var(--space-5) 0 var(--space-4);
+  border: none;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-stretch: 85%;
+  font-size: var(--text-lg);
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  box-shadow: var(--shadow);
+  transition: transform var(--duration-fast) var(--ease);
+}
+.timer-button:hover {
+  transform: translateY(-1px);
+}
+.timer-button:active {
+  transform: scale(0.97);
+}
+.timer-button.start,
+.timer-button.add {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+.timer-button.stop {
+  background: var(--danger);
+  color: var(--on-danger);
+}
+.timer-button.pause {
+  background: var(--surface-2);
+  color: var(--text);
+  box-shadow:
+    inset 0 0 0 2px var(--border),
+    var(--shadow);
+}
+/* Timer or manual entry: a segmented pair in a pill frame. The active mode gets the selected fill,
+   an on-selected icon and a primary ring; aria-pressed tells screen readers. While a timer runs the slot holds
+   only the discard button, without the frame. */
+.mode-switch {
+  display: inline-flex;
+  align-items: center;
+}
+.mode-switch[role='group'] {
+  gap: 2px;
+  padding: 2px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-pill);
+}
+.mode-switch .icon-button {
+  height: 32px;
+  min-width: 32px;
+  border-radius: var(--radius-pill);
+}
+.mode-switch .icon-button.active {
+  background: var(--selected);
+  color: var(--on-selected);
+  box-shadow: inset 0 0 0 2px var(--primary);
+}
+.manual-fields {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.manual-fields input[type='date'] {
+  width: 140px;
+}
+.time-field {
+  width: 76px;
+  text-align: center;
+}
+.manual-duration-field {
+  width: 96px;
+}
+.manual-duration {
+  min-width: 4em;
+  text-align: right;
+}
+/* The "No times" switch in the manual form and the entry editor: a checkbox switch with its visible label. */
+.manual-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-md);
+  color: var(--muted);
+  cursor: pointer;
+}
+.suggestions {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  margin: 4px 0 0;
+  padding: 4px;
+  list-style: none;
+  z-index: 30;
+  box-shadow: var(--shadow);
+}
+.suggestion {
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+}
+.suggestion-project {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-md);
+  white-space: nowrap;
+}
+/* Today and This week: small capitals for the labels, the totals in display type. */
+.timer-summary {
+  display: flex;
+  gap: var(--space-3) var(--space-6);
+  align-items: center;
+  padding: var(--space-4) var(--space-1);
+  color: var(--muted);
+  flex-wrap: wrap;
+}
+.timer-summary > span {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.timer-summary strong {
+  color: var(--text);
+  font-size: var(--text-2xl);
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+/* Favourites: bold pills with the shortcut number in a primary disc. */
+.favorites {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-4);
+}
+.favorite {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+  border-width: 2px;
+  border-radius: var(--radius-pill);
+  padding-right: 2px;
+}
+.favorite:hover {
+  border-color: var(--primary);
+}
+.favorite-start {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: 36px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 4px 4px 4px 4px;
+  font-weight: 700;
+}
+.favorite-name,
+.favorite-project {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.favorite-project {
+  color: var(--muted);
+  font-weight: 500;
+}
+.favorite-project::before {
+  content: '• ';
+}
+.favorite-start kbd {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 6px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--primary);
+  color: var(--on-primary);
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 900;
+}
+.favorite .project-dot {
+  width: 12px;
+  height: 12px;
+}

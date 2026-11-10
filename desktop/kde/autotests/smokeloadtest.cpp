@@ -1,11 +1,5 @@
-// Loads the staged install the way Plasma does: the widget package from the
-// data dirs and the backend from the QML import path. The CTest fixture
-// stages the install and points XDG_DATA_DIRS and QML_IMPORT_PATH at it.
-//
-// scripts/check-package.sh runs the same binary against an installed
-// package: TOKKL_SMOKE_PLASMOID_DIR, TOKKL_SMOKE_BACKEND_DIR and
-// TOKKL_SMOKE_ICON_DIR then name the installed widget, backend and icon theme
-// directories that Plasma must resolve.
+// scripts/check-package.sh runs this binary against an installed package
+// through the TOKKL_SMOKE_*_DIR variables.
 
 #include "testcorona.h"
 
@@ -52,7 +46,6 @@ const QString stagedPlasmoidDir = expectedDir("TOKKL_SMOKE_PLASMOID_DIR", QStrin
 const QString stagedBackendDir = expectedDir("TOKKL_SMOKE_BACKEND_DIR", QStringLiteral(TOKKL_STAGED_BACKEND_DIR));
 const QString stagedIconDir = expectedDir("TOKKL_SMOKE_ICON_DIR", QStringLiteral(TOKKL_STAGED_ICON_DIR));
 
-// The hicolor sizes of the widget picker icon, in pixels.
 const QList<int> pickerIconSizeList = {32, 48, 64, 96, 128, 256};
 QString pickerIconPath(int size)
 {
@@ -64,7 +57,7 @@ QByteArray fileBytes(const QString &path)
     return file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray();
 }
 
-// QML errors from our package or backend; Qt reports them as warnings.
+// Qt reports QML errors as warnings.
 QStringList qmlProblems;
 QtMessageHandler previousHandler = nullptr;
 
@@ -79,9 +72,7 @@ void collectQmlProblems(QtMsgType type, const QMessageLogContext &context, const
     previousHandler(type, context, message);
 }
 
-// Plasma writes cfg_instanceUrl to the configuration on Apply, so it holds
-// only a validated address. The event loop never runs here, so the page
-// never reads the wallet.
+// The event loop never runs here, so the page never reads the wallet.
 void checkPersistedUrl(QObject *page)
 {
     QObject *urlField = nullptr;
@@ -92,12 +83,9 @@ void checkPersistedUrl(QObject *page)
     }
     QVERIFY(urlField);
 
-    // The value Plasma passes in fills the field.
     QVERIFY(page->setProperty("cfg_instanceUrl", QStringLiteral("https://example.test/tokkl")));
     QCOMPARE(urlField->property("text").toString(), QStringLiteral("https://example.test/tokkl"));
 
-    // Rejected addresses, credentials included, are never persisted, and the
-    // field keeps what was typed.
     for (const QString &rejected : {QStringLiteral("https://user:password@example.test"),
                                     QStringLiteral("https://example.test/?password=hunter2"),
                                     QStringLiteral("https://example.test/#hunter2"),
@@ -107,10 +95,8 @@ void checkPersistedUrl(QObject *page)
         QCOMPARE(urlField->property("text").toString(), rejected);
     }
 
-    // A valid address is persisted normalized, with its path prefix.
     urlField->setProperty("text", QStringLiteral(" HTTPS://Example.test:443/tokkl/ "));
     QCOMPARE(page->property("cfg_instanceUrl").toString(), QStringLiteral("https://example.test/tokkl"));
-    // Typing is not rewritten under the cursor.
     QCOMPARE(urlField->property("text").toString(), QStringLiteral(" HTTPS://Example.test:443/tokkl/ "));
 
     urlField->setProperty("text", QString());
@@ -126,8 +112,7 @@ private Q_SLOTS:
     void initTestCase()
     {
         previousHandler = qInstallMessageHandler(collectQmlProblems);
-        // Headless sessions have no desktop platform theme to select an
-        // icon theme or its XDG search paths.
+        // Headless sessions have no platform theme to set icon search paths.
         QIcon::setThemeSearchPaths(QStandardPaths::locateAll(QStandardPaths::GenericDataLocation,
                                                            QStringLiteral("icons"), QStandardPaths::LocateDirectory));
         QIcon::setThemeName(QStringLiteral("hicolor"));
@@ -147,8 +132,6 @@ private Q_SLOTS:
     {
         QVERIFY(QFileInfo::exists(stagedPlasmoidDir + QStringLiteral("/metadata.json")));
         QVERIFY(QFileInfo::exists(stagedPlasmoidDir + QStringLiteral("/contents/ui/main.qml")));
-        // The Pomodoro alarm sounds, which the alarm player resolves inside
-        // the installed widget.
         for (const QString &sound : {QStringLiteral("work-to-short-rest"), QStringLiteral("short-rest-to-work"), QStringLiteral("work-to-long-rest"), QStringLiteral("long-rest-to-work")}) {
             const QString path = stagedPlasmoidDir + QStringLiteral("/contents/sounds/pomodoro-") + sound + QStringLiteral(".wav");
             QVERIFY2(QFileInfo::exists(path), qPrintable(path));
@@ -157,9 +140,6 @@ private Q_SLOTS:
         QVERIFY(QFileInfo::exists(stagedBackendDir + QStringLiteral("/libtokklbackend.so")));
     }
 
-    // The widget picker's icon comes in every hicolor size the packages
-    // install, each a square of its directory's size, and the 96px one is
-    // the panel logo.
     void pickerIconSizes()
     {
         for (const int size : pickerIconSizeList) {
@@ -178,9 +158,8 @@ private Q_SLOTS:
         QCOMPARE(package.metadata().pluginId(), plasmoidId);
         QCOMPARE(package.metadata().version(), version);
         QCOMPARE(package.metadata().iconName(), plasmoidId);
-        // hicolor's 256x256/apps directory is scalable down to 64px, so the
-        // theme may draw any size from 64 up from the 256px file. Check that
-        // it finds every size rather than which file it draws a size from.
+        // hicolor's 256x256/apps scales down to 64px, so check that every size
+        // resolves, not which file draws it.
         const QIcon icon = QIcon::fromTheme(package.metadata().iconName());
         QVERIFY(!icon.isNull());
         QList<int> themeSizes;
@@ -198,7 +177,6 @@ private Q_SLOTS:
     void backendModule()
     {
         QQmlEngine engine;
-        // The first import path with the module wins; it must be the staged one.
         const QString moduleDir = QString(backendUri).replace(QLatin1Char('.'), QLatin1Char('/'));
         QString resolvedDir;
         for (const QString &importPath : engine.importPathList()) {
@@ -219,11 +197,17 @@ private Q_SLOTS:
         QCOMPARE(object->property("version").toString(), version);
         QVERIFY2(qmlProblems.isEmpty(), qPrintable(qmlProblems.join(QLatin1Char('\n'))));
 
-        // The timer controller is a QML type; without a connection it is idle.
+        // Without an instance URL neither KDE Wallet nor a host is reached.
         QQmlComponent timerComponent(&engine);
-        timerComponent.setData(QStringLiteral("import %1\nTokklTimer {}").arg(backendUri).toUtf8(), QUrl());
-        std::unique_ptr<QObject> timer(timerComponent.create());
-        QVERIFY2(timer, qPrintable(timerComponent.errorString()));
+        timerComponent.setData(QStringLiteral("import %1\nTokklTimerState { connection.email: \"bea@example.test\" }").arg(backendUri).toUtf8(), QUrl());
+        std::unique_ptr<QObject> timerState(timerComponent.create());
+        QVERIFY2(timerState, qPrintable(timerComponent.errorString()));
+        auto *connection = timerState->property("connection").value<QObject *>();
+        QVERIFY(connection);
+        QCOMPARE(connection->property("email").toString(), QStringLiteral("bea@example.test"));
+        QVERIFY(timerState->property("session").value<QObject *>());
+        auto *timer = timerState->property("timer").value<QObject *>();
+        QVERIFY(timer);
         QCOMPARE(timer->property("elapsedText").toString(), QStringLiteral("0:00"));
         QCOMPARE(timer->property("running").toBool(), false);
         QCOMPARE(timer->property("connected").toBool(), false);
@@ -251,7 +235,6 @@ private Q_SLOTS:
         QVERIFY(applet);
         QCOMPARE(applet->pluginMetaData().pluginId(), plasmoidId);
         QCOMPARE(applet->pluginMetaData().version(), version);
-        // Lengths an earlier run kept for the settings page.
         KConfigSkeletonItem *cachedWork = applet->configScheme()->findItemByName(QStringLiteral("cachedWorkMinutes"));
         QVERIFY(cachedWork);
         cachedWork->setProperty(40);
@@ -262,15 +245,13 @@ private Q_SLOTS:
         QVERIFY2(!applet->failedToLaunch(), qPrintable(applet->launchErrorMessage()));
         // main.qml reads this from the backend, so it proves the import resolved.
         QCOMPARE(item->property("toolTipSubText").toString(), QStringLiteral("Version %1").arg(version));
-        // The timer is bound to the widget's connection and idle while unconfigured.
         auto *timer = item->property("timer").value<QObject *>();
         QVERIFY(timer);
         QCOMPARE(timer->property("connection").value<QObject *>(), item->property("connection").value<QObject *>());
         QCOMPARE(timer->property("elapsedText").toString(), QStringLiteral("0:00"));
         QCOMPARE(timer->property("canWrite").toBool(), false);
-        // Let Plasma select and instantiate the visible representation.
-        // Creating the component ourselves misses a compact view that
-        // compiles but is never selected by the shell.
+        // Creating the component ourselves would miss a compact view that compiles
+        // but that the shell never selects.
         const QSize size = desktop ? QSize(1000, 500) : QSize(240, 48);
         QQuickWindow window;
         window.resize(size);
@@ -287,12 +268,11 @@ private Q_SLOTS:
         QTRY_VERIFY(label->width() > 0 && label->height() > 0);
         QTRY_VERIFY(window.contentItem()->contains(label->mapToItem(window.contentItem(), label->boundingRect().center())));
 
-        // Pomodoro mode: the session reaches the panel and the tooltip, and
-        // the alarm follows it with the configured sounds.
-        auto *pomodoro = item->property("pomodoro").value<QObject *>();
-        QVERIFY(pomodoro);
-        auto *session = pomodoro->property("session").value<QObject *>();
+        auto *timerState = item->property("timerState").value<QObject *>();
+        QVERIFY(timerState);
+        auto *session = item->property("session").value<QObject *>();
         QVERIFY(session);
+        QCOMPARE(timerState->property("session").value<QObject *>(), session);
         QCOMPARE(panel->property("session").value<QObject *>(), session);
         auto *alarm = item->property("alarm").value<QObject *>();
         QVERIFY(alarm);
@@ -302,15 +282,11 @@ private Q_SLOTS:
         QCOMPARE(sounds.value(QStringLiteral("shortRestToWork")).toString(), QStringLiteral("short-rest-to-work"));
         QCOMPARE(sounds.value(QStringLiteral("workToLongRest")).toString(), QStringLiteral("work-to-long-rest"));
         QCOMPARE(sounds.value(QStringLiteral("longRestToWork")).toString(), QStringLiteral("long-rest-to-work"));
-        // Without an account the session's lengths are the defaults, which
-        // must not replace the kept ones.
         auto *lengthsCache = item->property("lengthsCache").value<QObject *>();
         QVERIFY(lengthsCache);
         QCOMPARE(lengthsCache->property("configuration").value<QObject *>(), applet->property("configuration").value<QObject *>());
         QTest::qWait(50);
         QCOMPARE(applet->configScheme()->property(QStringLiteral("cachedWorkMinutes")).toInt(), 40);
-        // A write as the settings page's Apply makes reaches the settings
-        // and the cache, which would put the account's lengths back.
         QVERIFY(applet->property("configuration").value<QObject *>()->setProperty("cachedWorkMinutes", 41));
         QCOMPARE(applet->configScheme()->property(QStringLiteral("cachedWorkMinutes")).toInt(), 41);
         QTRY_COMPARE(lengthsCache->property("stored").value<QJSValue>().property(0).toInt(), 41);
@@ -324,8 +300,6 @@ private Q_SLOTS:
         QVERIFY2(qmlProblems.isEmpty(), qPrintable(qmlProblems.join(QLatin1Char('\n'))));
     }
 
-    // Ordinary configuration holds only nonsecret settings; the secret is
-    // kept in KDE Wallet.
     void configSchema()
     {
         TestCorona corona;
@@ -357,13 +331,10 @@ private Q_SLOTS:
         QCOMPARE(scheme->property(QStringLiteral("instanceUrl")).toString(), QString());
         QCOMPARE(scheme->property(QStringLiteral("authMode")).toString(), QStringLiteral("token"));
         QCOMPARE(scheme->property(QStringLiteral("monochromeIcon")).toBool(), false);
-        // Each transition's sound defaults to the sound named after it.
         QCOMPARE(scheme->property(QStringLiteral("workToShortRestSound")).toString(), QStringLiteral("work-to-short-rest"));
         QCOMPARE(scheme->property(QStringLiteral("shortRestToWorkSound")).toString(), QStringLiteral("short-rest-to-work"));
         QCOMPARE(scheme->property(QStringLiteral("workToLongRestSound")).toString(), QStringLiteral("work-to-long-rest"));
         QCOMPARE(scheme->property(QStringLiteral("longRestToWorkSound")).toString(), QStringLiteral("long-rest-to-work"));
-        // The panel's copy of the account's lengths starts at the server's
-        // defaults.
         QCOMPARE(scheme->property(QStringLiteral("cachedWorkMinutes")).toInt(), 25);
         QCOMPARE(scheme->property(QStringLiteral("cachedShortRestMinutes")).toInt(), 5);
         QCOMPARE(scheme->property(QStringLiteral("cachedLongRestMinutes")).toInt(), 15);
@@ -372,16 +343,14 @@ private Q_SLOTS:
 
     void configPageLoads()
     {
-        // Plasma opens the Configure dialog in a ConfigView. On Plasma 6.3
-        // that view registers org.kde.plasma.configuration, which config.qml
-        // imports; later releases install it as a QML module.
+        // On Plasma 6.3 ConfigView registers org.kde.plasma.configuration; later
+        // releases install it as a QML module.
         TestCorona corona;
         Plasma::Containment *containment = corona.createContainment(QStringLiteral("tokkl.test.emptycontainment"));
         QVERIFY(containment);
         Plasma::Applet *applet = containment->createApplet(plasmoidId);
         QVERIFY(applet);
         PlasmaQuick::ConfigView view(applet);
-        // Only the pages' own QML problems count, not the view's.
         qmlProblems.clear();
 
         QQmlEngine engine;
@@ -396,7 +365,6 @@ private Q_SLOTS:
             std::unique_ptr<QObject> object(component.create());
             QVERIFY2(object, qPrintable(component.errorString()));
             if (file.endsWith(QLatin1String("configGeneral.qml"))) {
-                // Starts blank with token sign-in, and has no setting for the secret.
                 QCOMPARE(object->property("cfg_instanceUrl").toString(), QString());
                 QCOMPARE(object->property("cfg_authMode").toString(), QStringLiteral("token"));
                 const QRegularExpression secretLike(QStringLiteral("token|password|secret"), QRegularExpression::CaseInsensitiveOption);
@@ -409,9 +377,8 @@ private Q_SLOTS:
                 checkPersistedUrl(object.get());
             }
             if (file.endsWith(QLatin1String("configPomodoro.qml"))) {
-                // Plasma saves a cfg_ property only when it names a setting.
-                // Each transition's sound is one; the lengths live on the
-                // server and are saved by saveConfig().
+                // Plasma saves a cfg_ property only when it names a setting; the lengths
+                // live on the server.
                 QStringList keys;
                 for (const KConfigSkeletonItem *item : applet->configScheme()->items()) {
                     keys.append(item->name());

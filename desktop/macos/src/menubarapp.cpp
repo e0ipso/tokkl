@@ -1,17 +1,16 @@
 #include "menubarapp.h"
 
-#include "clock.h"
-#include "connection.h"
+#include "alarmplayer.h"
+#include "connectionsettings.h"
 #include "pomodoroalarm.h"
-#include "pomodoropreferences.h"
-#include "pomodorosession.h"
 #include "pomodorostore.h"
+#include "settingssave.h"
 #include "settingswindow.h"
+#include "soundchoices.h"
 #include "statusitem.h"
 #include "statusmenu.h"
 #include "statuswords.h"
-#include "timercontroller.h"
-#include "timerstateclient.h"
+#include "timerstack.h"
 #include "transport.h"
 
 #include <QSettings>
@@ -24,6 +23,11 @@ QString MenuBarApp::clientName()
     return QStringLiteral("tokkl-macos");
 }
 
+QString MenuBarApp::soundKey(TransitionKind kind)
+{
+    return transitionKindName(kind) + QStringLiteral("Sound");
+}
+
 Transport *MenuBarApp::createTransport(QObject *parent)
 {
     return new NetworkTransport(clientName(), parent);
@@ -31,73 +35,64 @@ Transport *MenuBarApp::createTransport(QObject *parent)
 
 MenuBarApp::MenuBarApp(Transport *transport,
                        CredentialStore *store,
-                       StatusItem *statusItem,
-                       LoginItem *loginItem,
-                       AlarmPlayer *alarmPlayer,
-                       QSettings *settings,
-                       Clock *clock,
+                       StatusItem &statusItem,
+                       LoginItem &loginItem,
+                       AlarmPlayer &alarmPlayer,
+                       QSettings &settings,
+                       Clock &clock,
+                       const QString &soundsDirectory,
                        QObject *parent)
     : QObject(parent)
     , m_statusItem(statusItem)
     , m_settings(settings)
-    , m_ownClock(clock ? nullptr : std::make_unique<SystemClock>())
-    , m_clock(clock ? clock : m_ownClock.get())
-    , m_connection(std::make_unique<Connection>(transport, store, clientName()))
-    , m_pomodoroStore(settings ? std::make_unique<SettingsPomodoroStore>(settings) : nullptr)
-    , m_stateClient(std::make_unique<TimerStateClient>(m_connection.get(), m_clock))
-    , m_timer(std::make_unique<TimerController>(m_clock))
+    , m_pomodoroStore(new SettingsPomodoroStore(&settings, this))
+    , m_stack(new TimerStack(transport, store, *m_pomodoroStore, clock, clientName(), this))
+    , m_connection(m_stack->connection())
+    , m_timer(m_stack->timer())
+    , m_preferences(m_stack->preferences())
+    , m_session(m_stack->session())
 {
-    // The timer and the session read the same state client, so they agree
-    // on the server's timer and session.
-    m_timer->setStateClient(m_stateClient.get());
-    m_preferences = std::make_unique<PomodoroPreferences>(m_connection.get());
-    m_session = std::make_unique<PomodoroSession>(m_clock, m_timer.get(), m_stateClient.get(), m_pomodoroStore.get());
-    m_alarm = std::make_unique<PomodoroAlarm>(m_session.get(), alarmPlayer, settings);
-    m_menu = std::make_unique<StatusMenu>(m_timer.get(), m_session.get());
-    m_settingsWindow = std::make_unique<SettingsWindow>(transport, store, settings, loginItem, m_preferences.get(), m_alarm.get());
+    m_sounds = new SoundChoices(&settings, &MenuBarApp::soundKey, this);
+    m_alarm = new PomodoroAlarm(*m_session, alarmPlayer, *m_sounds, soundsDirectory, this);
+    m_menu = new StatusMenu(*m_timer, *m_session, *m_alarm, this);
+    m_settingsWindow = std::make_unique<SettingsWindow>(transport, store, settings, loginItem, *m_preferences, *m_sounds, *m_alarm);
 
-    connect(m_menu.get(), &StatusMenu::settingsRequested, this, &MenuBarApp::showSettings);
-    connect(m_menu.get(), &StatusMenu::openRequested, this, &MenuBarApp::openUrlRequested);
-    connect(m_menu.get(), &StatusMenu::quitRequested, this, &MenuBarApp::quitRequested);
+    connect(m_menu, &StatusMenu::settingsRequested, this, &MenuBarApp::showSettings);
+    connect(m_menu, &StatusMenu::openRequested, this, &MenuBarApp::openUrlRequested);
+    connect(m_menu, &StatusMenu::quitRequested, this, &MenuBarApp::quitRequested);
     connect(m_settingsWindow.get(), &SettingsWindow::saved, this, &MenuBarApp::applySettings);
 
-    for (auto signal : {&TimerController::elapsedChanged,
-                        &TimerController::statusChanged,
-                        &TimerController::currentEntryChanged,
-                        &TimerController::chainChanged,
-                        &TimerController::choiceChanged,
-                        &TimerController::projectsChanged,
-                        &TimerController::entryProjectChanged,
-                        &TimerController::indicatorChanged}) {
-        connect(m_timer.get(), signal, this, &MenuBarApp::updateItem);
+    for (auto signal : {&TimerModel::elapsedChanged,
+                        &TimerModel::statusChanged,
+                        &TimerModel::currentEntryChanged,
+                        &TimerModel::chainChanged,
+                        &TimerModel::choiceChanged,
+                        &TimerModel::projectsChanged,
+                        &TimerModel::entryProjectChanged,
+                        &TimerModel::indicatorChanged}) {
+        connect(m_timer, signal, this, &MenuBarApp::updateItem);
     }
     for (auto signal : {&PomodoroSession::modeChanged, &PomodoroSession::sessionChanged, &PomodoroSession::countdownChanged}) {
-        connect(m_session.get(), signal, this, &MenuBarApp::updateItem);
+        connect(m_session, signal, this, &MenuBarApp::updateItem);
     }
 
-    if (m_statusItem) {
-        m_statusItem->setMenu(m_menu->menu());
-        connect(m_statusItem, &StatusItem::activated, this, &MenuBarApp::activate);
-        connect(m_statusItem, &StatusItem::reduceMotionChanged, this, &MenuBarApp::updateItem);
-    }
+    m_statusItem.setMenu(m_menu->menu());
+    connect(&m_statusItem, &StatusItem::activated, this, &MenuBarApp::activate);
+    connect(&m_statusItem, &StatusItem::reduceMotionChanged, this, &MenuBarApp::updateItem);
     updateItem();
 }
 
-// The menu, the window and the alarm go before the session, timer and
-// connection they show, and the session before the parts it uses.
+// Users go before what they use; children would otherwise go in creation
+// order.
 MenuBarApp::~MenuBarApp()
 {
-    if (m_statusItem) {
-        m_statusItem->setMenu(nullptr);
-    }
+    m_statusItem.setMenu(nullptr);
     m_settingsWindow.reset();
-    m_menu.reset();
-    m_alarm.reset();
-    m_session.reset();
-    m_preferences.reset();
-    m_timer.reset();
-    m_stateClient.reset();
-    m_connection.reset();
+    delete m_menu;
+    delete m_alarm;
+    delete m_sounds;
+    delete m_stack;
+    delete m_pomodoroStore;
 }
 
 void MenuBarApp::start()
@@ -106,41 +101,6 @@ void MenuBarApp::start()
     if (m_connection->instanceUrl().isEmpty()) {
         showSettings();
     }
-}
-
-Connection *MenuBarApp::connection() const
-{
-    return m_connection.get();
-}
-
-TimerController *MenuBarApp::timer() const
-{
-    return m_timer.get();
-}
-
-PomodoroSession *MenuBarApp::pomodoroSession() const
-{
-    return m_session.get();
-}
-
-PomodoroPreferences *MenuBarApp::pomodoroPreferences() const
-{
-    return m_preferences.get();
-}
-
-PomodoroAlarm *MenuBarApp::pomodoroAlarm() const
-{
-    return m_alarm.get();
-}
-
-StatusMenu *MenuBarApp::statusMenu() const
-{
-    return m_menu.get();
-}
-
-SettingsWindow *MenuBarApp::settingsWindow() const
-{
-    return m_settingsWindow.get();
 }
 
 void MenuBarApp::showSettings()
@@ -156,41 +116,31 @@ void MenuBarApp::showSettings()
 
 void MenuBarApp::applySettings()
 {
-    if (!m_settings) {
-        return;
-    }
-    m_connection->setInstanceUrl(m_settings->value(SettingsWindow::instanceUrlKey).toString());
-    m_connection->setAuthModeString(m_settings->value(SettingsWindow::authModeKey, QStringLiteral("token")).toString());
-    m_connection->setEmail(m_settings->value(SettingsWindow::emailKey).toString());
+    ConnectionSettings::read(m_settings).applyTo(*m_connection);
     updateItem();
 }
 
 void MenuBarApp::activate()
 {
     // Mid-phase a click must not skip the phase, so it opens the menu.
-    if (m_session->activate() == PomodoroSession::Activation::OpenMenu && m_statusItem) {
-        m_statusItem->popUpMenu();
+    if (m_session->activate() == PomodoroSession::Activation::OpenMenu) {
+        m_statusItem.popUpMenu();
     }
 }
 
 void MenuBarApp::resumed()
 {
-    // The timer forwards to the state client, which reads at once.
-    m_timer->resumed();
-    m_session->resumed();
+    m_timer->stateClient()->resumed();
 }
 
 void MenuBarApp::updateItem()
 {
-    if (!m_statusItem) {
-        return;
-    }
-    m_statusItem->setTitle(StatusWords::menuBarTitle(*m_timer, *m_session));
-    m_statusItem->setToolTip(StatusWords::summary(*m_timer, *m_session));
-    m_statusItem->setAccessibleName(StatusWords::itemName(*m_timer, *m_session));
-    const bool monochrome = m_settings && m_settings->value(SettingsWindow::monochromeIconKey, false).toBool();
-    m_statusItem->setImage(
-        StatusImage::compose(ProjectIndicator::fromTimer(*m_timer, m_statusItem->reduceMotion()), monochrome, m_session->pomodoroMode()));
+    m_statusItem.setTitle(StatusWords::menuBarTitle(*m_timer, *m_session));
+    m_statusItem.setToolTip(StatusWords::summary(*m_timer, *m_session));
+    m_statusItem.setAccessibleName(StatusWords::itemName(*m_timer, *m_session));
+    const bool monochrome = m_settings.value(SettingsSave::monochromeIconKey, false).toBool();
+    m_statusItem.setImage(
+        StatusImage::compose(ProjectIndicator::fromTimer(*m_timer, m_statusItem.reduceMotion()), monochrome, m_session->pomodoroMode()));
 }
 
 }

@@ -1,8 +1,3 @@
-# Checks the configured Info.plist: LSUIElement is true, so the app has no
-# Dock icon, CFBundleIconFile names Tokkl.icns in Contents/Resources, and the
-# bundle id and version are the resolved ones. On macOS, plutil also checks
-# that the file is a valid property list.
-#
 #   cmake -DINFO_PLIST=<file> -DBUNDLE_ID=<id> -DVERSION=<version> -P infoplisttest.cmake
 
 foreach(_var INFO_PLIST BUNDLE_ID VERSION)

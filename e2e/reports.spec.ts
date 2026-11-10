@@ -3,15 +3,16 @@ import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
 
-/** Clicks an export button and returns the CSV it downloads. */
 async function exportCsv(page: Page, button: string): Promise<string> {
   const download = page.waitForEvent('download');
   await page.getByRole('group', { name: 'Export' }).getByRole('button', { name: button }).click();
   return readFile(await (await download).path(), 'utf8');
 }
 
-test('detailed report pages and CSV exports reach every entry of a range longer than a year', async ({ page, data }) => {
-  // 101 one-hour entries a week apart, from 2024-11-01 on: more than a page, over more than a year.
+test('detailed report pages and CSV exports reach every entry of a range longer than a year', async ({
+  page,
+  data,
+}) => {
   const names: string[] = [];
   for (let i = 0; i < 101; i++) {
     const day = new Date(Date.UTC(2024, 10, 1) + i * 7 * 86_400_000).toISOString().slice(0, 10);
@@ -29,22 +30,27 @@ test('detailed report pages and CSV exports reach every entry of a range longer 
   await pager.getByRole('button', { name: 'Next' }).click();
   await expect(pager).toContainText('101 to 101 of 101');
   await expect(descriptions).toHaveCount(1);
-  seen.push(...await descriptions.allTextContents());
-  expect(seen.map((text) => text.trim()).sort()).toEqual(names);
+  seen.push(...(await descriptions.allTextContents()));
+  expect(seen.map(text => text.trim()).sort()).toEqual(names);
 
   const detailed = await exportCsv(page, 'CSV (detailed)');
   expect(detailed.trim().split(/\r?\n/)).toHaveLength(102);
-  expect(names.filter((name) => !detailed.includes(name))).toEqual([]);
-  // Grouped by project, then description: one row per entry under "(none)".
+  expect(names.filter(name => !detailed.includes(name))).toEqual([]);
   const summary = await exportCsv(page, 'CSV (summary)');
-  expect(summary.trim().split(/\r?\n/).slice(1)).toEqual(names.map((name) => `(none),${name},1:00:00`));
+  expect(summary.trim().split(/\r?\n/).slice(1)).toEqual(names.map(name => `(none),${name},1:00:00`));
 });
 
-test('only the summary tab fetches its grouping, and returning to it reuses the result until an edit', async ({ page, data }) => {
-  await data.createEntry({ description: 'Before the edit', start: '2026-01-07T09:00:00Z', stop: '2026-01-07T10:00:00Z' });
-  // grouping/sub_grouping of every POST /api/app/report, in order.
+test('only the summary tab fetches its grouping, and returning to it reuses the result until an edit', async ({
+  page,
+  data,
+}) => {
+  await data.createEntry({
+    description: 'Before the edit',
+    start: '2026-01-07T09:00:00Z',
+    stop: '2026-01-07T10:00:00Z',
+  });
   const fetched: string[] = [];
-  page.on('request', (request) => {
+  page.on('request', request => {
     if (request.method() !== 'POST' || new URL(request.url()).pathname !== '/api/app/report') return;
     const body = request.postDataJSON() as { grouping: string; sub_grouping: string };
     fetched.push(`${body.grouping}/${body.sub_grouping}`);
@@ -54,9 +60,9 @@ test('only the summary tab fetches its grouping, and returning to it reuses the 
   const tab = (name: string) => page.getByRole('tablist', { name: 'Report type' }).getByRole('tab', { name });
   const breakdown = page.getByRole('region', { name: 'Breakdown' });
   const detailedRow = page.locator('tr.entry-row');
-  /** Opens the detailed tab and waits for its own entries request, which it sends on every visit. */
+  /** It sends its own entries request on every visit. */
   const openDetailed = async () => {
-    const entries = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/app/report/entries');
+    const entries = page.waitForResponse(response => new URL(response.url()).pathname === '/api/app/report/entries');
     await tab('Detailed').click();
     await entries;
     await expect(detailedRow).toHaveCount(1);

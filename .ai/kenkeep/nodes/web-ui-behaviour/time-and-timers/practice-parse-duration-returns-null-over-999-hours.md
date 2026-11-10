@@ -22,7 +22,7 @@ kk_confidence: high
 
 `parseDuration` returns `null` for any result over the cap on every branch: colon form, bare integer, bare decimal and unit list. Units are looked up in a `Map`, so prototype keys such as `constructor` are not units. A caller must treat `null` as unreadable input, never as empty or zero: the entry editor and the timer bar show "Check the duration" and the CSV import fails the row with "Invalid end time or duration".
 
-The timer bar (`TimerBar.tsx`) treats only a Duration that is empty after trimming as "start a running timer". Any other text that `parseDuration` rejects is refused through `useFieldErrors` with "Check the duration" and no timer starts.
+The timer bar (`useTimerBarActions.ts`, used by `TimerBar.tsx`) treats only a Duration that is empty after trimming as "start a running timer". Any other text that `parseDuration` rejects is refused through `useFieldErrors` with "Check the duration" and no timer starts.
 
 <!-- kk:related:start -->
 # Related

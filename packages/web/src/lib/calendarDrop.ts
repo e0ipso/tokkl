@@ -1,0 +1,67 @@
+import { addClockMinutes, addDays, startOfDay } from '@tokkl/common/time';
+import type { TimeEntry } from '@tokkl/types';
+import { dragStep, fitMoveInDay } from './calendarDay.ts';
+import type { CalendarDrag } from './calendarGesture.ts';
+import { DAY_MINUTES } from './calendarLayout.ts';
+import { instantAt } from './entryTime.ts';
+import type { Settings } from './settings.ts';
+import { snappedInstant, snappedSeconds } from './snapping.ts';
+
+type DropChange =
+  /** A click on an empty slot, or a resize of a running entry. */
+  | { readonly kind: 'none' }
+  /** A click that did not move the block: open it. */
+  | { readonly kind: 'open'; readonly entry: TimeEntry }
+  /** Opened once saved. */
+  | { readonly kind: 'create'; readonly start: string; readonly stop: string }
+  /** A field left out stays as it is. */
+  | { readonly kind: 'update'; readonly id: number; readonly start?: string; readonly stop?: string }
+  /** Sent through the timer, which refuses it once the entry stopped elsewhere. */
+  | { readonly kind: 'moveRunning'; readonly id: number; readonly start: string };
+
+type DropSettings = Pick<Settings, 'timeZone' | 'timeResolution'>;
+
+function createChange(drag: Extract<CalendarDrag, { kind: 'create' }>, settings: DropSettings): DropChange {
+  if (drag.toMinute === drag.fromMinute) return { kind: 'none' };
+  const stepMinutes = dragStep(settings.timeResolution);
+  // Whole steps from midnight are on the resolution grid, so the range needs no snapping.
+  const from = Math.min(Math.min(drag.fromMinute, drag.toMinute), DAY_MINUTES - stepMinutes);
+  const to = Math.max(drag.fromMinute, drag.toMinute, from + stepMinutes);
+  return {
+    kind: 'create',
+    start: instantAt(drag.day, from, settings.timeZone).toISOString(),
+    stop: instantAt(drag.day, Math.min(to, DAY_MINUTES - 1), settings.timeZone).toISOString(),
+  };
+}
+
+/** Drops move endpoints by clock minutes, then to the nearest grid point, so off-grid imports land on it. */
+export function dropChange(drag: CalendarDrag, settings: DropSettings, dayMode: boolean): DropChange {
+  if (drag.kind === 'create') return createChange(drag, settings);
+  const { entry, deltaMinutes } = drag;
+  if (deltaMinutes === 0) return { kind: 'open', entry };
+  const start = new Date(entry.start);
+  const dropAt = (from: Date) =>
+    snappedInstant(addClockMinutes(from, deltaMinutes, settings.timeZone), settings).getTime();
+  if (drag.kind === 'move') {
+    // The start lands on the dropped slot and the entry keeps the duration the server stores for
+    // it, so an entry imported off the grid moves as the span it would snap to.
+    let movedStart = dropAt(start);
+    const stop = entry.stop ? Date.parse(entry.stop) : null;
+    const stored = stop === null ? 0 : snappedSeconds(start, new Date(stop), settings) * 1000;
+    if (dayMode && stop !== null) {
+      // The clamp kept the clock span on the day, but on a 25-hour day the elapsed duration can
+      // still carry the stop into the next day, so the fit keeps the stored stop on the day.
+      const dayEnd = startOfDay(addDays(drag.day, 1), settings.timeZone).getTime();
+      movedStart = fitMoveInDay(movedStart, stored, stop, dayEnd);
+    }
+    const movedTo = new Date(movedStart).toISOString();
+    if (stop === null) return { kind: 'moveRunning', id: entry.id, start: movedTo };
+    return { kind: 'update', id: entry.id, start: movedTo, stop: new Date(movedStart + stored).toISOString() };
+  }
+  if (!entry.stop) return { kind: 'none' };
+  // The server moves an off-grid start to its nearest grid point, so the shortest block is
+  // measured from there.
+  const gridStart = snappedInstant(start, settings).getTime();
+  const stop = Math.max(gridStart + dragStep(settings.timeResolution) * 60_000, dropAt(new Date(entry.stop)));
+  return { kind: 'update', id: entry.id, stop: new Date(stop).toISOString() };
+}
