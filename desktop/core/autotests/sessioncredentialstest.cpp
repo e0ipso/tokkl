@@ -1,7 +1,3 @@
-// SessionCredentials on its own: which settings name the account, the
-// secret read for them, and a write the store refused. connectiontest
-// covers it through Connection.
-
 #include "fakes.h"
 #include "sessioncredentials.h"
 
@@ -130,7 +126,6 @@ private Q_SLOTS:
         Q_EMIT store.secretWriteFailed(tokenKey(instanceA), refused());
         QCOMPARE(failed.count(), 1);
         QCOMPARE(failed.first().first().value<Status>(), Status::Unavailable);
-        // Reported once: the next read goes to the store.
         credentials.read();
         QCOMPARE(store.reads, 1);
     }
@@ -181,7 +176,6 @@ private Q_SLOTS:
         SessionCredentials credentials(&store);
         credentials.setInstanceText(instanceA);
         QSignalSpy changed(&credentials, &SessionCredentials::changed);
-        // Not yet parsed: no key is current.
         Q_EMIT store.secretChanged(tokenKey(instanceA));
         QCOMPARE(changed.count(), 0);
         credentials.parseInstance();

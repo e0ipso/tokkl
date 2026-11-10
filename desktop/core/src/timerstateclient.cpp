@@ -68,8 +68,6 @@ QDateTime TimerStateClient::serverNow() const
     return m_clock.now().addMSecs(m_offsetMs);
 }
 
-// ----- reading the state ---------------------------------------------------
-
 bool TimerStateClient::readable() const
 {
     return m_connection.isConnected() && !m_connection.rateLimitedUntil().isValid();
@@ -156,13 +154,10 @@ void TimerStateClient::setOffset(qint64 offsetMs)
     Q_EMIT offsetChanged();
 }
 
-// ----- connection and clock ------------------------------------------------
-
 void TimerStateClient::onConnectionStateChanged()
 {
     const Connection::State state = m_connection.state();
     const bool up = m_connection.isConnected() && state == Connection::Connected;
-    // A new account, or back from a connectivity failure or a cooldown.
     const bool cameUp = up && (!m_started || m_lastState != Connection::Connected);
     m_lastState = state;
     if (!cameUp) {
@@ -238,8 +233,6 @@ void TimerStateClient::onTick()
     }
 }
 
-// ----- the event stream ----------------------------------------------------
-
 void TimerStateClient::openStream()
 {
     m_reconnectAt = QDateTime();
@@ -298,7 +291,6 @@ void TimerStateClient::onStreamEnded()
     m_event = PendingEvent();
     setStreaming(false);
     if (delivered) {
-        // The state may have changed after the last event.
         refresh();
     }
     scheduleReconnect();
@@ -337,7 +329,6 @@ void TimerStateClient::onStreamData(const QByteArray &data)
 
 void TimerStateClient::dropOversizedStream()
 {
-    // Not a stream of timer states.
     qCWarning(lcNet) << "Event stream sent more than" << maxEventBytes << "bytes for one event; dropped";
     closeStream();
     scheduleReconnect();
@@ -345,9 +336,8 @@ void TimerStateClient::dropOversizedStream()
 
 void TimerStateClient::dropUnreadableStream()
 {
-    // Its keep-alives would hold it open, and the states after this one may
-    // be just as unreadable. The state comes from a read until another
-    // stream delivers.
+    // Its keep-alives would hold it open, and the states after this one may be
+    // just as unreadable.
     qCWarning(lcNet) << "Event stream sent a timer event Tokkl could not read; dropped";
     closeStream();
     refresh();
@@ -380,7 +370,6 @@ void TimerStateClient::readLine(QByteArrayView line)
     } else if (field == "retry") {
         readRetry(value);
     }
-    // id and any other field are not used.
 }
 
 void TimerStateClient::readRetry(QByteArrayView value)
@@ -420,8 +409,6 @@ void TimerStateClient::setStreaming(bool streaming)
     m_streamingSince = streaming ? m_clock.now() : QDateTime();
     Q_EMIT streamingChanged();
 }
-
-// ----- actions -------------------------------------------------------------
 
 TimerStateClient::ActionCallback TimerStateClient::adopting(ActionCallback done)
 {

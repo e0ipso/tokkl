@@ -17,41 +17,31 @@ namespace Tokkl
 
 class Clock;
 
-// What a request is for, which decides when it may go out and what a
-// refusal of it means.
 enum class ApiAccess {
     Read,
     Write, // changes something; needs a session that can write
     Account, // validates the credentials: /me and the timer state
 };
 
-// The session an ApiClient sends for: the credentials, the context the
-// answers belong to, and what a failed answer does to them.
 class ApiSession
 {
 public:
     virtual ~ApiSession() = default;
 
-    // Changes with the instance, account or credentials. An answer to a
-    // request sent under an earlier generation is dropped.
+    // An answer to a request sent under an earlier generation is dropped.
     virtual quint64 generation() const = 0;
-    // The Authorization header value. It is never logged.
+    // Never logged.
     virtual QByteArray authorization() const = 0;
-    // Why a request with this access may not go out now, or nullopt.
     virtual std::optional<ApiError> refusal(ApiAccess access) const = 0;
-    // A request got a readable 2xx answer: the instance is reachable.
+    // A readable 2xx answer: the instance is reachable.
     virtual void answered() = 0;
-    // A request failed with error. False when that ended the generation, so
-    // whoever waits for the answer is gone too.
+    // False when the failure ended the generation, so whoever waits is gone too.
     virtual bool absorbFailure(const HttpResponse &response, const ApiError &error, ApiAccess access) = 0;
-    // The clock whose jitter spreads the client's retry waits
-    // (retryWaitMs()).
     virtual const Clock &clock() const = 0;
 };
 
-// Sends the API requests of one session through a transport. It asks the
-// session before each request, hands it every failure, and delivers an
-// answer only within the generation the request went out in.
+// Asks the session before each request and delivers an answer only within
+// the generation it went out in.
 class ApiClient : public QObject
 {
     Q_OBJECT
@@ -64,20 +54,16 @@ public:
     using ActionCallback = std::function<void(const TimerActionResult &)>;
     using ResponseHandler = std::function<void(const HttpResponse &)>;
 
-    // Neither the transport nor the session is owned; the session outlives
-    // the client.
+    // Neither is owned; the session must outlive the client.
     ApiClient(Transport *transport, ApiSession &session, QObject *parent = nullptr);
     ~ApiClient() override;
 
-    // Sends the request without asking the session. handler gets the raw
-    // response, later, and only within this generation. Without a transport
-    // the request fails as one that found no network. A nonempty
-    // idempotencyKey goes out as the Idempotency-Key header.
+    // Skips the session check. Without a transport the request fails as a
+    // network error.
     void send(const QByteArray &method, const QUrl &url, const QByteArray &body, ResponseHandler handler, const QByteArray &idempotencyKey = QByteArray());
 
-    // A request whose 2xx answer is a JSON body that decode reads. done runs
-    // later, and only within this generation, with the value, the refusal,
-    // the error of the answer, or InvalidResponse for a body decode rejects.
+    // done runs only within this generation; a body decode rejects gives
+    // InvalidResponse.
     template<typename T>
     void call(const QByteArray &method, const QUrl &url, const QByteArray &body, ApiAccess access, Decoder<T> decode, Callback<T> done)
     {
@@ -98,45 +84,30 @@ public:
             });
     }
 
-    // A POST to a timer action. A write: done tells apart a change made, a
-    // 409 with the server's state, nothing changed, and an unknown outcome.
     void action(const QUrl &url, const QByteArray &body, ActionCallback done);
-    // An action that creates something, sent with idempotencyKey. When its
-    // outcome is unknown it goes out once more after one retry wait
-    // (retryWaitMs() from retryMinMs, with the session's clock), with the
-    // same body and key, so the
-    // server answers what the first one did if it acted, and acts now if it
-    // did not. done gets the second answer, or the first when the session
-    // refuses the second. A new generation during the wait drops it, and
-    // done never runs, like an answer of an earlier generation.
+    // Resent once with the same body and key after an unknown outcome, so the
+    // server replays its first answer or acts now.
     void keyedAction(const QUrl &url, const QByteArray &body, const QByteArray &idempotencyKey, ActionCallback done);
 
-    // A new Idempotency-Key: 32 random hex digits. One stands for one user
-    // intent.
+    // One key stands for one user intent.
     static QByteArray newIdempotencyKey();
 
-    // Opens an event stream, or returns nullptr without a transport or when
-    // the session refuses a read. The caller reads the stream's signals;
-    // the client deletes it after finished(). A 401, 403 or 429, or a 503
-    // with Retry-After, that ends it goes to the session as a failure of an
-    // Account request.
+    // nullptr without a transport or when the session refuses a read. The client
+    // deletes the stream after finished().
     PendingStream *openStream(const QUrl &url);
 
-    // Aborts every request and stream in flight. Call it once the session's
-    // generation has moved on, so their answers are dropped.
+    // Call once the generation has moved on, so the answers are dropped.
     void abortAll();
 
 private:
-    // Reads a 2xx JSON body; false when it is not the expected value.
+    // False when the body is not the expected value.
     using BodyReader = std::function<bool(const QJsonValue &)>;
     // nullopt for success.
     using Completion = std::function<void(const std::optional<ApiError> &)>;
 
     void request(const QByteArray &method, const QUrl &url, const QByteArray &body, ApiAccess access, BodyReader read, Completion finish);
-    // Sends a timer action without asking the session.
     void sendAction(const QUrl &url, const QByteArray &body, const QByteArray &idempotencyKey, ActionCallback done);
-    // Runs f from the event loop after delayMs, unless the generation
-    // changes or the client goes first.
+    // Skipped if the generation changes or the client goes first.
     void later(std::function<void()> f, int delayMs = 0);
 
     QPointer<Transport> m_transport;

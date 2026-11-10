@@ -38,7 +38,6 @@ void logResponse(const QByteArray &method, const QUrl &url, const HttpResponse &
     }
 }
 
-// The headers of an answer that Tokkl reads.
 void readHeaders(const QNetworkReply *reply, HttpResponse &response)
 {
     response.retryAfter = reply->rawHeader("Retry-After");
@@ -139,7 +138,6 @@ private:
     void onFinished()
     {
         m_timer.stop();
-        // The rest of the body, unless the limit stopped it already.
         const bool fits = m_body.read(m_reply);
         HttpResponse response;
         const QVariant status = m_reply->attribute(QNetworkRequest::HttpStatusCodeAttribute);
@@ -153,9 +151,8 @@ private:
             response.outcome = HttpResponse::Outcome::NetworkError;
             response.errorString = m_body.errorString();
         } else if (status.isValid() && status.toInt() >= 200 && status.toInt() < 300 && m_reply->error() != QNetworkReply::NoError) {
-            // A success whose body broke off: what arrived may be a prefix
-            // that still decodes. An error status keeps its HTTP meaning,
-            // as Qt reports those as errors too.
+            // A broken-off 2xx body may still decode as a prefix. Error
+            // statuses keep their HTTP meaning; Qt reports those as errors too.
             response.outcome = HttpResponse::Outcome::NetworkError;
             response.errorString = m_reply->errorString();
         } else if (status.isValid() && status.toInt() > 0) {
@@ -247,7 +244,6 @@ private:
             response.outcome = HttpResponse::Outcome::NetworkError;
             response.errorString = m_body.errorString();
         } else if (streaming() && m_reply->error() != QNetworkReply::NoError) {
-            // The connection broke in the middle of the body.
             response.outcome = HttpResponse::Outcome::NetworkError;
             response.errorString = m_reply->errorString();
         } else if (status() > 0) {
@@ -282,7 +278,6 @@ NetworkTransport::NetworkTransport(const QString &clientName, QObject *parent, c
     , m_limits(limits)
 {
     // A redirect could carry the Authorization header to another origin.
-    // The client reports redirects instead of following them.
     m_manager->setRedirectPolicy(QNetworkRequest::ManualRedirectPolicy);
 }
 

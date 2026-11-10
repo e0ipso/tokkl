@@ -9,7 +9,6 @@ namespace Tokkl
 
 namespace
 {
-// Runs done from the event loop, and only while the context is alive.
 void deliver(const QPointer<QObject> &context, const CredentialStore::Callback &done, const CredentialResult &result)
 {
     if (!context) {

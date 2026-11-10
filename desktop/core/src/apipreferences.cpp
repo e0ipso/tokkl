@@ -11,8 +11,6 @@ using namespace Json;
 
 namespace
 {
-// The preferences that hold the Pomodoro lengths: the config value each one
-// fills and the change that sets it.
 struct PomodoroPreference {
     PomodoroField field;
     QLatin1String key;

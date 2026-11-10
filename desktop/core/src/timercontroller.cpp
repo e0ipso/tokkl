@@ -27,13 +27,11 @@ TimerController::TimerController(TimerStateClient &client, QObject *parent)
     connect(connection, &Connection::accountChanged, this, &TimerController::onConnectionChanged);
     reset();
     onConnectionChanged();
-    // A state the client already holds.
+    // Picks up a state the client already holds.
     onStateChanged();
 }
 
 TimerController::~TimerController() = default;
-
-// ----- connection lifetime -------------------------------------------------
 
 void TimerController::onConnectionChanged()
 {
@@ -65,8 +63,6 @@ void TimerController::reset()
         Q_EMIT writeFinished(false, QString());
     }
 }
-
-// ----- actions -------------------------------------------------------------
 
 bool TimerController::start()
 {
@@ -197,8 +193,6 @@ bool TimerController::updateEntry(const TimeEntryUpdate &update)
     return true;
 }
 
-// ----- settling ------------------------------------------------------------
-
 void TimerController::beginMutation()
 {
     m_gate.begin();
@@ -277,8 +271,6 @@ void TimerController::onSettlingChanged()
     Q_EMIT statusChanged();
 }
 
-// ----- workspace access ----------------------------------------------------
-
 void TimerController::loseWorkspace(const ApiError &error)
 {
     qCWarning(lcTimer) << "Workspace refused (403); writes blocked until reconnect:" << error.message;
@@ -295,8 +287,6 @@ void TimerController::loseWorkspace(const ApiError &error)
         m_client.connection()->fetchMe();
     }
 }
-
-// ----- reads ---------------------------------------------------------------
 
 void TimerController::refreshProjects()
 {
@@ -317,7 +307,6 @@ void TimerController::reconnect()
     m_next->wantLastEntry();
     setError(QString());
     if (wasLost) {
-        // Shows the entry and chain of the state held again.
         showState();
         resolveChosenProject();
     } else {
@@ -325,9 +314,8 @@ void TimerController::reconnect()
     }
     m_client.connection()->reconnect();
     if (isConnected()) {
-        // The account stays bound through revalidation; no state change
-        // would trigger the reload. The state that answers also replaces an
-        // automatic next-start default with the last entry's project.
+        // The account stays bound through revalidation, so no state change would
+        // trigger this reload.
         refreshState();
         fetchProjects();
     }

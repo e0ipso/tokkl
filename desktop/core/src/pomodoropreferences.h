@@ -12,26 +12,8 @@
 namespace Tokkl
 {
 
-// The account's Pomodoro lengths for a settings pane and for starting a
-// session: the four pomodoro_* preferences the web app and Android share.
-//
-// The lengths are read each time the connection becomes Connected and on
-// refresh(). Without a usable connection the lengths last read for the
-// account show, and cannot be edited. Until a read answers for an account,
-// the defaults show: the server's from its pomodoro_limits, or
-// PomodoroConfig's before a server announced any. The range of each length
-// is the server's too, kept until another server announces its own, and
-// PomodoroLimits::placeholder() before the first. A session takes its lengths on the server, so these are
-// only for showing and editing.
-//
-// save() posts only the lengths that differ from the ones shown. A 400 whose
-// Tokkl-Error-Field header names one of the four keys is that field's error.
-// Any other failure is the general error. A read issued while a save runs, or before one
-// started, does not replace what the save returned.
-//
-// Everything is tied to the connection's generation. A new one clears the
-// errors and the save in flight, shows the defaults when the owner changed,
-// and replies issued under an earlier one change nothing.
+// For showing and editing only; a session takes its lengths on the server.
+// A read issued before or during a save never replaces what the save returned.
 class PomodoroPreferences : public QObject
 {
     Q_OBJECT
@@ -40,28 +22,24 @@ class PomodoroPreferences : public QObject
     Q_PROPERTY(int shortRestMinutes READ shortRestMinutes NOTIFY changed)
     Q_PROPERTY(int longRestMinutes READ longRestMinutes NOTIFY changed)
     Q_PROPERTY(int longRestEvery READ longRestEvery NOTIFY changed)
-    // A validated account is connected, so save() can post.
     Q_PROPERTY(bool editable READ isEditable NOTIFY stateChanged)
     Q_PROPERTY(bool saving READ isSaving NOTIFY stateChanged)
-    // The server's message for a value it refused, per field.
+    // The server's message for a value it refused.
     Q_PROPERTY(QString workMinutesError READ workMinutesError NOTIFY stateChanged)
     Q_PROPERTY(QString shortRestMinutesError READ shortRestMinutesError NOTIFY stateChanged)
     Q_PROPERTY(QString longRestMinutesError READ longRestMinutesError NOTIFY stateChanged)
     Q_PROPERTY(QString longRestEveryError READ longRestEveryError NOTIFY stateChanged)
     // A failed read, or a failed save that names no field.
     Q_PROPERTY(QString errorString READ errorString NOTIFY stateChanged)
-    // The range and default of each length, so settings pages do not repeat
-    // them: PomodoroLimits::toVariantMap() of pomodoroLimits().
     Q_PROPERTY(QVariantMap limits READ limits NOTIFY limitsChanged)
 
 public:
-    // Uses the connection, which it does not own.
+    // The connection is not owned.
     explicit PomodoroPreferences(Connection *connection, QObject *parent = nullptr);
 
     PomodoroConfig config() const;
-    // The account the lengths shown belong to, as Connection::owner() names
-    // it; empty while they are the defaults of no account. An edit made on
-    // these lengths is meant for this account only.
+    // Connection::owner() of the lengths shown; empty for the defaults. An edit
+    // is meant for this account only.
     QString owner() const;
     PomodoroLimits pomodoroLimits() const;
     QVariantMap limits() const;
@@ -79,53 +57,46 @@ public:
     QString longRestEveryError() const;
     QString errorString() const;
 
-    // Clears the errors and posts the lengths that differ from the ones
-    // shown. Returns true when a request was sent; false while not editable
-    // or saving, and when nothing differs.
+    // Posts only the lengths that differ from the ones shown. False while not
+    // editable, while saving, or when nothing differs.
     Q_INVOKABLE bool save(int workMinutes, int shortRestMinutes, int longRestMinutes, int longRestEvery);
 
 public Q_SLOTS:
-    // Reads the lengths again. refreshed() tells how it went.
     void refresh();
 
 Q_SIGNALS:
-    // The lengths changed.
     void changed();
-    // Another server announced other limits.
     void limitsChanged();
-    // editable, saving or an error changed.
     void stateChanged();
-    // A read of the current generation ended, also one the connection
-    // started. When ok is false the lengths shown are the last known ones.
+    // Also for a read the connection started. On failure the last known lengths
+    // stay.
     void refreshed(bool ok);
 
 private:
     void onConnectionChanged();
     void onGenerationChanged();
-    // Shows the defaults when the connection's owner changed.
     void followOwner();
     void followLimits();
     void fetch();
     void finishRead(const ApiResult<PomodoroConfig> &result, quint64 number, bool current);
     void finishSave(const ApiResult<PomodoroConfig> &result);
     void setConfig(const PomodoroConfig &config);
-    // Returns true when there was an error to clear.
+    // True when there was an error to clear.
     bool clearErrors();
 
     QPointer<Connection> m_connection;
     QString m_owner;
     PomodoroLimits m_limits = PomodoroLimits::placeholder();
     PomodoroConfig m_config;
-    // Connected with a validated account, as last seen. Reset by a new
-    // generation, so the next account reads its lengths too.
+    // Reset by a new generation, so the next account reads its lengths too.
     bool m_online = false;
 
     bool m_saving = false;
     std::array<QString, 4> m_fieldErrors;
     QString m_error;
 
-    // Reads are numbered. A reply is applied only when no newer read was,
-    // and no save ran when it was issued or started since.
+    // A reply applies only if no newer read applied and no save ran when it was
+    // issued or started since.
     quint64 m_readsIssued = 0;
     quint64 m_lastAppliedRead = 0;
     quint64 m_savesStarted = 0;

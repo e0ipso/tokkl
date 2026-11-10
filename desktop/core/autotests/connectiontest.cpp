@@ -1,6 +1,3 @@
-// The connection state machine and the Configure page helper, driven through
-// a scripted transport and credential store.
-
 #include "connection.h"
 #include "connectionsettings.h"
 #include "connectionsetup.h"
@@ -25,7 +22,7 @@ const QString instance = QStringLiteral("https://example.test/tokkl");
 const QString token = QStringLiteral("tok-7f3a9c");
 const QString password = QStringLiteral("hunter2-pw");
 
-// /me with the API token in it, so the log check covers that too.
+// Carries the API token so the log check covers it.
 QByteArray meWithToken(qint64 id, qint64 workspace)
 {
     QJsonObject me = QJsonDocument::fromJson(meBody(id, workspace)).object();
@@ -33,7 +30,6 @@ QByteArray meWithToken(qint64 id, qint64 workspace)
     return json(me);
 }
 
-// GET /api/app/timer with nothing running.
 QByteArray stateBody(qint64 revision = 1)
 {
     return QJsonDocument(QJsonObject{
@@ -73,7 +69,6 @@ class ConnectionTest : public QObject
 {
     Q_OBJECT
 
-    // A connection with its fakes, connected as a validated account.
     struct Fixture {
         FakeTransport transport;
         FakeCredentialStore store;
@@ -91,7 +86,6 @@ class ConnectionTest : public QObject
         return credentialKey(parseInstanceUrl(url), AuthMode::Password, email);
     }
 
-    // Configure token auth and answer /me with the given workspace.
     static bool connectAccount(Fixture &f, qint64 userId = 3, qint64 workspace = 7)
     {
         f.store.secrets.insert(tokenKey(), token);
@@ -124,7 +118,6 @@ private Q_SLOTS:
     void cleanupTestCase()
     {
         qInstallMessageHandler(previousHandler);
-        // No secret or Basic credential was logged by any test.
         const QByteArray basic = basicAuthorization(AuthMode::Token, QString(), token);
         for (const QString &line : std::as_const(logLines)) {
             QVERIFY2(!line.contains(token) && !line.contains(password) && !line.contains(QString::fromLatin1(basic.mid(6))), qPrintable(line));
@@ -138,7 +131,6 @@ private Q_SLOTS:
         QCOMPARE(f.connection.authModeString(), QStringLiteral("token"));
         QCOMPARE(f.connection.state(), Connection::Unconfigured);
         QTest::qWait(10);
-        // A blank address never opens the wallet or the network.
         QCOMPARE(f.store.reads, 0);
         QVERIFY(f.transport.requests.isEmpty());
     }
@@ -178,7 +170,6 @@ private Q_SLOTS:
         f.connection.setEmail(QStringLiteral("Bea@example.test"));
         f.connection.setInstanceUrl(instance);
         QTRY_COMPARE(f.transport.requests.size(), 1);
-        // The three settings changed in one go: one wallet read.
         QCOMPARE(f.store.reads, 1);
         QCOMPARE(f.transport.requests.first().authorization, QByteArray("Basic ") + QByteArray("Bea@example.test:hunter2-pw").toBase64());
         f.transport.respondLast(FakeTransport::answer(200, meWithToken(3, 7)));
@@ -186,7 +177,6 @@ private Q_SLOTS:
         QCOMPARE(f.connection.account()->email, QStringLiteral("bea@example.test"));
     }
 
-    // A page of distinct projects: ids first .. first + count - 1.
     static QByteArray projectPage(int first, int count, qint64 workspace)
     {
         QJsonArray projects;
@@ -208,7 +198,6 @@ private Q_SLOTS:
             received = result;
         });
         const qsizetype before = f.transport.requests.size();
-        // Every page up to the limit is full and new.
         for (int page = 1; page <= Connection::maxProjectPages; ++page) {
             QVERIFY(!received);
             f.transport.respondLast(FakeTransport::answer(200, projectPage((page - 1) * Connection::projectPageSize + 1, Connection::projectPageSize, 42)));
@@ -219,10 +208,8 @@ private Q_SLOTS:
         QVERIFY(received);
         QVERIFY(received->ok());
         QCOMPARE(received->value->projects.size(), Connection::maxProjectPages * Connection::projectPageSize);
-        // The truncated list is reported, not passed off as the whole list.
         QVERIFY(received->value->incomplete);
 
-        // A short last page ends the reading as complete, and clears the flag.
         received.reset();
         f.connection.fetchProjects([&received](const ApiResult<ProjectList> &result) {
             received = result;
@@ -268,7 +255,6 @@ private Q_SLOTS:
         f.transport.respondLast(FakeTransport::answer(200, page(1, Connection::projectPageSize, 42)));
         QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/v9/workspaces/42/projects?active=true&page=2&per_page=200"));
         QVERIFY(received.isEmpty());
-        // Another workspace's project is never offered.
         f.transport.respondLast(FakeTransport::answer(200, page(1000, 1, 42).chopped(1) + ',' + page(1001, 1, 9).sliced(1)));
         QCOMPARE(received.size(), Connection::projectPageSize + 1);
         QCOMPARE(received.last().id, 1000);
@@ -284,7 +270,6 @@ private Q_SLOTS:
         QCOMPARE(f.transport.requests.size(), before + 2);
         QCOMPARE(received.size(), Connection::projectPageSize);
 
-        // One project, archived or not, of the bound workspace only.
         std::optional<Project> archived;
         f.connection.fetchProject(33, [&archived](const ApiResult<Project> &result) {
             archived = result.value;
@@ -295,7 +280,6 @@ private Q_SLOTS:
         QVERIFY(!archived->active);
     }
 
-    // The catalog revision of the bound workspace, from /api/app.
     void catalogRevisionOfTheWorkspace()
     {
         Fixture f;
@@ -311,7 +295,6 @@ private Q_SLOTS:
         QVERIFY(received && received->ok());
         QCOMPARE(*received->value, 17);
 
-        // A member no more: the usual 403.
         received.reset();
         f.connection.fetchCatalogRevision([&received](const ApiResult<qint64> &result) {
             received = result;
@@ -321,8 +304,6 @@ private Q_SLOTS:
         QCOMPARE(received->error.kind, ApiError::Kind::Forbidden);
     }
 
-    // The three settings round-trip through a settings file and reach the
-    // connection; a file without a method reads as token sign-in.
     void settingsRoundTrip()
     {
         QTemporaryDir dir;
@@ -347,9 +328,8 @@ private Q_SLOTS:
         QCOMPARE(f.connection.email(), QStringLiteral("bea@example.test"));
     }
 
-    // QSettings keeps the first error it meets. A write that fails, then
-    // one made once the cause is gone, reports success, and the file gets
-    // the keys and what the caller set before.
+    // QSettings keeps the first error it meets, so a write after a failed one
+    // must still report its own outcome.
     void settingsWriteAfterAFailedOne()
     {
         QTemporaryDir dir;
@@ -357,7 +337,6 @@ private Q_SLOTS:
         const QString file = dir.filePath(QStringLiteral("tokkl.conf"));
         QSettings settings(file, QSettings::IniFormat);
         settings.setValue(QStringLiteral("monochromeIcon"), true);
-        // A directory stands where the file would go.
         QVERIFY(QDir().mkpath(file));
         QVERIFY(!(ConnectionSettings{instance, QStringLiteral("token"), QString()}.write(settings)));
         QVERIFY(!settings.contains(ConnectionSettings::instanceUrlKey));
@@ -372,7 +351,6 @@ private Q_SLOTS:
         QVERIFY(content.contains("authMode=password"));
         QVERIFY(content.contains("email=bea@example.test"));
         QVERIFY(content.contains("monochromeIcon=true"));
-        // A third write on the same object is judged on its own as well.
         QVERIFY((ConnectionSettings{instance, QStringLiteral("token"), QString()}.write(settings)));
     }
 
@@ -517,14 +495,11 @@ private Q_SLOTS:
         verifyCleared(f.connection);
     }
 
-    // The store reports every write: secretChanged when it kept the secret,
-    // secretWriteFailed with the status and no secret when it did not.
     void storeReportsWritesWithoutTheSecret()
     {
         class ReportingStore : public FakeCredentialStore
         {
         public:
-            // A failed result that still carries a secret must not pass it on.
             void reportLeaky(const QString &key)
             {
                 reportWrite(key, CredentialResult{CredentialResult::Status::Failed, QStringLiteral("leaked-secret")});
@@ -558,9 +533,7 @@ private Q_SLOTS:
         QVERIFY(failed.last().second.secret.isEmpty());
     }
 
-    // A settings page saves a secret for the connection's own account and the
-    // store refuses: the connection drops the account and says the new
-    // credentials were not saved, even when the page is already gone.
+    // The connection drops the account even when the settings page is gone.
     void refusedWriteForTheOwnKeyShowsWalletError()
     {
         Fixture f;
@@ -580,16 +553,12 @@ private Q_SLOTS:
         QVERIFY(!f.connection.errorString().contains(QLatin1String("refused-secret")));
         verifyCleared(f.connection);
 
-        // The old secret is still in the store, but nothing is validated or
-        // sent with it until the user reconnects.
         QTest::qWait(20);
         QCOMPARE(f.connection.state(), Connection::WalletError);
         QCOMPARE(f.transport.requests.size(), requests);
     }
 
-    // A wallet read that started before the refused write answers after it,
-    // with the old secret. It belongs to an older generation and cannot
-    // replace the error.
+    // The earlier read belongs to an older generation and cannot replace the error.
     void refusedWriteOutranksAnEarlierRead()
     {
         Fixture f;
@@ -609,7 +578,6 @@ private Q_SLOTS:
         QCOMPARE(f.transport.requests.size(), requests);
     }
 
-    // A refused write for another account leaves this one connected.
     void refusedWriteForAnotherKeyIsIgnored()
     {
         Fixture f;
@@ -621,9 +589,8 @@ private Q_SLOTS:
         QVERIFY(f.connection.isConnected());
     }
 
-    // A settings page may save the secret before Plasma hands the matching
-    // settings to the connection. The refusal is kept and shown on the
-    // reload those settings start, without reading the store.
+    // A settings page may save the secret before Plasma hands the connection the
+    // matching settings; the reload those settings start shows the refusal.
     void refusedWriteBeforeTheSettingsShowsOnReload()
     {
         Fixture f;
@@ -640,7 +607,6 @@ private Q_SLOTS:
         QCOMPARE(f.store.reads, 0);
         QVERIFY(f.transport.requests.isEmpty());
 
-        // Reconnect clears it and uses what the store holds.
         f.connection.reconnect();
         QTRY_COMPARE(f.transport.requests.size(), 1);
         f.transport.respondLast(FakeTransport::answer(200, meWithToken(3, 7)));
@@ -648,8 +614,6 @@ private Q_SLOTS:
         QCOMPARE(f.transport.requests.last().authorization, basicAuthorization(AuthMode::Token, QString(), token));
     }
 
-    // The kept refusal lasts until the next reload only, and it is shown
-    // only when that reload is for its key.
     void refusedWriteBeforeOtherSettingsIsDropped()
     {
         Fixture f;
@@ -664,8 +628,6 @@ private Q_SLOTS:
         QVERIFY(!f.connection.errorString().contains(QLatin1String("not saved")));
     }
 
-    // A later successful write of the same key replaces the refusal: before
-    // the settings arrive, and while the connection shows it.
     void successfulWriteClearsARefusal()
     {
         Fixture f;
@@ -709,7 +671,6 @@ private Q_SLOTS:
         verifyCleared(f.connection);
         QVERIFY(accountChanged.count() >= 1);
 
-        // Writes are blocked and automatic retries do nothing.
         const qsizetype sent = f.transport.requests.size();
         std::optional<TimerActionResult> write;
         f.connection.stopTimer(1, [&](const TimerActionResult &r) {
@@ -722,11 +683,9 @@ private Q_SLOTS:
         QTest::qWait(20);
         QCOMPARE(f.transport.requests.size(), sent);
 
-        // The wallet keeps the secret for correction.
         QCOMPARE(f.store.secrets.value(tokenKey()), token);
         QCOMPARE(f.store.writes, 0);
 
-        // An explicit reconnect validates again.
         f.connection.reconnect();
         QTRY_COMPARE(f.transport.requests.size(), sent + 1);
         QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/v9/me"));
@@ -764,8 +723,6 @@ private Q_SLOTS:
         QVERIFY(f.connection.isConnected());
     }
 
-    // fetchMe() validates the account like refreshAccount(); a workspace
-    // operation leaves a 403 to its caller.
     void fetchMeForbiddenPausesAuthentication()
     {
         Fixture f;
@@ -792,10 +749,8 @@ private Q_SLOTS:
         QVERIFY(f.connection.errorString().contains(QLatin1String("Incorrect username and/or password")));
         verifyCleared(f.connection);
         QVERIFY(accountChanged.count() >= 1);
-        // As for a 401: the request belonged to the account that is gone.
         QVERIFY(!answered);
 
-        // Writes are blocked and automatic retries do nothing.
         const qsizetype sent = f.transport.requests.size();
         std::optional<TimerActionResult> write;
         f.connection.stopTimer(1, [&](const TimerActionResult &r) {
@@ -808,7 +763,6 @@ private Q_SLOTS:
         QTest::qWait(20);
         QCOMPARE(f.transport.requests.size(), sent);
 
-        // A 401 from fetchMe() is handled the same way.
         f.connection.reconnect();
         QTRY_COMPARE(f.transport.requests.size(), sent + 1);
         f.transport.respondLast(FakeTransport::answer(200, meWithToken(3, 7)));
@@ -820,8 +774,7 @@ private Q_SLOTS:
         verifyCleared(f.connection);
     }
 
-    // The timer state request validates the account like /me: the
-    // middleware answers 403 or 401 there for refused credentials.
+    // The middleware answers 403 or 401 on the timer state for refused credentials.
     void timerStateRefusedPausesAuthentication_data()
     {
         QTest::addColumn<int>("status");
@@ -848,10 +801,8 @@ private Q_SLOTS:
         QVERIFY(f.connection.errorString().contains(QString::fromUtf8(body).remove(QLatin1Char('"'))));
         verifyCleared(f.connection);
         QVERIFY(accountChanged.count() >= 1);
-        // The request belonged to the account that is gone.
         QVERIFY(!answered);
 
-        // Writes are blocked and automatic retries do nothing.
         const qsizetype sent = f.transport.requests.size();
         std::optional<TimerActionResult> write;
         f.connection.stopTimer(1, [&](const TimerActionResult &r) {
@@ -864,7 +815,6 @@ private Q_SLOTS:
         QTest::qWait(20);
         QCOMPARE(f.transport.requests.size(), sent);
 
-        // An explicit reconnect validates again.
         f.connection.reconnect();
         QTRY_COMPARE(f.transport.requests.size(), sent + 1);
         QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/v9/me"));
@@ -895,7 +845,6 @@ private Q_SLOTS:
         QCOMPARE(f.transport.requests.size(), 1);
         QCOMPARE(f.connection.state(), Connection::RateLimited);
 
-        // Afterwards the connection validates again by itself.
         f.clock.advance(1000);
         QVERIFY(!f.connection.rateLimitedUntil().isValid());
         QTRY_COMPARE(f.transport.requests.size(), 2);
@@ -915,7 +864,6 @@ private Q_SLOTS:
         f.transport.respondLast(FakeTransport::answer(429, "\"Too many failed login attempts, try again later\""));
         QVERIFY(limited && limited->error.kind == ApiError::Kind::RateLimited);
         QCOMPARE(f.connection.state(), Connection::RateLimited);
-        // The account stays; only requests wait.
         QVERIFY(f.connection.isConnected());
         QVERIFY(!f.connection.canWrite());
         QCOMPARE(f.clock.now().msecsTo(f.connection.rateLimitedUntil()), Cooldown::defaultMs);
@@ -930,9 +878,7 @@ private Q_SLOTS:
         QCOMPARE(f.transport.requests.size(), sent);
     }
 
-    // A clock set back so far that more than the longest wait remains ends
-    // the cooldown on the next tick, instead of blocking for the time it
-    // went back.
+    // Otherwise a clock set far back would block for the time it went back.
     void rateLimitEndsWhenTheClockIsSetBack()
     {
         Fixture f;
@@ -946,9 +892,6 @@ private Q_SLOTS:
         QVERIFY(f.connection.canWrite());
     }
 
-    // A 503 that says when to come back starts the same cooldown as a 429:
-    // on /me, on a request with a bound account, and on the status read.
-    // Requests wait, the account stays, and validation resumes afterwards.
     void unavailableWithRetryAfterCoolsDown()
     {
         {
@@ -1008,7 +951,6 @@ private Q_SLOTS:
         HttpResponse response = FakeTransport::failure(HttpResponse::Outcome(outcome), QStringLiteral("Connection refused"));
         response.status = status;
 
-        // Before any account is bound: disconnected, not failed, and nothing paused.
         {
             Fixture f;
             f.store.secrets.insert(tokenKey(), token);
@@ -1022,7 +964,6 @@ private Q_SLOTS:
             QCOMPARE(f.transport.requests.size(), 2);
         }
 
-        // With a bound account: the data stays, marked stale, and writes may still try.
         {
             Fixture f;
             QVERIFY(connectAccount(f));
@@ -1060,17 +1001,14 @@ private Q_SLOTS:
         QVERIFY(connectAccount(f));
         const quint64 generation = f.connection.generation();
 
-        // A request is in flight when the address changes.
         f.connection.fetchTimerState();
         QPointer<FakeReply> pending = f.transport.replies.last();
 
         f.connection.setInstanceUrl(QStringLiteral("https://other.example.test"));
-        // Cleared at once, before any new reply.
         verifyCleared(f.connection);
         QVERIFY(f.connection.generation() > generation);
         QVERIFY(pending && pending->aborted);
 
-        // The old answer arrives late and changes nothing.
         pending->deliver(FakeTransport::answer(200, stateBody()));
         verifyCleared(f.connection);
     }
@@ -1087,7 +1025,6 @@ private Q_SLOTS:
     {
         QFETCH(QString, change);
         Fixture f;
-        // Password mode, so the email names the account.
         f.store.secrets.insert(passwordKey(QStringLiteral("bea@example.test")), password);
         f.connection.setAuthModeString(QStringLiteral("password"));
         f.connection.setEmail(QStringLiteral("bea@example.test"));
@@ -1102,7 +1039,6 @@ private Q_SLOTS:
         } else if (change == QLatin1String("email")) {
             f.connection.setEmail(QStringLiteral("cai@example.test"));
         } else {
-            // The Configure dialog saved a new password for this account.
             f.store.write(passwordKey(QStringLiteral("bea@example.test")), QStringLiteral("new-pw"), &f.store, [](const CredentialResult &) {});
         }
         verifyCleared(f.connection);
@@ -1111,7 +1047,6 @@ private Q_SLOTS:
         verifyCleared(f.connection);
 
         if (change == QLatin1String("secret")) {
-            // /me, the aborted projects request, then /me again.
             QTRY_COMPARE(f.transport.requests.size(), 3);
             QCOMPARE(f.transport.requests.last().authorization, QByteArray("Basic ") + QByteArray("bea@example.test:new-pw").toBase64());
         }
@@ -1129,7 +1064,6 @@ private Q_SLOTS:
         f.connection.setInstanceUrl(QStringLiteral("https://other.example.test"));
         QTRY_COMPARE(f.transport.requests.size(), 2);
 
-        // The first instance answers after the switch: ignored.
         oldMe->deliver(FakeTransport::answer(200, meWithToken(3, 7)));
         QVERIFY(!f.connection.isConnected());
         QCOMPARE(f.connection.state(), Connection::Connecting);
@@ -1161,15 +1095,11 @@ private Q_SLOTS:
         QVERIFY(connectAccount(f, 3, 7));
         const quint64 generation = f.connection.generation();
         f.connection.refreshAccount();
-        // Same credentials, another account and workspace: nothing carries over.
         f.transport.respondLast(FakeTransport::answer(200, meWithToken(4, 8)));
         QVERIFY(f.connection.generation() > generation);
         QCOMPARE(f.connection.workspaceId(), 8);
     }
 
-    // Before the first /me of a generation the connection reads what the
-    // server announces in GET /api/app/status, and binds only a server at
-    // the floor.
     void currentServerAnnouncesTheAppRoutes()
     {
         Fixture f;
@@ -1180,7 +1110,6 @@ private Q_SLOTS:
         QCOMPARE(f.transport.statusRequests.first().method, QByteArray("GET"));
         QCOMPARE(f.transport.statusRequests.first().url.toString(), QStringLiteral("https://example.test/tokkl/api/app/status"));
 
-        // Nothing binds, and /me waits, until the announcement arrives.
         QTest::qWait(10);
         QVERIFY(f.transport.requests.isEmpty());
         QCOMPARE(f.connection.state(), Connection::Connecting);
@@ -1211,11 +1140,7 @@ private Q_SLOTS:
         QTest::newRow("not JSON") << FakeTransport::answer(200, "<html></html>");
     }
 
-    // A server below the floor, or an answer that announces nothing: /me
-    // still goes out, so a wrong address or refused credentials say so, and
-    // valid credentials end in Error with a message that asks for a server
-    // update. Fields in a /me body are not read. Nothing else is sent, and
-    // a reconnect asks the server again.
+    // /me still goes out, so a wrong address or refused credentials say so.
     void olderServerIsRefused()
     {
         QFETCH(HttpResponse, status);
@@ -1245,8 +1170,6 @@ private Q_SLOTS:
         QVERIFY(f.connection.server().isSupported());
     }
 
-    // Credentials refused on an older server say so, not that the server
-    // is too old.
     void refusedCredentialsOutrankAnOlderServer()
     {
         Fixture f;
@@ -1269,8 +1192,6 @@ private Q_SLOTS:
         QTest::newRow("rate limited") << FakeTransport::answer(429, "\"Too many requests\"", "120") << int(Connection::RateLimited);
     }
 
-    // A status read that fails as /me can fails the validation the same
-    // way, without sending /me, and the next validation asks again.
     void statusFailureFailsTheValidation()
     {
         QFETCH(HttpResponse, status);
@@ -1285,9 +1206,7 @@ private Q_SLOTS:
         QVERIFY(!f.connection.isConnected());
     }
 
-    // The account's retries after connectivity failures follow the one
-    // backoff rule: 30 s, doubling with each failure in a row up to 2 min,
-    // each with the clock's jitter, and 30 s again after a success.
+    // 30 s, doubling per failure in a row up to 2 min, plus jitter; 30 s after a success.
     void accountRetriesBackOffWithTheClocksJitter()
     {
         FakeClock clock;
@@ -1296,7 +1215,6 @@ private Q_SLOTS:
         QCOMPARE(retry.next(clock), 60000);
         QCOMPARE(retry.next(clock), 120000);
         QCOMPARE(retry.next(clock), 120000);
-        // Up to a quarter of the wait more.
         clock.jitter = 40000;
         QCOMPARE(retry.next(clock), 120000 + 29999);
         retry.reset();
@@ -1305,8 +1223,6 @@ private Q_SLOTS:
         QCOMPARE(retry.next(clock), 61000);
     }
 
-    // A status read that found no network: the retry asks for the status
-    // again, and binds once a supported server answers.
     void statusAskedAgainAfterANetworkFailure()
     {
         Fixture f;
@@ -1317,7 +1233,6 @@ private Q_SLOTS:
         QCOMPARE(f.transport.statusRequests.size(), 1);
         QVERIFY(f.transport.requests.isEmpty());
 
-        // The network is back. refreshAccount() is what the retry timer runs.
         f.transport.status = FakeTransport::currentStatus();
         f.connection.refreshAccount();
         QTRY_COMPARE(f.transport.requests.size(), 1);
@@ -1326,16 +1241,12 @@ private Q_SLOTS:
         QCOMPARE(f.connection.state(), Connection::Connected);
         QVERIFY(f.connection.server().isSupported());
 
-        // Known now: the next revalidation sends /me alone.
         f.connection.refreshAccount();
         QTRY_COMPARE(f.transport.requests.size(), 2);
         QCOMPARE(path(f.transport.requests.last()), QStringLiteral("/tokkl/api/v9/me"));
         QCOMPARE(f.transport.statusRequests.size(), 2);
     }
 
-    // Once per generation: a revalidation, also one that finds another
-    // account behind the same credentials, keeps the announcement, and a
-    // new generation asks again.
     void statusIsReadOncePerGeneration()
     {
         Fixture f;
@@ -1364,8 +1275,6 @@ private Q_SLOTS:
         QCOMPARE(f.connection.server(), ServerApi());
     }
 
-    // A revalidation while the announcement is read sends no second /me,
-    // and an announcement of an older generation is dropped.
     void statusInFlight()
     {
         Fixture f;
@@ -1376,8 +1285,6 @@ private Q_SLOTS:
         f.connection.refreshAccount();
         QVERIFY(f.transport.requests.isEmpty());
 
-        // Another instance before the answer: the old one is aborted, and
-        // its late answer sends nothing.
         f.store.secrets.insert(tokenKey(QStringLiteral("https://other.example.test")), token);
         f.connection.setInstanceUrl(QStringLiteral("https://other.example.test"));
         QVERIFY(f.transport.statusReplies.first()->aborted);
@@ -1404,8 +1311,6 @@ private Q_SLOTS:
         QVERIFY(!f.connection.isConnected());
     }
 
-    // ----- Configure page helper ---------------------------------------------
-
     void setupSavesAndLoadsSecrets()
     {
         FakeTransport transport;
@@ -1415,7 +1320,6 @@ private Q_SLOTS:
         setup.setAccount(instance + QLatin1Char('/'), QStringLiteral("token"), QString());
         setup.editSecret(QStringLiteral("  ") + token + QStringLiteral("\n"));
         setup.saveSecret();
-        // Same key as the connection uses, and pasted whitespace dropped.
         QTRY_COMPARE(store.secrets.value(tokenKey()), token);
         QTRY_VERIFY(!setup.isBusy());
 
@@ -1431,7 +1335,6 @@ private Q_SLOTS:
         reopened.loadSecret();
         QTRY_COMPARE(reopened.secret(), token);
         QTRY_VERIFY(!reopened.isBusy());
-        // Apply with the stored secret unchanged writes nothing.
         reopened.saveSecret();
         QCOMPARE(store.writes, 2);
 
@@ -1464,8 +1367,7 @@ private Q_SLOTS:
         QTRY_COMPARE(reading.walletError(), message);
     }
 
-    // The callback form of saveSecret tells the caller when the store has
-    // kept the secret, so a settings window can wait for it before closing.
+    // A settings window waits for the store before closing.
     void setupReportsWhenTheSecretIsSaved()
     {
         FakeTransport transport;
@@ -1476,13 +1378,11 @@ private Q_SLOTS:
             results.append(saved);
         };
 
-        // Nothing to write: done runs at once, with true.
         setup.setAccount(instance, QStringLiteral("token"), QString());
         setup.saveSecret(this, record);
         QCOMPARE(results, QList<bool>{true});
         QCOMPARE(store.writes, 0);
 
-        // A write: done waits for the store's answer.
         results.clear();
         setup.editSecret(token);
         setup.saveSecret(this, record);
@@ -1492,13 +1392,11 @@ private Q_SLOTS:
         QCOMPARE(setup.walletError(), QString());
         QVERIFY(!setup.isBusy());
 
-        // The stored secret again: nothing to write, true at once.
         results.clear();
         setup.saveSecret(this, record);
         QCOMPARE(results, QList<bool>{true});
         QCOMPARE(store.writes, 1);
 
-        // A refused write: false, and walletError says why without the secret.
         results.clear();
         store.failure = CredentialResult::Status::Unavailable;
         setup.editSecret(QStringLiteral("refused-secret"));
@@ -1510,7 +1408,6 @@ private Q_SLOTS:
         QCOMPARE(store.secrets.value(tokenKey()), token);
         QVERIFY(!setup.isBusy());
 
-        // A context gone before the answer: the write still lands, done never runs.
         results.clear();
         store.failure = CredentialResult::Status::Ok;
         setup.editSecret(QStringLiteral("late-secret"));
@@ -1524,8 +1421,6 @@ private Q_SLOTS:
         QCOMPARE(setup.walletError(), QString());
     }
 
-    // A secret read from the wallet for one account is never tested against
-    // or saved under another one.
     void setupClearsASecretOnAccountChange()
     {
         FakeTransport transport;
@@ -1539,7 +1434,6 @@ private Q_SLOTS:
         setup.loadSecret();
         QTRY_COMPARE(setup.secret(), token);
 
-        // Another address with nothing stored.
         setup.setAccount(other, QStringLiteral("token"), QString());
         QCOMPARE(setup.secret(), QString());
         setup.testAccount();
@@ -1552,7 +1446,6 @@ private Q_SLOTS:
         QCOMPARE(store.writes, 0);
         QVERIFY(!store.secrets.contains(tokenKey(other)));
 
-        // The same address with another sign-in method or email.
         setup.setAccount(instance, QStringLiteral("token"), QString());
         setup.loadSecret();
         QTRY_COMPARE(setup.secret(), token);
@@ -1568,8 +1461,6 @@ private Q_SLOTS:
         QVERIFY(transport.requests.isEmpty());
         QCOMPARE(store.writes, 0);
 
-        // Only the account matters: the same address written differently, or
-        // an email typed during token sign-in, keeps the secret.
         setup.setAccount(instance, QStringLiteral("token"), QString());
         setup.loadSecret();
         QTRY_COMPARE(setup.secret(), token);
@@ -1584,7 +1475,6 @@ private Q_SLOTS:
         store.secrets.insert(tokenKey(), token);
         ConnectionSetup setup(&transport, &store);
 
-        // The read for the first address finishes after the page moved on.
         setup.setAccount(instance, QStringLiteral("token"), QString());
         setup.loadSecret();
         setup.setAccount(QStringLiteral("https://other.example.test"), QStringLiteral("token"), QString());
@@ -1594,7 +1484,6 @@ private Q_SLOTS:
         setup.saveSecret();
         QCOMPARE(store.writes, 0);
 
-        // Also while the address is incomplete.
         setup.setAccount(instance, QStringLiteral("token"), QString());
         setup.loadSecret();
         setup.setAccount(QStringLiteral("https://"), QStringLiteral("token"), QString());
@@ -1630,8 +1519,6 @@ private Q_SLOTS:
         QTRY_COMPARE(store.secrets.value(tokenKey(other)), typed);
         QCOMPARE(store.secrets.value(tokenKey()), token);
 
-        // Once saved, the secret belongs to that account like a loaded one,
-        // even before the write finishes.
         setup.editSecret(QStringLiteral("replacement"));
         setup.saveSecret();
         setup.setAccount(instance, QStringLiteral("token"), QString());
@@ -1640,7 +1527,6 @@ private Q_SLOTS:
         QCOMPARE(store.secrets.value(tokenKey(other)), QStringLiteral("replacement"));
         QCOMPARE(store.secrets.value(tokenKey()), token);
 
-        // A typed secret wins over a stored one that arrives later.
         setup.setAccount(other, QStringLiteral("token"), QString());
         setup.editSecret(typed);
         setup.loadSecret();
@@ -1664,7 +1550,6 @@ private Q_SLOTS:
         QCOMPARE(setup.testResult(), ConnectionSetup::Succeeded);
         QVERIFY(setup.testMessage().contains(QLatin1String("42")));
         QVERIFY(!setup.isBusy());
-        // Testing never touches the wallet.
         QCOMPARE(store.reads + store.writes, 0);
 
         setup.testConnection(instance, QStringLiteral("password"), QStringLiteral("bea@example.test"), password);
@@ -1674,7 +1559,6 @@ private Q_SLOTS:
         QVERIFY(setup.testMessage().contains(QLatin1String("Incorrect username and/or password")));
         QVERIFY(!setup.testMessage().contains(password));
 
-        // A newer test wins over a slower older one.
         setup.testConnection(instance, QStringLiteral("token"), QString(), token);
         QPointer<FakeReply> older = transport.replies.last();
         setup.testConnection(instance, QStringLiteral("token"), QString(), QStringLiteral("second"));
@@ -1693,8 +1577,7 @@ private Q_SLOTS:
         QVERIFY(finished.count() > 0);
     }
 
-    // The cases of insecureurls.json, which the GNOME extension's rule
-    // follows too.
+    // The cases of insecureurls.json, which the GNOME extension also follows.
     void setupFlagsPlainHttp_data()
     {
         QTest::addColumn<QString>("url");
@@ -1731,7 +1614,6 @@ private Q_SLOTS:
         QCOMPARE(setup.persistedUrl(QStringLiteral(" HTTPS://Example.test:443/tokkl/ ")), instance);
         QCOMPARE(setup.persistedUrl(QStringLiteral("http://127.0.0.1:8080/")), QStringLiteral("http://127.0.0.1:8080"));
         QCOMPARE(setup.persistedUrl(instance), instance);
-        // Normalizing twice changes nothing, so the field and the setting agree.
         const QString once = setup.persistedUrl(QStringLiteral("https://example.test/a%20b/"));
         QCOMPARE(setup.persistedUrl(once), once);
 

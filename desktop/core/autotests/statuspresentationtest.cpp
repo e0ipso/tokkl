@@ -1,7 +1,4 @@
-// StatusPresentation::of() against the shared fixture,
-// statuspresentation.json, which the GNOME extension's tests read too: for
-// every input, the parts each panel's words show, in order, and the mark of
-// its short text.
+// statuspresentation.json is shared with the GNOME extension's tests.
 
 #include "statuspresentation.h"
 
@@ -94,8 +91,6 @@ private Q_SLOTS:
         QCOMPARE(StatusPresentation::of(status, rules).toVariantMap(), expected(presentation));
     }
 
-    // The elapsed text every panel shows, as the shared fixture pairs it
-    // with seconds.
     void elapsedFollowsTheFixture()
     {
         const QJsonArray cases = fixture().value(QStringLiteral("elapsed")).toArray();
@@ -106,8 +101,6 @@ private Q_SLOTS:
         }
     }
 
-    // Outside a session the accessible description is the summary, for
-    // every policy.
     void accessibleIsTheSummaryOutsideASession()
     {
         QFile file(QStringLiteral(TOKKL_STATUS_FIXTURE));
@@ -134,8 +127,7 @@ private Q_SLOTS:
         QVERIFY(checked > 100);
     }
 
-    // During a session the KDE panel's accessible name is the session's
-    // line, so its description names what that line leaves out.
+    // During a session the KDE panel's accessible name is the session's line.
     void accessibleNamesWhatTheSessionLineLeavesOut_data()
     {
         QTest::addColumn<QString>("status");
@@ -170,12 +162,10 @@ private Q_SLOTS:
             keys.append(statusPartKey(part));
         }
         QCOMPARE(keys, accessible);
-        // The session's line, which the summary starts with, is not repeated.
         QVERIFY(!presentation.accessible.contains(StatusPart::Session));
         QCOMPARE(presentation.summary.first(), StatusPart::Session);
     }
 
-    // Every part, mark, status and action has a key, and the keys differ.
     void keysAreDistinct()
     {
         const QList<QStringList> lists{statusPartKeys(), statusMarkKeys(), timerStatusKeys(), primaryActionKeys()};
@@ -190,8 +180,6 @@ private Q_SLOTS:
         QCOMPARE(StatusParts::actionKeys(), primaryActionKeys());
     }
 
-    // The fixture carries the core's key lists, which the GNOME extension's
-    // tests check its words against.
     void fixtureCarriesTheKeys()
     {
         const QJsonObject keys = fixture().value(QStringLiteral("keys")).toObject();

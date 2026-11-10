@@ -1,5 +1,4 @@
-// NetworkTransport against an in-process HTTP server on the loopback
-// interface. No other host is contacted.
+// Uses an in-process HTTP server on the loopback interface only.
 
 #include "transport.h"
 
@@ -16,11 +15,9 @@ using namespace Tokkl;
 
 namespace
 {
-// Not the KDE widget's "tokkl-kde", so the User-Agent shows the name is
-// passed in.
+// Not the KDE widget's "tokkl-kde", so the User-Agent shows the name is passed in.
 const QString clientName = QStringLiteral("tokkl-test");
 
-// Answers each request with a canned response, or not at all.
 class LoopbackServer : public QObject
 {
     Q_OBJECT
@@ -59,8 +56,7 @@ private:
     QHash<QTcpSocket *, QByteArray> m_buffer;
 };
 
-// Holds each connection open after the request, so a test writes the
-// response a piece at a time.
+// Holds each connection open so a test writes the response a piece at a time.
 class StreamServer : public QObject
 {
     Q_OBJECT
@@ -87,7 +83,6 @@ public:
         return QUrl(QStringLiteral("http://127.0.0.1:%1%2").arg(m_server.serverPort()).arg(path));
     }
 
-    // One chunk of a chunked body.
     void writeChunk(const QByteArray &data)
     {
         socket->write(QByteArray::number(data.size(), 16) + "\r\n" + data + "\r\n");
@@ -105,7 +100,6 @@ private:
 const QByteArray streamHead = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream; charset=utf-8\r\nCache-Control: no-store\r\n"
                               "Connection: close\r\nTransfer-Encoding: chunked\r\n\r\n";
 
-// What a stream delivered.
 struct StreamLog {
     QByteArray data;
     int chunks = 0;
@@ -129,8 +123,7 @@ QByteArray httpResponse(const QByteArray &statusLine, const QByteArray &headers,
         + headers + "\r\n" + body;
 }
 
-// The header fields of a raw request, by lower-case name. Field names are
-// case-insensitive, and Qt 6.8 sends them in lower case.
+// Field names are case-insensitive, and Qt 6.8 sends them in lower case.
 QHash<QByteArray, QByteArray> headerFields(const QByteArray &request)
 {
     QHash<QByteArray, QByteArray> fields;
@@ -188,7 +181,6 @@ private Q_SLOTS:
 
         QVERIFY(!fields.contains("idempotency-key"));
 
-        // A cookie the server set is not sent back.
         sendAndWait(transport, HttpRequest{"GET", server.url(QStringLiteral("/api/v9/me")), "Basic eA==", {}});
         QCOMPARE(server.requests.size(), 2);
         QVERIFY(!headerFields(server.requests.last()).contains("cookie"));
@@ -227,7 +219,6 @@ private Q_SLOTS:
         QCOMPARE(response.status, 302);
         QCOMPARE(response.location, target.url(QStringLiteral("/steal")).toEncoded());
         QTest::qWait(100);
-        // The credentials never reached the redirect target.
         QVERIFY(target.requests.isEmpty());
     }
 
@@ -254,8 +245,8 @@ private Q_SLOTS:
         QCOMPARE(response.errorField, QByteArray("pomodoro_focus_interval_in_minutes"));
     }
 
-    // A 2xx whose body breaks off is a network failure, even when the part
-    // that arrived would decode. An error status stays an HTTP answer.
+    // A 2xx whose body breaks off is a network failure, even when the part that
+    // arrived would decode.
     void truncatedBody_data()
     {
         QTest::addColumn<QByteArray>("statusLine");
@@ -287,7 +278,6 @@ private Q_SLOTS:
         }
     }
 
-    // A complete 2xx body is a success.
     void completeBody()
     {
         LoopbackServer server;
@@ -298,9 +288,6 @@ private Q_SLOTS:
         QCOMPARE(response.body, QByteArray("{\"id\":5}"));
     }
 
-    // An answer whose length is announced over the limit is not read: it
-    // ends as a NetworkError without a body, whatever its status. One at the
-    // limit is read whole.
     void announcedBodyOverLimit_data()
     {
         QTest::addColumn<QByteArray>("statusLine");
@@ -333,8 +320,6 @@ private Q_SLOTS:
         }
     }
 
-    // A body without a length is counted as it arrives and aborted once it
-    // passes the limit, without waiting for its end.
     void unannouncedBodyOverLimit()
     {
         StreamServer server;
@@ -398,7 +383,6 @@ private Q_SLOTS:
         delete reply;
     }
 
-    // A stream delivers each piece of the body as it arrives, then ends once.
     void streamDeliversChunks()
     {
         StreamServer server;
@@ -420,7 +404,6 @@ private Q_SLOTS:
         QVERIFY(log.chunks >= 2);
         QVERIFY(log.finished.isEmpty());
 
-        // The server ends the stream cleanly.
         server.socket->write("0\r\n\r\n");
         server.socket->disconnectFromHost();
         QTRY_COMPARE(log.finished.size(), 1);
@@ -430,8 +413,6 @@ private Q_SLOTS:
         delete stream;
     }
 
-    // There is no overall timeout, only one for a silence: each piece of data
-    // restarts it.
     void streamIdleTimeout()
     {
         StreamServer server;
@@ -453,7 +434,6 @@ private Q_SLOTS:
         delete stream;
     }
 
-    // A refused stream delivers no data; its answer comes with the end.
     void streamRefused()
     {
         LoopbackServer server;
@@ -469,7 +449,6 @@ private Q_SLOTS:
         delete stream;
     }
 
-    // A refused stream's body counts against the limit like a reply's.
     void streamRefusedOverLimit()
     {
         LoopbackServer server;

@@ -1,5 +1,3 @@
-// The Pomodoro store on a QSettings file.
-
 #include "pomodorostore.h"
 
 #include <QDir>
@@ -27,7 +25,6 @@ private Q_SLOTS:
             QVERIFY(store.savePomodoroMode(true));
         }
         {
-            // What a save reported as stored is on disk.
             QSettings reopened(path, QSettings::IniFormat);
             SettingsPomodoroStore store(&reopened);
             QVERIFY(store.loadPomodoroMode());
@@ -35,7 +32,6 @@ private Q_SLOTS:
             QVERIFY(!store.loadPomodoroMode());
         }
 
-        // A file that cannot be written fails the save.
         QFile blocker(dir.filePath(QStringLiteral("blocker")));
         QVERIFY(blocker.open(QIODevice::WriteOnly));
         blocker.close();
@@ -44,9 +40,7 @@ private Q_SLOTS:
         QVERIFY(!failing.savePomodoroMode(true));
     }
 
-    // QSettings keeps the first error it meets. A save that fails keeps the
-    // mode stored before, and one made once the cause is gone is stored and
-    // reported as such.
+    // QSettings keeps the first error it meets.
     void aSaveAfterAFailedOneIsStored()
     {
         QTemporaryDir dir;
@@ -54,7 +48,6 @@ private Q_SLOTS:
         const QString path = dir.filePath(QStringLiteral("pomodoro.ini"));
         QSettings settings(path, QSettings::IniFormat);
         SettingsPomodoroStore store(&settings);
-        // A directory stands where the file would go.
         QVERIFY(QDir().mkpath(path));
         QVERIFY(!store.savePomodoroMode(true));
         QVERIFY(!store.loadPomodoroMode());

@@ -1,8 +1,5 @@
 #pragma once
 
-// Scripted stand-ins for the network, its streams and KDE Wallet.
-// Nothing here touches a real host, wallet or configuration file.
-
 #include "apitypes.h"
 #include "clock.h"
 #include "credentialstore.h"
@@ -19,17 +16,14 @@
 #include <QList>
 #include <QPointer>
 
-// The client name the tests give a connection. It is not the KDE widget's
-// "tokkl-kde", so finding it in a request shows the name is passed in.
+// Not the KDE widget's "tokkl-kde", so a request carrying it shows the name
+// is passed in.
 inline QString testClientName()
 {
     return QStringLiteral("tokkl-test");
 }
 
-// What a current server announces in GET /api/app/status besides
-// setup_required: its API, and the Pomodoro limits the server keeps today.
-// A server from before the announcement sends none of it and has none of
-// the /api/app routes it names.
+// A server from before this announcement has none of the /api/app routes.
 inline QJsonObject currentServerApi()
 {
     return QJsonObject{
@@ -54,7 +48,6 @@ inline QJsonObject currentServerApi()
     };
 }
 
-// The store key of a token account on the instance at url.
 inline QString tokenKey(const QString &url)
 {
     return Tokkl::credentialKey(Tokkl::parseInstanceUrl(url), Tokkl::AuthMode::Token, QString());
@@ -70,7 +63,6 @@ inline QString iso(const QDateTime &time)
     return time.toUTC().toString(Qt::ISODateWithMs);
 }
 
-// The account GET /api/v9/me answers.
 inline QByteArray meBody(qint64 id = 3, qint64 workspace = 7)
 {
     return json(QJsonObject{
@@ -83,8 +75,6 @@ inline QByteArray meBody(qint64 id = 3, qint64 workspace = 7)
     });
 }
 
-// The account's preferences with these Pomodoro lengths, and one key the
-// companions do not read.
 inline QByteArray preferencesBody(const Tokkl::PomodoroConfig &config = {1, 1, 1, 2})
 {
     return json(QJsonObject{
@@ -102,8 +92,7 @@ inline QByteArray errorBody(const char *text)
     return QByteArrayLiteral("\"") + QByteArray(text) + QByteArrayLiteral("\"");
 }
 
-// A session's phase on the server's clock, with what the server derives
-// from it, for one-minute lengths and a long rest after every second work.
+// For one-minute lengths and a long rest after every second work.
 struct Phase {
     QString kind;
     QDateTime start;
@@ -160,8 +149,8 @@ class FakeReply : public Tokkl::PendingReply
 public:
     using Tokkl::PendingReply::PendingReply;
 
-    // Records the abort but stays deliverable, so tests can prove that a
-    // late answer to an aborted request is still ignored.
+    // Stays deliverable so tests can prove a late answer to an aborted request
+    // is ignored.
     void abort() override
     {
         aborted = true;
@@ -175,8 +164,6 @@ public:
     bool aborted = false;
 };
 
-// A stream the test feeds by hand: push() delivers a piece of data, end()
-// the end.
 class FakeStream : public Tokkl::PendingStream
 {
     Q_OBJECT
@@ -210,8 +197,6 @@ class FakeTransport : public Tokkl::Transport
 public:
     using Tokkl::Transport::Transport;
 
-    // GET /api/app/status of a server from before the announcement, which
-    // this app no longer supports, and of a current one.
     static Tokkl::HttpResponse olderStatus()
     {
         return answer(200, R"({"setup_required":false})");
@@ -224,17 +209,13 @@ public:
         return answer(200, QJsonDocument(body).toJson(QJsonDocument::Compact));
     }
 
-    // GET /api/app/workspaces/{wid}/catalog answering revision.
     static Tokkl::HttpResponse catalogAt(qint64 revision)
     {
         return answer(200, QJsonDocument(QJsonObject{{QStringLiteral("revision"), revision}}).toJson(QJsonDocument::Compact));
     }
 
-    // GET /api/app/status and GET /api/app/workspaces/{wid}/catalog are
-    // recorded apart from the other requests, so their indexes stay as they
-    // were. Unless holdStatus or holdCatalog is set, they get status or
-    // catalog from the event loop; a held one waits for respondStatus() or
-    // respondCatalog().
+    // Recorded apart from the other requests so their indexes stay stable. Answered
+    // from the event loop unless holdStatus or holdCatalog is set.
     Tokkl::PendingReply *send(const Tokkl::HttpRequest &request) override
     {
         auto *reply = new FakeReply(this);
@@ -276,8 +257,7 @@ public:
         }
     }
 
-    // Streams are recorded apart from requests, so the indexes of requests
-    // and replies stay as they were.
+    // Recorded apart from requests so request and reply indexes stay stable.
     Tokkl::PendingStream *openStream(const Tokkl::HttpRequest &request) override
     {
         streamRequests.append(request);
@@ -286,7 +266,6 @@ public:
         return stream;
     }
 
-    // The latest stream while it has not been deleted, or nullptr.
     FakeStream *lastStream() const
     {
         return streams.isEmpty() ? nullptr : streams.last().data();
@@ -325,13 +304,11 @@ public:
 
     QList<Tokkl::HttpRequest> requests;
     QList<QPointer<FakeReply>> replies;
-    // The answer GET /api/app/status gets, and whether it waits for the test.
     Tokkl::HttpResponse status = currentStatus();
     bool holdStatus = false;
     QList<Tokkl::HttpRequest> statusRequests;
     QList<QPointer<FakeReply>> statusReplies;
-    // The same for the workspace's catalog revision. A test that changes
-    // the projects a list read answers sets a new revision here.
+    // A test that changes the projects a list read answers sets a new revision.
     Tokkl::HttpResponse catalog = catalogAt(1);
     bool holdCatalog = false;
     QList<Tokkl::HttpRequest> catalogRequests;
@@ -387,7 +364,6 @@ public:
         later(context, done, result);
     }
 
-    // Ok means reads and writes work.
     Tokkl::CredentialResult::Status failure = Tokkl::CredentialResult::Status::Ok;
     QHash<QString, QString> secrets;
     int reads = 0;
@@ -408,8 +384,7 @@ private:
     }
 };
 
-// A keyring whose writes wait until the test finishes them, in any order.
-// Reads find nothing.
+// Writes wait until the test finishes them, in any order. Reads find nothing.
 class HeldStore : public FakeCredentialStore
 {
     Q_OBJECT
@@ -439,7 +414,7 @@ public:
     QList<Write> held;
 };
 
-// A clock that moves only when the test advances it. Each advance is one tick.
+// Moves only when the test advances it. Each advance is one tick.
 class FakeClock : public Tokkl::Clock
 {
     Q_OBJECT
@@ -452,8 +427,7 @@ public:
         return current;
     }
 
-    // jitter, kept below the bound. 0 unless a test sets it, so delays are
-    // exact.
+    // 0 unless a test sets it, so delays are exact.
     int jitterMs(int boundMs) const override
     {
         return boundMs > 0 ? std::min(jitter, boundMs - 1) : 0;

@@ -1,8 +1,3 @@
-// TimerView, MutationGate and ProjectChoices on their own: what the
-// controller shows of a state, what the end of a write asks of it, and the
-// project submenu every panel builds. timercontrollertest covers them
-// through the controller.
-
 #include "mutationgate.h"
 #include "projectchoices.h"
 #include "timerview.h"
@@ -118,7 +113,6 @@ private Q_SLOTS:
         held.pause = chain(false, 2);
         QVERIFY(TimerView::of(held, workspace, false).entry);
         QVERIFY(!TimerView::of(held, workspace, false).chain);
-        // Nor is a chain that is neither paused nor has a clone running.
         TimerState stopped = state(2);
         stopped.pause = chain(false, 2);
         QVERIFY(!TimerView::of(stopped, workspace, false).chain);
@@ -136,7 +130,6 @@ private Q_SLOTS:
         QVERIFY(TimerView::sameChain(std::nullopt, std::nullopt));
     }
 
-    // A timer action's reply is the state, which the client adopted.
     void anAppliedTimerActionReadsNothing()
     {
         MutationGate gate;
@@ -168,7 +161,6 @@ private Q_SLOTS:
         gate.begin();
         gate.settleWhenDone();
         QVERIFY(gate.finish(Outcome::Applied, ApiError(), false).settle);
-        // Asked once.
         gate.begin();
         QVERIFY(!gate.finish(Outcome::Applied, ApiError(), false).settle);
     }
@@ -236,8 +228,6 @@ private Q_SLOTS:
         legacy.active = false;
         using Kind = ProjectChoices::Row::Kind;
 
-        // Stopped with Beta chosen: the active projects, Beta checked, all
-        // offered.
         ProjectChoices choices = ProjectChoices::build({alpha, beta}, false, 12, std::nullopt, true);
         QVERIFY(choices.choosable);
         QVERIFY(!choices.noProjectChecked);
@@ -246,8 +236,6 @@ private Q_SLOTS:
         QVERIFY(choices.rows.at(0).kind == Kind::Project && !choices.rows.at(0).checked && choices.rows.at(0).enabled);
         QVERIFY(choices.rows.at(1).checked);
 
-        // Running on an archived project of a cut-short list: the archived
-        // project, then the note, then the projects, none offered.
         choices = ProjectChoices::build({alpha, beta}, true, 33, legacy, false);
         QCOMPARE(choices.rows.size(), 4);
         QVERIFY(choices.rows.at(0).kind == Kind::Archived && choices.rows.at(0).checked && !choices.rows.at(0).enabled);
@@ -256,8 +244,6 @@ private Q_SLOTS:
         QVERIFY(choices.incomplete());
         QVERIFY(!choices.rows.at(2).enabled && !choices.rows.at(3).enabled);
 
-        // An active held project gets no row of its own; no project checks
-        // No project.
         choices = ProjectChoices::build({alpha}, false, std::nullopt, alpha, false);
         QCOMPARE(choices.rows.size(), 1);
         QVERIFY(choices.noProjectChecked);
@@ -269,7 +255,6 @@ private Q_SLOTS:
         QVERIFY(rows.at(1).toMap().value(QStringLiteral("project")).toMap().isEmpty());
         QCOMPARE(rows.at(2).toMap().value(QStringLiteral("project")).toMap().value(QStringLiteral("id")).toLongLong(), 11);
         QVERIFY(!rows.at(2).toMap().contains(QStringLiteral("checked")));
-        // Each row carries the parts of its label; the note has none.
         const QVariantMap archivedLabel = rows.at(0).toMap().value(QStringLiteral("label")).toMap();
         QCOMPARE(archivedLabel.value(QStringLiteral("name")).toString(), legacy.name);
         QCOMPARE(archivedLabel.value(QStringLiteral("archived")).toBool(), true);
@@ -277,7 +262,6 @@ private Q_SLOTS:
         QCOMPARE(rows.at(2).toMap().value(QStringLiteral("label")).toMap().value(QStringLiteral("archived")).toBool(), false);
     }
 
-    // The parts every panel words a project's label from, and which words.
     void projectLabelParts()
     {
         using Kind = ProjectLabelParts::Kind;
@@ -290,7 +274,6 @@ private Q_SLOTS:
         project.active = false;
         QVERIFY(ProjectLabelParts::of(project).archived);
         QCOMPARE(ProjectLabelParts::of(project).kind, Kind::Named);
-        // A project the instance no longer has: an empty name.
         project.name.clear();
         parts = ProjectLabelParts::of(project);
         QCOMPARE(parts, (ProjectLabelParts{QString(), QString(), false, true, Kind::Unavailable}));

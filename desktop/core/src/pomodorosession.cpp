@@ -137,8 +137,6 @@ QString PomodoroSession::formatCountdown(qint64 seconds, bool overtime)
     return overtime ? QLatin1Char('+') + text : text;
 }
 
-// ----- actions -------------------------------------------------------------
-
 PrimaryAction PomodoroSession::primaryAction() const
 {
     if (pomodoro()) {
@@ -207,9 +205,8 @@ SessionState::ActionCallback PomodoroSession::finishing()
 {
     return m_epoch.guard(this, [this](const TimerActionResult &result) {
         m_pending = false;
-        // The state of an applied action or of a 409 is already adopted and
-        // shows what happened. Otherwise the user learns why nothing did, or
-        // that the outcome is being settled.
+        // An applied action or a 409 already shows its state; otherwise tell the
+        // user why nothing happened, or that the outcome is being settled.
         using Outcome = TimerActionResult::Outcome;
         if (result.outcome == Outcome::Refused || result.outcome == Outcome::Unknown) {
             setMessage(result.error.message);
@@ -232,8 +229,6 @@ void PomodoroSession::clearMessage()
 {
     setMessage(QString());
 }
-
-// ----- state, timer and clock ----------------------------------------------
 
 const TimerPomodoro *PomodoroSession::pomodoro() const
 {

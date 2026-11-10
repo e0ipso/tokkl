@@ -9,28 +9,23 @@
 
 #include <optional>
 
-// The JSON field readers and writers the API decoders and encoders share.
-// Each reader returns nullopt or false for a value of the wrong shape.
+// Readers return nullopt or false for a value of the wrong shape.
 namespace Tokkl::Json
 {
 
-// A number with no fraction part that fits a qint64.
+// No fraction part, and fits a qint64.
 std::optional<qint64> integer(const QJsonValue &value);
-// A whole number above 0.
 std::optional<qint64> positiveId(const QJsonValue &value);
 // Missing and null both mean none; anything else must be a positive id.
 bool nullableId(const QJsonValue &value, std::optional<qint64> &out);
-// A string, or null or missing for empty; false for anything else.
+// null or missing reads as empty.
 bool optionalString(const QJsonValue &value, QString &out);
-// A bool, or fallback when null or missing; false for anything else.
+// null or missing reads as fallback.
 bool optionalBool(const QJsonValue &value, bool &out, bool fallback);
-// A date and time as Qt::ISODateWithMs reads it.
 std::optional<QDateTime> timestamp(const QJsonValue &value);
-// A whole number from min up, as an int.
 std::optional<int> count(const QJsonValue &value, int min);
 
-// A key that must be present: false when it is missing. A null value leaves
-// out empty; anything else must decode.
+// The key must be present; null leaves out empty.
 template<typename T>
 bool nullable(const QJsonObject &object, QLatin1String key, std::optional<T> (*decode)(const QJsonValue &), std::optional<T> &out)
 {
@@ -46,11 +41,8 @@ bool nullable(const QJsonObject &object, QLatin1String key, std::optional<T> (*d
     return out.has_value();
 }
 
-// An id for QML: the number, or null for none.
 QVariant idVariant(const std::optional<qint64> &id);
-// An id for a request body: the number, or null for none.
 QJsonValue idJson(const std::optional<qint64> &id);
-// The time in UTC, as Qt::ISODate writes it.
 QString utcTimestamp(const QDateTime &time);
 
 }

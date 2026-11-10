@@ -22,8 +22,8 @@
 namespace Tokkl
 {
 
-// One instance and account: its settings, secret, validation through /me on
-// a server at ServerFloor or newer, generation and the typed operations.
+// One instance and account. Validates through /me, and only against a server
+// at ServerFloor or newer.
 class Connection : public QObject, public ApiSession
 {
     Q_OBJECT
@@ -32,15 +32,13 @@ class Connection : public QObject, public ApiSession
     // "token" (the default) or "password".
     Q_PROPERTY(QString authMode READ authModeString WRITE setAuthModeString NOTIFY authModeChanged)
     Q_PROPERTY(QString email READ email WRITE setEmail NOTIFY emailChanged)
-    // The configured instance's address for a browser: normalized, with its
-    // path prefix and no user info, query or fragment. Empty while the URL is
-    // not usable. It never carries credentials.
+    // Normalized, without user info, query or fragment, so it never carries
+    // credentials. Empty while the URL is not usable.
     Q_PROPERTY(QUrl webUrl READ webUrl NOTIFY instanceUrlChanged)
 
     Q_PROPERTY(Tokkl::Connection::State state READ state NOTIFY stateChanged)
     Q_PROPERTY(QString errorString READ errorString NOTIFY stateChanged)
-    // A validated account is bound. It stays bound through transient
-    // failures (then stale is true) and cooldowns.
+    // Stays true through transient failures (then stale) and cooldowns.
     Q_PROPERTY(bool connected READ isConnected NOTIFY stateChanged)
     Q_PROPERTY(bool stale READ isStale NOTIFY stateChanged)
     Q_PROPERTY(bool canWrite READ canWrite NOTIFY stateChanged)
@@ -65,8 +63,7 @@ public:
     };
     Q_ENUM(State)
 
-    // The retry waits of a validation that failed for connectivity: 30 s,
-    // doubling up to 2 min, plus up to a quarter more of the clock's jitter.
+    // Connectivity retries: 30 s doubling to 2 min, plus jitter.
     static constexpr int retryBaseMs = 30000;
     static constexpr int retryMaxMs = 120000;
 
@@ -74,10 +71,8 @@ public:
     using Callback = ApiClient::Callback<T>;
     using ActionCallback = ApiClient::ActionCallback;
 
-    // Uses the given transport, store and clock, which the connection does
-    // not own and which must outlive it. The clock's jitter spreads the retry
-    // waits of the account's validation and of a start's resend. clientName
-    // goes into the created_with field of the entries it starts.
+    // None of these is owned; all must outlive the connection. clientName goes
+    // into created_with of the entries it starts.
     Connection(Transport *transport, CredentialStore *store, const Clock &clock, const QString &clientName, QObject *parent = nullptr);
 
     QString instanceUrl() const;
@@ -99,91 +94,57 @@ public:
     quint64 generation() const override;
 
     std::optional<Me> account() const;
-    // What the server announced in GET /api/app/status before the account
-    // bound, ServerFloor or newer; none without an account.
     ServerApi server() const;
     QVariantMap accountMap() const;
     qint64 workspaceId() const;
-    // The instance, account and workspace of the validated account as one
-    // key, for what a device keeps per account. Empty without one.
+    // One key for per-account device data; empty without an account.
     QString owner() const;
 
-    // Typed operations. They need a bound account, use its workspace, and
-    // refuse while a 429 cooldown runs. The connection keeps nothing of
-    // their answers but the account from /me. done runs later, and only for
-    // a reply of the current generation. A valid /me binds the account.
+    // These need a bound account and refuse during a 429 cooldown. done runs
+    // only for a reply of the current generation.
     void fetchMe(Callback<Me> done = {});
-    // Every active project of the workspace, following the pages up to
-    // maxProjectPages. A workspace beyond that still succeeds with the
-    // projects read, and the list says it is cut short.
+    // Stops after maxProjectPages and still succeeds, marking the list
+    // incomplete.
     void fetchProjects(Callback<ProjectList> done = {});
-    // The number GET /api/app/workspaces/{wid}/catalog answers, which the
-    // server changes with every write that changes what fetchProjects()
-    // answers.
+    // The server bumps it with every write that changes fetchProjects().
     void fetchCatalogRevision(Callback<qint64> done = {});
-    // One project of the workspace, archived or not.
+    // Archived or not.
     void fetchProject(qint64 projectId, Callback<Project> done = {});
-    // The account's newest entry by start, running or stopped, in any
-    // workspace, with project metadata: GET /api/app/time_entries/latest,
-    // the first entry GET /me/time_entries?meta=true lists. None for an
-    // account without entries.
+    // Newest by start, in any workspace. None for an account without entries.
     void fetchLatestEntry(Callback<std::optional<ListedEntry>> done = {});
-    // The Pomodoro lengths of the account preferences, through
-    // /api/app/me/preferences, whose refusals name the refused key in
-    // Tokkl-Error-Field. A length outside the server's pomodoro_limits reads
-    // as the server's default.
+    // A length outside the server's pomodoro_limits reads as its default.
     void fetchPreferences(Callback<PomodoroConfig> done = {});
-    // Posts only the lengths the update sets, on the same path as
-    // fetchPreferences(). done gets the lengths the server holds
+    // Posts only the lengths the update sets. done gets what the server holds
     // afterwards.
     void savePreferences(const PomodoroConfigUpdate &update, Callback<PomodoroConfig> done = {});
 
-    // The account's timer state, GET /api/app/timer. Like /me, a 401 or 403
-    // means the credentials were refused.
+    // Like /me, a 401 or 403 means the credentials were refused.
     void fetchTimerState(Callback<TimerState> done = {});
-    // The timer actions. Each needs canWrite(), and done tells apart a change
-    // made, a 409 with the server's state, nothing changed, and an unknown
-    // outcome. Pause, resume, discard, next phase, end and a Pomodoro start
-    // apply only to the state at revision, the one the user saw. A Pomodoro
-    // start carries an Idempotency-Key of its own, and one whose outcome is
-    // unknown goes out once more with it after a short wait
-    // (ApiClient::keyedAction()).
+    // Each needs canWrite(). Revisioned actions apply only to the state at
+    // revision; a 409 brings the server's state.
     void pauseTimer(qint64 revision, ActionCallback done = {});
     void resumeTimer(qint64 revision, ActionCallback done = {});
     void discardPause(qint64 revision, ActionCallback done = {});
     void startPomodoro(qint64 revision, const PomodoroStart &start, ActionCallback done = {});
     void nextPomodoroPhase(qint64 revision, ActionCallback done = {});
     void endPomodoro(qint64 revision, ActionCallback done = {});
-    // Start a running entry and stop the running one through POST
-    // /api/app/timer/start and /api/app/timer/stop, like the actions above:
-    // a 409 brings the server's state when the timer changed since
-    // revision, or for a stop when nothing runs. A start carries an
-    // Idempotency-Key like a Pomodoro start.
+    // A 409 also answers a stop when nothing runs. Starts carry an
+    // Idempotency-Key and are resent once after an unknown outcome.
     void startTimer(qint64 revision, const StartEntry &entry, ActionCallback done = {});
     void stopTimer(qint64 revision, ActionCallback done = {});
-    // Edits the running entry entryId through POST /api/app/timer/edit; only
-    // the fields update sets travel, and start never does. A change to the
-    // timer that leaves the entry running does not refuse it. A 409 brings
-    // the server's state once the entry has stopped.
+    // Never sends start. Only a stopped entryId makes the server refuse it.
     void editTimer(qint64 entryId, const TimeEntryUpdate &update, ActionCallback done = {});
-    // Opens GET /api/app/timer/events, or returns nullptr without a bound
-    // account or during a 429 cooldown. The caller reads the stream's
-    // signals; the connection deletes it after finished(). A new generation
-    // aborts it. A refusal ends it as for the current entry: a 401 or 403
-    // refuses the credentials and a 429 starts the cooldown. A clean end, a
-    // failure or another status changes nothing here.
+    // nullptr without a bound account or during a cooldown. The connection
+    // deletes the stream after finished(); a new generation aborts it.
     PendingStream *openTimerEvents();
 
-    // Projects per page, the server's maximum, and the most pages read.
     static constexpr int projectPageSize = 200;
     static constexpr int maxProjectPages = 100;
 
 public Q_SLOTS:
-    // Explicit reconnect: reads the secret again and validates it, also after
-    // an authentication failure. A 429 cooldown still applies.
+    // Also after an authentication failure. A 429 cooldown still applies.
     void reconnect();
-    // Automatic revalidation through /me. Does nothing while authentication
-    // is paused.
+    // Does nothing while authentication is paused.
     void refreshAccount();
 
 Q_SIGNALS:
@@ -199,8 +160,7 @@ private:
         quint64 generation = 0;
         Me me;
     };
-    // The GET /api/app/status of one generation. A failed read leaves
-    // server empty, which is below the floor.
+    // A failed read leaves server empty, which is below the floor.
     struct Announcement {
         quint64 generation = 0;
         bool pending = false;
@@ -237,7 +197,6 @@ private:
     void fetchProjectPage(const std::shared_ptr<ProjectPages> &pages);
     QUrl api(const QString &path) const;
     QUrl app(const QString &path) const;
-    // Reads the preferences with the limits of the server bound.
     ApiClient::Decoder<PomodoroConfig> preferencesDecoder() const;
 
     const QString m_clientName;

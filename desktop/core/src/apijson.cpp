@@ -28,7 +28,6 @@ std::optional<qint64> positiveId(const QJsonValue &value)
     return id;
 }
 
-// Missing and null both mean "none"; anything else must be a positive id.
 bool nullableId(const QJsonValue &value, std::optional<qint64> &out)
 {
     if (value.isUndefined() || value.isNull()) {
@@ -77,7 +76,6 @@ std::optional<QDateTime> timestamp(const QJsonValue &value)
     return result;
 }
 
-// A whole number from min up, as an int.
 std::optional<int> count(const QJsonValue &value, int min)
 {
     const std::optional<qint64> number = integer(value);

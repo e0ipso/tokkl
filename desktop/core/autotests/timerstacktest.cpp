@@ -1,7 +1,3 @@
-// The timer's objects as every companion builds them, on the fakes: one
-// state client and one clock for the timer and the Pomodoro session, and
-// the mode in the store given.
-
 #include "fakes.h"
 #include "pomodorostore.h"
 #include "timerstack.h"
@@ -18,7 +14,6 @@ namespace
 {
 const QString instance = QStringLiteral("https://a.example.test");
 
-// The requests whose path ends with the suffix.
 QList<qsizetype> find(const FakeTransport &transport, const QByteArray &method, const QString &suffix)
 {
     QList<qsizetype> found;
@@ -30,7 +25,6 @@ QList<qsizetype> find(const FakeTransport &transport, const QByteArray &method, 
     return found;
 }
 
-// A state with nothing running, built at the given time.
 QByteArray idleState(const QDateTime &now)
 {
     return QJsonDocument(QJsonObject{
@@ -63,7 +57,6 @@ class TimerStackTest : public QObject
             transport.status = FakeTransport::currentStatus();
         }
 
-        // Stores a token and points the connection at the instance.
         void configure()
         {
             credentials.secrets.insert(credentialKey(parseInstanceUrl(instance), AuthMode::Token, QString()), QStringLiteral("tok"));
@@ -72,8 +65,6 @@ class TimerStackTest : public QObject
     };
 
 private Q_SLOTS:
-    // The timer reads one client on the stack's connection, and the session
-    // acts through that client, so both see one state.
     void theTimerAndTheSessionShareOneClient()
     {
         Fixture f;
@@ -88,8 +79,6 @@ private Q_SLOTS:
         QTRY_COMPARE(find(f.transport, "GET", QStringLiteral("/me")).size(), 1);
         f.transport.respond(find(f.transport, "GET", QStringLiteral("/me")).first(), FakeTransport::answer(200, meBody()));
         QVERIFY(f.stack.connection()->isConnected());
-        // One read of the state, by the one client. The timer and the
-        // session both show it.
         const QList<qsizetype> reads = find(f.transport, "GET", QStringLiteral("/app/timer"));
         QCOMPARE(reads.size(), 1);
         f.transport.respond(reads.first(), FakeTransport::answer(200, idleState(f.clock.now())));
@@ -97,7 +86,6 @@ private Q_SLOTS:
         QVERIFY(f.stack.session()->canStartSession());
     }
 
-    // The session keeps its mode in the store given.
     void theSessionKeepsItsModeInTheStore()
     {
         Fixture f;

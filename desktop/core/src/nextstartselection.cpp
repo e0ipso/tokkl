@@ -166,7 +166,6 @@ void NextStartSelection::readLastEntry(std::function<bool()> stillWanted)
             return;
         }
         if (!result.ok()) {
-            // Try again after the next state.
             m_lastEntryWanted = true;
             return;
         }

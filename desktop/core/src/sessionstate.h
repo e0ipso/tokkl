@@ -11,10 +11,8 @@
 namespace Tokkl
 {
 
-// The server's timer state as a Pomodoro session reads and changes it: the
-// state held, whether a write's outcome is still unknown, the server's
-// clock, and the three session actions. TimerStateClient implements it on a
-// connection; the session sees nothing of the network behind it.
+// The server's timer state as a Pomodoro session sees it, with no network
+// behind it. TimerStateClient implements it.
 class SessionState : public QObject
 {
     Q_OBJECT
@@ -24,36 +22,24 @@ public:
 
     using QObject::QObject;
 
-    // The newest state held; none before the first read and after
-    // accountReset().
+    // None before the first read and after accountReset().
     virtual const std::optional<TimerState> &state() const = 0;
-    // A write's outcome is unknown and no read sent since has answered.
     virtual bool settling() const = 0;
-    // The server's clock minus this device's, from the state held. 0
-    // without one.
     virtual qint64 serverOffsetMs() const = 0;
-    // This device's clock corrected by serverOffsetMs().
     virtual QDateTime serverNow() const = 0;
 
-    // done runs once, later, with the outcome. Each applies to the revision
-    // of the state held, and is refused without sending while none is held.
-    // A server without pomodoro-revision starts a session whatever its
-    // state.
+    // done runs once, later. Refused without sending while no state is held.
     virtual void startPomodoro(const PomodoroStart &start, ActionCallback done) = 0;
     virtual void nextPhase(ActionCallback done) = 0;
     virtual void endPomodoro(ActionCallback done) = 0;
 
 Q_SIGNALS:
-    // A state at least as new as the one held arrived, or the state was
-    // dropped.
+    // Also when the state was dropped.
     void stateChanged();
     void settlingChanged();
-    // The state now belongs to another instance, account or secret, or to
-    // none. The state was dropped first, and an action sent before never
-    // answers.
+    // Emitted after the state was dropped; an action sent before never answers.
     void accountReset();
-    // The machine woke from sleep, or the clock jumped: the state is read
-    // again. Sent once per wake.
+    // After sleep or a clock jump; once per wake.
     void woke();
 };
 

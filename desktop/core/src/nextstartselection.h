@@ -15,8 +15,8 @@ namespace Tokkl
 class Connection;
 class ProjectCatalog;
 
-// The next start's project and billable flag: a pick, or the active project
-// of the stopped or newest entry; a pick wins until the next start or stop.
+// A user pick, or the active project of the stopped or newest entry. A pick
+// wins until the next start or stop.
 class NextStartSelection : public QObject
 {
     Q_OBJECT
@@ -32,7 +32,6 @@ public:
     // Neither is owned; both must outlive the selection.
     NextStartSelection(const ProjectCatalog *catalog, Connection &connection, QObject *parent = nullptr);
 
-    // The project and billable flag a start sends.
     Choice choice() const;
     std::optional<qint64> projectId() const;
     QVariant projectIdVariant() const;
@@ -41,59 +40,43 @@ public:
     // default; nullopt for anything else.
     std::optional<Choice> choiceFor(const QVariant &projectId) const;
 
-    // A pick by the user, which no default replaces until the next start or
-    // stop.
     void pick(const Choice &choice);
     void pickBillable(bool billable);
 
-    // A start or resume was sent: a default that answers later must not
-    // replace its choice, and a pick lasts only until it.
+    // A default that answers later must not replace the started choice.
     void started();
-    // An entry runs: a last-entry read on its way is older than its choice.
+    // A last-entry read on its way is older than the running entry's choice.
     void entryRunning();
-    // The entry shown stopped with projectId. Before the project list is
-    // known, the default waits for it.
+    // Before the project list is known, the default waits for it.
     void stopped(std::optional<qint64> projectId);
-    // A project list arrived: a stop default that waited for it applies.
     void listLoaded();
-    // The workspace went away: no project and not billable, and no default
-    // or pick applies.
     void forget();
-    // A new context: the choice is cleared, no default or pick applies,
-    // every answer on its way is dropped, and the last entry is asked for
-    // after the first state.
+    // Also drops every answer on its way and asks for the last entry after the
+    // first state.
     void reset();
 
-    // Ask for the last entry after the next state.
     void wantLastEntry();
     // True once after wantLastEntry() or reset().
     bool takeLastEntryWanted();
-    // Reads the account's newest entry for the default, unless the user
-    // picked. The answer applies only while it is the newest read, nothing
-    // was chosen since, and stillWanted() is true. A failed read asks again
-    // after the next state.
+    // Skipped if the user picked. The answer applies only while it is the newest
+    // read and nothing was chosen since; a failure asks again after the next state.
     void readLastEntry(std::function<bool()> stillWanted);
 
 Q_SIGNALS:
-    // The project or the billable flag changed.
     void changed();
 
 private:
     void apply(const Choice &choice);
     void set(const Choice &choice);
-    // The pick, a stop default waiting for the list and a last-entry read
-    // on its way no longer apply.
     void clear();
 
     const ProjectCatalog *m_catalog;
     Connection &m_connection;
     Choice m_choice;
     bool m_picked = false;
-    // A stopped entry's project, waiting for the project list.
     std::optional<qint64> m_stopDefault;
     bool m_lastEntryWanted = false;
     quint64 m_lastEntryReads = 0;
-    // The last-entry read that may still apply, or 0.
     quint64 m_lastEntryRead = 0;
     // Advanced by reset(); last-entry reads from before do nothing.
     Epoch m_epoch;
