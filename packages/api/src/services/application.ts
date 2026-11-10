@@ -154,7 +154,7 @@ export function createApplicationServices({
     /** Public signup requests create links before a credential exists. */
     signupInvites: {
       createSignupInvite: (email: string) => invites.createSignupInvite(email, sessionDays),
-      deleteSignupInvite: (id: Id) => invites.deleteSignupInvite(id),
+      deleteSignupInvite: (id: Id, token?: string) => invites.deleteSignupInvite(id, token),
     },
     push,
     reports,

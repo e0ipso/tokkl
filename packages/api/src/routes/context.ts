@@ -14,8 +14,11 @@ export interface Deps extends ApplicationServices {
   publicUrl: string | undefined;
   /** Charged per account+address, account and address; unknown invite tokens hit the address counter. */
   loginLimiter: FailureLimiter;
+  signupAddressLimiter: FailureLimiter;
+  signupEmailLimiter: FailureLimiter;
   auth: AuthMiddleware;
   sessions: SessionHandlers;
+  signup: RequestHandler;
 }
 
 declare module 'express-serve-static-core' {

@@ -61,9 +61,11 @@ export function createInviteOperations<R extends AccountRepositories>(runner: Ac
       });
     },
     /** Internal compensation when sending the signup email fails. */
-    async deleteSignupInvite(id: Id): Promise<void> {
+    async deleteSignupInvite(id: Id, token?: string): Promise<void> {
       await runner.transaction(async ctx => {
         await ctx.lockInstanceAdministration();
+        // A replacement can reuse a deleted row's ID, so compensation also checks the original token.
+        if (token !== undefined && (await findUsableInvite(ctx, token))?.id !== id) return;
         await ctx.tokens.revokeInvite(id);
       });
     },

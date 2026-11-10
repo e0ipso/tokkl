@@ -9,6 +9,9 @@ import {
 } from '@playwright/test';
 import { RuntimeErrors } from './runtime-errors.ts';
 import { madridWallClock } from './timer-tests-helpers.ts';
+import type { InstanceSettings } from '../packages/types/index.ts';
+
+export type { InstanceSettings };
 
 export const EMAIL = 'e2e@example.com';
 export const PASSWORD = 'e2e password';
@@ -41,12 +44,6 @@ let workerAccount: Account = ADMIN_ACCOUNT;
 /** Its own invited user in the parallel project, or the setup admin in the instance project. */
 export function currentAccount(): Account {
   return workerAccount;
-}
-
-export interface InstanceSettings {
-  session_days: number;
-  invite_days: number;
-  time_resolution_minutes: number;
 }
 
 export interface NewUser {
@@ -196,7 +193,13 @@ export class TestData {
   }
 
   async saveInstanceSettings(settings: Partial<InstanceSettings>): Promise<void> {
-    await ok(await this.api.put('/api/app/admin/settings', { headers: CSRF, data: settings }));
+    const { session_days, invite_days, time_resolution_minutes, signup_enabled } = settings;
+    await ok(
+      await this.api.put('/api/app/admin/settings', {
+        headers: CSRF,
+        data: { session_days, invite_days, time_resolution_minutes, signup_enabled },
+      }),
+    );
   }
 
   async createInvite(invite: { role: 'admin' | 'user'; note?: string }): Promise<number> {

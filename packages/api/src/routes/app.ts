@@ -16,7 +16,10 @@ import { presentPomodoroLimits, presentServerApi } from '../presenters/serverApi
 import type { AppStatus, CatalogRevision, TrashTotal } from '@tokkl/types';
 import { TRASH_READ_LIMIT } from '../domain/ports.ts';
 
-type AppRouteDeps = Pick<Deps, 'auth' | 'sessions' | 'readFor' | 'entriesFor' | 'exportAccount' | 'preferencesFor'>;
+type AppRouteDeps = Pick<
+  Deps,
+  'auth' | 'sessions' | 'signup' | 'readFor' | 'entriesFor' | 'exportAccount' | 'preferencesFor'
+>;
 
 export function appRoutes(deps: AppRouteDeps): Router {
   const { sessions } = deps;
@@ -37,6 +40,7 @@ export function appRoutes(deps: AppRouteDeps): Router {
   app.get('/password-resets/:token', sessions.resetInfo);
   app.post('/password-resets/:token', sessions.resetPassword);
   app.post('/login', sessions.login);
+  app.post('/signup', deps.signup);
   app.post('/logout', sessions.logout);
   // Same as the v9 `/me/preferences`, plus the /api/app validation headers.
   app.get(
