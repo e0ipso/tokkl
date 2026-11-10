@@ -35,8 +35,7 @@ import { NavLink, RunningTitle, SignedInUser, useTheme } from './ShellParts.tsx'
 /** The tab forgets the session even when the request fails; see logOut in lib/session.ts. */
 function useLogout(): () => void {
   const qc = useQueryClient();
-  // The new page load then shows what the server says: the login page, or this account if the
-  // server still holds the session.
+  // The reload shows the login page, or this account if the server still holds the session.
   return () => {
     logOut(qc)
       .catch(() => {})
@@ -46,11 +45,7 @@ function useLogout(): () => void {
   };
 }
 
-/**
- * This account loaded after a failed logout, from here or from Settings. Say so, so nobody on a
- * shared browser walks away thinking they logged out. Runs once per page load: the first read
- * clears the flag.
- */
+/** Says the logout failed, so nobody on a shared browser walks away signed in. The first read clears the flag. */
 function useLogoutFailureNotice(retry: () => void) {
   const toast = useToast();
   const notice = useEffectEvent(() => {
@@ -64,10 +59,7 @@ function useLogoutFailureNotice(retry: () => void) {
   useEffect(() => notice(), []);
 }
 
-/**
- * The page for the current route. While a page's code loads, the route shows the same Loading
- * state a page shows while its data loads.
- */
+/** While a page's code loads, the route shows the same Loading state as for its data. */
 function Routes() {
   return (
     <Suspense
@@ -95,7 +87,6 @@ function Routes() {
   );
 }
 
-/** The signed-in app: navigation, the app-wide banners and the page for the current route. */
 export function Shell() {
   const [location] = useLocation();
   const { data: current } = useCurrentEntry();

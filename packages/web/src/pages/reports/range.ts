@@ -33,12 +33,11 @@ const PRESET_LABELS = {
   all_time: 'reports.presetAllTime',
 } as const satisfies Record<Preset, MessageKey>;
 
-/** A preset's name, such as "Last 30 days". */
 export function presetLabel(preset: Preset): string {
   return t(PRESET_LABELS[preset]);
 }
 
-/** An inclusive range of calendar days, both "YYYY-MM-DD" in the account timezone. */
+/** Inclusive; both "YYYY-MM-DD" in the account timezone. */
 export interface DateRange {
   readonly from: string;
   readonly to: string;
@@ -60,7 +59,6 @@ function startOfMonth(key: string): string {
   return `${key.slice(0, 7)}-01`;
 }
 
-/** First day of the month `months` away from the month containing `key`. */
 function addMonths(key: string, months: number): string {
   const parsed = parseDateKey(key)!;
   const index = parsed.year * 12 + (parsed.month - 1) + months;
@@ -71,10 +69,7 @@ function endOfMonth(key: string): string {
   return addDays(addMonths(key, 1), -1);
 }
 
-/**
- * Resolves a preset to dates. `firstDay` is the date of the oldest entry and only matters for
- * "All time", which spans from there to today (at most ten years back).
- */
+/** `firstDay`, the oldest entry's date, only matters for "All time" (at most ten years back). */
 export function presetRange(
   preset: Preset,
   todayKey: string,
@@ -114,7 +109,6 @@ export function presetRange(
   }
 }
 
-/** The preset whose range equals `range` today, if any. */
 export function matchingPreset(
   range: DateRange,
   todayKey: string,
@@ -133,7 +127,7 @@ function rangeDays(range: DateRange): number {
   return daysBetween(range.from, range.to) + 1;
 }
 
-/** Number of whole calendar months the range covers, or 0 when it does not start and end on month edges. */
+/** 0 when it does not start and end on month edges. */
 function wholeMonths(range: DateRange): number {
   if (range.from !== startOfMonth(range.from) || range.to !== endOfMonth(range.to)) return 0;
   const a = parseDateKey(range.from)!;
@@ -141,10 +135,7 @@ function wholeMonths(range: DateRange): number {
   return (b.year - a.year) * 12 + (b.month - a.month) + 1;
 }
 
-/**
- * Moves the range by its own length. Ranges made of whole months move by calendar months, so
- * "last month" steps to the month before it; everything else moves by its number of days.
- */
+/** Whole-month ranges move by calendar months, so "last month" steps to the month before; others by days. */
 export function shiftRange(range: DateRange, direction: 1 | -1): DateRange {
   const months = wholeMonths(range);
   if (months > 0) {

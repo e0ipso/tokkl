@@ -1,6 +1,5 @@
 import type { MessageGroup } from '../catalog.ts';
 
-/** The app frame: navigation, the More sheet, the tab title and app-wide load errors. */
 export const shell = {
   appName: 'Tokkl',
   navLabel: 'Main',
@@ -20,9 +19,8 @@ export const shell = {
   signedInAs: 'Signed in as ',
   timerRunning: 'Timer running',
   sessionRunning: 'Pomodoro session running',
-  /** The tab title while a timer runs: its elapsed time and description. */
   runningTitle: '{duration} · {description}',
-  /** The tab title's description for a running entry without one. */
+  /** For a running entry without a description. */
   runningUntitled: 'Running',
   serverUnreachable: "Can't reach the server: {message}",
   pageBroke: 'Something broke on this page',

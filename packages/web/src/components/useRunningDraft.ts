@@ -8,15 +8,8 @@ import { followRunningEntry, type OwnStart } from './runningDraftSync.ts';
 import { EMPTY_DRAFT, draftSignature, type EntryDraft } from './useEntryFields.ts';
 
 /**
- * The timer bar's draft. While a timer runs, the draft mirrors that entry; when it stops (here or
- * on another device), the draft goes back to empty. Only this hook resets the draft after a start
- * or stop, so a refetch that lands before the mutation settles cannot wipe what the user typed.
- *
- * It follows every mirrored field, not only `at`: `at` has whole seconds, so a write in the same
- * second as the previous one leaves it unchanged. A timer this bar started is remembered by its
- * start second until it first loads as `current` (`markOwnStart`): the current-entry refetch can
- * land before the create call resolves, so the new id may not be known yet. Edits made between
- * Start and that first load belong to the new entry and are saved to it.
+ * Only this hook resets the draft after a start or stop, so an early refetch cannot wipe typing. Its own start
+ * is remembered by start second until it loads (`markOwnStart`); edits meanwhile are saved to it.
  */
 export function useRunningDraft(current: TimeEntry | null, fields: RefObject<EntryFieldsHandle | null>) {
   const update = useUpdateRunningEntry();
@@ -61,13 +54,12 @@ export function useRunningDraft(current: TimeEntry | null, fields: RefObject<Ent
   const signature = current ? `${current.id}\u0002${current.at}\u0002${draftSignature(current)}` : null;
   useEffect(() => follow(), [signature]);
 
-  /** Saves an edit to the running entry. While a start is loading the sync above saves it instead. */
+  /** While a start is loading the sync above saves it instead. */
   const patchRunning = (changes: RunningEntryChanges) => {
     if (!current || ownStart.current) return;
     update.mutate({ id: current.id, ...changes }, { onError: toast.error });
   };
 
-  /** Remembers a timer this bar is starting at `startAt`, with the draft it started from. */
   const markOwnStart = (startAt: Date, base: EntryDraft) => {
     ownStart.current = { startMs: Math.floor(startAt.getTime() / 1000) * 1000, base };
   };

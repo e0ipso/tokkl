@@ -1,6 +1,5 @@
 import type { MessageGroup } from '../catalog.ts';
 
-/** The Admin page: accounts, invite links, one-time links and instance settings. */
 export const admin = {
   title: 'Admin',
   sectionsLabel: 'Admin sections',
@@ -14,7 +13,6 @@ export const admin = {
   roleAdmin: 'Admin',
   actions: 'Actions',
 
-  // Users
   usersIntro: 'Every account on this server. Disabling signs the account out and blocks it until you enable it again.',
   account: 'Account',
   role: 'Role',
@@ -45,18 +43,16 @@ export const admin = {
   resetLinkHelp:
     'Copy it now: it is shown only once. Send it to them; it works once, for 24 hours, and replaces any earlier link. Using it signs the account out of every browser and replaces their API token, so apps signed in with the old one must sign in again.',
 
-  // Delete account
   deleted: 'Deleted {email}',
   deleteTitle: 'Delete {email}?',
   deleteBody:
     'This deletes the account and its workspace, with every time entry, project, client and tag in it. It cannot be undone.',
   deleteDisableInstead: 'To keep the data, disable the account instead. A disabled account can be enabled again.',
   deleteExportFirst: 'Ask them to export their data first, from Settings, Data.',
-  /** The confirm field's label; the placeholder is the email in bold. */
+  /** The placeholder is the email in bold. */
   typeToConfirm: 'Type {email} to confirm',
   typeEmailToConfirm: "Type the account's email to confirm",
 
-  // Invites
   inviteRevoked: 'Invite revoked. Its link no longer works.',
   revokeNoteInvite: 'Revoke invite "{note}"',
   revokeAdminInvite: 'Revoke admin invite',
@@ -83,7 +79,6 @@ export const admin = {
   copyFailed: 'Could not copy. Select the link and copy it by hand.',
   copyLink: 'Copy link',
 
-  // Instance settings
   sessionLength: 'Session length (days)',
   sessionLengthHint: 'New logins stay signed in this long. Existing sessions keep their expiry.',
   inviteLifetime: 'Invite link lifetime (days)',

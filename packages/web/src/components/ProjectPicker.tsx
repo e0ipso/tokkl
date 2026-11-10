@@ -9,12 +9,12 @@ import { useToast } from './Toast.tsx';
 import { useExclusive } from './useExclusive.ts';
 import { t } from '../i18n/messages.ts';
 
-/** Scrolls the active option into view when it becomes active (a ref callback, so no lookup by id). */
+/** A ref callback, so no lookup by id. */
 function revealOption(element: HTMLElement | null): void {
   element?.scrollIntoView({ block: 'nearest' });
 }
 
-/** One listbox option. Focus stays in the search field; `active` is the option it points at. */
+/** Focus stays in the search field; `active` is the option it points at. */
 function PickerOptionButton({
   id,
   className,
@@ -47,12 +47,8 @@ function PickerOptionButton({
 }
 
 /**
- * Project and task chooser with inline project creation (Ctrl/Cmd+Enter or the create row).
- *
- * The search field is a combobox and keeps focus. ArrowDown, ArrowUp, Home and End move the active
- * option, exposed through aria-activedescendant; Enter picks it. With no active option, Enter picks
- * the first project that matches, or creates one. Home and End move the caret until an option is
- * active.
+ * The search field keeps focus; arrows, Home and End move the active option (aria-activedescendant).
+ * With none active, Enter picks the first match or creates one.
  */
 export function ProjectPicker({
   anchor,

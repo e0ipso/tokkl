@@ -17,10 +17,7 @@ import {
 import type { ReportPatch } from './urlState.ts';
 import { t } from '../../i18n/messages.ts';
 
-/**
- * True when the arrow key belongs to the target: a text field, or any element (SVG included)
- * inside a widget marked data-own-arrows.
- */
+/** A text field, or any element (SVG included) inside a widget marked data-own-arrows. */
 function ownsArrows(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
   if (target.closest('[data-own-arrows]') !== null) return true;
@@ -30,7 +27,7 @@ function ownsArrows(target: EventTarget | null): boolean {
   );
 }
 
-/** Preset list plus a custom range, with arrows that move the range by its own length. */
+/** The arrows move the range by its own length. */
 export function RangeControl({
   range,
   preset,
@@ -75,14 +72,13 @@ export function RangeControl({
     return () => document.removeEventListener('keydown', onArrow);
   }, []);
 
-  // Opening moves focus to the active preset, as a listbox popup does. Only on opening: a later
-  // change of the active preset must not pull focus back.
+  // Only on opening: a later change of the active preset must not pull focus back.
   const focusActivePreset = useEffectEvent(() => presets.current[Math.max(activeIndex, 0)]?.focus());
   useEffect(() => {
     if (open) focusActivePreset();
   }, [open]);
 
-  /** Closes the popover and gives focus back to the range button if it was inside the popover. */
+  /** Gives focus back to the range button if it was inside the popover. */
   const close = () => {
     const inside = panel.current?.contains(document.activeElement) ?? false;
     setOpen(false);

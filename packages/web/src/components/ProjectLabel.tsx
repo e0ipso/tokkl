@@ -2,10 +2,7 @@ import type { CSSProperties } from 'react';
 import { useProjects, useTasks } from '../api/projects.ts';
 import { t } from '../i18n/messages.ts';
 
-/**
- * Sets --project-color for the element. CSS derives the dot, border and tint from it (see
- * .project-dot in styles/entries.css); text never takes the project colour.
- */
+/** CSS derives dot, border and tint from --project-color (.project-dot in styles/entries.css); text never uses it. */
 export function projectColorStyle(color: string | null | undefined): CSSProperties | undefined {
   return color ? { '--project-color': color } : undefined;
 }
@@ -14,7 +11,7 @@ export function ProjectDot({ color }: { color: string | null | undefined }) {
   return <span className="project-dot" style={projectColorStyle(color)} />;
 }
 
-/** A project's dot, name, task and client, from the catalogs or, for a deleted project, from `fallback`. */
+/** A deleted project comes from `fallback`. */
 export function ProjectLabel({
   projectId,
   taskId,

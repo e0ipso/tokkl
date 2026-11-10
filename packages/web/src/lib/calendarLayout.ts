@@ -4,26 +4,21 @@ import { assignLanes, heightClearingMarkers } from './calendarLanes.ts';
 import { localDay } from './entryTime.ts';
 import { entrySeconds } from './snapping.ts';
 
-/**
- * Pixels per hour in the week calendar. The hour lines in styles/calendar.css (`background-size: 100% 48px`)
- * and `HOUR` in e2e/history-calendar-tests-helpers.ts must change with it.
- */
+/** styles/calendar.css hour lines and `HOUR` in e2e/history-calendar-tests-helpers.ts must change with it. */
 export const HOUR_HEIGHT = 48;
-/** A block never draws shorter than this, so a zero-length entry is a thin bar at its start. */
+/** So a zero-length entry is a thin bar at its start. */
 export const MIN_BLOCK_HEIGHT = 6;
 export const DAY_MINUTES = 24 * 60;
 
-/** Pixels from the top of the day for `minutes` after midnight. */
 export function minuteToPx(minutes: number): number {
   return (minutes / 60) * HOUR_HEIGHT;
 }
 
-/** Minutes after midnight for `px` from the top of the day. */
 export function pxToMinute(px: number): number {
   return (px / HOUR_HEIGHT) * 60;
 }
 
-/** A clock minute rounded to whole drag steps, kept on the day. */
+/** Kept on the day. */
 export function snapMinute(minutes: number, step: number): number {
   return Math.max(0, Math.min(DAY_MINUTES, Math.round(minutes / step) * step));
 }
@@ -31,19 +26,15 @@ export function snapMinute(minutes: number, step: number): number {
 export interface CalendarBlock {
   entry: TimeEntry;
   day: string;
-  /** Clock minutes of the part of the entry on `day`. */
+  /** Clock minutes of the part on `day`. */
   top: number;
   bottom: number;
   lane: number;
   lanes: number;
-  /** The least height to draw, in pixels: tall enough to show below a zero-length marker over its start. */
   minHeight: number;
 }
 
-/**
- * Lays out the part of each entry that falls on each day, side by side where their stored spans
- * overlap. A running entry runs to `now`.
- */
+/** Side by side where stored spans overlap; a running entry runs to `now`. */
 export function layoutBlocks(
   entries: readonly TimeEntry[],
   days: readonly string[],
@@ -65,7 +56,7 @@ export function layoutBlocks(
   return byDay;
 }
 
-/** Seconds tracked per account-local start day, running entries up to `now`. Days without entries are absent. */
+/** Running entries up to `now`; days without entries are absent. */
 export function dayTotals(entries: readonly TimeEntry[], timeZone: string, now: Date): Map<string, number> {
   const totals = new Map<string, number>();
   for (const entry of entries) {
@@ -75,7 +66,7 @@ export function dayTotals(entries: readonly TimeEntry[], timeZone: string, now: 
   return totals;
 }
 
-/** The sum of `totals` over the days from `first` to `last`, both included. */
+/** Both ends included. */
 export function rangeTotal(totals: ReadonlyMap<string, number>, first: string, last: string): number {
   let sum = 0;
   for (const [day, seconds] of totals) if (day >= first && day <= last) sum += seconds;

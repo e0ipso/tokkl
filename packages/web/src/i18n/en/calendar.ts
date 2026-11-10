@@ -1,6 +1,5 @@
 import type { MessageGroup } from '../catalog.ts';
 
-/** The week calendar: toolbar, day strip, all-day row and dialog, and the hour grid's blocks. */
 export const calendar = {
   previousDay: 'Previous day',
   previousWeek: 'Previous week',
@@ -10,7 +9,6 @@ export const calendar = {
   currentDayTitle: 'Current day (T)',
   thisWeek: 'This week',
   thisWeekTitle: 'This week (T)',
-  /** The shown week, such as "22 Jun to 28 Jun". */
   weekRange: '{from} to {to}',
   weekTotal: 'Week total',
   daysOfWeek: 'Days of the week',
@@ -25,13 +23,11 @@ export const calendar = {
   addEntry: 'Add entry',
   durationPlaceholder: 'e.g. 1:30 or 90m',
 
-  /** A block's tooltip: its name, then its times on the next line. */
   blockTitle: '{label}\n{range}',
-  /** The end of a running block's time range. */
   now: 'now',
-  /** The project before a tall block's duration. */
+  /** Before a tall block's duration. */
   projectPrefix: '{project} · ',
-  /** The project after a short block's description, on its one line. */
+  /** After a short block's description, on its one line. */
   projectSuffix: ' · {project}',
   editBlock: 'Edit {label}',
 

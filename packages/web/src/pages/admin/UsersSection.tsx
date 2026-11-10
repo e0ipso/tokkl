@@ -9,7 +9,6 @@ import { NewLink } from './NewLink.tsx';
 import { UserRow } from './UserRow.tsx';
 import { t } from '../../i18n/messages.ts';
 
-/** Every account on the server, with role, status, password reset and delete. */
 export function UsersSection({
   users,
   meId,

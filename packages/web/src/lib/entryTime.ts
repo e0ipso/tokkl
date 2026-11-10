@@ -1,18 +1,12 @@
 import { addDays, dateKey, parseDateKey, zonedToUtc } from '@tokkl/common/time';
 import { parseTimeOfDay } from '@tokkl/common/timeOfDay';
 
-/** Combines a date key and minutes after midnight in `timeZone` into an instant. */
 export function instantAt(key: string, minutes: number, timeZone: string): Date {
   const parsed = parseDateKey(key)!;
   return zonedToUtc(parsed.year, parsed.month, parsed.day, Math.floor(minutes / 60), minutes % 60, 0, timeZone);
 }
 
-/**
- * Resolves typed start and end times on `day`. The end always lands after the start, rolling over
- * to the next calendar day in `timeZone` when needed, the way Toggl's manual mode works. For 12-hour
- * users an end without AM/PM is the first occurrence after the start (11pm to "1" is 1 AM); an
- * explicit "9am" stays 9 AM.
- */
+/** The end always lands after the start, rolling to the next day as Toggl does; a 12-hour end without AM/PM too. */
 export function resolveRange(
   day: string,
   startText: string,
@@ -28,7 +22,7 @@ export function resolveRange(
   return { start, stop: instantAt(endDay, endMinutes, options.timeZone) };
 }
 
-/** The field to fix when resolveRange returns null: the start if it cannot be read, otherwise the end. */
+/** The start if it cannot be read, otherwise the end. */
 export function unreadableTime(
   startText: string,
   options: { twelveHour: boolean; nowMinutes: number },

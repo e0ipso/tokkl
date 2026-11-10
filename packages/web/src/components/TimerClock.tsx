@@ -4,10 +4,7 @@ import type { TimeEntry, TimerPause } from '@tokkl/types';
 import { barSeconds } from './pauseView.ts';
 import { t } from '../i18n/messages.ts';
 
-/**
- * The timer bar's clock. It is the only part of the bar that ticks, so the second-by-second
- * re-render stays here. While paused it shows the chain's frozen total.
- */
+/** The only ticking part of the bar, so the per-second re-render stays here. */
 export function TimerClock({
   running,
   chain,

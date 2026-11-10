@@ -23,11 +23,7 @@ function spanSeconds(span: { start: Date; stop: Date }): number {
   return (span.stop.getTime() - span.start.getTime()) / 1000;
 }
 
-/**
- * The halves a typed split time cuts a stopped entry into, as the server will store them, or why it
- * cuts nowhere. The time moves to the nearest grid point of the time resolution, so both halves keep
- * it as their shared boundary when the server snaps them.
- */
+/** The time moves to the nearest grid point, so both halves keep it as their boundary when the server snaps them. */
 function splitHalves(
   entry: TimeEntry & { stop: string },
   text: string,
@@ -40,16 +36,12 @@ function splitHalves(
   if (minutes === null) return 'unreadable';
   const startDay = localDay(entry.start, settings.timeZone);
   let at = instantAt(startDay, minutes, settings.timeZone);
-  // Overnight: the same clock time on the next calendar day. Adding 24 hours would be off by the
-  // DST shift when the clocks change that night.
+  // The same clock time on the next calendar day; adding 24 hours would be off by a DST shift that night.
   if (at <= new Date(entry.start)) at = instantAt(addDays(startDay, 1), minutes, settings.timeZone);
   return snappedSplit(new Date(entry.start), new Date(entry.stop), at, settings);
 }
 
-/**
- * The entry editor's "Split at" field for a stopped, timed entry, with a preview of both halves.
- * The split runs through the editor's `actions`, so it never overlaps a save, duplicate or delete.
- */
+/** Runs through the editor's `actions`, so it never overlaps a save, duplicate or delete. */
 export function EntrySplitField({
   entry,
   settings,

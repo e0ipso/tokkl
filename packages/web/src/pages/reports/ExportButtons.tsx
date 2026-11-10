@@ -10,10 +10,7 @@ import { t } from '../../i18n/messages.ts';
 
 type Kind = 'detailed' | 'summary';
 
-/**
- * CSV downloads of the report on screen: same range, filters, rounding, grouping and sort order.
- * While one runs, Cancel stops it, and so does leaving the page, without an error.
- */
+/** Same range, filters, rounding, grouping and sort as on screen. Cancel and leaving the page stop it silently. */
 export function ExportButtons({
   range,
   filters,

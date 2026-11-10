@@ -18,8 +18,7 @@ function TaskRow({ project, task, onDeleted }: { project: Project; task: Task; o
   const settings = useSettings();
   const [name, setName] = useState(task.name);
   const [confirming, setConfirming] = useState(false);
-  // Opening or closing the inline confirm unmounts the focused button, so focus follows the swap:
-  // to Keep when it opens, back to "Delete task" when it closes.
+  // Opening or closing the inline confirm unmounts the focused button, so focus moves to Keep or back.
   const deleteButton = useRef<HTMLButtonElement>(null);
   const keepButton = useRef<HTMLButtonElement>(null);
   const focusAfterSwap = useRef(false);
@@ -32,9 +31,7 @@ function TaskRow({ project, task, onDeleted }: { project: Project; task: Task; o
     focusAfterSwap.current = true;
     setConfirming(next);
   };
-  // Flip the checkbox right away; the refetch after the save confirms it.
-  // The flip is kept with the stored value it was made against, so a refetch that changes the
-  // stored value replaces it.
+  // Flipped at once; kept with the stored value it was made against, so a refetch that changes it replaces it.
   const [flip, setFlip] = useState<{ active: boolean; over: boolean } | null>(null);
   const active = flip && flip.over === task.active ? flip.active : task.active;
   const setActive = (next: boolean) => setFlip({ active: next, over: task.active });
@@ -119,7 +116,6 @@ function TaskRow({ project, task, onDeleted }: { project: Project; task: Task; o
   );
 }
 
-/** Task list for one project: add, rename, mark done and delete. */
 export function ProjectTasks({ project }: { project: Project }) {
   const wid = useWid();
   const fields = useFieldErrors<'name'>();
@@ -129,8 +125,7 @@ export function ProjectTasks({ project }: { project: Project }) {
   const heading = useRef<HTMLHeadingElement>(null);
   const newTask = useRef<HTMLInputElement | null>(null);
   const nameField = fields.field('name');
-  // A deleted task's row goes away with the refetch. Focus moves to the next task's "Delete task",
-  // else the previous one's, else the new task field, or the heading when the project is archived.
+  // Focus moves to the next task's "Delete task", else the previous one's, else the new task field or heading.
   const deleted = (id: number) => keepFocusPastRow(list.current, id, 'delete', newTask.current ?? heading.current);
 
   const create = useAction<string>({

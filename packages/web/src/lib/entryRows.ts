@@ -3,15 +3,12 @@ import { localDay } from './entryTime.ts';
 import { entrySeconds } from './snapping.ts';
 import { t } from '../i18n/messages.ts';
 
-/** How the timer page's entry list groups stopped entries into days and rows. */
-
 export type StoppedEntry = TimeEntry & { stop: string };
 
 export function isStopped(entry: TimeEntry): entry is StoppedEntry {
   return entry.stop !== null;
 }
 
-/** Seconds from start to stop of a stopped entry. */
 export function stoppedSeconds(entry: StoppedEntry): number {
   return Math.max(0, Math.floor((Date.parse(entry.stop) - Date.parse(entry.start)) / 1000));
 }
@@ -25,7 +22,7 @@ interface EntryDay {
   entries: StoppedEntry[];
 }
 
-/** Stopped entries by the account-local day they started, newest day first. Running entries are left out. */
+/** Newest day first; running entries are left out. */
 export function entriesByDay(entries: readonly TimeEntry[], timeZone: string): EntryDay[] {
   const byDay = new Map<string, StoppedEntry[]>();
   for (const entry of entries) {
@@ -36,7 +33,6 @@ export function entriesByDay(entries: readonly TimeEntry[], timeZone: string): E
   return [...byDay].sort(([a], [b]) => b.localeCompare(a)).map(([day, list]) => ({ day, entries: list }));
 }
 
-/** A list with at least one item. */
 export type NonEmpty<T> = [T, ...T[]];
 
 export interface EntryRowGroup {
@@ -50,12 +46,7 @@ function similarityKey(entry: TimeEntry): string {
   );
 }
 
-/**
- * The rows of one day. With `collapse`, entries with the same description, project, task, billable
- * flag and tags share a row. Rows are keyed by their oldest member's id, not by the fields they are
- * grouped on, so an edit from another device does not remount the row someone is typing in, and a
- * group keeps its key when entries join it (a split adds a newer id).
- */
+/** Rows are keyed by their oldest member's id, so another device's edit does not remount a row being typed in. */
 export function rowsForDay(entries: readonly StoppedEntry[], collapse: boolean): EntryRowGroup[] {
   if (!collapse) return entries.map(entry => ({ key: String(entry.id), entries: [entry] }));
   const groups = new Map<string, NonEmpty<StoppedEntry>>();
@@ -68,7 +59,7 @@ export function rowsForDay(entries: readonly StoppedEntry[], collapse: boolean):
   return [...groups.values()].map(members => ({ key: String(Math.min(...members.map(e => e.id))), entries: members }));
 }
 
-/** The clock range spanned by the timed entries, or '' when there are none. */
+/** '' when there are none. */
 export function rangeLabel(entries: readonly StoppedEntry[], format: (iso: string) => string): string {
   const timed = entries.filter(e => !e.all_day);
   if (timed.length === 0) return '';
@@ -77,16 +68,13 @@ export function rangeLabel(entries: readonly StoppedEntry[], format: (iso: strin
   return t('dates.timeRange', { start: format(starts[0]!), end: format(stops[stops.length - 1]!) });
 }
 
-/**
- * The ids of `selected` that are still in `entries`, in the order they were selected, so a
- * selection never counts or edits entries that went away.
- */
+/** In selection order, so a selection never counts or edits entries that went away. */
 export function presentSelection(selected: ReadonlySet<number>, entries: readonly TimeEntry[]): Set<number> {
   const shown = new Set(entries.map(entry => entry.id));
   return new Set([...selected].filter(id => shown.has(id)));
 }
 
-/** Seconds tracked today and this week up to today, running entries counted up to `now`. */
+/** Running entries count up to `now`. */
 export function periodTotals(
   entries: readonly TimeEntry[],
   now: Date,

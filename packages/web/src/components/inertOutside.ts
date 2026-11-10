@@ -1,27 +1,19 @@
-/**
- * The part of an element `inertOutside` reads and writes, so tests can pass plain objects. Only
- * HTML elements have `inert`; an SVG child of the body is left as it is.
- */
+/** Only HTML elements have `inert`; an SVG child of the body is left as it is. */
 export interface InertNode<T> {
   inert?: boolean;
   readonly children: Iterable<T>;
   contains(other: T | null): boolean;
 }
 
-/**
- * The attribute of an element that stays usable while a modal is open: the toast region, whose
- * messages must still be announced and whose Undo and Dismiss buttons sit above the backdrop.
- */
+/** The toast region stays usable: its messages must be announced and its buttons sit above the backdrop. */
 export const INERT_EXEMPT = 'data-inert-exempt';
 
-/** How many open modals have made each element inert. An element stays inert while any does. */
+/** An element stays inert while any modal holds it. */
 const holds = new Map<object, number>();
 
 /**
- * Makes everything under `root` inert except the `keep` elements and their ancestors, so the page
- * behind a modal dialog cannot be clicked, focused or read by assistive technology. Elements inert
- * for another reason are left alone. Returns the undo; stacked modals each hold their own share,
- * so closing one never wakes an element another still covers.
+ * Leaves `keep`, their ancestors and already-inert elements alone. Each stacked modal holds its own share, so
+ * closing one never wakes an element another covers.
  */
 export function inertOutside<T extends InertNode<T>>(root: T, keep: readonly T[]): () => void {
   const held: T[] = [];

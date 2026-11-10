@@ -9,7 +9,7 @@ import { EMPTY_DRAFT, draftOf, draftSignature, type EntryDraft } from '../../com
 import { useRunningEntryEdits } from './useRunningEntryEdits.ts';
 import { t } from '../../i18n/messages.ts';
 
-/** The phase's countdown on the server's clock, then the overtime. It is the only part that ticks. */
+/** On the server's clock, then the overtime. The only part that ticks. */
 function SessionCountdown({ plannedEnd }: { plannedEnd: string }) {
   const { overtime, seconds } = countdown(plannedEnd, useServerNow(1000));
   return (
@@ -27,7 +27,6 @@ function SessionCountdown({ plannedEnd }: { plannedEnd: string }) {
   );
 }
 
-/** The open session: its phase, countdown and actions, and the fields of its running entry. */
 export function RunningSession({ recentEntries }: { recentEntries: TimeEntry[] }) {
   const { session, phase, plannedEnd, transitionKind, busy, nextPhase, end } = usePomodoroSession();
   const { data: entry } = useCurrentEntry();

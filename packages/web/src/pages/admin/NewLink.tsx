@@ -4,10 +4,7 @@ import { useToast } from '../../components/Toast.tsx';
 import { copyText } from '../../lib/clipboard.ts';
 import { t } from '../../i18n/messages.ts';
 
-/**
- * A new one-time link, such as an invite or a password reset link. The server returns it only once,
- * so it is gone after a reload.
- */
+/** The server returns it only once, so it is gone after a reload. */
 export function NewLink({
   link,
   label,

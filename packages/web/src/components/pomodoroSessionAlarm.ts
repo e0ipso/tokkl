@@ -13,11 +13,7 @@ interface SessionAlarm {
   transition: PomodoroTransition;
 }
 
-/**
- * What should ring at `serverNow` (ms, on the server's clock): nothing before the phase's planned
- * end, then the server's transition under the phase start. A state with another phase start or no
- * session gives another key or none, which stops the alarm whichever device made the change.
- */
+/** Nothing before the planned end; another phase start or no session stops the alarm, from any device. */
 export function phaseAlarm(pomodoro: TimerState['pomodoro'] | undefined, serverNow: number): SessionAlarm | null {
   if (!pomodoro || serverNow < Date.parse(pomodoro.phase.planned_end)) return null;
   return { key: pomodoro.phase.start, transition: pomodoro.transition };

@@ -7,11 +7,7 @@ import { FormError, errorMessage } from '../components/FormError.tsx';
 import { LinkCheckSplash, useLinkCheck } from './linkCheck.tsx';
 import { t } from '../i18n/messages.ts';
 
-/**
- * /reset/:token, reachable while logged out. Sets a new password from an admin's one-time link.
- * The server signs the account out everywhere and starts no session, so the page ends with a link
- * to the login form.
- */
+/** Reachable while logged out. The server signs the account out everywhere and starts no session. */
 export function ResetPasswordPage({ token }: { token: string }) {
   const [check, retry] = useLinkCheck(token, authRequests.checkReset);
   const fields = useFieldErrors<'password'>();
@@ -28,8 +24,7 @@ export function ResetPasswordPage({ token }: { token: string }) {
       await authRequests.resetPassword(token, password);
       setDone(true);
     } catch (err) {
-      // The link was checked on load, so a 400 is the server's password rules; anything else, such
-      // as a spent link or too many attempts, is about the page.
+      // The link was checked on load, so a 400 is the server's password rules; anything else is about the page.
       if (isApiError(err, 400)) fields.validate([['password', err.message]]);
       else setError(errorMessage(err));
       setBusy(false);

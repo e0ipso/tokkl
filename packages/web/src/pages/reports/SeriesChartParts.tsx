@@ -4,10 +4,7 @@ import type { Settings } from '../../lib/settings.ts';
 import { fullLabel, type Point, type Resolution } from './seriesChartLayout.ts';
 import { t } from '../../i18n/messages.ts';
 
-/**
- * Diagonal stripes for non-billable time, so the two series differ by texture as well as hue.
- * reports.css paints the wash and the stripes.
- */
+/** So the series differ by texture as well as hue. reports.css paints the wash and the stripes. */
 export function StripePattern({ id }: { id: string }) {
   return (
     <pattern
@@ -24,7 +21,6 @@ export function StripePattern({ id }: { id: string }) {
   );
 }
 
-/** A legend or tooltip key: solid for billable, striped for non-billable. */
 export function Swatch({
   series,
   patternId,
@@ -51,7 +47,6 @@ export function Swatch({
 
 type DurationSettings = Pick<Settings, 'durationFormat'>;
 
-/** The hovered or focused column's totals, beside it. */
 export function ChartTooltip({
   point,
   resolution,
@@ -81,7 +76,6 @@ export function ChartTooltip({
   );
 }
 
-/** The chart's numbers as a table, folded away under a disclosure. */
 export function ChartDataTable({
   series,
   resolution,

@@ -1,8 +1,6 @@
 import type { MessageGroup } from '../catalog.ts';
 
-/** The manage pages: projects with their editor and tasks, clients, tags, the trash and shared list parts. */
 export const manage = {
-  // Shared list parts
   statusActive: 'Active',
   statusArchived: 'Archived',
   statusAll: 'All',
@@ -24,7 +22,6 @@ export const manage = {
   deleteNamed: 'Delete {name}?',
   name: 'Name',
 
-  // Projects
   projectsTitle: 'Projects',
   projectsNoun: 'projects',
   newProject: 'New project',
@@ -47,9 +44,7 @@ export const manage = {
   no: 'No',
   rateDefault: 'Default',
   estimateUsed: 'Estimate used',
-  /** The estimate bar's tooltip, such as "12:30:00 of 40 h". */
   estimateTitle: '{tracked} of {hours} h',
-  /** The estimate bar's label, such as "31% of 40 h". */
   estimateLabel: '{percent}% of {hours} h',
   projectDeletedToTrash: 'Deleted {name} and moved its entries to the trash',
   projectDeletedUnassigned: 'Deleted {name}. Its entries no longer have a project',
@@ -61,7 +56,6 @@ export const manage = {
     'It has {tracked} of tracked time. Keep those entries without a project, or delete them too. Deleted entries go to the trash. If you restore them later, they come back without a project.',
   deleteProjectUntracked: 'It has no tracked time.',
 
-  // Project editor
   editProject: 'Edit project',
   createProject: 'Create project',
   createdClient: 'Created client {name}',
@@ -84,7 +78,6 @@ export const manage = {
   billableByDefault: 'Billable by default',
   defaultsHint: 'Leave the rate or currency empty to use the workspace defaults.',
 
-  // Colour field
   colorBlue: 'Blue',
   colorPurple: 'Purple',
   colorPink: 'Pink',
@@ -103,7 +96,6 @@ export const manage = {
   custom: 'Custom',
   customColor: 'Custom color',
 
-  // Tasks
   tasks: 'Tasks',
   deletedTask: 'Deleted task {name}',
   taskDone: '{name} is done',
@@ -123,7 +115,6 @@ export const manage = {
   noTasksYet: 'No tasks yet.',
   noTasksBody: "Add one above to split this project's time.",
 
-  // Clients
   clientsTitle: 'Clients',
   clientsNoun: 'clients',
   newClient: 'New client',
@@ -155,7 +146,6 @@ export const manage = {
       'Its {count} projects stay, without a client. If a project without a client already has the same name, "({name})" is added to the moved one. Time entries don\'t change. You can\'t undo this.',
   },
 
-  // Tags
   tagsTitle: 'Tags',
   tagsNoun: 'tags',
   renamedTo: 'Renamed to {name}',
@@ -177,7 +167,6 @@ export const manage = {
   deleteTagButton: 'Delete tag',
   deleteTagBody: "The tag comes off every time entry that has it. The entries stay. You can't undo this.",
 
-  // Trash
   trashTitle: 'Trash',
   purged: 'Deleted the entry for good',
   noDescription: 'No description',

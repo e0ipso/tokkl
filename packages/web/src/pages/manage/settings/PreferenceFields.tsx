@@ -15,19 +15,16 @@ import {
 } from './preferencesForm.ts';
 import { t } from '../../../i18n/messages.ts';
 
-/** 47 minutes and 6 seconds, the example Toggl uses for its duration formats. */
+/** The example Toggl uses for its duration formats. */
 const SAMPLE_SECONDS = 47 * 60 + 6;
 
-/** What every group of preference fields reads and writes. */
 interface PreferenceFieldsProps {
   draft: Draft;
   set: <K extends keyof Draft>(key: K, value: Draft[K]) => void;
 }
 
-/** The number fields' error state, from `useFieldErrors`. */
 type NumberFieldErrors = ReturnType<typeof useFieldErrors<NumberKey>>;
 
-/** Theme, date, time and duration formats, and the list and shortcut switches. */
 export function DisplayFields({
   draft,
   set,
@@ -116,7 +113,6 @@ export function DisplayFields({
   );
 }
 
-/** The reminder for a timer left running, and after how many hours it comes. */
 export function TimerReminderFields({ draft, set, fields }: PreferenceFieldsProps & { fields: NumberFieldErrors }) {
   return (
     <>
@@ -151,7 +147,7 @@ export function TimerReminderFields({ draft, set, fields }: PreferenceFieldsProp
   );
 }
 
-/** The lengths a new Pomodoro session starts with, within the server's `limits`. */
+/** Within the server's `limits`. */
 export function PomodoroDefaults({
   draft,
   set,

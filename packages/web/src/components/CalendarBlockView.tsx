@@ -8,7 +8,7 @@ import { projectColorStyle } from './ProjectLabel.tsx';
 import type { CalendarDrag } from '../lib/calendarGesture.ts';
 import { t } from '../i18n/messages.ts';
 
-/** One entry's part of a day column, drawn where a move or resize in progress would drop it. */
+/** Drawn where a move or resize in progress would drop it. */
 export function CalendarBlockView({
   block,
   drag,
@@ -24,7 +24,7 @@ export function CalendarBlockView({
   now: Date;
   settings: Settings;
   onPointerDown: (event: PointerEvent<HTMLDivElement>, kind: 'move' | 'resize') => void;
-  /** Opens the entry in the editor, as a click on the block does through the drag gesture. */
+  /** As a click on the block does through the drag gesture. */
   onOpen: () => void;
 }) {
   const active = drag !== null && drag.kind !== 'create' && drag.entry.id === block.entry.id;
@@ -89,9 +89,7 @@ export function CalendarBlockView({
           {description && projectName ? <span>{t('calendar.projectSuffix', { project: projectName })}</span> : null}
         </div>
       )}
-      {/* The block's keyboard and screen reader control, laid over it. A pointer press is the drag
-          gesture's, which opens the editor itself on a click or tap; this button opens it only for a
-          click without a pointer (detail 0): Enter, Space or a screen reader's activation. */}
+      {/* Keyboard and screen reader control: opens only for a click without a pointer (detail 0). */}
       <button
         type="button"
         className="calendar-block-open"

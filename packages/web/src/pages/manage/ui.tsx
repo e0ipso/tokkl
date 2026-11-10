@@ -3,7 +3,6 @@ import { Icon, type IconName } from '../../components/Icon.tsx';
 import { Modal, Popover } from '../../components/Overlay.tsx';
 import { t } from '../../i18n/messages.ts';
 
-/** Asks before a destructive or wide-reaching action. */
 export function ConfirmModal({
   title,
   children,
@@ -21,7 +20,7 @@ export function ConfirmModal({
   busy?: boolean;
   onConfirm: () => void;
   onClose: () => void;
-  /** Extra buttons placed before the confirm button, for choices like "delete entries too". */
+  /** For choices like "delete entries too". */
   extraActions?: ReactNode;
 }) {
   return (
@@ -81,7 +80,7 @@ export function Segmented<T extends string>({
   );
 }
 
-/** Search field with a leading icon. The accessible name defaults to the placeholder. */
+/** The accessible name defaults to the placeholder. */
 export function SearchBox({
   value,
   onChange,
@@ -114,10 +113,7 @@ interface MenuItem {
   danger?: boolean;
 }
 
-/**
- * A "more" button that opens a small action menu for a table row. Its `data-row-action="menu"` lets
- * `focusPastRow` move focus to the next row's menu when this row goes away.
- */
+/** Its `data-row-action="menu"` lets `focusPastRow` move focus to the next row's menu. */
 export function RowMenu({ label, items }: { label: string; items: MenuItem[] }) {
   const [open, setOpen] = useState(false);
   const button = useRef<HTMLButtonElement>(null);
@@ -151,8 +147,7 @@ export function RowMenu({ label, items }: { label: string; items: MenuItem[] }) 
                 role="menuitem"
                 className={item.danger ? 'danger' : undefined}
                 onClick={() => {
-                  // The item goes away with the menu. Focus the menu button first, so a modal the
-                  // item opens returns focus there when it closes.
+                  // Focus the menu button first, so a modal the item opens returns focus there.
                   button.current?.focus();
                   setOpen(false);
                   item.onSelect();
@@ -169,7 +164,7 @@ export function RowMenu({ label, items }: { label: string; items: MenuItem[] }) 
   );
 }
 
-/** Status pill for active and archived rows. `label` replaces the text, as in Disabled for accounts. */
+/** `label` replaces the text, as in Disabled for accounts. */
 export function StatusBadge({ archived, label }: { archived: boolean; label?: string }) {
   return (
     <span className={`manage-status${archived ? ' is-archived' : ''}`}>

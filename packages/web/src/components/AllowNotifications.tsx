@@ -10,11 +10,7 @@ const STATUS: Record<NotificationAccess, MessageKey> = {
   unsupported: 'timer.notificationsUnsupported',
 };
 
-/**
- * The shared Allow notifications button and a line saying what the browser allows. Only the
- * button's click asks for permission. The button goes once the browser answers, and focus moves to
- * the line that replaced it.
- */
+/** Only the button's click asks for permission. The button goes once the browser answers; focus moves to the line. */
 export function AllowNotifications() {
   const [access, setAccess] = useState<NotificationAccess>(notificationAccess);
   const statusId = useId();

@@ -1,4 +1,4 @@
-/** WCAG 2 relative luminance of a #rrggbb color. */
+/** WCAG 2 relative luminance. */
 function luminance(hex: string): number {
   const channel = (offset: number) => {
     const c = parseInt(hex.slice(offset, offset + 2), 16) / 255;
@@ -11,10 +11,7 @@ function luminance(hex: string): number {
 const CHECK_LIGHT = luminance('#ffffff');
 const CHECK_DARK = luminance('#08061f');
 
-/**
- * The check token with the higher contrast against the swatch. The swatch is the raw hex in both
- * themes, so the choice depends on the hex alone.
- */
+/** The swatch is the raw hex in both themes, so the choice depends on the hex alone. */
 export function checkColor(hex: string): string {
   const l = luminance(hex);
   const onDark = (CHECK_LIGHT + 0.05) / (l + 0.05);

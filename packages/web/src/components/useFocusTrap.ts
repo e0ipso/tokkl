@@ -9,18 +9,14 @@ const TABBABLE = [
   '[tabindex]',
 ].join(', ');
 
-/** The controls Tab stops on inside `container`, in document order. */
+/** In document order. */
 function tabbables(container: HTMLElement): HTMLElement[] {
   return [...container.querySelectorAll<HTMLElement>(TABBABLE)].filter(
     element => element.tabIndex >= 0 && !element.hidden && element.getClientRects().length > 0,
   );
 }
 
-/**
- * Keeps Tab inside a modal dialog: Tab on the last control moves to the first, and Shift+Tab on the
- * first moves to the last. Put the returned handler on the dialog's onKeyDown. Focus inside a
- * popover the dialog opened is left alone, since it is neither the first nor the last control.
- */
+/** Put the handler on the dialog's onKeyDown. Focus inside a popover the dialog opened is left alone. */
 export function useFocusTrap(): (event: KeyboardEvent<HTMLElement>) => void {
   return useCallback((event: KeyboardEvent<HTMLElement>) => {
     if (event.key !== 'Tab') return;

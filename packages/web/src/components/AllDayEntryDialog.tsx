@@ -12,7 +12,7 @@ import { useToast } from './Toast.tsx';
 import { EMPTY_DRAFT, type EntryDraft } from './useEntryFields.ts';
 import { t } from '../i18n/messages.ts';
 
-/** A calendar draft for a no-time entry, independent of the timer bar and saved-entry editor. */
+/** Independent of the timer bar and the saved-entry editor. */
 export function AllDayEntryDialog({
   date,
   recentEntries,
@@ -39,8 +39,7 @@ export function AllDayEntryDialog({
     if (!fields.validate([['duration', error]]) || seconds === null) return;
     submitting.current = true;
     try {
-      // TanStack skips a call's own callbacks once its component is gone, so a dismissed draft's
-      // pending save cannot close a newer dialog. The toast still says what was added.
+      // TanStack skips a call's own callbacks once its component is gone, so a dismissed draft cannot close a newer dialog.
       const saved = await create.mutateAsync(
         { ...draft, all_day: true, start_date: day, duration: seconds },
         { onSuccess: () => onClose() },

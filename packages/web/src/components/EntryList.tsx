@@ -43,7 +43,6 @@ function EmptyList({ onStartTimer, onManualMode }: { onStartTimer: () => void; o
   );
 }
 
-/** The stopped entries of the shown range, by day, with selection for the bulk bar. */
 export function EntryList({
   entries,
   onContinue,
@@ -52,13 +51,12 @@ export function EntryList({
 }: {
   entries: TimeEntry[];
   onContinue: (entry: TimeEntry) => void;
-  /** Actions for the empty list. Manual mode is left out when it is already on. */
+  /** Manual mode is left out when it is already on. */
   onStartTimer: () => void;
   onManualMode?: () => void;
 }) {
   const settings = useSettings();
-  // Ids the user checked. Entries can go away while checked (deleted elsewhere, or out of the
-  // range), so everything below reads `selected`, the checked ids still on the list.
+  // Checked entries can go away (deleted elsewhere, out of range), so everything below reads `selected`.
   const [checked, setChecked] = useState<Set<number>>(new Set());
   const todayKey = today(settings.timeZone);
   const days = useMemo(() => entriesByDay(entries, settings.timeZone), [entries, settings.timeZone]);

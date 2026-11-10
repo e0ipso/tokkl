@@ -1,6 +1,5 @@
 import type { MessageGroup } from '../catalog.ts';
 
-/** Reports: the page and its tabs, range control, filters, export, chart, summary, detailed and weekly. */
 export const reports = {
   title: 'Reports',
   tabSummary: 'Summary',
@@ -26,7 +25,6 @@ export const reports = {
   presetThisYear: 'This year',
   presetLastYear: 'Last year',
   presetAllTime: 'All time',
-  /** A range of days, such as "22 Jun to 28 Jun". */
   range: '{from} to {to}',
   previousPeriod: 'Previous period',
   previousPeriodTitle: 'Previous period (Left arrow)',
@@ -49,7 +47,7 @@ export const reports = {
   filterProject: 'Project',
   filterClient: 'Client',
   filterTag: 'Tag',
-  /** The filters' names inside a sentence, as in "Find project…". */
+  /** Inside a sentence, as in "Find project…". */
   filterProjectNoun: 'project',
   filterClientNoun: 'client',
   filterTagNoun: 'tag',
@@ -87,7 +85,7 @@ export const reports = {
   withoutTags: 'Without tags',
   withoutDescription: 'Without description',
   withoutTask: 'Without task',
-  /** A share of the total, such as "12.5%". The number follows the browser's locale. */
+  /** The number follows the browser's locale. */
   percent: '{value}%',
 
   totalTime: 'Total time',
@@ -106,7 +104,7 @@ export const reports = {
   share: 'Share',
   tagShares: 'Entries with several tags count once for each tag, so shares can add up to more than 100%.',
 
-  /** The chart's description. English says "days" even for one column; both forms keep it. */
+  /** English says "days" even for one column; both forms keep it. */
   chartDays: {
     one: 'Column chart of tracked hours per day, {count} days, {total} in total. Use the arrow keys to read each day.',
     other:
@@ -122,14 +120,12 @@ export const reports = {
     other:
       'Column chart of tracked hours per month, {count} months, {total} in total. Use the arrow keys to read each month.',
   },
-  /** An axis tick in hours, such as "2.5 h". */
   hoursTick: '{hours} h',
   chartTable: 'Show chart data as a table',
   day: 'Day',
   week: 'Week',
   month: 'Month',
   total: 'Total',
-  /** A week column's full name, such as "Week of 22 Jun 2026". */
   weekOf: 'Week of {date} {year}',
 
   detailedLoadFailed: "Couldn't load the detailed report: {message}",
@@ -142,7 +138,6 @@ export const reports = {
   pages: 'Pages',
   previous: 'Previous',
   next: 'Next',
-  /** The pager's place, such as "51 to 100 of 230". */
   pageRange: '{from} to {to} of {total}',
 
   weeklyLoadFailed: "Couldn't load the weekly report: {message}",
@@ -151,6 +146,5 @@ export const reports = {
   rowsClients: 'Clients',
   oneColumnPerDay: 'One column per day.',
   oneColumnPerWeek: 'Ranges longer than a week get one column per week.',
-  /** The end of a week column that the range cuts short, such as "to 28 Jun". */
   columnTo: 'to {date}',
 } as const satisfies MessageGroup;

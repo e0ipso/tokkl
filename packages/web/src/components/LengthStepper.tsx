@@ -3,7 +3,7 @@ import { Icon } from './Icon.tsx';
 import { canStep, stepValue, stepperStatus, type StepperRange } from './lengthStepper.ts';
 import { t } from '../i18n/messages.ts';
 
-/** Props a form passes to the value field, such as the ones useFieldErrors().field returns. */
+/** Such as the ones useFieldErrors().field returns. */
 interface StepperInputProps {
   id?: string;
   ref?: Ref<HTMLInputElement>;
@@ -13,14 +13,8 @@ interface StepperInputProps {
 }
 
 /**
- * One length as a card: the label, the value in large figures, the unit with its range, and minus
- * and plus buttons that step by one and clamp to the range. The value is a text field, so typing
- * works, and the arrow keys step it like the buttons. The buttons stay out of the tab order: the
- * field does the same with the arrow keys, and four cards would add eight tab stops.
- *
- * A value out of range, empty or not whole turns the card danger and marks the field invalid; above
- * or below the range the unit line names the limit it breaks. The form still decides what blocks a
- * submit. `error` is for a message the card cannot know, such as a refusal from the server.
+ * The buttons stay out of the tab order: arrow keys do the same, and four cards would add eight tab stops.
+ * `error` is for a message the card cannot know, such as a server refusal.
  */
 export function LengthStepper({
   label,
@@ -32,11 +26,10 @@ export function LengthStepper({
   inputProps,
   error,
 }: {
-  /** The caption above the value, which is also the field's accessible name. */
+  /** Also the field's accessible name. */
   label: string;
-  /** The short unit shown under the value, such as "min". */
   unit: string;
-  /** The unit as a screen reader reads it, such as "minutes". */
+  /** As a screen reader reads it, such as "minutes". */
   spokenUnit: string;
   range: StepperRange;
   value: string;
@@ -122,10 +115,7 @@ export function LengthStepper({
   );
 }
 
-/**
- * The cards in four columns when four fit, otherwise two, or one on the narrowest screens. The
- * outer element is the size container the column count queries; the inner one is the grid.
- */
+/** Four columns when four fit, else two or one. The outer element is the size container the count queries. */
 export function LengthStepperGrid({ children, ...group }: { children: ReactNode; 'aria-labelledby'?: string }) {
   return (
     <div className="length-stepper-grid" role={group['aria-labelledby'] ? 'group' : undefined} {...group}>

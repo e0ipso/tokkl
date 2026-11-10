@@ -1,6 +1,6 @@
 import type { Project, TimeEntry, TimerPomodoro, TimerState } from '@tokkl/types';
 
-/** A test entry: entry 7, "Write", running since 2026-10-27 10:00 UTC, unless `overrides` say otherwise. */
+/** Entry 7, "Write", running since 2026-10-27 10:00 UTC. */
 export function timeEntry(overrides: Partial<TimeEntry> = {}): TimeEntry {
   return {
     id: 7,
@@ -21,7 +21,7 @@ export function timeEntry(overrides: Partial<TimeEntry> = {}): TimeEntry {
   };
 }
 
-/** The fields of an entry stopped after an hour on 2026-10-20, 09:00 to 10:00 UTC. */
+/** Stopped after an hour on 2026-10-20, 09:00 to 10:00 UTC. */
 export const STOPPED = {
   start: '2026-10-20T09:00:00Z',
   stop: '2026-10-20T10:00:00Z',
@@ -29,7 +29,6 @@ export const STOPPED = {
   at: '2026-10-20T10:00:00Z',
 } as const satisfies Partial<TimeEntry>;
 
-/** An idle timer state at `revision`, unless `overrides` say otherwise. */
 export function timerState(revision: number, overrides: Partial<TimerState> = {}): TimerState {
   return {
     revision,
@@ -42,7 +41,7 @@ export function timerState(revision: number, overrides: Partial<TimerState> = {}
   };
 }
 
-/** The first work phase of a session on entry 7, 10:00 to 10:25 on 2026-10-27. */
+/** Entry 7, 10:00 to 10:25 on 2026-10-27. */
 export const POMODORO: TimerPomodoro = {
   work_minutes: 25,
   short_rest_minutes: 5,
@@ -56,7 +55,6 @@ export const POMODORO: TimerPomodoro = {
   pomodoro_start: '2026-10-27T10:00:00.000Z',
 };
 
-/** An active project without client, rate or estimate, unless `overrides` say otherwise. */
 export function project(overrides: Partial<Project> & Pick<Project, 'id'>): Project {
   return {
     workspace_id: 1,

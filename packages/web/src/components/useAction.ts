@@ -5,25 +5,17 @@ import { useToast } from './Toast.tsx';
 
 interface ActionOptions<TVars, TResult> {
   mutationFn: (vars: TVars) => Promise<TResult>;
-  /** Query keys to refresh after success, usually one of the `stale` lists in api/keys.ts. */
+  /** Usually one of the `stale` lists in api/keys.ts. */
   invalidate?: readonly QueryKey[];
-  /**
-   * The write can change what the running entry shows, such as a project rename, so it moves the
-   * timer revision and timer actions wait for it (`MOVES_TIMER` in api/timerState.ts).
-   */
+  /** Set for writes that change what the running entry shows; timer actions wait for them. */
   movesTimer?: boolean;
-  /** Toast shown after success. */
   success?: string | ((result: TResult, vars: TVars) => string);
   onSuccess?: (result: TResult, vars: TVars) => void;
-  /** Shows a server error somewhere else, such as next to the field that caused it, instead of a toast. */
+  /** Instead of a toast, such as next to the field that caused it. */
   onError?: (error: Error, vars: TVars) => void;
 }
 
-/**
- * A user action that writes to the server: it refreshes the given queries, shows a success toast
- * and reports server errors through `toast.error` (or `onError`), so callers only describe what
- * the action does.
- */
+/** Refreshes the given queries, shows a success toast and reports errors, so callers only describe the action. */
 export function useAction<TVars = void, TResult = unknown>(options: ActionOptions<TVars, TResult>) {
   const toast = useToast();
   const qc = useQueryClient();

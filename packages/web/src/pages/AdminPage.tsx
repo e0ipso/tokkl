@@ -8,11 +8,7 @@ import { UsersSection } from './admin/UsersSection.tsx';
 import { SettingsCard } from './manage/settings/SettingsCard.tsx';
 import { t } from '../i18n/messages.ts';
 
-/**
- * Instance administration: accounts, invite links and instance settings. Only admins see the nav
- * entry, but the server's 403 on /api/app/admin/* is what protects the page; anyone else who opens
- * /admin gets that message.
- */
+/** The server's 403 on /api/app/admin/* is what protects the page; anyone else who opens /admin sees it. */
 
 const SECTIONS = [
   ['users', 'admin.sectionUsers'],

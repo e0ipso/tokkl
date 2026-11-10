@@ -2,53 +2,31 @@ import { request, type RequestOptions } from './client.ts';
 import { isOutcomeUnknown } from './timerState.ts';
 
 /**
- * Creates sent with an `Idempotency-Key`: v9 creates of entries, clients, projects, tasks and tags,
- * timer and Pomodoro starts, and entry splits. The server runs a create once per key for 24 hours:
- * the same key and request again answers the record as it is now (a 404 once deleted), and the
- * same key with another request is a 422.
- *
- * One key stands for one user intent, not one attempt. A create whose outcome is unknown
- * (`isOutcomeUnknown`) goes out once more with its key after a short wait (`retryWaitMs`): sent at
- * once, it would likely meet the same failure, such as a network that just dropped. From that
- * first unknown outcome on, the key is kept for that request: the user sending the very same request
- * again, during the wait or after the second attempt failed too, such as Save clicked again on the
- * form the error left open, reuses it, so a create that did land is answered instead of made twice.
- * Any reply the server gave, a refusal included, settles the intent, and the next create gets a new
- * key even for an identical request, such as the same duration added twice on purpose.
+ * One key per user intent: an unknown-outcome create is retried once with its key, and resending the same
+ * request reuses it. Any server reply settles the intent; the next create gets a new key.
  */
 
-/** How long a kept key is reused: less than the server's 24 hours, so it is never past its record. */
+/** Less than the server's 24 hours, so it is never past its record. */
 const KEPT_KEY_MS = 23 * 60 * 60 * 1000;
 
-/** Keys of creates whose outcome is unknown, by the request they went out with, and when they first did. */
+/** By request, with when they first went out. */
 const unsettled = new Map<string, { key: string; since: number }>();
 
-/**
- * A new key: 128 random bits as 32 hex characters, within the server's 1 to 255 visible ASCII
- * characters. `crypto.randomUUID` would need a secure context, and an instance may be served over
- * plain HTTP on a local network.
- */
+/** `crypto.randomUUID` needs a secure context, and an instance may be served over plain HTTP. */
 function newIdempotencyKey(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(16));
   return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
 }
 
-/** The shortest wait before a create whose outcome is unknown goes out again, as the desktop app waits. */
+/** As the desktop app waits. */
 const RETRY_MIN_MS = 1000;
 
-/**
- * The wait before the second attempt: `RETRY_MIN_MS` plus a random part of up to a quarter of it,
- * so tabs that one outage failed together do not all come back in the same instant.
- */
+/** Plus up to a quarter more at random, so tabs one outage failed do not all return at once. */
 function retryWaitMs(): number {
   return RETRY_MIN_MS + Math.floor(Math.random() * (RETRY_MIN_MS / 4));
 }
 
-/**
- * The kept key of an unsettled create of `request`, or a new one. Making a new one forgets every
- * kept key past `KEPT_KEY_MS`, which no request may reuse any more, so the map does not grow with
- * creates that were never sent again.
- */
+/** Making a new key forgets kept keys past `KEPT_KEY_MS`, so the map does not grow. */
 function intentOf(request: string, now: number): { key: string; since: number } {
   const kept = unsettled.get(request);
   if (kept && now - kept.since < KEPT_KEY_MS) return kept;
@@ -56,19 +34,12 @@ function intentOf(request: string, now: number): { key: string; since: number } 
   return { key: newIdempotencyKey(), since: now };
 }
 
-/** Forgets the kept key of `request` once `intent`, and not a later one, is settled. */
+/** Only when `intent`, and not a later one, is settled. */
 function settle(request: string, intent: { key: string }): void {
   if (unsettled.get(request)?.key === intent.key) unsettled.delete(request);
 }
 
-/**
- * Sends the create `request` names (its method, path and body) through `send` under one key, and
- * once more with that key after `retryWaitMs` when the outcome is unknown. See the module comment.
- *
- * The wait is a timer and nothing else: it holds no view and no session, and the second attempt is
- * part of the same write, which, like any write, is never cancelled once sent, because the first
- * attempt may have landed.
- */
+/** The wait holds no view or session, and the retry is never cancelled, since the first attempt may have landed. */
 export async function sendCreate<T>(request: string, send: (key: string) => Promise<T>): Promise<T> {
   const intent = intentOf(request, Date.now());
   try {
@@ -89,7 +60,6 @@ export async function sendCreate<T>(request: string, send: (key: string) => Prom
 
 type CreateOptions<T> = Omit<RequestOptions<T>, 'body' | 'idempotencyKey'>;
 
-/** POSTs a create with an `Idempotency-Key` (`sendCreate`), its reply checked by `options.decode`. */
 export function postCreate<T = void>(path: string, body: unknown, options: CreateOptions<T> = {}): Promise<T> {
   return sendCreate(`POST ${path} ${JSON.stringify(body)}`, idempotencyKey =>
     request<T>('POST', path, { ...options, body, idempotencyKey }),

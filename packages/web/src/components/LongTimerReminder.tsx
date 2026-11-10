@@ -11,11 +11,7 @@ import { t } from '../i18n/messages.ts';
 
 const reminders = createReminderStore(() => window.localStorage, window);
 
-/**
- * Asks once per timer, after the hours set in the preferences, whether a timer is still running on
- * purpose: a banner here and a notification while the tab is in the background. A timer's start
- * time is part of its identity, so correcting it resets the confirmation.
- */
+/** Asks once per timer whether it still runs on purpose; the start time is part of its identity. */
 export function LongTimerReminder() {
   const { data: me } = useMe();
   const { data: prefs } = usePreferences();

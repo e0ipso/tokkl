@@ -1,13 +1,9 @@
 import { en } from './en/index.ts';
 
-/** The shape of the English catalog, which every message key and parameter type comes from. */
+/** Every message key and parameter type comes from it. */
 export type Catalog = typeof en;
 
-/**
- * The interface language, English, with its catalog and plural rules. Numbers, percentages and
- * money follow the browser's own locale (`numberLocale` undefined), so a German browser shows
- * "1.234,5" in the English interface.
- */
+/** Numbers and money follow the browser's locale (`numberLocale` undefined), so German shows "1.234,5". */
 export const activeLocale = {
   language: 'en',
   catalog: en,

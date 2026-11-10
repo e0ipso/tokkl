@@ -4,14 +4,9 @@ import type { RunningEntryChanges } from '../../api/timerHooks.ts';
 import { useToast } from '../../components/Toast.tsx';
 import type { EntryDraft } from '../../components/useEntryFields.ts';
 
-/** How long typing in the description waits before saving it to the running entry. */
 const DESCRIPTION_SAVE_DELAY_MS = 800;
 
-/**
- * Saves edits of the open pomodoro to its running entry through the timer (`useUpdateRunningEntry`). Typing waits a moment and
- * saves on blur; other fields save at once. `settle` sends a waiting description now. Next phase and
- * End session call it first, and the actions wait for the edit, so the next pomodoro copies it.
- */
+/** Typing waits a moment and saves on blur; other fields save at once. Next phase and End call `settle` first. */
 export function useRunningEntryEdits(entryId: number | null) {
   const update = useUpdateRunningEntry();
   const toast = useToast();

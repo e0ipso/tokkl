@@ -8,7 +8,7 @@ import { LinkCheckSplash, useLinkCheck } from './linkCheck.tsx';
 import { browserTimeZone } from '../lib/browserTimeZone.ts';
 import { t } from '../i18n/messages.ts';
 
-/** /invite/:token, reachable while logged out. Creates the invited account and lands on the timer. */
+/** Reachable while logged out. Creates the invited account and lands on the timer. */
 export function InvitePage({ token }: { token: string }) {
   const qc = useQueryClient();
   const [, setLocation] = useLocation();

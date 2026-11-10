@@ -12,10 +12,7 @@ import { settings } from './settings.ts';
 import { shell } from './shell.ts';
 import { timer } from './timer.ts';
 
-/**
- * The English catalog, the one every other language translates. Each feature keeps its messages in
- * its own module here, and a key names the feature and the message: `t('timer.start')`.
- */
+/** The catalog every other language translates. Keys name the feature and the message: `t('timer.start')`. */
 export const en = {
   common,
   dates,

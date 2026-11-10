@@ -4,11 +4,7 @@ import { bulkEditMessage, deleteMessage } from '../lib/entryMessages.ts';
 import { useToast } from './Toast.tsx';
 import { t } from '../i18n/messages.ts';
 
-/**
- * Deletes each entry on its own, so one failure (say, an entry another device already deleted)
- * does not stop the rest. The toast counts what was deleted and what failed, and Undo restores
- * only the entries this call deleted.
- */
+/** One at a time, so one failure does not stop the rest. Undo restores only what this call deleted. */
 export function useDeleteEntries(): (ids: number[]) => Promise<void> {
   const remove = useDeleteEntry();
   const restore = useRestoreEntry();
@@ -27,17 +23,12 @@ export function useDeleteEntries(): (ids: number[]) => Promise<void> {
 }
 
 interface BulkEditOptions {
-  /** The toast after a bulk-bar edit; see `bulkEditMessage`. */
   success?: string;
-  /** Runs once the server answered, whatever it answered. */
+  /** Whatever the server answered. */
   onDone?: () => void;
 }
 
-/**
- * Applies JSON Patch operations to several entries in one request and reports the reply in a toast.
- * The promise settles with the request, for a caller that keeps other actions out until then; it
- * never rejects, because the toast already reports a failure.
- */
+/** Settles with the request and never rejects: the toast already reports a failure. */
 export function useBulkEdit(): (
   ids: number[],
   operations: PatchOperation[],

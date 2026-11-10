@@ -1,6 +1,5 @@
 import type { MessageGroup } from '../catalog.ts';
 
-/** Words many features share: dialog buttons, loading and error states, toasts. */
 export const common = {
   close: 'Close',
   cancel: 'Cancel',
@@ -14,6 +13,6 @@ export const common = {
   dismiss: 'Dismiss',
   /** Read before an error toast's message, which the icon alone shows on screen. */
   errorPrefix: 'Error: ',
-  /** An amount whose currency `Intl` does not know, such as "12.50 XYZ". */
+  /** For a currency `Intl` does not know. */
   moneyFallback: '{amount} {currency}',
 } as const satisfies MessageGroup;

@@ -89,8 +89,7 @@ export function ProjectsPage() {
     movesTimer: true,
     success: saved =>
       saved.active ? t('manage.restoredNamed', { name: saved.name }) : t('manage.archivedNamed', { name: saved.name }),
-    // The row leaves the list when the status filter no longer matches. The menu button that ran the
-    // action had focus; keep it in the list unless the user has moved on.
+    // The row leaves when the status filter no longer matches; keep focus in the list unless the user moved on.
     onSuccess: saved => {
       if (!matchesStatus(!saved.active, status)) keepFocusPastRow(tbody.current, saved.id, 'menu', heading.current);
     },

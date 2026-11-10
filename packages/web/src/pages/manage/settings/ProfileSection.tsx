@@ -11,7 +11,7 @@ import { dayOfWeekName } from '../../../lib/format.ts';
 import { t } from '../../../i18n/messages.ts';
 import { tx } from '../../../i18n/rich.ts';
 
-/** The days a week can start on, Sunday first, as the account stores them. */
+/** Sunday first, as the account stores them. */
 const WEEKDAYS = [0, 1, 2, 3, 4, 5, 6] as const;
 
 function timeZones(current: string): string[] {
@@ -22,8 +22,7 @@ function timeZones(current: string): string[] {
   return [...zones].sort((a, b) => a.localeCompare(b));
 }
 
-// The server stores the name its ICU resolves (Asia/Calcutta) and some browsers resolve the current
-// one (Asia/Kolkata). Resolving both names in this browser makes the two spellings of a zone match.
+// The server stores its ICU name (Asia/Calcutta), browsers may use another (Asia/Kolkata); resolving both matches them.
 function sameZone(a: string, b: string): boolean {
   return a === b || (canonicalTimeZone(a) ?? a) === (canonicalTimeZone(b) ?? b);
 }

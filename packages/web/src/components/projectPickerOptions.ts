@@ -1,13 +1,11 @@
 import type { Project, Task } from '@tokkl/types';
 
-/** The active projects of one client, each with the active tasks that match the search. */
 interface PickerGroup {
-  /** The client's name, or '' for projects without a client. */
+  /** '' for projects without a client. */
   client: string;
   rows: Array<{ project: Project; tasks: Task[] }>;
 }
 
-/** One option of the project picker's listbox: a project, a task of it, or "No project". */
 interface PickerOption {
   projectId: number | null;
   taskId: number | null;
@@ -22,11 +20,7 @@ function taskMatches(task: Task, query: string): boolean {
   return task.name.toLowerCase().includes(query.toLowerCase());
 }
 
-/**
- * Active projects grouped by client, projects without a client first and the clients in name
- * order. A project shows when its name or client matches the search or one of its active tasks
- * does; its tasks show when the project matches or the task itself does.
- */
+/** Clientless projects first, then clients by name. A project shows when it, its client or an active task matches. */
 export function groupPickerProjects(
   projects: readonly Project[],
   tasks: readonly Task[],
@@ -48,7 +42,7 @@ export function groupPickerProjects(
     .map(([client, rows]) => ({ client, rows }));
 }
 
-/** Every option in display order; an option's index here is its id. "No project" leads an empty search. */
+/** An option's index is its id. "No project" leads an empty search. */
 export function pickerOptions(groups: readonly PickerGroup[], query: string): PickerOption[] {
   const options: PickerOption[] = query === '' ? [{ projectId: null, taskId: null }] : [];
   for (const { rows } of groups) {

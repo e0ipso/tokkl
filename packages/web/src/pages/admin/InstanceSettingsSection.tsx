@@ -46,14 +46,9 @@ function toDraft(settings: InstanceSettings): SettingsDraft {
   };
 }
 
-/** Whether the typed `value` is the number `stored` holds for `key`. */
 const holds = (stored: InstanceSettings) => (key: SettingsKey, value: string) => Number(value.trim()) === stored[key];
 
-/**
- * The form keeps only what the admin typed and has not saved (see useServerDraft), so a background
- * refetch, such as after another admin's change, updates the untouched fields. Saving sends only
- * the edited fields, so it never writes back a value the admin did not change.
- */
+/** Keeps only unsaved edits (see useServerDraft), so a refetch updates untouched fields and saves send only edits. */
 export function InstanceSettingsSection({ server }: { server: InstanceSettings }) {
   const toast = useToast();
   const queryClient = useQueryClient();

@@ -30,11 +30,7 @@ function isStopped(entry: TimeEntry): entry is TimeEntry & { stop: string } {
   return entry.stop !== null;
 }
 
-/**
- * Full editor for one entry: every field, plus duplicate, split and delete. One of Save, Duplicate,
- * Split and Delete runs at a time, and the others are disabled until it is done, so a double click
- * never saves twice or duplicates an entry that is being deleted.
- */
+/** One of Save, Duplicate, Split and Delete runs at a time, so a double click never saves twice. */
 export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () => void }) {
   const settings = useSettings();
   const now = useNow(entry.stop ? 60_000 : 1000);

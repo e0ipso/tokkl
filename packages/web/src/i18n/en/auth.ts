@@ -1,6 +1,5 @@
 import type { MessageGroup } from '../catalog.ts';
 
-/** Signing in and the pages reached while signed out: setup, login, invite and password reset. */
 export const auth = {
   setupTitle: 'Create the first admin',
   setupIntro:

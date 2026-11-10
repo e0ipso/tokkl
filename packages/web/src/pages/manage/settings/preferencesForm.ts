@@ -1,8 +1,6 @@
 import type { DurationFormat, PomodoroLimits, Preferences } from '@tokkl/types';
 import { t, type MessageKey } from '../../../i18n/messages.ts';
 
-/** The preferences form's options, its draft shape and the rules that turn a draft into a save. */
-
 const DATE_FORMATS = ['YYYY-MM-DD', 'DD/MM/YYYY', 'MM/DD/YYYY', 'DD.MM.YYYY', 'DD-MM-YYYY', 'MM-DD-YYYY'] as const;
 
 export const TIME_FORMATS = [
@@ -22,11 +20,7 @@ export const THEMES: ReadonlyArray<{ value: Preferences['theme']; label: Message
   { value: 'dark', label: 'settings.themeDark' },
 ];
 
-/**
- * The lengths a new Pomodoro session starts with: the card's label, the short unit it shows, the unit
- * a screen reader and the error message name, and its limit in the server's `pomodoro_limits`, which
- * gives the range it accepts and the default. The texts are catalog keys.
- */
+/** Labels and units are catalog keys; `limit` names the server's `pomodoro_limits` entry with the range and default. */
 export const POMODORO_NUMBERS = [
   {
     key: 'pomodoro_focus_interval_in_minutes',
@@ -64,7 +58,6 @@ export const POMODORO_NUMBERS = [
   limit: keyof PomodoroLimits;
 }>;
 
-/** Every number the form edits, with the unit its error message names. */
 const NUMBER_FIELDS = [
   ...POMODORO_NUMBERS,
   { key: 'long_timer_reminder_hours', unit: 'settings.spokenHours' },
@@ -83,13 +76,10 @@ export type Editable = Pick<
   | NumberKey
 >;
 
-/** What the form shows: the numbers are the text in their inputs, so a half-typed value survives. */
+/** Numbers are the input text, so a half-typed value survives. */
 export type Draft = { [K in keyof Editable]: K extends NumberKey ? string : Editable[K] };
 
-/**
- * The values the form edits, with defaults for the ones an older account has never saved; a
- * Pomodoro length's default is the server's (`limits`).
- */
+/** Defaults fill what an older account never saved; Pomodoro lengths default to the server's `limits`. */
 export function editableOf(prefs: Preferences, limits: PomodoroLimits): Editable {
   return {
     theme: prefs.theme ?? 'system',
@@ -121,7 +111,7 @@ export function toDraft(values: Editable): Draft {
 
 const isWholeNumber = (text: string) => text.trim() !== '' && Number.isInteger(Number(text.trim()));
 
-/** Whether an edited value is what the server stores, comparing a typed number by its value, not its text. */
+/** A typed number compares by value, not text. */
 export function isStored(key: keyof Draft, value: Draft[keyof Draft], stored: Editable): boolean {
   const current = stored[key];
   return typeof current === 'number'
@@ -129,7 +119,6 @@ export function isStored(key: keyof Draft, value: Draft[keyof Draft], stored: Ed
     : value === current;
 }
 
-/** The request body for the edited fields; a typed number goes as a number. */
 export function changesFrom(edits: Partial<Draft>): Partial<Preferences> {
   const changes: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(edits)) {
@@ -139,7 +128,6 @@ export function changesFrom(edits: Partial<Draft>): Partial<Preferences> {
   return changes;
 }
 
-/** The error each number field shows before saving, or false when it holds a whole number. */
 export function numberErrors(draft: Draft): Array<readonly [NumberKey, string | false]> {
   return NUMBER_FIELDS.map(({ key, unit }) => [
     key,
@@ -147,12 +135,11 @@ export function numberErrors(draft: Draft): Array<readonly [NumberKey, string | 
   ]);
 }
 
-/** The number field a server refusal such as "Invalid pomodoro_long_break_every: ..." names, if any. */
 export function refusedField(message: string): NumberKey | undefined {
   return NUMBER_FIELDS.find(({ key }) => message.startsWith(`Invalid ${key}:`))?.key;
 }
 
-/** The date formats to offer. A saved format this form doesn't offer stays selectable instead of silently switching. */
+/** A saved format this form does not offer stays selectable instead of silently switching. */
 export function dateFormatOptions(current: string): string[] {
   return DATE_FORMATS.some(format => format === current) ? [...DATE_FORMATS] : [current, ...DATE_FORMATS];
 }

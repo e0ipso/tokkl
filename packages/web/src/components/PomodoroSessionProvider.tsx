@@ -25,12 +25,9 @@ import { useToast } from './Toast.tsx';
 import type { EntryDraft } from './useEntryFields.ts';
 import { t } from '../i18n/messages.ts';
 
-/**
- * The server's session as the views read it. It changes only when the state or the ringing does,
- * not every second: views that show a countdown tick on their own with `useServerNow`.
- */
+/** Changes only with the state or the ringing; countdowns tick on their own with `useServerNow`. */
 interface PomodoroSession {
-  /** The server's session, or null when none runs. */
+  /** Null when none runs. */
   session: TimerPomodoro | null;
   phase: TimerPomodoroPhase | null;
   plannedEnd: Date | null;
@@ -65,15 +62,12 @@ export function PomodoroSessionProvider({ children }: { children: ReactNode }) {
   );
 }
 
-/** What should ring now, read from the cache rather than a render's copy, so a state that just arrived counts at once. */
+/** Read from the cache rather than a render's copy, so a state that just arrived counts at once. */
 function cachedAlarm(qc: QueryClient) {
   return phaseAlarm(qc.getQueryData<TimerState>(keys.timer)?.pomodoro, Date.now() + getClockOffset());
 }
 
-/**
- * Owns the phase-end alarm for as long as the account is signed in here. A page kept in the
- * back-forward cache must not keep the audio lock while hidden.
- */
+/** A page kept in the back-forward cache must not keep the audio lock while hidden. */
 function useSessionAlarm(accountId: number, onError: (blocked: boolean) => void) {
   const qc = useQueryClient();
   const alarm = useRef<ReturnType<typeof createPomodoroSessionAlarm> | null>(null);
@@ -102,10 +96,7 @@ function useSessionAlarm(accountId: number, onError: (blocked: boolean) => void)
   return alarm;
 }
 
-/**
- * A view of the server's session plus what only this tab can do: ring, notify and say a pomodoro
- * was too short. The server applies every session rule; the actions only post to it.
- */
+/** The server applies every session rule; the actions only post to it. */
 function AccountSession({ accountId, children }: { accountId: number; children: ReactNode }) {
   const { data: state } = useTimerState();
   const toast = useToast();

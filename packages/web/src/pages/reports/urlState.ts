@@ -14,11 +14,11 @@ export type SortKey = 'date' | 'duration' | 'description';
 export type SortDir = 'asc' | 'desc';
 export type WeeklyRows = 'projects' | 'clients';
 
-/** An id filter: numbers are ids, null means "without". An empty list means no filter. */
+/** Numbers are ids, null means "without". An empty list means no filter. */
 export type IdFilter = ReadonlyArray<number | null>;
 
 export interface ReportState {
-  /** Set when the range follows a preset, so a bookmark of "this week" stays relative. */
+  /** So a bookmark of "this week" stays relative. */
   readonly preset: Preset | null;
   readonly range: DateRange;
   readonly tab: Tab;
@@ -27,7 +27,7 @@ export interface ReportState {
   readonly projects: IdFilter;
   readonly clients: IdFilter;
   readonly tags: IdFilter;
-  /** When set, the matching filter means "is not" instead of "is". */
+  /** The project filter means "is not" instead of "is". */
   readonly projectsNot: boolean;
   readonly clientsNot: boolean;
   readonly tagsNot: boolean;
@@ -46,7 +46,6 @@ export type ReportPatch = Partial<Omit<ReportState, 'range' | 'preset'>> & {
 
 const DEFAULT_PRESET: Preset = 'this_week';
 
-/** Whether `value` is one of `allowed`. */
 export function isOneOf<T extends string>(value: string | null, allowed: readonly T[]): value is T {
   return allowed.some(option => option === value);
 }
@@ -58,12 +57,12 @@ function oneOf<T extends string>(value: string | null, allowed: readonly T[], fa
 export const SUB_GROUPINGS: readonly SubGrouping[] = [...GROUPINGS, 'none'];
 export const BILLABLE_FILTERS: readonly BillableFilter[] = ['all', 'billable', 'nonbillable'];
 
-/** A leading "not." in an id list marks the filter as negated, e.g. "not.none.4", or just "not.". */
+/** As in "not.none.4", or just "not.". */
 function isNegated(value: string | null): value is string {
   return value?.startsWith('not.') ?? false;
 }
 
-/** Ids are dot-separated ("none.4.9") because URLSearchParams would percent-encode commas. */
+/** Dot-separated because URLSearchParams would percent-encode commas. */
 function parseIds(raw: string | null): IdFilter {
   const value = isNegated(raw) ? raw.slice(4) : raw;
   if (!value) return [];
@@ -120,7 +119,7 @@ function parseState(
   };
 }
 
-/** Writes only the values that differ from the defaults, so URLs stay short. */
+/** Only values that differ from the defaults, so URLs stay short. */
 function serializeState(state: ReportState): URLSearchParams {
   const params = new URLSearchParams();
   if (state.preset) {
@@ -147,7 +146,6 @@ function serializeState(state: ReportState): URLSearchParams {
 
 type Mutable<T> = { -readonly [K in keyof T]: T[K] };
 
-/** Keys whose change makes the current page of the detailed table meaningless. */
 const RESETS_PAGE: ReadonlyArray<keyof ReportPatch> = [
   'range',
   'preset',
@@ -163,10 +161,7 @@ const RESETS_PAGE: ReadonlyArray<keyof ReportPatch> = [
   'dir',
 ];
 
-/**
- * Report state lives in the query string, so every report is a bookmarkable URL. Updates replace
- * the history entry instead of pushing, which keeps the back button from replaying each click.
- */
+/** In the query string, so every report is a bookmarkable URL. Updates replace the history entry. */
 export function useReportState(
   todayKey: string,
   beginningOfWeek: number,
