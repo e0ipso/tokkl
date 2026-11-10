@@ -18,7 +18,6 @@ import { LoadError, Loading } from './PageState.tsx';
 import { useCalendarDrag } from './useCalendarDrag.ts';
 import { t } from '../i18n/messages.ts';
 
-/** The timer page's calendar view: a week of day columns, or one day on narrow screens. */
 export function WeekCalendar() {
   const settings = useSettings();
   const now = useNow(60_000);
@@ -72,8 +71,7 @@ export function WeekCalendar() {
     if (day !== selectedDay) setSlide(day > selectedDay ? 'next' : 'previous');
     setSelectedDay(day);
   };
-  // The arrows step one day in day mode and one week otherwise; stepping the selected day by seven
-  // keeps the derived week start on the same weekday, so the week view moves a whole week.
+  // Stepping the selected day by seven keeps the derived week start on the same weekday.
   const step = (direction: 1 | -1) => selectDay(stepDay(selectedDay, dayMode ? direction : direction * 7));
 
   // T jumps to today, unless the user is typing or an overlay is open.

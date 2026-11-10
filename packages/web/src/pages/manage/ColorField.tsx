@@ -5,7 +5,7 @@ import { Icon } from '../../components/Icon.tsx';
 import { checkColor } from './swatchCheck.ts';
 import { t, type MessageKey } from '../../i18n/messages.ts';
 
-/** Spoken names for the palette swatches; a colour missing here is read as "Color n". */
+/** A colour missing here is read as "Color n". */
 const COLOR_NAMES: Partial<Record<string, MessageKey>> = {
   '#0b83d9': 'manage.colorBlue',
   '#9e5bd9': 'manage.colorPurple',
@@ -23,20 +23,14 @@ const COLOR_NAMES: Partial<Record<string, MessageKey>> = {
   '#525266': 'manage.colorSlate',
 };
 
-/** A swatch's spoken name, or its place in the palette when it has none. */
 function colorName(color: string, index: number): string {
   const key = COLOR_NAMES[color];
   return key ? t(key) : t('manage.colorNumbered', { number: index + 1 });
 }
 
 /**
- * Toggl's palette as swatches, plus a Custom option backed by a native picker for any other color.
- * Every option in the radiogroup is a radio. The color input sits after the group, so the group
- * holds radios only; choosing Custom opens that input's picker.
- *
- * The group is one Tab stop (roving tabindex). Arrow keys, Home and End move focus and check the
- * swatch they land on. Landing on Custom only focuses it: the native picker opens on Space, Enter
- * or a click.
+ * One Tab stop (roving tabindex); arrows, Home and End move and check. The color input sits after the
+ * radiogroup; landing on Custom only focuses it, and the picker opens on Space, Enter or a click.
  */
 export function ColorField({ value, onChange }: { value: string; onChange: (color: string) => void }) {
   const current = value.toLowerCase();

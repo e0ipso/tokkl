@@ -7,25 +7,25 @@ function epoch(backend: Backend, column: string): RawBuilder<number> {
   if (backend === 'postgres') return sql<number>`floor(extract(epoch from cast(${value} as timestamptz)))`;
   return sql<number>`floor(timestampdiff(microsecond, '1970-01-01 00:00:00', str_to_date(${value}, '%Y-%m-%dT%H:%i:%s.%fZ')) / 1000000)`;
 }
-/** Duration bounds use whole-second endpoints, unlike report formatting's elapsed milliseconds. */
+/** Whole-second endpoints, unlike report formatting's elapsed milliseconds. */
 export function reportDuration(backend: Backend): RawBuilder<number> {
   return sql<number>`${epoch(backend, 'e.stop')} - ${epoch(backend, 'e.start')}`;
 }
-/** Whole seconds since the epoch of a stored instant, read from its text without the milliseconds. */
+/** Read from the stored text without the milliseconds. */
 function wholeSeconds(backend: Backend, column: string): RawBuilder<number> {
   const value = sql`substr(${sql.ref(column)}, 1, 19)`;
   if (backend === 'sqlite') return sql<number>`unixepoch(${value})`;
   if (backend === 'postgres') return sql<number>`cast(extract(epoch from cast(${value} as timestamp)) as bigint)`;
   return sql<number>`timestampdiff(second, '1970-01-01 00:00:00', str_to_date(${value}, '%Y-%m-%dT%H:%i:%s'))`;
 }
-/** The millisecond digits of a stored instant (`YYYY-MM-DDTHH:MM:SS.sssZ`). */
+/** Of `YYYY-MM-DDTHH:MM:SS.sssZ`. */
 function millisecondPart(backend: Backend, column: string): RawBuilder<number> {
   const digits = sql`substr(${sql.ref(column)}, 21, 3)`;
   return backend === 'mysql' || backend === 'mariadb'
     ? sql<number>`cast(${digits} as signed)`
     : sql<number>`cast(${digits} as integer)`;
 }
-/** Integer division rounding toward negative infinity, for a positive integer divisor. */
+/** For a positive integer divisor. */
 function floorDivide(backend: Backend, dividend: RawBuilder<number>, divisor: number): RawBuilder<number> {
   if (!Number.isSafeInteger(divisor) || divisor < 1) throw new Error('Invalid report divisor');
   const d = sql.lit(divisor);
@@ -35,11 +35,7 @@ function floorDivide(backend: Backend, dividend: RawBuilder<number>, divisor: nu
     ? sql<number>`(${exact} div ${d})`
     : sql<number>`(${exact} / ${d})`;
 }
-/**
- * The seconds a report shows for an entry: whole elapsed seconds between its stored millisecond
- * instants, rounded per entry the way report formatting rounds them (`Math.ceil`, `Math.floor` or
- * `Math.round` to a step of `minutes`).
- */
+/** Whole elapsed seconds, rounded per entry as report formatting does (`Math.ceil`, `floor` or `round`). */
 export function reportRoundedSeconds(
   backend: Backend,
   rounding: { mode: number; minutes: number },

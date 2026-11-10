@@ -81,10 +81,7 @@ export const nextPomodoroPhase = (db: FixtureDatabase, user: User, revision: unk
 export const endPomodoro = (db: FixtureDatabase, user: User, revision: unknown, now?: Date) =>
   timers(db).endPomodoro(user.id, revision, now);
 
-/**
- * Calls `listener` with each timer state the app delivers to `uid`'s streams, and returns the
- * unsubscribe function. A failing listener is reported on the console and does not stop the others.
- */
+/** A failing listener is reported on the console and does not stop the others. */
 export function subscribeTimer(db: FixtureDatabase, uid: number, listener: TimerListener): () => void {
   const { listeners } = timerObservation(db);
   const forUser = listeners.get(uid) ?? new Set();
@@ -93,10 +90,7 @@ export function subscribeTimer(db: FixtureDatabase, uid: number, listener: Timer
   return () => forUser.delete(listener);
 }
 
-/**
- * Waits until every timer state committed for `uid` so far has been delivered to its streams. A
- * write's reply does not wait for delivery, so a test that counts deliveries waits here first.
- */
+/** A write's reply does not wait for delivery, so tests that count deliveries wait here first. */
 export async function timerDelivered(db: FixtureDatabase, uid: number, timeoutMs = 5000): Promise<void> {
   const { reached } = timerObservation(db);
   const deadline = Date.now() + timeoutMs;

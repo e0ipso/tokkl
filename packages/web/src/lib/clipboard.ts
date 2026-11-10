@@ -1,4 +1,4 @@
-/** Copies through a hidden textarea; returns whether the browser reports success. */
+/** Returns whether the browser reports success. */
 function copyWithTextarea(text: string): boolean {
   const area = document.createElement('textarea');
   area.value = text;
@@ -17,11 +17,8 @@ function copyWithTextarea(text: string): boolean {
 }
 
 /**
- * Copies text to the clipboard. `navigator.clipboard` only exists on HTTPS or localhost, and a
- * self-hosted server is often reached over plain HTTP on the LAN. The browser can also refuse the
- * Clipboard API, for example when the user blocked clipboard access. Both cases fall back to a
- * hidden textarea; if that fails too, the promise rejects with `failure`, which should tell the
- * user how to copy by hand.
+ * `navigator.clipboard` needs HTTPS or localhost and may be refused; both fall back to a textarea.
+ * `failure` should tell the user how to copy by hand.
  */
 export async function copyText(text: string, failure: string): Promise<void> {
   if (navigator.clipboard && window.isSecureContext) {

@@ -1,9 +1,4 @@
-/**
- * Structured logs: one JSON object per line, `debug` and `info` on stdout, `warn` and `error` on
- * stderr. Callers pass a fixed message and context fields; they never pass credentials, request
- * bodies or headers, except the user agent in the timer routes' info line about actions sent
- * without a revision. An Error in a field is written as its name, message and stack.
- */
+/** One JSON object per line. Never log credentials, bodies or headers, except the revisionless-action user agent. */
 export const LOG_LEVELS = ['debug', 'info', 'warn', 'error', 'silent'] as const;
 export type LogLevel = (typeof LOG_LEVELS)[number];
 type LogFields = Readonly<Record<string, unknown>>;
@@ -13,7 +8,6 @@ export interface Logger {
   info(message: string, fields?: LogFields): void;
   warn(message: string, fields?: LogFields): void;
   error(message: string, fields?: LogFields): void;
-  /** A logger that adds `fields` to every line, such as a request id. */
   child(fields: LogFields): Logger;
 }
 
@@ -52,14 +46,10 @@ export function createLogger(options: { level?: LogLevel } = {}, context: LogFie
   };
 }
 
-/** Discards everything. For composition roots that have no logger to hand. */
+/** For composition roots that have no logger to hand. */
 export const silentLogger: Logger = createLogger({ level: 'silent' });
 
-/**
- * What a log keeps of an unexpected error whose message may hold SQL, row values or connection
- * details: the error's name, a short machine code such as `ECONNREFUSED`, and the stack frames.
- * The message never appears.
- */
+/** The message may hold SQL, row values or connection details, so it is never kept. */
 export interface ErrorDiagnostic {
   name: string;
   code?: string;

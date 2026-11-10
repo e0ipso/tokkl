@@ -17,10 +17,7 @@ export function useTags() {
   });
 }
 
-/**
- * Tag writes. Pass them to a mutation together with `stale.tags` or `stale.tagCreated`. A create
- * carries an `Idempotency-Key` (`postCreate` in idempotency.ts).
- */
+/** Pass them to a mutation with `stale.tags` or `stale.tagCreated`. */
 export const tagRequests = {
   create: (wid: number, name: string) => postCreate<Tag>(wsPath(wid, 'tags'), { name }, { decode: object }),
   rename: (wid: number, id: number, name: string) =>
@@ -28,7 +25,7 @@ export const tagRequests = {
   remove: (wid: number, id: number) => api.delete(wsPath(wid, 'tags', id)),
 };
 
-/** Creates a tag from a picker, with no toast: the picker shows the new tag checked. */
+/** No toast: the picker shows the new tag checked. */
 export function useCreateTag() {
   const wid = useWid();
   const qc = useQueryClient();

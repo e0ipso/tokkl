@@ -1,4 +1,3 @@
-/** The shapes report jobs answer with: detailed rows, summary groups, CSV tables and replies. */
 import { formatDuration } from '@tokkl/common/duration';
 import { daysBetween } from '@tokkl/common/time';
 import type { DurationFormat } from '@tokkl/types';
@@ -7,7 +6,6 @@ import { toCsv } from '../lib/csv.ts';
 import { togglTime } from '../lib/values.ts';
 import type { Aggregate, Group } from './reportAggregates.ts';
 import { togglCsvHeader, togglCsvLines } from './exports.ts';
-/** A finished response: a JSON or CSV body plus any extra headers. */
 export interface JobResult {
   type: 'json' | 'csv';
   body: string;
@@ -68,7 +66,6 @@ export function summaryGroup(group: Group, groupingDimension: Dimension, include
 }
 
 const csvItem = (entry: ReportEntry) => ({ ...entry, tags: entry.tags.map(tag => tag.name) });
-/** Toggl's detailed CSV layout, a piece at a time: the header, then each batch's lines. */
 export function detailedCsvWriter(user: ReportUser, durationFormat: DurationFormat) {
   return {
     header: togglCsvHeader(),
@@ -76,7 +73,6 @@ export function detailedCsvWriter(user: ReportUser, durationFormat: DurationForm
   };
 }
 
-/** One row per group, or per sub-group when the groups have them. */
 export function summaryCsv(groups: Group[], format: DurationFormat): string {
   const rows: Array<Array<string | number | null>> = [['Group', 'Sub group', 'Duration']];
   for (const group of groups) {
@@ -143,7 +139,7 @@ function emptyWeeklyRow(entry: ReportEntry, user: ReportUser) {
 }
 type WeeklyRow = ReturnType<typeof emptyWeeklyRow>;
 
-/** Toggl's weekly rows: one per project, in the order projects first appear, seven days each. */
+/** One per project, in first-seen order, seven days each. */
 export function v3Weekly(user: ReportUser, weekStart: string): Aggregate<WeeklyRow[]> {
   const rows = new Map<string, WeeklyRow>();
   return {

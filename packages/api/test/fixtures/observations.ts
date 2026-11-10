@@ -15,7 +15,7 @@ export async function entryCount(ctx: TestContext): Promise<number> {
   const storage = storageFor(ctx.db);
   return (await storage.entries.list(ctx.user.id)).length + (await storage.entries.listDeleted(ctx.user.id)).length;
 }
-/** Count every fixture account/workspace so refusal and dry-run assertions also catch cross-account writes. */
+/** Counts every fixture account and workspace, so assertions also catch cross-account writes. */
 export async function catalogCounts(ctx: TestContext): Promise<Record<string, number>> {
   const storage = storageFor(ctx.db);
   return storage.readSnapshot(async repositories => {

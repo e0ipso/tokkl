@@ -60,7 +60,7 @@ function entryDetailsQuery(db: Kysely<PhysicalDatabase>) {
       't.active as task_active',
     ]);
 }
-/** Labels are fetched for the complete result in bounded batches, never once per entry. */
+/** Labels load in bounded batches for the whole result, never once per entry. */
 async function details(
   db: Kysely<PhysicalDatabase>,
   rows: Awaited<ReturnType<ReturnType<typeof entryDetailsQuery>['execute']>>,
@@ -99,10 +99,7 @@ async function details(
     task: r.task_name === null ? null : { name: r.task_name, active: booleanValue(r.task_active) },
   }));
 }
-/**
- * Up to `limit` of the user's live entries after `after`, newest or oldest first by start, then id.
- * Newest first is the order `entries.list` answers in.
- */
+/** Newest first is the order `entries.list` answers in. */
 export async function liveEntryPage(
   db: Kysely<PhysicalDatabase>,
   userId: number,
@@ -129,12 +126,11 @@ async function write<T>(work: () => Promise<T>): Promise<T> {
     throw classifyConflict(error) ?? error;
   }
 }
-/** The entry repository, and the idempotency keys of the creates entry and catalog writes make. */
 export function createEntryRepositories(
   db: Kysely<PhysicalDatabase>,
   backend: Backend,
 ): Pick<Repositories, 'entries' | 'idempotencyKeys'> {
-  /** Replaces an entry's tags with tags of its own workspace. */
+  /** Only tags of the entry's own workspace. */
   async function replaceTags(userId: number, id: number, tagIds: readonly number[]): Promise<void> {
     const entry = await db
       .selectFrom('time_entries')

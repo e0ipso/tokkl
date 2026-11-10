@@ -14,13 +14,8 @@ import type { useRunningDraft } from './useRunningDraft.ts';
 import { t } from '../i18n/messages.ts';
 
 /**
- * Start, Stop, Pause, Resume and Discard for the timer bar, and the idle bar's duration field.
- *
- * The server owns the running entry, the pause chain and the Pomodoro session: Start, Stop, Pause,
- * Resume and Stop while paused are timer actions, and Discard and a typed duration are v9 writes.
- * The timer actions wait for the server's answer, and nothing else starts or stops an entry until
- * it arrives, so two writes never race. Start and Stop send the revision the bar shows, so one
- * after a write that got no reply is refused with the server's state if that write landed.
+ * The server owns the running entry, pause chain and session; no write starts or stops an entry until an action
+ * answers, and Start and Stop send the shown revision.
  */
 export function useTimerBarActions({
   current,
@@ -51,12 +46,7 @@ export function useTimerBarActions({
   const starting = useRef(false);
   const { draft, setDraft } = running;
 
-  /**
-   * Starts `from` and returns the started or saved entry, or null when nothing was. Continue and
-   * favorites pass `replace`: the server then stops the running entry at the new entry's start,
-   * keeping exactly one running entry. A duration typed into the idle bar saves a finished entry
-   * that ends now instead.
-   */
+  /** Null when nothing started. `replace` lets the server stop the running entry at the new start. */
   const start = async (from: EntryDraft = draft, { replace = false } = {}): Promise<TimeEntry | null> => {
     // A double click or key repeat must not start two entries before the first one shows up.
     if (starting.current || startTimer.isPending || addTyped.isPending || chainBusy) return null;
@@ -99,7 +89,7 @@ export function useTimerBarActions({
     }
   };
 
-  /** Saves a changed description, so the entry stops or pauses with it. Returns false when saving failed. */
+  /** So the entry stops or pauses with it. False when saving failed. */
   const saveDescription = async (): Promise<boolean> => {
     if (!current || draft.description === current.description) return true;
     try {
@@ -111,11 +101,7 @@ export function useTimerBarActions({
     }
   };
 
-  /**
-   * Stop on a running entry stops it at the server's current time, as this tab's clock knows it;
-   * the server ends the pause chain when the stopped entry is its clone. Stop while paused ends the
-   * chain on the server: every entry is already stopped.
-   */
+  /** Stops at the server's current time as this tab knows it. Stop while paused ends the chain on the server. */
   const stop = async () => {
     if (chainBusy) return;
     if (!current) {
@@ -135,9 +121,8 @@ export function useTimerBarActions({
       toast.error(error);
       return;
     }
-    // The server keeps no entry that rounds to zero at the time resolution: it goes to the trash.
-    // The reply is the timer state, so the bar works that out from the start it showed, which the
-    // revision vouches for, and the stop it sent.
+    // An entry that rounds to zero goes to the trash. The reply is only the timer state, so the bar
+    // works that out from the start it showed (the revision vouches for it) and the stop it sent.
     if (snappedSeconds(new Date(current.start), stoppedAt, settings) === 0) {
       const { id } = current;
       toast.show(t('timer.tooShort'), {
@@ -146,7 +131,7 @@ export function useTimerBarActions({
     }
   };
 
-  /** Pauses the running entry on the server. A failure leaves the entry running; the toast says why. */
+  /** A failure leaves the entry running; the toast says why. */
   const pause = async () => {
     if (!current || chainBusy || stopTimer.isPending || remove.isPending) return;
     try {
@@ -158,7 +143,6 @@ export function useTimerBarActions({
     }
   };
 
-  /** Starts a clone of the paused chain on the server. */
   const resume = async () => {
     if (!paused || chainBusy) return;
     try {

@@ -199,7 +199,6 @@ test('used, expired, replaced, unknown and disabled-account links all fail with 
   }
   assert.equal((await use(admin, current.token)).status, 200, 'the newest link works');
 
-  // An admin cannot issue a link for a disabled account; enabling it comes first.
   const refused = await admin.request('POST', `/api/app/admin/users/${eve.user.id}/password-reset`);
   assert.equal(refused.status, 400);
   assert.equal(await refused.json(), 'Enable the account before resetting its password');
@@ -251,11 +250,7 @@ test('a reset clears earlier failed logins against the account from that address
   assert.equal((await login(admin, 'bob@example.com', NEW_PASSWORD)).status, 200);
 });
 
-/**
- * The two ways a password changes while someone else's check against the old one is running: an
- * admin's reset link used, and the owner's own change through PUT /me (signed in by API token, so it
- * runs no check of its own before the mocked one).
- */
+/** A reset link used, and the owner's own PUT /me (API token, so no check of its own before the mocked one). */
 const passwordChanges: Array<[string, (admin: TestContext, bob: TestContext) => Promise<void>]> = [
   [
     'a password reset',

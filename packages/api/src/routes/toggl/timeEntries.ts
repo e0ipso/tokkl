@@ -7,7 +7,7 @@ import { parseEntryChanges, parseEntryPatch, parseNewEntry, parseStopAt } from '
 import { serializeTimeEntry } from '../../presenters/toggl.ts';
 import { authorizedWorkspace, entryPresentation } from './shared.ts';
 
-/** Time entry writes in a workspace. Reads are under `/me/time_entries`. */
+/** Reads are under `/me/time_entries`. */
 export function timeEntryRoutes(deps: Pick<Deps, 'readFor' | 'entriesFor'>): Router {
   const api = createRouter();
   api.post('/workspaces/:wid/time_entries', async (req, res) => {

@@ -1,9 +1,4 @@
-/**
- * Type-only declarations shared by the Tokkl packages: the JSON shapes the
- * web app reads from and sends to the API, and value shapes used by common.
- * This file must stay free of runtime code (no enums, no values), so every
- * import of it is `import type` and erases when Node strips types.
- */
+/** Type-only shapes shared by the packages. No runtime code: every import is `import type`. */
 
 export interface Me {
   id: number;
@@ -13,30 +8,15 @@ export interface Me {
   timezone: string;
   default_workspace_id: number;
   beginning_of_week: number;
-  /** Tokkl only, not in Toggl's /me: the instance role. Only admins reach /api/app/admin. */
+  /** Tokkl only: the instance role. Only admins reach /api/app/admin. */
   role: UserRole;
-  /** Tokkl only, not in Toggl's /me: the instance time resolution in minutes. Only admins change it. */
+  /** Tokkl only: the instance time resolution in minutes. */
   time_resolution_minutes: number;
 }
 
 export type UserRole = 'admin' | 'user';
 
-/**
- * An `/api/app` feature a client may rely on, as `ServerApi.capabilities` names it:
- * - `app-preferences`: `GET` and `POST /api/app/me/preferences`.
- * - `timer-actions`: `GET /api/app/timer`, its event stream, and the revisioned timer and Pomodoro
- *   actions under `/api/app/timer` and `/api/app/pomodoro`.
- * - `timer-edit`: `POST /api/app/timer/edit`.
- * - `pomodoro-revision`: `POST /api/app/pomodoro` checks an optional `revision`.
- * - `pause-revision`: `POST /api/app/timer/pause` checks an optional `revision`.
- * - `timer-edit-entry`: `POST /api/app/timer/edit` takes `entry_id` in place of, or next to,
- *   `revision`, and an optional `start`.
- * - `idempotency-keys`: the v9 time entry, client, project, task and tag creates, timer start,
- *   Pomodoro start and entry split take an `Idempotency-Key` header.
- * - `catalog-revision`: `GET /api/app/workspaces/{wid}/catalog` answers a `CatalogRevision`.
- * - `latest-entry`: `GET /api/app/time_entries/latest` answers the newest live entry by start, with
- *   the v9 `meta` fields, or `null`.
- */
+/** An `/api/app` feature a client may rely on; docs/PRD.md describes each one. */
 export type ServerCapability =
   | 'app-preferences'
   | 'timer-actions'
@@ -48,27 +28,19 @@ export type ServerCapability =
   | 'catalog-revision'
   | 'latest-entry';
 
-/**
- * Tokkl only, in `GET /api/app/status`: what this server's API offers. A client tests a capability
- * instead of guessing from a 404, which a current server also answers for a missing project or
- * workspace. A reply without these fields comes from a server older than all of them.
- */
+/** Tokkl only. Clients test a capability instead of guessing from a 404; older servers omit these fields. */
 export interface ServerApi {
   /** Goes up when an existing `/api/app` contract changes in a way clients must know about. */
   api_version: number;
-  /** Additive features; a client ignores names it does not know. */
+  /** Additive; a client ignores names it does not know. */
   capabilities: ServerCapability[];
 }
 
-/**
- * Tokkl only, `GET /api/app/workspaces/{wid}/catalog`: grows with every write that changes the
- * workspace's v9 project list, apart from tracked totals and the date-driven `status`.
- */
+/** Grows with every write that changes the v9 project list, apart from tracked totals and `status`. */
 export interface CatalogRevision {
   revision: number;
 }
 
-/** An account as GET /api/app/admin/users lists it. */
 export interface AdminAccount {
   id: number;
   email: string;
@@ -78,7 +50,7 @@ export interface AdminAccount {
   disabled_at: string | null;
 }
 
-/** A pending invite from GET /api/app/admin/invites. The link token is never listed. */
+/** The link token is never listed. */
 export interface Invite {
   id: number;
   role: UserRole;
@@ -88,20 +60,16 @@ export interface Invite {
   expires_at: string;
 }
 
-/**
- * A new password reset link from POST /api/app/admin/users/:id/password-reset. This response is the
- * only place the token appears.
- */
+/** The only response that carries the reset token. */
 export interface PasswordResetLink {
   url: string;
   expires_at: string;
 }
 
-/** Settings an admin changes at runtime, from /api/app/admin/settings. */
 export interface InstanceSettings {
   session_days: number;
   invite_days: number;
-  /** Minutes every entry's duration is a multiple of: a divisor of 60, 5 by default. */
+  /** A divisor of 60; 5 by default. */
   time_resolution_minutes: number;
 }
 
@@ -209,20 +177,19 @@ export interface TimeEntry {
   task_name?: string | null;
 }
 
-/** A phase of a Pomodoro session. */
 export type PomodoroPhaseKind = 'work' | 'shortRest' | 'longRest';
 
-/** The change that ends a phase. Clients pick the sound for the phase end from it. */
+/** Clients pick the sound for the phase end from it. */
 export type PomodoroTransition = 'workToShortRest' | 'shortRestToWork' | 'workToLongRest' | 'longRestToWork';
 
 /**
- * A timer's pause chain, from Pause until Discard, a start that is not a resume, or a stop of the
- * resumed clone. Resume starts a clone with these fields.
+ * Lives from Pause until Discard, a start that is not a resume, or a stop of the resumed clone.
+ * Resume starts a clone with these fields.
  */
 export interface TimerPause {
   /** True while no clone runs. */
   paused: boolean;
-  /** Seconds the chain's stopped entries stored, after snapping. A pause that rounded to zero added none. */
+  /** Seconds the chain's stopped entries stored, after snapping. */
   seconds: number;
   workspace_id: number;
   description: string;
@@ -230,16 +197,16 @@ export interface TimerPause {
   task_id: number | null;
   /** The tags a resumed clone gets, in name order. */
   tag_ids: number[];
-  /** The names of `tag_ids`, in the same order, for display. */
+  /** The names of `tag_ids`, in the same order. */
   tags: string[];
   billable: boolean;
-  /** The running clone, or null while paused. */
+  /** Null while paused. */
   clone_entry_id: number | null;
 }
 
 export interface TimerPomodoroPhase {
   kind: PomodoroPhaseKind;
-  /** When the phase started: the session start or the instant Next phase was confirmed. ISO 8601 with milliseconds. */
+  /** The session start or the instant Next phase was confirmed; ISO 8601 with milliseconds. */
   start: string;
   /** Work phases ended since the session started or the last long rest ended. A rest counts the work phase it follows. */
   completed: number;
@@ -247,44 +214,37 @@ export interface TimerPomodoroPhase {
   planned_end: string;
 }
 
-/** A Pomodoro session. Its open pomodoro is the running entry. */
+/** Its open pomodoro is the running entry. */
 export interface TimerPomodoro {
   /** The lengths the session started with, in minutes. */
   work_minutes: number;
   short_rest_minutes: number;
   long_rest_minutes: number;
-  /** A long rest follows every this many work phases. */
   long_rest_every: number;
   phase: TimerPomodoroPhase;
-  /** The phase Next phase starts. */
   upcoming_phase: PomodoroPhaseKind;
-  /** The change Next phase makes. */
   transition: PomodoroTransition;
   /** The pomodoro's place in the cycle, for "Pomodoro N of `long_rest_every`". */
   number: number;
-  /** The open pomodoro: the running entry. */
   entry_id: number;
-  /** The open pomodoro's start, the running entry's start. ISO 8601 with milliseconds. */
+  /** ISO 8601 with milliseconds. */
   pomodoro_start: string;
 }
 
-/** A pomodoro too short to keep. The stop sent it to the trash with zero length on its snapped start. */
+/** Too short to keep: the stop trashed it with zero length on its snapped start. */
 export interface DiscardedPomodoro {
   entry_id: number;
   start: string;
   stop: string;
 }
 
-/**
- * A user's timer, from GET /api/app/timer, every timer action and the timer event stream. It holds
- * at most one of a pause chain and a Pomodoro session.
- */
+/** Holds at most one of a pause chain and a Pomodoro session. */
 export interface TimerState {
   /** Goes up by one on every change to the running entry, the pause chain or the session, from any client. */
   revision: number;
-  /** The server's clock when it built this state, ISO 8601 with milliseconds. Clients correct their clock with it. */
+  /** ISO 8601 with milliseconds. Clients correct their clock with it. */
   server_time: string;
-  /** The running entry, as GET /api/v9/me/time_entries/current?meta=true returns it. */
+  /** As GET /api/v9/me/time_entries/current?meta=true returns it. */
   running_entry: TimeEntry | null;
   pause: TimerPause | null;
   pomodoro: TimerPomodoro | null;
@@ -292,7 +252,6 @@ export interface TimerState {
   discarded_pomodoro: DiscardedPomodoro | null;
 }
 
-/** Fields accepted when creating or updating an entry through the Toggl-compatible API. */
 export interface TimeEntryInput {
   description?: string;
   project_id?: number | null;
@@ -368,12 +327,8 @@ export interface ReportQuery {
   description?: string;
 }
 
-/** One distinct Toggl user found in a CSV's User and Email columns. */
 export interface ImportUser {
-  /**
-   * Opaque identity of the User and Email pair. Pass it back unchanged as a `user` query parameter
-   * to import this user's rows; show `user` and `email` instead.
-   */
+  /** Opaque. Pass it back unchanged as the `user` query parameter; show `user` and `email` instead. */
   key: string;
   user: string;
   email: string;
@@ -388,25 +343,21 @@ export interface ImportResult {
   created_projects: string[];
   created_clients: string[];
   errors: Array<{ row: number; message: string }>;
-  /** Toggl users in the file, in order of first appearance; empty when it has no User or Email column. */
+  /** In order of first appearance; empty when the file has no User or Email column. */
   users: ImportUser[];
   /** Rows left out because their Toggl user was not selected, one item per user. */
   skipped: Array<{ rows: number; reason: string }>;
 }
 
-/**
- * GET /api/app/trash/total: how many trashed entries the account has. GET /api/app/trash lists only
- * the `limit` most recently deleted, so a `total` above `limit` means the list left some out.
- */
+/** GET /api/app/trash lists only the `limit` most recent, so a `total` above `limit` means some were left out. */
 export interface TrashTotal {
   total: number;
   limit: number;
 }
 
-/** POST /api/app/report/entries: one sorted page of every matching entry. */
 export interface DetailedReportPage {
   total: number;
-  /** The page served, which is the last page when the requested one is past the end. */
+  /** The last page when the requested one is past the end. */
   page: number;
   page_size: number;
   pages: number;
@@ -415,7 +366,6 @@ export interface DetailedReportPage {
   entries: ReportEntry[];
 }
 
-/** POST /api/app/report/weekly: totals per project or client over the whole range. */
 export interface WeeklyReport {
   start_date: string;
   end_date: string;
@@ -432,20 +382,18 @@ export interface EntryBounds {
   last_date: string | null;
 }
 
-/** PATCH of several time entries at once (Toggl's bulk edit): which ids changed and which did not. */
 export interface BulkPatchResult {
   success: number[];
   failure: Array<{ id: number; message: string }>;
 }
 
-/** One JSON Patch operation of a bulk entry edit. */
 export interface PatchOperation {
   op: 'add' | 'remove' | 'replace';
   path: string;
   value?: unknown;
 }
 
-/** POST /api/app/import/json: what a Tokkl JSON restore added, or would add on a dry run. */
+/** What a restore added, or would add on a dry run. */
 export interface JsonRestoreResult {
   dry_run: boolean;
   clients: number;
@@ -457,24 +405,20 @@ export interface JsonRestoreResult {
   errors: Array<{ entity: string; id: unknown; message: string }>;
 }
 
-/**
- * GET /api/app/status: whether the server still needs its first admin, and the API version and
- * capabilities it offers. A server from before the announcement sends only `setup_required`.
- */
+/** An older server sends only `setup_required`. */
 export interface AppStatus extends ServerApi {
   setup_required: boolean;
   /** The Pomodoro session lengths `POST /api/app/pomodoro` and the preferences accept. */
   pomodoro_limits: PomodoroLimits;
 }
 
-/** The inclusive range of whole numbers one Pomodoro length accepts, and the length a new account starts with. */
+/** Inclusive whole-number range, and the length a new account starts with. */
 export interface PomodoroLimit {
   min: number;
   max: number;
   default: number;
 }
 
-/** One limit per length, named as `POST /api/app/pomodoro` names the length. */
 export interface PomodoroLimits {
   work_minutes: PomodoroLimit;
   short_rest_minutes: PomodoroLimit;
@@ -482,12 +426,11 @@ export interface PomodoroLimits {
   long_rest_every: PomodoroLimit;
 }
 
-/** POST /api/app/admin/invites: the new invite, with the only copy of its link. */
+/** Carries the only copy of the invite link. */
 export interface CreatedInvite extends Invite {
   url: string;
 }
 
-/** Calendar and clock fields of an instant in an IANA timezone. */
 export interface ZonedParts {
   year: number;
   month: number;

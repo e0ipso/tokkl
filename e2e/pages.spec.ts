@@ -2,7 +2,6 @@ import { expect, test } from './fixtures.ts';
 import { contrast, expectSectionHue, login } from './helpers.ts';
 
 test('every page renders without errors and core management flows work', async ({ page }) => {
-  // The runtimeErrors fixture fails this scenario on any page error, console error or failed request.
   await login(page);
 
   await page.getByRole('link', { name: 'Projects' }).click();
@@ -25,7 +24,6 @@ test('every page renders without errors and core management flows work', async (
     await page.screenshot({ path: `test-results/page-${file}.png`, fullPage: true });
   }
 
-  // Restoring our own export finds everything already present.
   const exported = await (await page.request.get('/api/app/export.json')).body();
   await page.getByRole('link', { name: 'Settings' }).click();
   await page
@@ -75,8 +73,6 @@ test('deleting a client renames its project when a clientless one has the same n
   expect(projects).toHaveLength(2);
 });
 
-// Reports keeps its own hue; the other pages that a phone keeps under More take More's hue in the
-// sidebar too.
 test('the sidebar fills the current page in its section hue and main carries that section', async ({ page }) => {
   await login(page);
   const nav = page.getByRole('navigation', { name: 'Main' });
@@ -99,8 +95,7 @@ test('the sidebar fills the current page in its section hue and main carries tha
   }
 });
 
-// Cyan is under 3:1 on the sidebar's surface in light, so there the active link's outline draws
-// its edge; in dark the fill does. Either way its text stays readable on the fill.
+// Cyan is under 3:1 on the light sidebar, so there the active link's outline draws its edge; in dark the fill does.
 test('the active Pomodoro link keeps readable text and a visible edge in light and dark', async ({ page }) => {
   await login(page);
   const link = page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Pomodoro', exact: true });
@@ -193,7 +188,6 @@ test('JSON restore reports what it cannot import and takes a running entry once 
   await page.getByRole('button', { name: 'Restore' }).click();
   await expect(summary).toContainText('2 entries added');
 
-  // Restoring the same file again adds nothing, the running entry included.
   await upload();
   await expect(summary).toContainText('0 entries to add');
   await expect(summary).toContainText('2 already here, skipped');

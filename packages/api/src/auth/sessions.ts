@@ -17,7 +17,7 @@ import {
   sessionTokens,
 } from './middleware.ts';
 
-/** The one-time setup code; `null` once the first admin exists or none was printed. */
+/** `null` once the first admin exists or none was printed. */
 export interface SetupState {
   code: string | null;
 }
@@ -27,7 +27,6 @@ interface SessionOptions {
   sessionDays: number;
   setup: SetupState;
 }
-/** Session HTTP adapters over the guarded account operations. */
 export function createSessionHandlers<R extends AccountRepositories>(
   runner: AccountRunner<R>,
   operations: ReturnType<typeof createAccountOperations<R>>,
@@ -46,10 +45,7 @@ export function createSessionHandlers<R extends AccountRepositories>(
     });
     res.clearCookie(LEGACY_SESSION_COOKIE, { path: '/' });
   };
-  /**
-   * Looks a link token up under the address counter. The lookup holds a slot like a password check,
-   * so parallel bad links cannot pass the limit before their failures are recorded.
-   */
+  /** The lookup holds a slot like a password check, so parallel bad links cannot pass the limit. */
   const linked = async <T>(req: Request, find: (token: string) => Promise<T | undefined>, missing: string) => {
     const token = String(req.params.token);
     let found: T | undefined;
@@ -77,7 +73,6 @@ export function createSessionHandlers<R extends AccountRepositories>(
     );
     return { token, user };
   };
-  /** True until the first admin exists. */
   const setupRequired = async () => (await runner.readSnapshot(ctx => ctx.users.count())) === 0;
   const login: RequestHandler = async (req, res) => {
     requireCsrfHeader(req);

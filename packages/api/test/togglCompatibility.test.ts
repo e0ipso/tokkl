@@ -3,13 +3,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { addUser, independentReportServer, setup, type TestContext } from './helpers.ts';
 
-// Contract references checked on 2026-10-17:
-// https://engineering.toggl.com/docs/track/api/clients/
-// https://engineering.toggl.com/docs/track/api/me/
-// https://engineering.toggl.com/docs/track/api/tasks/
-// https://engineering.toggl.com/docs/track/api/time_entries/
-// https://engineering.toggl.com/docs/track/reports/detailed_reports/
-// These run against local HTTP servers and never need a Toggl account or network access.
+// Checked against https://engineering.toggl.com/docs/track/api/ (clients, me, tasks, time_entries) and
+// reports/detailed_reports on 2026-10-17. Local servers only; no Toggl account or network.
 
 test('workspace clients default to active; both and archived remain explicit choices', async () => {
   const ctx = await setup();

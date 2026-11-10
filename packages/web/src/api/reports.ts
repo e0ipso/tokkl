@@ -5,17 +5,10 @@ import { keys } from './keys.ts';
 import { APP } from './paths.ts';
 import type { DetailedReportPage, Report, ReportQuery, WeeklyReport } from '@tokkl/types';
 
-/**
- * The app's report endpoints under /api/app/report. Each keeps the last result on screen while the
- * next loads. The queries are POSTs that only read, so they take the read deadline and TanStack's
- * cancel signal, like a GET. A report the filters replaced is aborted, and the server gives its
- * place in the account's report queue to the next one instead of making it wait or answer 503.
- */
+/** Report POSTs only read, so they take the read deadline and cancel signal; an aborted one frees its queue place. */
 
-/** Rows per page in the detailed report. */
 const PAGE_SIZE = 100;
 
-/** Filter fields shared by the report endpoints and the CSV exports. */
 export type ReportFilterBody = Pick<
   ReportQuery,
   | 'start_date'
@@ -30,7 +23,7 @@ export type ReportFilterBody = Pick<
   | 'exclude_tag_ids'
 >;
 
-/** The report the summary and the other tabs' totals come from; `null` asks for nothing yet. */
+/** `null` asks for nothing yet. */
 export function reportOptions(query: ReportQuery | null) {
   return queryOptions({
     queryKey: [...keys.report, query],
@@ -49,7 +42,6 @@ export function useReport(query: ReportQuery | null) {
 
 type DetailedSort = { sort: 'date' | 'duration' | 'description'; dir: 'asc' | 'desc' };
 
-/** One sorted page of every matching entry. */
 export function detailedEntriesOptions(filters: ReportFilterBody, order: DetailedSort, page: number) {
   const body = { ...filters, ...order, page, page_size: PAGE_SIZE };
   return queryOptions({
@@ -64,7 +56,6 @@ export function useDetailedEntries(filters: ReportFilterBody, order: DetailedSor
   return useQuery(detailedEntriesOptions(filters, order, page));
 }
 
-/** Totals per project or client over the whole range. */
 export function weeklyReportOptions(filters: ReportFilterBody, rows: 'projects' | 'clients') {
   const body = { ...filters, rows };
   return queryOptions({
@@ -79,10 +70,7 @@ export function useWeeklyReport(filters: ReportFilterBody, rows: 'projects' | 'c
   return useQuery(weeklyReportOptions(filters, rows));
 }
 
-/**
- * Downloads the detailed or summary report as CSV. `signal` cancels the download: the POST only
- * reads, so a cancelled one leaves nothing half done.
- */
+/** The POST only reads, so a cancel leaves nothing half done. */
 export function downloadReportCsv(
   kind: 'detailed' | 'summary',
   body: object,

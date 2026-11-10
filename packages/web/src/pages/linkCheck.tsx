@@ -4,14 +4,12 @@ import { Brand } from '../components/Brand.tsx';
 import { LoadError, Loading } from '../components/PageState.tsx';
 import { t } from '../i18n/messages.ts';
 
-/** The answer to checking a one-time link, such as an invite or a password reset link. */
 type LinkCheck<T> =
   { state: 'loading' } | { state: 'valid'; data: T } | { state: 'error'; message: string; invalid: boolean };
 
 /**
- * Checks a one-time link's token once. Plain state rather than a query: the app clears the query
- * cache when the logged-out /me check fails, and this check must survive that. Each answer is kept
- * with the request it answers, so a new token or a retry shows loading until its own answer comes.
+ * Plain state, not a query: the app clears the query cache when the logged-out /me check fails. Each answer
+ * is kept with its request, so a new token or a retry shows loading until its own answer comes.
  */
 export function useLinkCheck<T>(token: string, load: (token: string) => Promise<T>): [LinkCheck<T>, () => void] {
   const [attempt, setAttempt] = useState(0);
@@ -37,10 +35,7 @@ export function useLinkCheck<T>(token: string, load: (token: string) => Promise<
   return [check, () => setAttempt(n => n + 1)];
 }
 
-/**
- * The full-page loading or error state of a link check. A 404 means the link is not valid and has
- * no retry; any other failure can be retried. Both offer the login page.
- */
+/** A 404 means the link is not valid and has no retry; other failures can be retried. */
 export function LinkCheckSplash({
   check,
   retry,

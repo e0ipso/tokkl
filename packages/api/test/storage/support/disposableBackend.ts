@@ -17,7 +17,7 @@ export interface DisposableBackend {
   cleanup(): Promise<void>;
   namespace?(): Promise<DisposableBackend>;
 }
-/** Never accepts an external URL. Each invocation owns one empty database/container or temp file. */
+/** Never accepts an external URL. Each call owns one empty database, container or temp file. */
 export async function disposableBackend(
   backend: Backend,
   options?: { tls: true; identity?: 'dns' | 'ip' },
@@ -93,8 +93,7 @@ export async function disposableBackend(
         await exec('docker', ['start', ownedId]);
         break;
       } catch (error) {
-        // Rootless Docker's allocator can choose a port held by a host process. A fresh
-        // container gets a new allocation; always remove the exact failed container first.
+        // Rootless Docker may pick a port a host process holds; remove the failed container and retry.
         await exec('docker', ['rm', '-f', '-v', ownedId]);
         console.log(`Disposable ${backend} removed: ${ownedId}`);
         ownedId = undefined;

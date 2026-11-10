@@ -1,8 +1,4 @@
-/**
- * The account operations as a request reaches them: each raw body is parsed by the same command
- * parser the routes use, then handed to the domain. Link routes look the link up before they read
- * the body, so these do too. Domain tests keep their bodies.
- */
+/** Raw bodies go through the routes' command parsers; links are looked up before the body, as the routes do. */
 import * as parse from '../../src/commands/accounts.ts';
 import * as domain from '../../src/domain/accounts.ts';
 import { findResetUser, findUsableInvite, INVITE_NOT_FOUND, RESET_NOT_FOUND } from '../../src/domain/accountLinks.ts';
@@ -23,7 +19,6 @@ export function createAccountOperations<R extends AccountRepositories>(
   return withBodies(domain.createAccountOperations(runner, security), runner);
 }
 
-/** `userId`'s preference saves, taking raw bodies. */
 export function createPreferenceOperations<R extends AccountRepositories>(runner: AccountRunner<R>, userId: number) {
   const operations = domain.createPreferenceOperations(runner, userId);
   return {
@@ -31,7 +26,6 @@ export function createPreferenceOperations<R extends AccountRepositories>(runner
   };
 }
 
-/** `operations` taking raw bodies; `runner` reads the links the way the link routes do. */
 export function withBodies<R extends AccountRepositories>(
   operations: domain.AccountOperations<R>,
   runner: AccountRunner<R>,

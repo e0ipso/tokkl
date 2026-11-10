@@ -3,9 +3,8 @@ import { object } from './decode.ts';
 import { APP } from './paths.ts';
 import type { ImportResult, JsonRestoreResult } from '@tokkl/types';
 
-/** Exports, the Toggl CSV import and the Tokkl JSON restore. Pass `stale.imported` after a real import. */
+/** Pass `stale.imported` after a real import. */
 
-/** The query string for a CSV import request: preview or not, and the chosen Toggl users. */
 function importQuery(dryRun: boolean, users: readonly string[]): string {
   const params = new URLSearchParams();
   if (dryRun) params.set('dry_run', 'true');
@@ -15,10 +14,7 @@ function importQuery(dryRun: boolean, users: readonly string[]): string {
 }
 
 export const transferRequests = {
-  /**
-   * Saves the account's data as a file: JSON with everything, or CSV with one row per entry.
-   * `signal` cancels the download.
-   */
+  /** `signal` cancels the download. */
   export: (kind: 'json' | 'csv', filename: string, signal?: AbortSignal) =>
     download(`${APP}/export.${kind}`, filename, { signal }),
   importTogglCsv: (text: string, dryRun: boolean, users: readonly string[]) =>

@@ -10,7 +10,6 @@ import { useAction } from '../../../components/useAction.ts';
 import { t } from '../../../i18n/messages.ts';
 import { restoreErrorId } from './transferForm.ts';
 
-/** Restores a Tokkl JSON export: preview first, then import. */
 export function RestoreJson() {
   const toast = useToast();
   const qc = useQueryClient();

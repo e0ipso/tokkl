@@ -26,12 +26,7 @@ import {
 } from './reportRows.ts';
 import { readReport, type ReportReader, type ReportSource } from './reports.ts';
 
-/**
- * The part of each report request that reads the entries and builds the response body. The routes
- * validate the request first and pass a job here, so a job only fails on a bug. Jobs read the
- * database and nothing else, which lets them run in the report worker (see reportRunner.ts). A
- * `ReportJob` is answered whole; a `CsvDownloadJob` is written a batch at a time as a download.
- */
+/** Jobs only read the database, so they run in the report worker; routes validate first. */
 export type ReportJob =
   | {
       kind: 'v3-search';
@@ -71,7 +66,6 @@ export type ReportJob =
 
 export type { JobResult };
 
-/** The detailed CSVs: one line per entry, so they stream instead of being answered whole. */
 export type CsvDownloadJob =
   | { kind: 'v3-csv'; filter: ReportFilter; orderBy: OrderBy; orderDir: SortDirection; durationFormat: DurationFormat }
   | {
@@ -82,7 +76,6 @@ export type CsvDownloadJob =
       durationFormat: DurationFormat;
     };
 
-/** The name each detailed CSV download gets. */
 export const CSV_DOWNLOAD_FILENAMES: Readonly<Record<CsvDownloadJob['kind'], string>> = {
   'v3-csv': 'Toggl_time_entries.csv',
   'app-detailed-csv': 'tokkl_detailed.csv',
@@ -93,7 +86,7 @@ type JobFormatter<K extends ReportJob['kind']> = (
   report: ReportReader,
 ) => Promise<JobResult>;
 
-/** Hands every entry, in start/id order, to each aggregate. */
+/** In start/id order. */
 const feed = (report: ReportReader, ...aggregates: Array<Aggregate<unknown>>) =>
   report.each(batch => {
     for (const entry of batch) for (const aggregate of aggregates) aggregate.add(entry);
@@ -103,14 +96,13 @@ const feed = (report: ReportReader, ...aggregates: Array<Aggregate<unknown>>) =>
 const appGrouping = (job: { grouping: Dimension; sub: Dimension }) =>
   grouping(job.grouping, job.grouping === job.sub ? 'none' : job.sub);
 
-/** One formatter per job kind; adding a kind without a formatter fails to compile. */
+/** Adding a kind without a formatter fails to compile. */
 const FORMATTERS: { [K in ReportJob['kind']]: JobFormatter<K> } = {
   'v3-search': async (job, report) => {
     const { firstRow, pageSize } = job;
     const { user, filter } = report;
     const headers = rangeHeaders(filter.startDate, filter.endDate);
-    // The rows of `slice(firstRow - 1, firstRow - 1 + pageSize)` over the sorted entries, then the
-    // one at `firstRow - 1 + pageSize`, which names the next page. Lenient inputs can be fractional.
+    // The page's rows plus the next one, which names the next page. Lenient inputs can be fractional.
     const start = Math.trunc(firstRow - 1);
     const next = firstRow - 1 + pageSize;
     const size = Math.trunc(next) - start;
@@ -254,7 +246,6 @@ const FORMATTERS: { [K in ReportJob['kind']]: JobFormatter<K> } = {
   },
 };
 
-/** A report job and whose entries it reads. */
 export interface ReportJobWork {
   userId: number;
   workspaceId: number;
@@ -262,17 +253,14 @@ export interface ReportJobWork {
   authentication?: Authentication;
 }
 
-/** Reads and formats `work` in one read snapshot, a batch of entries at a time. */
 export function runReportJob(source: ReportSource, work: ReportJobWork): Promise<JobResult> {
   const { userId, workspaceId, job, authentication } = work;
-  // The table is keyed by kind, so the formatter always matches the job.
   const format = FORMATTERS[job.kind] as JobFormatter<ReportJob['kind']>;
   return readReport(source, userId, workspaceId, job.filter, { authentication }, report =>
     format(job as never, report),
   );
 }
 
-/** A detailed CSV download and whose entries it reads. */
 export interface CsvDownloadWork {
   userId: number;
   workspaceId: number;
@@ -280,11 +268,7 @@ export interface CsvDownloadWork {
   authentication?: Authentication;
 }
 
-/**
- * Reads `work` in one read snapshot and writes its CSV through `emit`: the header, then the lines
- * of each batch in report order. Nothing is emitted before the credential and the workspace are
- * checked, so those refusals keep their status. The pieces join to the body a whole answer had.
- */
+/** Nothing is emitted before the credential and workspace checks, so those refusals keep their status. */
 export function runCsvDownloadJob(source: ReportSource, work: CsvDownloadWork, emit: ExportEmitter): Promise<void> {
   const { userId, workspaceId, download, authentication } = work;
   return readReport(source, userId, workspaceId, download.filter, { authentication }, async report => {

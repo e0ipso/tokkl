@@ -1,7 +1,3 @@
-/**
- * Timer work that catalog and account operations need: they change what a running entry shows, or
- * delete its owner, and must settle and publish the affected timers.
- */
 import type { Id } from './model.ts';
 import type { AccountRepositories } from './accountGuards.ts';
 import type { AccountEntryEffects } from './accounts.ts';
@@ -18,7 +14,7 @@ interface PreparedWorkspace {
   publish(): Promise<void>;
 }
 
-/** Holds committed states until `publish`, which runs after commit and release. */
+/** `publish` runs after commit and release. */
 function prepareWorkspace(full: EntryContext, publish: TimerPublication): PreparedWorkspace {
   const users = new Set<Id>(),
     committed: Array<{ id: Id; view: TimerView; incarnation: string }> = [];
@@ -45,7 +41,7 @@ function prepareWorkspace(full: EntryContext, publish: TimerPublication): Prepar
   };
 }
 
-/** Bind inside the full transaction callback. The catalog port must receive that exact context. */
+/** Bind inside the full transaction callback; the catalog port must receive that exact context. */
 export function createCatalogTimerEffects(full: EntryContext, publish: TimerPublication): CatalogTimerEffects {
   function same(ctx: object) {
     if (ctx !== full) throw new Error('Timer effects require the same operation context');

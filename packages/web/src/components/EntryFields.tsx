@@ -15,11 +15,8 @@ export interface EntryFieldsHandle {
 }
 
 /**
- * The description with its suggestions, the project and task picker, the tag picker and the
- * billable toggle, editing `draft`. It knows nothing about a running entry: typing calls `onType`,
- * every other edit calls `onEdit` with the fields it changed, and the owner decides what to save.
- * Enter with no highlighted suggestion calls `onEnter`. `children` follow the attribute buttons in
- * the controls row. With `readOnly` the fields show `draft` and offer no edit.
+ * Knows nothing about a running entry: typing calls `onType`, other edits `onEdit`, and the owner saves.
+ * `readOnly` shows `draft` without edits.
  */
 export const EntryFields = forwardRef<
   EntryFieldsHandle,
@@ -47,9 +44,7 @@ export const EntryFields = forwardRef<
   const [picker, setPicker] = useState<'project' | 'tags' | null>(null);
   const descriptionRef = useRef<HTMLInputElement>(null);
   const listId = useId();
-  // The description's blur hides the suggestions after a delay, so a click on one still lands.
-  // A later focus cancels that pending hide, and a focus that comes from a closing picker does not
-  // open the suggestions: the user did not ask for them.
+  // Blur hides the suggestions after a delay so a click on one lands; a focus from a closing picker does not open them.
   const hideSuggestionsTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const quietFocus = useRef(false);
   const focusDescriptionQuietly = () => {

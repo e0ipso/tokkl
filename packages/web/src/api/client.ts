@@ -1,20 +1,15 @@
-/**
- * Fetch wrapper for the server. Cookie auth plus the CSRF header the server requires for writes.
- * Every request, downloads included, goes through `send`, so headers, credentials, deadlines and
- * error decoding live in one place.
- */
+/** Every request, downloads included, goes through `send`: CSRF header, credentials, deadlines and error decoding. */
 
 import type { Decoder } from './decode.ts';
 import { t } from '../i18n/messages.ts';
 
 type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
-/** A failed request: the reply's status, its decoded body and the request it answered. */
 export class ApiError extends Error {
   readonly status: number;
-  /** The reply's body when it was JSON that was not a plain string, such as the timer state a 409 carries. */
+  /** JSON that was not a plain string, such as the timer state a 409 carries. */
   readonly body: unknown;
-  /** The request that failed, when the error came from `send`. */
+  /** Set when the error came from `send`. */
   readonly request: { readonly method: Method; readonly path: string } | null;
 
   constructor(status: number, message: string, body?: unknown, request?: { method: Method; path: string }) {
@@ -26,15 +21,11 @@ export class ApiError extends Error {
   }
 }
 
-/** Whether `error` is a server reply with `status`. */
 export function isApiError(error: unknown, status?: number): error is ApiError {
   return error instanceof ApiError && (status === undefined || error.status === status);
 }
 
-/**
- * A request that got no whole reply within its deadline. The server may still have acted on it, so
- * for a write the outcome is unknown.
- */
+/** The server may still have acted, so for a write the outcome is unknown. */
 export class RequestTimeoutError extends Error {
   readonly request: { readonly method: Method; readonly path: string };
 
@@ -45,10 +36,7 @@ export class RequestTimeoutError extends Error {
   }
 }
 
-/**
- * A 2xx reply whose body is not JSON. The server answered, so for a write it may have acted, and
- * the outcome is unknown. It keeps the parser's message.
- */
+/** A 2xx reply whose body is not JSON; for a write the outcome is unknown. */
 export class UnparsableReplyError extends SyntaxError {
   readonly request: { readonly method: Method; readonly path: string };
 
@@ -69,27 +57,17 @@ function parseReply(text: string, method: Method, path: string): unknown {
 }
 
 /**
- * How long a request may take, reply body included, before it is given up:
- * - `read` (20 s): a GET, or a report query sent as a POST. TanStack Query retries a failed read,
- *   so a stalled one gives way to a fresh attempt.
- * - `write` (30 s): any other request. It waits longer, because giving up on a write leaves its
- *   outcome unknown.
- * - `transfer` (5 min): an import upload, which can carry a whole account's entries. A download
- *   (an export or a CSV report) gets it only for its reply to start: see `DOWNLOAD_START_MS`.
+ * Includes the reply body. Writes wait longer, since giving up leaves their outcome unknown. Downloads:
+ * `DOWNLOAD_START_MS`.
  */
 export const DEADLINE_MS = { read: 20_000, write: 30_000, transfer: 300_000 } as const;
 
-/**
- * How long a download's reply may take to start. The server may queue a download behind others
- * before it answers. Once the reply starts there is no client deadline: the server streams a
- * large export at the pace the client reads and drops a client that stops reading, and that
- * drop fails the download here as a network error.
- */
+/** Only until the reply starts; the server streams at the client's pace and drops a client that stops reading. */
 export const DOWNLOAD_START_MS = DEADLINE_MS.transfer;
 
 type RequestKind = keyof typeof DEADLINE_MS;
 
-/** A body sent as it is, with its own content type, such as an uploaded CSV or JSON file. */
+/** Sent as it is, with its own content type. */
 interface RawBody {
   readonly raw: string;
   readonly contentType: string;
@@ -103,7 +81,7 @@ function isRawBody(body: unknown): body is RawBody {
   return typeof body === 'object' && body !== null && 'raw' in body && 'contentType' in body;
 }
 
-/** The deadline a request gets unless it names one: a raw body is an upload, a GET a read, the rest writes. */
+/** A raw body is an upload, a GET a read, the rest writes. */
 export function requestKind(method: Method, body: unknown, kind?: RequestKind): RequestKind {
   if (kind) return kind;
   if (isRawBody(body)) return 'transfer';
@@ -113,20 +91,13 @@ export function requestKind(method: Method, body: unknown, kind?: RequestKind): 
 export interface RequestOptions<T> {
   /** JSON-encoded unless it is a `RawBody`. */
   body?: unknown;
-  /**
-   * Cancels the request, such as the signal TanStack Query passes a query function. Forward it only
-   * for reads, a GET or a report query sent as a POST with `kind: 'read'`: a cancelled write may
-   * still have reached the server.
-   */
+  /** Forward it only for reads: a cancelled write may still have reached the server. */
   signal?: AbortSignal;
-  /** Which deadline applies (see `DEADLINE_MS`). By default it follows from the method and body (`requestKind`). */
+  /** Defaults to `requestKind`. */
   kind?: RequestKind;
-  /** Checks the reply (see decode.ts). A write whose reply nothing reads passes none. */
+  /** A write whose reply nothing reads passes none. */
   decode?: Decoder<T>;
-  /**
-   * Sent as the `Idempotency-Key` header of a create, so a repeat of the same request with the same
-   * key answers the record the first one made instead of making another (see idempotency.ts).
-   */
+  /** A repeat with the same key answers the record the first one made (see idempotency.ts). */
   idempotencyKey?: string;
 }
 
@@ -134,11 +105,7 @@ function isDeadline(error: unknown, deadline: AbortSignal): boolean {
   return deadline.aborted && error instanceof DOMException && error.name === 'TimeoutError';
 }
 
-/**
- * Runs `work` with a signal that aborts after `ms`, or earlier when `signal` does. Running out of
- * time fails with a `RequestTimeoutError`; a cancel by `signal` keeps its own error, so TanStack
- * Query still sees a cancelled query as cancelled.
- */
+/** A timeout fails with `RequestTimeoutError`; a cancel by `signal` keeps its error, so TanStack sees it cancelled. */
 export async function withDeadline<T>(
   ms: number,
   request: { method: Method; path: string },
@@ -179,7 +146,7 @@ function encode(body: unknown): { payload?: BodyInit; contentType?: string } {
   return { payload: JSON.stringify(body), contentType: 'application/json' };
 }
 
-/** Sends one request and returns the reply, or throws an `ApiError` for a status outside 2xx. */
+/** Throws an `ApiError` for a status outside 2xx. */
 async function send(
   method: Method,
   path: string,
@@ -196,7 +163,6 @@ async function send(
   return response;
 }
 
-/** Sends a request and returns its reply, checked by `options.decode`. */
 export async function request<T = void>(method: Method, path: string, options: RequestOptions<T> = {}): Promise<T> {
   const ms = DEADLINE_MS[requestKind(method, options.body, options.kind)];
   const text = await withDeadline(ms, { method, path }, options.signal, async signal => {
@@ -207,22 +173,14 @@ export async function request<T = void>(method: Method, path: string, options: R
   return options.decode ? options.decode(value) : (value as T);
 }
 
-/**
- * A download request. `signal` cancels it, reply body included, such as when the view that started
- * it goes away; the download then fails with the signal's reason.
- */
+/** Cancels the download, body included; it then fails with the signal's reason. */
 interface DownloadRequest {
   method?: 'GET' | 'POST';
   body?: unknown;
   signal?: AbortSignal;
 }
 
-/**
- * Sends a download request and reads the whole reply. The reply must start within
- * `DOWNLOAD_START_MS`; the body then takes as long as it takes. A refusal, such as a 503 from a full download lane or a 403
- * for a lost session, fails with its `ApiError` and the server's message. A cancel by `signal`, at
- * any point, fails with the signal's reason, never as timed out.
- */
+/** The reply must start within `DOWNLOAD_START_MS`; the body takes as long as it takes. A cancel is never a timeout. */
 export async function fetchDownload(
   path: string,
   { method = 'GET', body, signal }: DownloadRequest = {},
@@ -252,12 +210,7 @@ export async function fetchDownload(
   }
 }
 
-/**
- * Sends a request and saves the reply as a file. Exports go through fetch too, not through a link
- * the browser follows: a followed link cannot show the server's message for a refusal, and the
- * caller could not tell when the file is done. A download cancelled by `request.signal` saves
- * nothing, even when its body had already arrived.
- */
+/** Through fetch, not a followed link, so a refusal shows the server's message. A cancelled download saves nothing. */
 export async function download(path: string, filename: string, request: DownloadRequest = {}): Promise<void> {
   const blob = await fetchDownload(path, request);
   request.signal?.throwIfAborted();

@@ -1,7 +1,7 @@
 import { isTimerState } from './timerState.ts';
 import type { TimerState } from '@tokkl/types';
 
-/** The part of `EventSource` the stream uses, so it can be driven without a browser. */
+/** So it can be driven without a browser. */
 export interface TimerEventSource {
   readonly readyState: number;
   addEventListener(type: string, listener: (event: MessageEvent) => void): void;
@@ -9,36 +9,25 @@ export interface TimerEventSource {
 }
 
 interface TimerStreamHandlers {
-  /** A `timer` event with a well-formed state. */
   onState(state: TimerState): void;
-  /**
-   * The stream became trustworthy (true) or stopped being so (false). Called only when that changes.
-   * See `connectTimerStream` for what counts.
-   */
+  /** Called only on a change. See `connectTimerStream` for what counts. */
   onStatus(up: boolean): void;
 }
 
 const CLOSED = 2;
-/** The server sends a `keep-alive` event every 25 s, so a minute without one means it is not getting through. */
+/** The server sends a `keep-alive` every 25 s. */
 const SILENCE_MS = 60_000;
-/**
- * The shortest retry wait, 5 s, is also the `Retry-After` of a full stream cap, which `EventSource`
- * cannot read; the longest is 60 s.
- */
+/** Also the `Retry-After` of a full stream cap, which `EventSource` cannot read. The longest is 60 s. */
 const RETRY_BASE_MS = 5000;
 const RETRY_CAP_MS = 60_000;
 
-/**
- * The wait before retry number `failures` (0 for the first) after failures in a row: a random time
- * between 5 s and a ceiling that doubles with each failure, up to 60 s. The random part spreads the
- * tabs a server restart dropped together.
- */
+/** A random time from 5 s to a ceiling doubling per failure, up to 60 s, to spread tabs a restart dropped. */
 export function retryDelay(failures: number): number {
   const ceiling = Math.min(RETRY_CAP_MS, RETRY_BASE_MS * 2 ** (failures + 1));
   return Math.round(RETRY_BASE_MS + Math.random() * (ceiling - RETRY_BASE_MS));
 }
 
-/** The state a `timer` event carries, or null when its data is not JSON or not a whole state. */
+/** Null when its data is not JSON or not a whole state. */
 function decodeState(data: unknown): TimerState | null {
   let value: unknown;
   try {
@@ -50,27 +39,8 @@ function decodeState(data: unknown): TimerState | null {
 }
 
 /**
- * Holds the timer event stream open and says whether its states can be trusted, so the hooks poll
- * only when they cannot.
- *
- * A connection counts as up from the first well-formed state it delivers; the server sends one as
- * soon as the stream opens, so opening alone switches nothing off. It counts as down again when:
- * - it errs. The browser reconnects by itself after a dropped connection, and the next state brings
- *   it back up. When the browser gives up instead (readyState CLOSED), such as on an error status
- *   from a restarting proxy or a full stream cap, the source is closed and a new one opens after
- *   `retryDelay`.
- * - a `timer` event does not decode. A stream that sends states this app cannot read is no better
- *   than none: the source is closed and a new one opens after `retryDelay`, as when the browser
- *   gives up.
- * - it stays silent for a minute: no state within that time of opening, or no state or
- *   keep-alive within that time of the last one, such as when a buffering proxy holds the body back.
- *   The source is closed and a new one opens after `retryDelay`, so a tab behind such a proxy does
- *   not open a new server stream every minute. Keep-alives restart that wait only once a state
- *   has arrived, so a connection that only ever sends keep-alives does not pass for a working one.
- *
- * Each failure in a row, silence included, waits longer before the next source opens
- * (`retryDelay`); a well-formed state starts the count again. The returned function stops it for
- * good.
+ * Up from the first well-formed state. Down on an error, an undecodable event or a minute of silence; a closed
+ * or bad source is replaced after `retryDelay`. Keep-alives alone never count as up.
  */
 export function connectTimerStream(open: () => TimerEventSource, handlers: TimerStreamHandlers): () => void {
   let source: TimerEventSource | null = null;
@@ -110,7 +80,6 @@ export function connectTimerStream(open: () => TimerEventSource, handlers: Timer
       retry = setTimeout(connect, retryDelay(failures));
       failures += 1;
     };
-    // Restarts the wait for the next event on the open source.
     const watch = () => {
       quiet();
       if (stopped) return;

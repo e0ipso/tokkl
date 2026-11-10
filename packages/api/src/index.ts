@@ -13,7 +13,7 @@ import type { Storage } from './domain/ports.ts';
 import { safeDestination } from './storage/config.ts';
 import { createLogger, redactedDiagnostic, type Logger } from './lib/logger.ts';
 
-/** How long a graceful shutdown waits for open connections before it closes them. */
+/** How long a graceful shutdown waits for open connections. */
 const SHUTDOWN_GRACE_MS = 10_000;
 
 function setupCode(): string {
@@ -30,7 +30,7 @@ interface Running {
   storage: Storage;
 }
 
-/** Stops taking requests, drains the app, then closes the bus and storage, once. */
+/** Once. */
 function shutdownOnce({ server, http, timerBus, storage }: Running, logger: Logger): () => Promise<void> {
   let stopping: Promise<void> | undefined;
   return () =>

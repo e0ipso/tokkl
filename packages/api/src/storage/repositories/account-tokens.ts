@@ -1,11 +1,11 @@
-/** Invite and password reset tokens, and sign-in sessions, all stored as hashes. */
+/** Stored as hashes. */
 import type { Kysely } from 'kysely';
 import type { Backend } from '../config.ts';
 import type { PhysicalDatabase } from '../physical.ts';
 import { entityId, utcInstant } from '../conversion.ts';
 import { accountToken, generatedId, nullableInstant, type AccountRepositories } from './account-rows.ts';
 
-/** Most rows one cleanup call deletes. The maintenance job calls again for the rest. */
+/** The maintenance job calls again for the rest. */
 const CLEANUP_BATCH = 100;
 
 export function createTokenRepository(db: Kysely<PhysicalDatabase>, backend: Backend): AccountRepositories['tokens'] {

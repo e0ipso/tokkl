@@ -1,4 +1,4 @@
-/** A map that holds at most `capacity` entries and forgets the least recently used one first. */
+/** Holds at most `capacity` entries and evicts the least recently used first. */
 export class BoundedCache<K, V> {
   readonly #entries = new Map<K, V>();
   readonly #capacity: number;
@@ -25,7 +25,6 @@ export class BoundedCache<K, V> {
     return value;
   }
 
-  /** Stores `value` and returns it, evicting the least recently used entry when a new key would overflow. */
   set(key: K, value: V): V {
     if (!this.#entries.has(key) && this.#entries.size >= this.#capacity)
       this.#entries.delete(this.#entries.keys().next().value as K);
@@ -38,10 +37,7 @@ export class BoundedCache<K, V> {
   }
 }
 
-/**
- * Wraps an async lookup so equal arguments, compared as JSON, reuse the first answer. `clear` drops
- * every answer, for when a rollback may have made them stale.
- */
+/** Equal arguments, compared as JSON, reuse the first answer. `clear` after a rollback may have made them stale. */
 export function memoizeAsync<A extends unknown[], V>(
   read: (...args: A) => Promise<V>,
   capacity: number,

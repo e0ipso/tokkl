@@ -17,7 +17,6 @@ interface Option {
   readonly hint?: string | null;
 }
 
-/** A filter chip that opens a searchable checkbox list. */
 function MultiSelect({
   label,
   noun,
@@ -29,7 +28,7 @@ function MultiSelect({
   showDots = false,
 }: {
   label: string;
-  /** The filter's name inside a sentence, as in "Find project…". */
+  /** Inside a sentence, as in "Find project…". */
   noun: string;
   options: readonly Option[];
   value: IdFilter;
@@ -126,7 +125,7 @@ function MultiSelect({
   );
 }
 
-/** Text search that writes to the URL 300 ms after the last keystroke. */
+/** Writes to the URL 300 ms after the last keystroke. */
 function DescriptionSearch({ value, onChange }: { value: string; onChange: (next: string) => void }) {
   const [text, setText] = useState(value);
   const latest = useRef(value);

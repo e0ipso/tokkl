@@ -5,11 +5,7 @@ import { schemaFingerprint } from '../../../src/storage/migrationRunner.ts';
 import { migrations } from '../../../src/storage/migrations.ts';
 import type { PhysicalDatabase } from '../../../src/storage/physical.ts';
 
-/**
- * Asserts that the ledger records every migration of the current history, complete and with its
- * checksum, and that the schema still has the fingerprint the last one recorded. It only reads, so
- * it works on a reader connection too.
- */
+/** Every migration recorded complete with its checksum, and the schema at the last recorded fingerprint. Read-only. */
 export async function assertCurrent(connection: StorageConnection<PhysicalDatabase>): Promise<void> {
   const { db, backend } = connection;
   const ledger = await db.selectFrom('storage_migrations').selectAll().orderBy('version').execute();

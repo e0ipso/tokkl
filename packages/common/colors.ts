@@ -1,4 +1,4 @@
-/** Project colors offered by the picker. Matches the palette Toggl Track uses for new projects. */
+/** Matches the palette Toggl Track uses for new projects. */
 export const PROJECT_COLORS = [
   '#0b83d9',
   '#9e5bd9',

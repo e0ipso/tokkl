@@ -28,11 +28,7 @@ function useDismiss(ref: RefObject<HTMLElement | null>, onClose: () => void, anc
   }, [ref, onClose, anchor]);
 }
 
-/**
- * Places the panel under its anchor, or above it when there is more room there, kept inside the
- * viewport. It writes the position straight to the panel before paint, after every render, so the
- * panel follows the anchor whenever its content changes.
- */
+/** Below the anchor, or above when there is more room, inside the viewport. Written before paint after every render. */
 function usePlacement(
   panel: RefObject<HTMLElement | null>,
   anchor: RefObject<HTMLElement | null>,
@@ -62,7 +58,7 @@ function usePlacement(
   });
 }
 
-/** A floating panel placed under `anchor`, closed by Escape or a click outside. */
+/** Closed by Escape or a click outside. */
 export function Popover({
   anchor,
   label,
@@ -73,13 +69,12 @@ export function Popover({
   panel,
 }: {
   anchor: RefObject<HTMLElement | null>;
-  /** The dialog's accessible name. */
   label: string;
   onClose: () => void;
   children: ReactNode;
   width?: number;
   align?: 'left' | 'right';
-  /** Receives the panel element, for a caller that needs to know whether focus is inside it. */
+  /** For a caller that needs to know whether focus is inside it. */
   panel?: RefObject<HTMLDivElement | null>;
 }) {
   const own = useRef<HTMLDivElement>(null);
@@ -95,21 +90,15 @@ export function Popover({
   );
 }
 
-/**
- * Closes a modal, then moves focus to the page behind it. The page is inert while the modal is
- * open, so focus can only land there once the close has been committed.
- */
+/** The page is inert while the modal is open, so focus can only land there once the close is committed. */
 export function closeModalThen(close: () => void, focus: () => void): void {
   flushSync(close);
   focus();
 }
 
 /**
- * A dialog over a backdrop, focused on its first control and closed by Escape, the close button or
- * a press on the backdrop. By default it is modal: Tab cycles inside it and the rest of the page is
- * inert. `modal={false}` is for a draft the page behind may replace, such as the all-day entry
- * dialog, which the user can leave by Tab for another day's add button: it is announced as a plain
- * dialog, Tab leaves it and nothing goes inert.
+ * Modal by default: Tab cycles inside and the page is inert. `modal={false}` is for a draft the page may
+ * replace, such as the all-day dialog: Tab leaves it and nothing goes inert.
  */
 export function Modal({
   title,

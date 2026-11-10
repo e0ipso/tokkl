@@ -4,8 +4,6 @@ import type { Report } from '@tokkl/types';
 import { monthName, shortDate, weekdayName } from '../../lib/format.ts';
 import { t } from '../../i18n/messages.ts';
 
-/** The pure parts of SeriesChart: its geometry, scale, column shapes and labels. */
-
 export type Point = Report['series'][number];
 export type Resolution = Report['resolution'];
 
@@ -16,7 +14,7 @@ interface Margin {
   left: number;
 }
 
-/** Chart size in pixels. reports.css sets each value as a custom property on .series-chart. */
+/** reports.css sets each value as a custom property on .series-chart. */
 export interface Geometry {
   height: number;
   margin: Margin;
@@ -25,7 +23,7 @@ export interface Geometry {
   radius: number;
 }
 
-/** Used for any property that is missing or not a plain pixel number. */
+/** For any property that is missing or not a plain pixel number. */
 export const DEFAULT_GEOMETRY: Geometry = {
   height: 220,
   margin: { top: 12, right: 8, bottom: 28, left: 48 },
@@ -34,13 +32,12 @@ export const DEFAULT_GEOMETRY: Geometry = {
   radius: 4,
 };
 
-/** Reads a length such as `24px` or `24`. Other units, and anything else, give the fallback. */
+/** `24px` or `24`; other units give the fallback. */
 export function readPixels(value: string, fallback: number): number {
   const trimmed = value.trim();
   return /^(\d+(\.\d+)?|\.\d+)(px)?$/.test(trimmed) ? Number.parseFloat(trimmed) : fallback;
 }
 
-/** The geometry from the chart's custom properties, read through `property` (a computed style's getPropertyValue). */
 export function readGeometry(property: (name: string) => string): Geometry {
   const d = DEFAULT_GEOMETRY;
   const px = (name: string, fallback: number) => readPixels(property(name), fallback);
@@ -58,25 +55,20 @@ export function readGeometry(property: (name: string) => string): Geometry {
   };
 }
 
-/** A clean tick step in hours that gives about four gridlines. */
+/** About four gridlines. */
 export function niceStep(maxHours: number): number {
   const raw = maxHours / 4;
   const steps = [0.25, 0.5, 1, 2, 4, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000];
   return steps.find(step => step >= raw) ?? Math.ceil(raw / 10_000) * 10_000;
 }
 
-/** The plot area, the hour scale and the column bands for `series` drawn `width` pixels wide. */
 interface ChartLayout {
   plotWidth: number;
   plotHeight: number;
-  /** Gridline values in hours, from 0 to the top of the scale. */
   ticks: number[];
-  /** The y coordinate of a value in hours. */
   y: (hours: number) => number;
-  /** The width of each column's slot. */
   band: number;
   barWidth: number;
-  /** Every how many columns an axis label fits. */
   labelEvery: number;
 }
 
@@ -100,7 +92,6 @@ export function chartLayout(series: readonly Point[], width: number, geometry: G
   };
 }
 
-/** Where one column's two segments go: billable on the baseline, the rest above it past a gap. */
 interface ColumnShape {
   x: number;
   base: number;
@@ -121,7 +112,6 @@ export function columnShape(point: Point, index: number, layout: ChartLayout, ge
   return { x, base, totalY, billableY, billableHeight, otherHeight: Math.max(0, billableY - totalY - gap) };
 }
 
-/** A rectangle with rounded top corners and a square base, for the data end of a column. */
 export function roundedTop(x: number, y: number, w: number, h: number, r: number): string {
   const radius = Math.max(0, Math.min(r, w / 2, h));
   return (
@@ -130,7 +120,7 @@ export function roundedTop(x: number, y: number, w: number, h: number, r: number
   );
 }
 
-/** Puts the tooltip beside the hovered column, on the side with more room, so it never hides it. */
+/** On the side with more room, so it never hides the column. */
 export function tooltipPosition(bandLeft: number, band: number, width: number, top: number): CSSProperties {
   return bandLeft + band / 2 < width / 2 ? { left: bandLeft + band + 4, top } : { right: width - bandLeft + 4, top };
 }
@@ -138,12 +128,10 @@ export function tooltipPosition(bandLeft: number, band: number, width: number, t
 const CHART_KEYS = ['ArrowLeft', 'ArrowRight', 'Home', 'End'] as const;
 type ChartKey = (typeof CHART_KEYS)[number];
 
-/** Whether the chart reads `key`: the arrows move between columns, Home and End go to either end. */
 export function isChartKey(key: string): key is ChartKey {
   return CHART_KEYS.some(chartKey => chartKey === key);
 }
 
-/** The column a chart key moves to from `current`, the active column or null for none. */
 export function nextActiveColumn(key: ChartKey, current: number | null, count: number): number {
   if (key === 'Home') return 0;
   if (key === 'End') return count - 1;
@@ -151,7 +139,6 @@ export function nextActiveColumn(key: ChartKey, current: number | null, count: n
   return Math.max(0, Math.min(count - 1, from + (key === 'ArrowLeft' ? -1 : 1)));
 }
 
-/** The label under a column: a month, a weekday for a week or less of days, or a short date. */
 export function axisLabel(point: Point, resolution: Resolution, count: number, index: number): string {
   const parsed = parseDateKey(point.start);
   if (!parsed) return point.start;
@@ -164,7 +151,6 @@ export function axisLabel(point: Point, resolution: Resolution, count: number, i
   return shortDate(point.start);
 }
 
-/** The full name of a column's period, for the tooltip and the data table. */
 export function fullLabel(point: Point, resolution: Resolution): string {
   const parsed = parseDateKey(point.start);
   if (!parsed) return point.start;

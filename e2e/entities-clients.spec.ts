@@ -11,7 +11,6 @@ import {
   type Entry,
 } from './entity-tests-helpers.ts';
 
-/** Everything about an entry that deleting its client must not change. */
 function metadata(entry: Entry) {
   return {
     id: entry.id,
@@ -68,7 +67,6 @@ test('client name and notes persist, and archiving and restoring the client carr
   await expect(editor.getByLabel('Notes')).toHaveValue('Net 45\nPO number required');
   await editor.getByRole('button', { name: 'Cancel' }).click();
 
-  // The rename shows on the client's projects.
   await page.getByRole('link', { name: 'Projects' }).click();
   for (const name of ['Portal', 'Audit']) {
     await expect(
@@ -99,7 +97,6 @@ test('client name and notes persist, and archiving and restoring the client carr
   expect((await api.projects()).every(p => p.active)).toBe(true);
   await page.getByRole('link', { name: 'Timer' }).click();
   expect((await timerPickerProjects(page)).sort()).toEqual(['Audit', 'In house', 'No project', 'Portal']);
-  // Archive and restore kept project identities.
   expect((await api.projects()).map(p => p.id).sort()).toEqual([portal.id, audit.id, other.id].sort());
 });
 
@@ -156,7 +153,6 @@ test('deleting a client keeps project IDs and entry metadata and numbers collidi
   await expect(entryRow(page, 'Landing page').locator('.tag-chip')).toHaveText('design');
   await expect(entryRow(page, 'Wiki cleanup').locator('.project-label')).toContainText('Intranet');
 
-  // The same collision again takes the following number.
   const again = await api.createClient('Acme');
   const third = await api.createProject({ name: 'WEBSITE', client_id: again.id });
   await page.getByRole('link', { name: 'Clients' }).click();
@@ -166,9 +162,6 @@ test('deleting a client keeps project IDs and entry metadata and numbers collidi
   expect((await api.project(third.id)).client_id).toBeNull();
 });
 
-// A client row that leaves the list after a confirm dialog from its menu takes the menu
-// button the dialog would return to, so focus moves to the next row, else the previous one, else the
-// page heading.
 test('deleting or archiving a client by keyboard keeps focus in the clients list', async ({ page }) => {
   await login(page);
   const api = await EntityApi.open(page);
@@ -199,8 +192,6 @@ test('deleting or archiving a client by keyboard keeps focus in the clients list
   expect((await api.clients()).map(client => client.name)).toEqual(['Initech']);
 });
 
-// Restoring a client under the Archived filter takes its row, and the focused menu button,
-// out of the list, so focus moves to another row's menu, else the page heading.
 test('restoring archived clients by keyboard keeps focus in the clients list', async ({ page }) => {
   await login(page);
   const api = await EntityApi.open(page);

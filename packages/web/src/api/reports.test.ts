@@ -3,14 +3,12 @@ import assert from 'node:assert/strict';
 import { QueryClient, QueryObserver, type QueryKey, type QueryObserverOptions } from '@tanstack/react-query';
 import { detailedEntriesOptions, reportOptions, weeklyReportOptions, type ReportFilterBody } from './reports.ts';
 
-/** A request the test holds open, as a server still building a report would. */
 interface Held {
   readonly path: string;
   readonly method: string | undefined;
   readonly signal: AbortSignal;
 }
 
-/** A fetch that never answers; it fails only when its signal aborts, as fetch does. */
 function holding() {
   const requests: Held[] = [];
   const fetch = (path: string, init: RequestInit) => {
@@ -23,16 +21,12 @@ function holding() {
   return { fetch, requests };
 }
 
-/** Lets TanStack Query start the fetches it scheduled. */
 const settled = () => new Promise(resolve => setTimeout(resolve, 0));
 
 const week: ReportFilterBody = { start_date: '2026-11-02', end_date: '2026-11-08' };
 const month: ReportFilterBody = { start_date: '2026-11-01', end_date: '2026-11-30' };
 
-/**
- * The report view: one observer whose options follow the filters. It shows `first` and, on
- * `replace`, switches to `next`, as when the user changes a filter.
- */
+/** One observer whose options follow the filters; `replace` switches to `next`, as a filter change does. */
 function view<TQueryFnData, TData, TKey extends QueryKey>(
   qc: QueryClient,
   first: QueryObserverOptions<TQueryFnData, Error, TData, TQueryFnData, TKey>,

@@ -15,7 +15,6 @@ const create = async (ctx: TestContext, wid: number, body: Record<string, unknow
   return created.body as { id: number };
 };
 
-/** The first entry `/me/time_entries?meta=true` lists over every date. */
 const firstListed = async (ctx: TestContext) => {
   const listed = await ctx.json('GET', '/api/v9/me/time_entries?meta=true&start_date=2000-01-01&end_date=2100-01-01');
   assert.equal(listed.status, 200);

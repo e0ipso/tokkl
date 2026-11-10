@@ -1,9 +1,4 @@
-/**
- * The application services the HTTP layer calls: domain operations bound to storage, the signed-in
- * credential checks around them, timer delivery, periodic maintenance and the report executor
- * `app.ts` builds. Each operation opens its own transaction and binds what it publishes, so a route parses, calls one
- * operation and presents the answer. Framework-free; `app.ts` composes them with the HTTP adapters.
- */
+/** Each operation opens its own transaction and binds what it publishes. Framework-free. */
 import type { Clock, Repositories, Storage, TimerBus } from '../domain/ports.ts';
 import type { Id } from '../domain/model.ts';
 import type {
@@ -47,9 +42,7 @@ import {
   type TimerStreams,
 } from './timerStreams.ts';
 
-/** The limits the services run with. `index.ts` passes `DEFAULT_SERVICE_SETTINGS`. */
 export interface ServiceSettings {
-  /** The keep-alive interval and the bounds of this process's timer streams. */
   timerStreams: Readonly<TimerStreamLimits>;
 }
 
@@ -59,31 +52,22 @@ export const DEFAULT_SERVICE_SETTINGS: Readonly<ServiceSettings> = Object.freeze
 
 interface ApplicationServiceOptions {
   storage: Storage;
-  /** Runs reports and export assemblies. The services close it when they close. */
+  /** The services close it when they close. */
   reports: ReportExecutor;
   settings: Readonly<ServiceSettings>;
-  /** Signals timer revisions to other processes and refreshes streams on their signals. */
   bus: TimerBus;
-  /** Where timer operations and maintenance read the time. */
   clock: Clock;
   logger?: Logger;
-  /** The deployment's session length, used until an admin stores one. */
+  /** Used until an admin stores one. */
   sessionDays: number;
 }
 
 const refused = () => forbidden('Incorrect username and/or password');
 
-/** Write transactions that refuse a credential that no longer holds. */
 type GuardedTransactions = Pick<Storage, 'transaction'>;
-/** Guarded write transactions and read snapshots, for operations that also read without writing. */
 type GuardedRunner = Pick<Storage, 'transaction' | 'readSnapshot'>;
 
-/**
- * Transactions on `storage` that refuse a credential that no longer holds. Account operations
- * (`administrative`) check once under the instance guard. Other work checks before and again after
- * it ran, because it holds the actor's user guard only once the domain took it: a credential
- * changed while the write waited rolls the write back. Nothing else of `storage` is in reach.
- */
+/** Admin operations check once under the instance guard; others check before and after, rolling back on a change. */
 function guardedTransactions(
   storage: Storage,
   authentication: Authentication,
@@ -102,7 +86,7 @@ function guardedTransactions(
   };
 }
 
-/** Read snapshots on `storage` that check the credential in the same snapshot before `work` reads. */
+/** Checks the credential in the same snapshot before `work` reads. */
 function guardedSnapshot(storage: Storage, authentication: Authentication): Storage['readSnapshot'] {
   return work =>
     storage.readSnapshot(async repositories => {
@@ -111,7 +95,6 @@ function guardedSnapshot(storage: Storage, authentication: Authentication): Stor
     });
 }
 
-/** Guarded transactions and guarded read snapshots: what account and timer operations take. */
 function guardedRunner(storage: Storage, authentication: Authentication, administrative = false): GuardedRunner {
   return {
     ...guardedTransactions(storage, authentication, administrative),
@@ -119,16 +102,11 @@ function guardedRunner(storage: Storage, authentication: Authentication, adminis
   };
 }
 
-/** A credential change rechecks the account's open timer streams. */
 const accountSecurity = (timerStreams: Pick<TimerStreams, 'recheck'>): AccountSecurityEffects => ({
   recheckUser: id => timerStreams.recheck(id),
 });
 
-/**
- * The account operations without a credential check, for the session handlers alone: setup,
- * sign-in, invites and password resets run before the request has a credential. Routers get the
- * guarded `accountsFor` instead.
- */
+/** No credential check: these run before the request has one. Routers use the guarded `accountsFor`. */
 export function createSessionAccountOperations(
   storage: Storage,
   services: Pick<ApplicationServices, 'timerStreams'>,
@@ -157,7 +135,6 @@ export function createApplicationServices({
   const { publish } = push;
   const entryEffects = createAccountEntryEffects<Repositories>(push);
   const maintenance = startMaintenance(storage, { clock, logger });
-  /** Runs read queries in one snapshot, after checking the credential in that same snapshot. */
   function readFor<T>(
     authentication: Authentication,
     work: (queries: ReadQueries) => Promise<T>,
@@ -174,7 +151,6 @@ export function createApplicationServices({
     timerStreams,
     push,
     reports,
-    /** Builds each timer stream's keep-alive credential check. */
     streamCredentials,
     /** The claim runs before the stream joins, so it never shares a group with a deleted account's streams. */
     openTimerStream(authentication: Authentication, res: EventStreamResponse): Promise<void> {
@@ -187,13 +163,9 @@ export function createApplicationServices({
       );
     },
     readFor,
-    /** Admits an import before it reads its file, or refuses it with a 503 and `Retry-After`. */
+    /** Refuses with a 503 and `Retry-After` before the file is read. */
     importAdmission: createImportAdmission(),
-    /**
-     * Takes a place in the report runner's download lane, then writes the signed-in account's export
-     * to `output`, a batch of entries at a time, after checking the credential in the export's own
-     * snapshot. A full lane or a cancelled request reads nothing.
-     */
+    /** A full lane or a cancelled request reads nothing. The credential is checked in the export's own snapshot. */
     exportAccount(
       authentication: Authentication,
       assembly: ExportAssemblyJob,
@@ -205,14 +177,12 @@ export function createApplicationServices({
         slot.export(assembly, output, { authentication }),
       );
     },
-    /** The account operations a signed-in user reaches, acting as `authentication`'s user. */
     accountsFor(authentication: Authentication) {
       const operations = createAccountOperations(guardedRunner(storage, authentication, true), security);
       const { user, credential } = authentication;
       const actorId = user.id;
       return {
         setAccess: (userId: Id, change: AccessChange) => operations.setAccess(actorId, userId, change),
-        /** `email` is what the admin typed to confirm; it must name the account being deleted. */
         deleteAccount: (userId: Id, email: string | undefined) =>
           operations.deleteAccount(actorId, userId, email, entryEffects),
         revokeSessions: (userId: Id) => operations.revokeSessions(actorId, userId),
@@ -222,13 +192,12 @@ export function createApplicationServices({
         updateSettings: (changes: SettingChanges) => operations.updateSettings(actorId, changes, sessionDays),
         updateWorkspace: (workspaceId: Id, changes: WorkspaceChanges) =>
           operations.updateWorkspace(actorId, workspaceId, changes),
-        /** A password change also needs the current password, checked through `attempt`. */
         updateProfile: (update: ProfileUpdate, attempt?: AccountPasswordAttempt) =>
           operations.updateProfile(user, credential, update, entryEffects, attempt),
         rotateApiToken: () => operations.rotateApiToken(user, credential),
       };
     },
-    /** Preferences take only the user's guard, so their credential check runs before and after. */
+    /** Takes only the user's guard, so the credential check runs before and after. */
     preferencesFor: (authentication: Authentication) =>
       createPreferenceOperations(guardedTransactions(storage, authentication), authentication.user.id),
     timersFor: (authentication: Authentication): PresentedTimerOperations =>

@@ -2,8 +2,7 @@ import type { Kysely } from 'kysely';
 import { sql } from 'kysely';
 import type { FixtureDatabase } from './database.ts';
 
-// Deliberate corruption and physical metadata unavailable through public storage contracts.
-// Never accepts a URL or an unregistered connection. These writes intentionally do not publish.
+// Physical access the public storage contracts lack. Never accepts a URL; these writes do not publish.
 const connections = new WeakMap<FixtureDatabase, Kysely<any>>();
 export function registerPhysicalFixture(handle: FixtureDatabase, connection: Kysely<any>): void {
   connections.set(handle, connection);
@@ -25,13 +24,11 @@ export async function removeWorkspaceMember(
     .executeTakeFirst();
   return Number(result.numDeletedRows);
 }
-/** SQLite file-copy semantics are tested separately from portable report behavior. */
 export async function copySQLiteFile(handle: FixtureDatabase, filename: string): Promise<void> {
   if (handle.backend !== 'sqlite') throw Error('SQLite fixture required');
   await sql`VACUUM INTO ${filename}`.execute(physical(handle));
 }
 
-/** Token hashes, used-token history, session counts and setting attribution have no public read port. */
 export async function tokenRows(handle: FixtureDatabase): Promise<Array<Record<string, any>>> {
   return normalizeRows(await physical(handle).selectFrom('account_tokens').selectAll().orderBy('id').execute());
 }
@@ -42,7 +39,6 @@ export async function idempotencyKeyCount(handle: FixtureDatabase): Promise<numb
     .executeTakeFirstOrThrow();
   return Number(row.n);
 }
-/** Rows in the rate limiter's tables, expired ones included. */
 export async function rateLimitRowCounts(handle: FixtureDatabase): Promise<{ reservations: number; counters: number }> {
   const count = async (table: 'rate_limit_reservations' | 'rate_limit_counters') =>
     Number(
@@ -83,7 +79,6 @@ function normalizeRows(rows: Array<Record<string, any>>): Array<Record<string, a
     ),
   );
 }
-/** Backdate or corrupt a known fixture record without application validation or publication. */
 export async function corruptRecord(
   handle: FixtureDatabase,
   table:
@@ -104,10 +99,7 @@ export async function corruptRecord(
   for (const [key, value] of Object.entries(where)) q = q.where(key, '=', value);
   await q.execute();
 }
-/**
- * Inserts `count` trashed entries for `userId` in `workspaceId`, deleted one second apart going
- * back from `newestDeletedAt`. Faster than the API when a test needs more than a page of them.
- */
+/** Faster than the API when a test needs more than a page of them. */
 export async function insertTrashedEntries(
   handle: FixtureDatabase,
   target: { userId: number; workspaceId: number; count: number; newestDeletedAt: string },
@@ -141,7 +133,6 @@ export async function corruptSetting(handle: FixtureDatabase, value: string): Pr
     .values({ key: 'time_resolution_minutes', value, updated_at: '2026-01-01T00:00:00.000Z', updated_by: null })
     .execute();
 }
-/** Force a real statement failure at the membership write, then restore only this fixture's trigger. */
 export async function failMembershipInsert(handle: FixtureDatabase): Promise<() => Promise<void>> {
   const db = physical(handle);
   if (handle.backend === 'sqlite')

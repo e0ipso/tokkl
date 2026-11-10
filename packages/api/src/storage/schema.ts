@@ -318,11 +318,8 @@ export function baselineDDL(backend: Backend): string[] {
     }),
   ];
 }
-// InnoDB checks a unique secondary key with gap locks around it, even under READ COMMITTED.
-// A timer switch stops one entry and starts another under the same running key, so the check
-// locked gaps beside other users' keys and stalled their writes. A primary key row per user
-// keeps one running entry per user and locks only that user's row. time_entries_running stays
-// as a plain lookup index.
+// InnoDB checks unique secondary keys with gap locks, even under READ COMMITTED, which stalled other
+// users' timer switches. A per-user primary key row keeps one running entry and locks only that row.
 export function runningEntriesDDL(backend: Backend): string[] {
   if (!serverDDL(backend)) return [];
   const q = (v: string) => quote(backend, v);
@@ -340,9 +337,8 @@ export function runningEntriesDDL(backend: Backend): string[] {
     `ALTER TABLE ${q('time_entries')} DROP INDEX ${q('time_entries_running')}, ADD INDEX ${q('time_entries_running')} (${q('running_user_id')})`,
   ];
 }
-// Shared failure counters for login, link and setup-code limits. Reservations hold in-flight
-// checks, one row per slot. Their random primary key and plain secondary indexes keep InnoDB from
-// taking gap locks beside other keys; counter rows are locked by primary key only.
+// Reservations hold in-flight checks, one row per slot. Random primary keys and plain indexes keep InnoDB
+// from gap-locking beside other keys; counters lock by primary key only.
 export const rateLimitTables: Record<string, Record<string, Column>> = {
   rate_limit_counters: { key_hash: { ...key, primary: true }, reset_at: instant, failures: integer },
   rate_limit_reservations: { id: { ...key, primary: true }, key_hash: key, expires_at: instant },
@@ -356,9 +352,8 @@ export const rateLimitIndexes: SchemaIndex[] = [
   },
   { name: 'rate_limit_reservations_expires_at', table: 'rate_limit_reservations', columns: ['expires_at'] },
 ];
-// Idempotency keys of creates, one row per user and key, holding the digest of the request and the
-// id of what it created. The primary key is a hash of the user and the client's key, so a lookup
-// locks one row by primary key on InnoDB and the table holds no client text.
+// The primary key hashes the user and the client's key, so a lookup locks one row on InnoDB and the
+// table holds no client text.
 export const idempotencyTables: Record<string, Record<string, Column>> = {
   idempotency_keys: {
     key_hash: { ...key, primary: true },
@@ -378,18 +373,13 @@ export function idempotencyDDL(backend: Backend): string[] {
     ...idempotencyIndexes.map(index => indexDDL(backend, index)),
   ];
 }
-/** Columns later migrations added to baseline tables, by table. */
 export const addedColumns: Record<string, Record<string, Column>> = {
-  // The Pomodoro session entry the revision's state showed; settlement compares it with the next.
+  // Settlement compares it with the next state's.
   timer_states: { session_entry_id: optional(integer) },
   // Counts the writes that change the workspace's v9 project list; see `catalogRevisionDDL`.
   workspaces: { catalog_revision: def(integer, '0') },
 };
-/**
- * Adds `timer_states.session_entry_id` and fills it from the stored fingerprints, whose
- * `session.entryId` holds the same id. A fingerprint that is not JSON, or holds no whole-number id,
- * leaves the column null.
- */
+/** Filled from the stored fingerprints' `session.entryId`; a non-JSON fingerprint or non-integer id leaves null. */
 export function timerSessionEntryDDL(backend: Backend): string[] {
   const q = (v: string) => quote(backend, v);
   const column = 'session_entry_id';
@@ -404,11 +394,7 @@ export function timerSessionEntryDDL(backend: Backend): string[] {
         : `CASE WHEN JSON_VALID(${f}) THEN CASE WHEN JSON_TYPE(JSON_EXTRACT(${f}, '$.session.entryId')) IN ('INTEGER', 'UNSIGNED INTEGER') THEN CAST(JSON_EXTRACT(${f}, '$.session.entryId') AS SIGNED) END END`;
   return [add, `UPDATE ${q('timer_states')} SET ${q(column)} = ${fill}`];
 }
-/**
- * Adds `workspaces.catalog_revision`. Every project and client write, and a change of the default
- * currency, adds one to it in the same transaction, so a client that caches the project list can
- * tell whether to read it again. Existing workspaces start at 0.
- */
+/** Project, client and currency writes bump it in the same transaction. Existing workspaces start at 0. */
 export function catalogRevisionDDL(backend: Backend): string[] {
   const column = 'catalog_revision';
   return [

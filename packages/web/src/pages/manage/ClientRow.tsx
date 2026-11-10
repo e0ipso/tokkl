@@ -3,7 +3,6 @@ import { Icon } from '../../components/Icon.tsx';
 import { RowMenu, StatusBadge } from './ui.tsx';
 import { t } from '../../i18n/messages.ts';
 
-/** One client in the list, with Edit and a menu that archives, restores or deletes it. */
 export function ClientRow({
   client,
   projects,
@@ -13,7 +12,6 @@ export function ClientRow({
   onDelete,
 }: {
   client: Client;
-  /** How many projects the client has. */
   projects: number;
   onEdit: () => void;
   onArchive: () => void;

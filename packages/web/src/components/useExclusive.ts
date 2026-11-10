@@ -1,17 +1,12 @@
 import { useCallback, useRef, useState } from 'react';
 
 export interface Exclusive {
-  /** True while an action runs, for disabling the controls that would start another. */
   busy: boolean;
-  /** Runs `action` unless one is already running, in which case the call does nothing. */
+  /** A call while one runs does nothing. */
   run: (action: () => Promise<unknown>) => Promise<void>;
 }
 
-/**
- * Lets one of a group of actions run at a time, such as an editor's Save, Duplicate and Delete. The
- * guard is a ref set before the first await, so a second click or a key repeat in the same frame
- * is refused before React has rendered `busy`.
- */
+/** The guard is a ref set before the first await, so a same-frame second click is refused before `busy` renders. */
 export function useExclusive(): Exclusive {
   const running = useRef(false);
   const [busy, setBusy] = useState(false);

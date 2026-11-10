@@ -1,12 +1,10 @@
 import type { MessageGroup } from '../catalog.ts';
 
-/** Pomodoro sessions: the page, its start form and running card, the phase banner and steppers. */
 export const pomodoro = {
   title: 'Pomodoro',
   phaseWork: 'Work',
   phaseShortRest: 'Short rest',
   phaseLongRest: 'Long rest',
-  /** The tab title while a session runs. */
   sessionTitle: '{phase} · {clock} · {app}',
   sessionTitleOvertime: '{phase} · +{clock} overtime · {app}',
   tooShort: 'This pomodoro was too short to save.',

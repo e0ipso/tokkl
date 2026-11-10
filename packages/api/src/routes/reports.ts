@@ -31,19 +31,16 @@ type ReportRouteDeps = Pick<Deps, 'auth' | 'readFor' | 'reports'>;
 
 /** Toggl's Reports API v3 rejects ranges longer than a year. */
 const TOGGL_MAX_DAYS = 366;
-/** The detailed search's page size when none is sent, and the largest it clamps to. */
+/** Also the largest it clamps to. */
 const TOGGL_DEFAULT_PAGE_SIZE = 50;
 const TOGGL_MAX_PAGE_SIZE = 1000;
 
-/** The workspace in the URL, when the signed-in user is a member of it; 403 otherwise. */
+/** 403 unless the user is a member. */
 function workspaceFor(deps: ReportRouteDeps, req: Request, res: Response): Promise<Workspace> {
   return deps.readFor(res.locals.auth, queries => queries.workspace(res.locals.auth.user.id, parseId(req.params.wid)));
 }
 
-/**
- * A report handler that holds a place in the report queue from the start, so a full queue answers
- * before the handler reads the workspace or parses the request. The place is the signed-in account's.
- */
+/** Holds a report-queue place from the start, so a full queue answers before any read or parse. */
 function queued(
   deps: ReportRouteDeps,
   handler: (req: Request, res: Response, slot: ReportSlot) => Promise<void>,
@@ -54,10 +51,7 @@ function queued(
     );
 }
 
-/**
- * A detailed CSV handler that holds a place in the download lane from the start, the way `queued`
- * holds one in the report queue.
- */
+/** Same as `queued`, in the download lane. */
 function downloading(
   deps: ReportRouteDeps,
   handler: (req: Request, res: Response, slot: ReportSlot) => Promise<void>,
@@ -68,10 +62,7 @@ function downloading(
     );
 }
 
-/**
- * Streams a detailed CSV from the download lane, a batch at a time. The headers go out with the
- * first piece, so refusals before it keep their status.
- */
+/** Headers go out with the first piece, so refusals before it keep their status. */
 function sendCsv(slot: ReportSlot, res: Response, ws: Workspace, job: CsvDownloadJob): Promise<void> {
   const headers = {
     'Content-Type': 'text/csv; charset=utf-8',
@@ -80,7 +71,6 @@ function sendCsv(slot: ReportSlot, res: Response, ws: Workspace, job: CsvDownloa
   return streamDownload(res, headers, output => slot.report(ws.id, job, output, { authentication: res.locals.auth }));
 }
 
-/** Builds the response in the report runner and sends it. */
 async function send(slot: ReportSlot, res: Response, ws: Workspace, job: ReportJob): Promise<void> {
   const result: JobResult = await slot.run(ws.id, job, { authentication: res.locals.auth });
   res.set(result.headers);
@@ -93,10 +83,7 @@ async function send(slot: ReportSlot, res: Response, ws: Workspace, job: ReportJ
   res.send(result.body);
 }
 
-/**
- * The parts of Toggl's Reports API v3 that make sense for one person: detailed (with paging),
- * totals, summary, weekly, and CSV exports.
- */
+/** The parts that make sense for one person: detailed (with paging), totals, summary, weekly, and CSV. */
 export function reportsV3Routes(deps: ReportRouteDeps): Router {
   const api = createRouter();
   api.use(deps.auth.requireAuth);
@@ -220,15 +207,14 @@ export function reportsV3Routes(deps: ReportRouteDeps): Router {
   return api;
 }
 
-/** The web app's detailed report page size when none is sent, and the largest it may request. */
+/** Also the largest it may request. */
 const APP_DEFAULT_PAGE_SIZE = 100;
 const APP_MAX_PAGE_SIZE = 500;
 
-/** Report endpoint for the web app: totals, a time series and groupings in one response. */
+/** Totals, a time series and groupings in one response. */
 export function appReportRoutes(deps: ReportRouteDeps): Router {
   const api = createRouter();
 
-  /** The account's workspace, the request body and its filter, with the app's range allowance. */
   const appFilter = async (req: Request, res: Response) => {
     const user = res.locals.auth.user;
     // PUT /me accepts only a workspace the user belongs to, but a membership can end after that.

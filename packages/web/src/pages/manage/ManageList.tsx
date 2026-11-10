@@ -12,12 +12,8 @@ interface ManageListQuery<T> {
 }
 
 /**
- * The body of a manage page (clients, projects, tags): the load error, the loading state, the
- * empty states, and the table of the rows that pass the page's filters.
- *
- * `noun` names the items in the load messages ("clients"). `empty` shows when there are none at
- * all, `noMatch` when the filters hide every one. `headers` are the column headers before the
- * hidden Actions column, and `children` the visible rows.
+ * `empty` shows when there are no items, `noMatch` when the filters hide every one. `headers` precede
+ * the hidden Actions column.
  */
 export function ManageList<T>({
   query,

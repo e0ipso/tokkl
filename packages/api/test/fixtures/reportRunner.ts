@@ -1,7 +1,4 @@
-/**
- * One-call report and export runs for tests: each reserves a place for `userId` and queues one job
- * in it, the way a route does in two steps.
- */
+/** Each reserves a place for `userId` and queues one job in it, as a route does in two steps. */
 import type { Authentication } from '../../src/domain/credentials.ts';
 import type { ExportAssemblyJob, ExportEmitter } from '../../src/services/exportJobs.ts';
 import type { JobResult, ReportJob } from '../../src/services/reportJobs.ts';

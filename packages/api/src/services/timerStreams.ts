@@ -1,15 +1,14 @@
 import type { TimerState } from '@tokkl/types';
 import { forbidden, unavailable } from '../lib/errors.ts';
 
-/** A passing stream check carries the user's timer revision, read by the same user statement. */
+/** Read by the same statement as the user. */
 export type StreamCredentialResult = { valid: false } | { valid: true; revision: number };
 
-/** The parts of an HTTP response a stream writes to. Node's ServerResponse has them all. */
+/** Node's ServerResponse has them all. */
 export interface EventStreamResponse {
   readonly destroyed: boolean;
   readonly headersSent: boolean;
   readonly socket: { readonly destroyed: boolean } | null;
-  /** Bytes written and not yet handed to the socket. */
   readonly writableLength: number;
   on(event: 'close', listener: () => void): unknown;
   once(event: 'drain', listener: () => void): unknown;
@@ -30,29 +29,23 @@ const refused = () => forbidden('Incorrect username and/or password');
 /** A full process sheds the stream; the client polls meanwhile and tries again. */
 const STREAMS_FULL_RETRY_SECONDS = 5;
 const KEEP_ALIVE_EVENT = 'event: keep-alive\ndata:\n\n';
-/**
- * The bounds of the reconnect wait, in milliseconds, that a stream's first event names in its
- * `retry:` field. Each stream gets its own random wait between them, so clients that lost their
- * streams together, after a restart or a proxy reload, do not all reconnect at once.
- */
+/** A random reconnect wait per stream, so clients that lost their streams together do not reconnect at once. */
 const RECONNECT_DELAY_MS = Object.freeze({ min: 5000, max: 15000 });
 const reconnectDelay = () =>
   RECONNECT_DELAY_MS.min + Math.floor(Math.random() * (RECONNECT_DELAY_MS.max - RECONNECT_DELAY_MS.min + 1));
-/** The keep-alive interval and the bounds of one process's timer streams. */
 export interface TimerStreamLimits {
-  /** How often each user's ready streams get a keep-alive and a credential check. */
+  /** Also runs the credential check. */
   keepAliveMs: number;
-  /** How long a stream whose socket stopped taking data may wait for it to drain before it ends. */
+  /** How long a full socket may take to drain before the stream ends. */
   drainTimeoutMs: number;
-  /** Bytes a stream may hold unsent. A write that would pass it ends the stream. */
+  /** A write past it ends the stream. */
   maxBufferedBytes: number;
-  /** Open and opening streams one user may hold. A new one past it ends the user's oldest. */
+  /** Counts opening streams; a new one past it ends the user's oldest. */
   maxPerUser: number;
-  /** Open and opening streams in this process. A new one past it is refused with a 503. */
+  /** Counts opening streams; a new one past it gets a 503. */
   maxStreams: number;
 }
 
-/** The limits the server runs with. */
 export const DEFAULT_TIMER_STREAM_LIMITS: Readonly<TimerStreamLimits> = Object.freeze({
   keepAliveMs: 25000,
   drainTimeoutMs: 30000,
@@ -62,18 +55,17 @@ export const DEFAULT_TIMER_STREAM_LIMITS: Readonly<TimerStreamLimits> = Object.f
 });
 
 interface TimerStreamOptions extends TimerStreamLimits {
-  /** Called, never awaited, when a keep-alive check reads a revision newer than this process delivered. */
+  /** Called, never awaited, when a check reads a revision newer than this process delivered. */
   onBehind?: (id: number, revision: number) => void;
 }
 type PassingCheck = Extract<StreamCredentialResult, { valid: true }>;
 interface Stream {
   res: EventStreamResponse;
   check: () => Promise<StreamCredentialResult>;
-  /** Streams with the same key hold the same credential, so one check answers for all of them. */
+  /** Streams with the same key share one check. */
   credential: string | symbol;
   ready: boolean;
   revision: number;
-  /** Set while the socket is full: the drain listener and the timeout that ends the stream. */
   draining?: { listener: () => void; timeout: NodeJS.Timeout };
 }
 interface Group {
@@ -81,14 +73,10 @@ interface Group {
   queue: Promise<void>;
   latest?: TimerState;
   retired?: boolean;
-  /** One keep-alive timer for the group's ready streams. */
   timer?: NodeJS.Timeout;
   ticking: boolean;
 }
-/**
- * Process-local delivery of committed states. Credential checks serialize per user, and streams of
- * one credential share each check's result.
- */
+/** Process-local. Credential checks serialize per user, and streams of one credential share each result. */
 export class TimerStreams {
   readonly #state: (id: number) => Promise<TimerState>;
   readonly #users = new Map<number, Group>();
@@ -123,17 +111,12 @@ export class TimerStreams {
     group.queue = next.catch(() => {});
     return this.#track(next);
   }
-  /** Open and opening streams in this process. */
   #count(): number {
     let count = 0;
     for (const group of this.#users.values()) count += group.streams.size;
     return count;
   }
-  /**
-   * Adds `stream` to the user's group within both caps, before anything checks or builds for it.
-   * Past the per-user cap, the user's oldest streams end to make room for the new one. When the
-   * process would still be over its cap, the new stream is refused and nothing changes.
-   */
+  /** Past the per-user cap the oldest streams end; past the process cap the new stream is refused. */
   #join(id: number, stream: Stream): Group {
     const held = this.#users.get(id)?.streams.size ?? 0;
     const ending = Math.max(0, held + 1 - this.#options.maxPerUser);
@@ -150,10 +133,7 @@ export class TimerStreams {
   #live(group: Group, stream: Stream): boolean {
     return !this.#closed && !group.retired && group.streams.has(stream) && !stream.res.destroyed;
   }
-  /**
-   * The passing check result of each of `streams` that may still receive. Each credential is
-   * checked once, in order; a check that throws fails every stream holding that credential.
-   */
+  /** Each credential is checked once, in order; a check that throws fails every stream holding it. */
   async #passing(group: Group, streams: Stream[]): Promise<Map<Stream, PassingCheck>> {
     const results = new Map<string | symbol, StreamCredentialResult>();
     const passing = new Map<Stream, PassingCheck>();
@@ -168,7 +148,7 @@ export class TimerStreams {
     }
     return passing;
   }
-  /** The passing check result, or undefined when the stream must not receive anything. */
+  /** Undefined when the stream must not receive anything. */
   async #valid(group: Group, stream: Stream): Promise<PassingCheck | undefined> {
     return (await this.#passing(group, [stream])).get(stream);
   }
@@ -180,7 +160,6 @@ export class TimerStreams {
       /* A broken subscriber cannot suppress another. */
     }
   }
-  /** Drops `stream` from its group, and the group's timer and entry once it holds none. */
   #forget(id: number, group: Group, stream: Stream): void {
     if (stream.draining) {
       clearTimeout(stream.draining.timeout);
@@ -193,10 +172,7 @@ export class TimerStreams {
     group.timer = undefined;
     if (this.#users.get(id) === group) this.#users.delete(id);
   }
-  /**
-   * Writes `message` unless the stream holds too much unsent. A full socket does not end the
-   * stream: it gets `drainTimeoutMs` to drain, and only a stream still full after that ends.
-   */
+  /** A full socket gets `drainTimeoutMs` to drain; only a stream still full after that ends. */
   #write(id: number, group: Group, stream: Stream, message: string): void {
     if (group.retired || !group.streams.has(stream)) return;
     try {
@@ -221,10 +197,7 @@ export class TimerStreams {
     stream.draining = { listener, timeout };
     stream.res.once('drain', listener);
   }
-  /**
-   * Opens a stream of `id`'s states. `credential` names the credential `check` tests: streams of
-   * one user that pass the same key share each check. Without one, the stream is checked alone.
-   */
+  /** Streams of one user with the same `credential` share each check; without one, the stream is checked alone. */
   open(
     id: number,
     res: EventStreamResponse,
@@ -233,11 +206,7 @@ export class TimerStreams {
   ): Promise<void> {
     return this.#track(this.#open(id, res, check, credential));
   }
-  /**
-   * Admits the stream, checks the credential, builds the first state, then sends the headers and
-   * that state. Until the headers go out a refusal or failure still reaches the client as a normal
-   * JSON error. A stream ended while it opens, by the cap or its client, stops where it is.
-   */
+  /** Until the headers go out, a refusal reaches the client as a JSON error. */
   async #open(
     id: number,
     res: EventStreamResponse,
@@ -265,10 +234,7 @@ export class TimerStreams {
       throw error;
     }
   }
-  /**
-   * Builds after the user's pending build, if any; undefined when the stream ended while it waited.
-   * A commit may overtake this initial snapshot.
-   */
+  /** Waits for the user's pending build; undefined when the stream ended meanwhile. A commit may overtake it. */
   async #initialState(id: number, group: Group, ended: () => boolean): Promise<TimerState | undefined> {
     // Registered before the awaited build, so a later stream waits for this one.
     const build = (this.#builds.get(id) ?? Promise.resolve())
@@ -282,7 +248,6 @@ export class TimerStreams {
       if (this.#builds.get(id) === build) this.#builds.delete(id);
     });
   }
-  /** Runs in the group queue: sends the headers and the newest state, then keeps the stream alive. */
   async #start(id: number, group: Group, stream: Stream, state: TimerState): Promise<void> {
     if (!group.streams.has(stream)) return;
     if (!(await this.#valid(group, stream))) throw refused();
@@ -300,11 +265,7 @@ export class TimerStreams {
     if (!group.streams.has(stream)) return;
     group.timer ??= setInterval(() => this.#tick(id, group), this.#options.keepAliveMs);
   }
-  /**
-   * A keep-alive for every ready stream of the group: recheck each credential once, send the event
-   * to the streams that pass, and ask for a refresh if this process is behind. A stream whose
-   * socket is still draining skips the event.
-   */
+  /** Rechecks each credential once; a stream whose socket is still draining skips the event. */
   #tick(id: number, group: Group): void {
     if (group.ticking) return;
     group.ticking = true;
@@ -333,7 +294,7 @@ export class TimerStreams {
         for (const stream of ready()) this.#end(id, group, stream);
       });
   }
-  /** Forgets a stream that never sent its headers, so the error handler can still answer. */
+  /** So the error handler can still answer. */
   #discard(id: number, group: Group, stream: Stream): void {
     this.#forget(id, group, stream);
   }
@@ -362,7 +323,6 @@ export class TimerStreams {
       }
     });
   }
-  /** True while this process holds at least one open or opening stream for the user. */
   hasStreams(id: number): boolean {
     return !this.#closed && !!this.#users.get(id)?.streams.size;
   }
@@ -390,7 +350,7 @@ export class TimerStreams {
     while (this.#pending.size) await Promise.allSettled([...this.#pending]);
   }
 }
-/** A timer event; `retryMs` adds the `retry:` field, after `event:` so line-splitting readers still see the type first. */
+/** `retry:` goes after `event:` so line-splitting readers still see the type first. */
 function timerEvent(state: TimerState, retryMs?: number): string {
   const retry = retryMs === undefined ? '' : `retry: ${retryMs}\n`;
   return `event: timer\n${retry}data: ${JSON.stringify(state)}\n\n`;

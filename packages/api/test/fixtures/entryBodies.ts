@@ -1,7 +1,4 @@
-/**
- * The time entry and timer operations as a request reaches them: each raw body is parsed by the
- * same command parser the routes use, then handed to the domain. Domain tests keep their bodies.
- */
+/** Raw bodies go through the routes' command parsers. */
 import { parseEntryChanges, parseEntryPatch, parseNewEntry, parseStopAt } from '../../src/commands/timeEntries.ts';
 import { parseRevision, parseStartPomodoro } from '../../src/commands/timers.ts';
 import * as domain from '../../src/domain/timeEntries.ts';
@@ -58,20 +55,15 @@ export const patchTimeEntries = async (
   publish: TimerPublication,
 ) => domain.patchTimeEntries(ctx, seen, wid, ids, parseEntryPatch(operations), publish);
 
-/** An import writer that takes raw entry bodies, as the importers build them. */
 export const bodyWriter = (writer: ExactEntryImport) => ({
   savepoint: writer.savepoint,
   create: async (body: Body) => writer.create(parseNewEntry(body)),
 });
 
 type Timers = PresentedTimerOperations;
-/** Builds one user's timer operations on `clock`. */
 type TimersFor = (userId: number, clock: Clock) => Timers;
 
-/**
- * Timer operations that take the user's id first and an optional time last. Each call builds
- * `forUser(userId, clock)` on a clock fixed at that time, or on the system clock without one.
- */
+/** Each call builds `forUser(userId, clock)` on a clock fixed at the optional time, else the system clock. */
 export function timersById(forUser: TimersFor) {
   const at = (userId: number, now: Date | undefined) => forUser(userId, now ? fixedClock(now) : systemClock);
   return {
@@ -88,7 +80,6 @@ export function timersById(forUser: TimersFor) {
   };
 }
 
-/** `timersById` that takes a raw Pomodoro body and an unchecked revision. */
 export function bodyTimers(forUser: TimersFor) {
   const timers = timersById(forUser);
   return {

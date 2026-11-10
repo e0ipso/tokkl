@@ -1,12 +1,6 @@
-/**
- * How many imports may run at once. An import holds one long transaction over a file of up to
- * 50 MB, and its parsed records stay in memory until it commits, so the server takes a few at a
- * time, one per account, and only as many bytes of files at once as `maxBytes` allows. It refuses
- * the rest at once instead of queueing them behind each other's guards.
- */
+/** Imports hold a long transaction and their parsed records, so few run at once; the rest are refused, not queued. */
 import { unavailable } from '../lib/errors.ts';
 
-/** A refused import asks for a short wait, like a full report queue. */
 const IMPORT_BUSY_RETRY_SECONDS = 5;
 const DEFAULT_MAX_IMPORTS = 4;
 const DEFAULT_MAX_IMPORTS_PER_USER = 1;
@@ -14,35 +8,23 @@ const DEFAULT_MAX_IMPORTS_PER_USER = 1;
 const DEFAULT_MAX_IMPORT_BYTES = 64 * 1024 * 1024;
 
 interface ImportAdmissionOptions {
-  /** Imports running at once on this instance. Default 4. */
+  /** Default 4. */
   maxImports?: number;
-  /** Imports one account may run at once. Default 1; at most `maxImports`. */
+  /** Default 1; at most `maxImports`. */
   maxPerUser?: number;
-  /**
-   * File bytes the running imports may hold in all. An import that would pass it is refused,
-   * unless no other import runs, so any file within the body limit can still be imported.
-   * Default 64 MiB.
-   */
+  /** Exceeded only when no other import runs, so any file within the body limit imports. Default 64 MiB. */
   maxBytes?: number;
 }
 
-/**
- * One admitted import. The place stays taken until the holder released it and every piece of work
- * it was lent to has settled, so a request that ends early cannot free a place its transaction
- * still uses.
- */
+/** Taken until released and every lent piece of work settled, so an early request end cannot free it. */
 export interface ImportPlace {
-  /** Keeps the place until `work` settles too, and answers `work`. */
   during<T>(work: Promise<T>): Promise<T>;
-  /** Gives the holder's claim back. Calling it again does nothing. */
+  /** Calling it again does nothing. */
   release(): void;
 }
 
 interface ImportAdmission {
-  /**
-   * Takes a place for `userId`'s import of a file of `bytes`, or throws a 503 with `Retry-After`
-   * when none is free or the file does not fit beside the running ones.
-   */
+  /** Throws a 503 with `Retry-After` when no place is free or the file does not fit beside the running ones. */
   admit(userId: number, bytes: number): ImportPlace;
 }
 

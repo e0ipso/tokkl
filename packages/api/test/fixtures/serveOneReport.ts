@@ -1,6 +1,5 @@
-// Child process for the report worker test in reports.test.ts: serves the app on a file-backed
-// database, builds one report (which starts the worker), closes the server and then returns
-// without calling process.exit. The process must end on its own.
+// Child process for reports.test.ts: builds one report (starting the worker), closes the server and
+// returns without process.exit. The process must end on its own.
 import { mkdtempSync, rmSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';

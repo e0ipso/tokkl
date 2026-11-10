@@ -14,7 +14,6 @@ import { CSRF, PASSWORD, addUser, sessionCookie, setup, testConfig, testServer }
 
 const DAY_MS = 86_400_000;
 
-/** Serves `db` with its own config and returns a GET/PUT client signed in as `user` by API token. */
 function serveWith(db: FixtureDatabase, user: User, sessionDays = 30) {
   const server = testServer(
     createApp({ storage: storageFor(db), config: { ...testConfig(db), sessionDays }, setup: { code: null } }),
@@ -85,7 +84,6 @@ test('an admin stores settings, and they survive a restart on the same database'
     });
     assert.equal(put.status, 200);
     assert.deepEqual(put.body, { session_days: 90, invite_days: 3, time_resolution_minutes: 15 });
-    // One key at a time keeps the others.
     const partial = await serveWith(first, owner)('PUT', '/api/app/admin/settings', { invite_days: 14 });
     assert.deepEqual(partial.body, { session_days: 90, invite_days: 14, time_resolution_minutes: 15 });
     assert.deepEqual(await settingRows(first), [
@@ -139,7 +137,6 @@ test('out-of-range, non-integer and unknown settings return 400 and store nothin
     time_resolution_minutes: 5,
   });
 
-  // The bounds themselves are accepted.
   assert.equal((await admin.json('PUT', '/api/app/admin/settings', { session_days: 1, invite_days: 90 })).status, 200);
   assert.equal((await admin.json('PUT', '/api/app/admin/settings', { session_days: 365, invite_days: 1 })).status, 200);
 });
@@ -193,7 +190,6 @@ test('time_resolution_minutes accepts every divisor of 60 and nothing else', asy
     { time_resolution_minutes: '15' },
     { time_resolution_minutes: null },
     { time_resolution_minutes: true },
-    // A valid field in the same request is not stored either.
     { session_days: 10, invite_days: 3, time_resolution_minutes: 7 },
   ];
   for (const body of bodies) {
@@ -221,7 +217,6 @@ test('a stored time resolution outside the allowed values reads back as the defa
   }
 });
 
-// Every signed-in client learns the resolution from /api/v9/me; only an admin can change it.
 test('a regular user cannot change the time resolution and reads its effective value on /api/v9/me', async () => {
   const admin = await setup();
   const bob = await addUser(admin, { email: 'bob@example.com', role: 'user' });

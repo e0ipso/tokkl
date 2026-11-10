@@ -1,12 +1,8 @@
 import type { TimeEntry, TimerPause } from '@tokkl/types';
 import type { EntryDraft } from './useEntryFields.ts';
 
-/**
- * What the timer bar reads from the server's pause chain. Plain TypeScript with no React or DOM,
- * so node:test can load it.
- */
+/** No React or DOM, so node:test can load it. */
 
-/** The fields Resume starts, as the bar's draft. */
 export function pauseDraft(pause: TimerPause): EntryDraft {
   return {
     description: pause.description,
@@ -17,10 +13,7 @@ export function pauseDraft(pause: TimerPause): EntryDraft {
   };
 }
 
-/**
- * Seconds the bar's clock shows: the chain total while paused or while its clone runs, otherwise
- * the running entry's own time, and 0 when idle. `serverNowMs` is the server-corrected clock.
- */
+/** The chain total while paused or while its clone runs, else the running entry's own time, 0 when idle. */
 export function barSeconds(
   running: Pick<TimeEntry, 'id' | 'start'> | null,
   pause: TimerPause | null,

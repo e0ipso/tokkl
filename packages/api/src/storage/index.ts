@@ -11,7 +11,7 @@ import { createReportRepositories } from './repositories/reports.ts';
 
 type StorageOptions = TransactionRunnerOptions;
 
-/** Takes ownership of an initialized connection. Every operation binds all repositories together. */
+/** Takes ownership of the connection. Every operation binds all repositories together. */
 export function createStorage(connection: StorageConnection<PhysicalDatabase>, options: StorageOptions = {}): Storage {
   const operations = createTransactionRunner(
     connection,
@@ -59,10 +59,7 @@ export function createStorage(connection: StorageConnection<PhysicalDatabase>, o
   };
 }
 
-/**
- * Rate limit counters outside any other unit of work: each call is its own short transaction, so a
- * password check never runs with a transaction open and every instance on the database sees it.
- */
+/** Each call is its own short transaction, so no password check holds one open. */
 export function standaloneRateLimits(storage: Pick<Storage, 'transaction'>): RateLimitChecks {
   return {
     reserve: (...args) => storage.transaction(ctx => ctx.rateLimits.reserve(...args)),

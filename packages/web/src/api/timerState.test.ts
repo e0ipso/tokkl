@@ -84,7 +84,6 @@ test('only objects shaped like a timer state pass the guard', () => {
 });
 
 test('a state whose nested parts are malformed or missing fails the guard', () => {
-  // The revision and server time alone are not a state.
   assert.equal(isTimerState({ revision: 1, server_time: '2026-10-27T10:00:05.000Z' }), false);
   assert.equal(isTimerState(state(1, { running_entry: { ...entry, start: 5 } as unknown as TimeEntry })), false);
   assert.equal(isTimerState(state(1, { pause: { ...pause, paused: 'yes' } as unknown as TimerPause })), false);
@@ -176,10 +175,6 @@ test('a write that got no reply, a 5xx, or a 2xx that does not parse or decode m
   for (const error of refused) assert.equal(isOutcomeUnknown(error), false, error.message);
 });
 
-/**
- * Starts a mutation in `qc` that stays pending until the returned function is called. It is marked
- * as moving the timer revision unless `meta` says otherwise.
- */
 function pendingWrite(qc: QueryClient, meta: { movesTimer?: boolean } = MOVES_TIMER): () => void {
   let release = () => {};
   const held = new Promise<void>(resolve => {
@@ -269,7 +264,6 @@ test('a write held for the connection fails the action as offline instead of sen
 test('a write that the connection holds while the action waits for it fails the action as offline', async t => {
   const qc = new QueryClient();
   t.after(() => onlineManager.setOnline(true));
-  // The edit fails once and is held for its retry while the browser is offline.
   let calls = 0;
   void qc
     .getMutationCache()

@@ -1,7 +1,4 @@
-/**
- * Timezone helpers built on Intl. Instants are stored in UTC; calendar days
- * ("YYYY-MM-DD" keys) are always interpreted in the user's IANA timezone.
- */
+/** Instants are UTC; "YYYY-MM-DD" day keys are always read in the user's IANA timezone. */
 
 import type { ZonedParts } from '@tokkl/types';
 
@@ -28,10 +25,8 @@ function formatterFor(timeZone: string): Intl.DateTimeFormat {
 }
 
 /**
- * The name the running ICU gives `name`, so europe/madrid becomes Europe/Madrid and utc becomes UTC,
- * or null for a name Intl rejects. Offset IDs such as +02:00 are null too: the zone list browsers
- * offer has none, and java.time refuses offsets past ±18:00 that Intl takes. Backward links follow
- * ICU, so Asia/Kolkata may come back as Asia/Calcutta.
+ * The ICU spelling of `name` (europe/madrid -> Europe/Madrid), or null when Intl rejects it.
+ * Offset IDs such as +02:00 are null: browser zone lists have none, and java.time refuses some Intl takes.
  */
 export function canonicalTimeZone(name: string): string | null {
   if (/^[+\-−]/.test(name)) return null;
@@ -56,14 +51,13 @@ export function zonedParts(date: Date, timeZone: string): ZonedParts {
   };
 }
 
-/** Offset of `timeZone` from UTC at `date`, in milliseconds (positive east of UTC). */
+/** Positive east of UTC. */
 export function timeZoneOffsetMs(date: Date, timeZone: string): number {
   const p = zonedParts(date, timeZone);
   const asUtc = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
   return asUtc - Math.floor(date.getTime() / 1000) * 1000;
 }
 
-/** Converts a wall-clock time in `timeZone` to an instant. */
 export function zonedToUtc(
   year: number,
   month: number,
@@ -100,10 +94,7 @@ export function parseDateKey(key: string): { year: number; month: number; day: n
   return { year, month, day };
 }
 
-/**
- * First instant of the calendar day `key` in `timeZone`. Where clocks spring forward at midnight
- * (e.g. America/Santiago), 00:00 does not exist and the day starts at the end of the gap.
- */
+/** Where clocks spring forward at midnight (America/Santiago), the day starts at the end of the gap. */
 export function startOfDay(key: string, timeZone: string): Date {
   const parsed = parseDateKey(key);
   if (!parsed) throw new RangeError(`Invalid date: ${key}`);
@@ -120,17 +111,13 @@ export function startOfDay(key: string, timeZone: string): Date {
   return new Date(high);
 }
 
-/** Wall-clock minutes after local midnight in `timeZone`, with seconds as a fraction. */
+/** Seconds count as a fraction. */
 export function clockMinutes(date: Date, timeZone: string): number {
   const p = zonedParts(date, timeZone);
   return p.hour * 60 + p.minute + p.second / 60;
 }
 
-/**
- * Moves `date` by `minutes` on the local clock of `timeZone`, so 01:00 plus 120 is 03:00 even
- * when the clocks change in between. A result inside a spring gap lands after the gap; one inside
- * the repeated autumn hour resolves as zonedToUtc does.
- */
+/** 01:00 plus 120 is 03:00 even across a clock change. A result inside a spring gap lands after it. */
 export function addClockMinutes(date: Date, minutes: number, timeZone: string): Date {
   const p = zonedParts(date, timeZone);
   const shifted = zonedToUtc(p.year, p.month, p.day, p.hour, p.minute + minutes, p.second, timeZone);
@@ -138,12 +125,8 @@ export function addClockMinutes(date: Date, minutes: number, timeZone: string): 
 }
 
 /**
- * Wall-clock position, in minutes after midnight, of the part of [start, stop) that falls on day
- * `key` in `timeZone`; null when the range misses the day. Positions follow the local clock, so a
- * 10:00 entry sits at 600 even on DST days. A start clipped to the day begins at 0 and a stop
- * clipped at the next midnight ends at 1440. Inside the repeated autumn hour, bottom can be lower
- * than top. An empty range (start equals stop) belongs to the day that contains its instant, so
- * one at midnight is on the day that starts there, at 0.
+ * Local-clock minutes of the part of [start, stop) on day `key`, so 10:00 sits at 600 on DST days.
+ * Clipped ends are 0 and 1440; an empty range belongs to the day containing its instant.
  */
 export function clockSpanOnDay(
   start: Date,
@@ -170,14 +153,13 @@ export function addDays(key: string, days: number): string {
   return date.toISOString().slice(0, 10);
 }
 
-/** Day of week for a date key, 0 = Sunday. */
+/** 0 = Sunday. */
 export function weekdayOf(key: string): number {
   const parsed = parseDateKey(key);
   if (!parsed) throw new RangeError(`Invalid date: ${key}`);
   return new Date(Date.UTC(parsed.year, parsed.month - 1, parsed.day)).getUTCDay();
 }
 
-/** Date key of the first day of the week containing `key`. */
 export function startOfWeek(key: string, beginningOfWeek: number): string {
   const diff = (weekdayOf(key) - beginningOfWeek + 7) % 7;
   return addDays(key, -diff);

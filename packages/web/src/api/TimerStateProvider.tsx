@@ -9,11 +9,7 @@ import { TimerStreamingContext } from './timerStreaming.ts';
 
 const EVENTS_PATH = '/api/app/timer/events';
 
-/**
- * Keeps the timer state current for the signed-in account. It opens the event stream, writes each
- * state into the caches, and tells the hooks whether the stream is up so they poll only when it is
- * not. It remounts per account, so switching accounts reopens the stream, and signing out closes it.
- */
+/** Opens the event stream and tells the hooks whether to poll. Remounts per account; signing out closes it. */
 export function TimerStateProvider({ children }: { children: ReactNode }) {
   const { data: me } = useMe();
   return me ? <AccountTimerState key={me.id}>{children}</AccountTimerState> : children;
@@ -55,10 +51,7 @@ function AccountTimerState({ children }: { children: ReactNode }) {
   );
 }
 
-/**
- * Keeps the timer state query mounted so the state loads and the poll fallback runs whichever views
- * are on screen. It sits below the provider because the query reads whether the stream is up.
- */
+/** Keeps the timer query mounted whatever views are on screen; below the provider since it reads stream status. */
 function TimerStateReader() {
   useTimerState();
   return null;

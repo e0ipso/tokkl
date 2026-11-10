@@ -20,7 +20,6 @@ test('the bottom navigation reaches every page and stays usable after scrolling 
   for (const name of ['Pomodoro', 'Reports', 'Projects', 'Clients', 'Tags', 'Trash', 'Settings', 'Timer'])
     await tapNav(page, name);
 
-  // Forty tags make the page scroll; the fixed navigation stays on screen and tappable.
   await tapNav(page, 'Tags');
   const last = page.getByRole('button', { name: 'Delete tag 40' });
   await expect(last).toBeAttached();
@@ -29,7 +28,6 @@ test('the bottom navigation reaches every page and stays usable after scrolling 
   const nav = page.getByRole('navigation', { name: 'Main' });
   const box = (await nav.boundingBox())!;
   expect([Math.round(box.x), Math.round(box.width), Math.round(box.y + box.height)]).toEqual([0, 390, 844]);
-  // The last row is not hidden behind the navigation.
   await tap(last);
   const confirm = page.getByRole('dialog', { name: 'Delete tag 40?' });
   await expectFits(confirm);
@@ -49,7 +47,6 @@ test('client and tag dialogs and menus finish by touch on a phone and save what 
   await login(page);
   const api = await EntityApi.open(page);
 
-  // Client dialog, then archive through its confirmation.
   await tapNav(page, 'Clients');
   await tap(page.getByRole('button', { name: 'New client' }));
   const clientEditor = page.getByRole('dialog', { name: 'New client' });
@@ -71,7 +68,6 @@ test('client and tag dialogs and menus finish by touch on a phone and save what 
   expect((await api.client(client!.id)).archived).toBe(true);
   await expectNoPageOverflow(page);
 
-  // Tags: add, rename by tapping the chip and then the heading, delete through the dialog.
   await tapNav(page, 'Tags');
   await page.getByRole('textbox', { name: 'New tag name' }).fill('phone');
   await tap(page.getByRole('button', { name: 'Add tag' }));
@@ -90,8 +86,7 @@ test('client and tag dialogs and menus finish by touch on a phone and save what 
   await expectNoPageOverflow(page);
 });
 
-// The Projects table is wider than a phone. It must scroll inside its wrapper: anything escaping
-// the wrapper widens the page, and the fixed navigation stretches off screen with it.
+// The table must scroll inside its wrapper; anything escaping it widens the page and the fixed navigation.
 test('the Projects page fits a phone, and its editor and row menu finish by touch', async ({ page }) => {
   await login(page);
   const api = await EntityApi.open(page);
@@ -103,7 +98,6 @@ test('the Projects page fits a phone, and its editor and row menu finish by touc
   const nav = page.getByRole('navigation', { name: 'Main' });
   const box = (await nav.boundingBox())!;
   expect([Math.round(box.x), Math.round(box.width)]).toEqual([0, 390]);
-  // Four pages and More fit the bar; the other pages and Log out fit the More sheet.
   await expect(nav.locator(':scope > a, :scope > button')).toHaveCount(5);
   for (const name of ['Timer', 'Pomodoro', 'Projects', 'Settings']) {
     await expectFits(nav.getByRole('link', { name, exact: true }));
@@ -118,7 +112,6 @@ test('the Projects page fits a phone, and its editor and row menu finish by touc
   await expect(sheet).toBeHidden();
   await expect(more).toBeFocused();
 
-  // The last row of a long list is reachable above the navigation.
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
   await tap(page.getByRole('button', { name: 'Edit Project 24' }));
   await tap(page.getByRole('dialog', { name: 'Edit project' }).getByRole('button', { name: 'Cancel' }));
@@ -140,8 +133,6 @@ test('the Projects page fits a phone, and its editor and row menu finish by touc
   await expectNoPageOverflow(page);
 });
 
-// The phone header carries the wordmark; bar items are at least 44px each way with
-// labels of 11px or more; the More sheet opens by keyboard and Tab stays inside it.
 test('the bottom bar items are large enough to tap, and the More sheet works by keyboard', async ({ page }) => {
   await login(page);
   await expect(page.locator('.phone-header').getByRole('img', { name: 'Tokkl' })).toBeVisible();
@@ -176,7 +167,6 @@ test('the bottom bar items are large enough to tap, and the More sheet works by 
   await page.keyboard.press('Tab');
   const logout = sheet.getByRole('button', { name: 'Log out' });
   await expect(logout).toBeFocused();
-  // Tab past the last control wraps to the first, the close button; Shift+Tab wraps back.
   const close = sheet.getByRole('button', { name: 'Close' });
   await page.keyboard.press('Tab');
   await expect(close).toBeFocused();
@@ -190,8 +180,6 @@ test('the bottom bar items are large enough to tap, and the More sheet works by 
   await expect(more).toHaveAttribute('aria-expanded', 'false');
 });
 
-// The More button takes the hue of the open page under More, and so does the page's link inside
-// the sheet: Reports keeps its own hue, the other pages under More take More's.
 test('the bottom bar, the More button and the More sheet fill the current page in its section hue', async ({
   page,
 }) => {
@@ -227,8 +215,6 @@ test('the bottom bar, the More button and the More sheet fill the current page i
   }
 });
 
-// The More sheet shows who is signed in above Log out. Long values are cut to one line
-// with the full text in title, so the sheet still fits 390x844.
 test('the More sheet names the signed-in user above Log out and cuts long values to fit', async ({ page }) => {
   await login(page);
   const shown = async (sheet: Awaited<ReturnType<typeof openMore>>, fullname: string, email: string) => {

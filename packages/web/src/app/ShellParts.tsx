@@ -13,11 +13,7 @@ import { applyTheme } from '../lib/theme.ts';
 import { prefetchPage } from './lazyPages.tsx';
 import type { NavItem } from './nav.ts';
 
-/**
- * Applies the saved theme once preferences load. Until then the cached theme stays:
- * packages/web/public/theme-boot.js puts it on <html> before the first paint, and lib/theme.ts
- * applies it again when it loads.
- */
+/** Until preferences load, the cached theme from public/theme-boot.js and lib/theme.ts stays. */
 export function useTheme() {
   const { data: prefs } = usePreferences();
   const theme = prefs ? (prefs.theme ?? 'system') : undefined;
@@ -26,11 +22,7 @@ export function useTheme() {
   }, [theme]);
 }
 
-/**
- * Shows the running time in the tab title, like Toggl's "show running time in the title bar". It
- * renders nothing and is the only part of the shell that ticks every second. A session's countdown
- * runs on the server's clock, like the Pomodoro page's.
- */
+/** The only part of the shell that ticks every second. A session's countdown runs on the server's clock. */
 export function RunningTitle() {
   const { data: current } = useCurrentEntry();
   const now = useNow(1000);
@@ -49,11 +41,7 @@ export function RunningTitle() {
   return null;
 }
 
-/**
- * Who is signed in, shown beside Log out so a shared browser shows whose account is open. Reads
- * the /me query the auth gate already loaded. Long values are cut with an ellipsis and keep the
- * full text in title; with no full name the email stands alone.
- */
+/** Shows whose account is open on a shared browser. Long values are cut and keep the full text in title. */
 export function SignedInUser() {
   const { data: me } = useMe();
   if (!me) return null;
@@ -73,7 +61,7 @@ export function SignedInUser() {
   );
 }
 
-/** One navigation link, with a dot while the timer or a Pomodoro session runs. */
+/** With a dot while the timer or a Pomodoro session runs. */
 export function NavLink({
   item,
   active,

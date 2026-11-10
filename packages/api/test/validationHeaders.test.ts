@@ -22,7 +22,6 @@ test('the validation headers come only when asked for, and the body never change
     headers: { 'Tokkl-Error-Code': 'invalid_preference', 'Tokkl-Error-Field': 'theme' },
     body: refused.message,
   });
-  // Every refused input has a code; a field only when the refusal names one.
   assert.deepEqual(errorReply(invalidInput('Bad'), { validationHeaders: true }).headers, {
     'Tokkl-Error-Code': 'invalid_input',
   });
@@ -41,7 +40,6 @@ test('a refused Pomodoro length names its preference under /api/app and nowhere 
       assert.equal(v9.status, 400);
       assert.equal(v9.headers.get('tokkl-error-code'), null);
       assert.equal(v9.headers.get('tokkl-error-field'), null);
-      // The same message as before, in the same body, on both APIs.
       const message = await v9.text();
       assert.match(message, new RegExp(`^"Invalid ${key}: expected an integer from \\d+ to \\d+"$`));
       assert.equal(await app.text(), message);

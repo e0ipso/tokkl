@@ -1,11 +1,7 @@
-/**
- * Readers for loosely typed JSON values. The command parsers build on these, so every field of one
- * kind is refused with the same message wherever it arrives.
- */
+/** The command parsers build on these, so every field of one kind is refused with the same message. */
 import { instantMilliseconds, isFiniteNumber, isSafeInteger } from '@tokkl/common/validators';
 import { invalidInput } from './errors.ts';
 
-/** A JSON object from a request body or an import file, before it is parsed. */
 export type JsonBody = Record<string, unknown>;
 
 /** Toggl serialises timestamps as RFC 3339 with an explicit "+00:00" offset. */
@@ -14,10 +10,7 @@ export function togglTime(iso: string | null | undefined): string | null {
   return `${iso.slice(0, 19)}+00:00`;
 }
 
-/**
- * Parses an RFC 3339 timestamp and truncates it to whole seconds. Timestamps without a zone,
- * impossible dates and non-string values are rejected rather than guessed.
- */
+/** Truncates to whole seconds. Rejects timestamps without a zone, impossible dates and non-strings. */
 export function parseInstant(value: unknown, field: string): Date {
   const ms = instantMilliseconds(value);
   if (ms === null) throw invalidInput(`Invalid ${field}: expected an RFC 3339 timestamp`);
@@ -56,10 +49,9 @@ export function optionalNumber(value: unknown, field: string): number | null | u
   throw invalidInput(`Invalid ${field}: expected a non-negative number`);
 }
 
-/** Highest hourly rate accepted. Keeps rate × 100 and billed amounts finite; larger rates overflow to Infinity in reports. */
+/** Keeps rate × 100 and billed amounts finite in reports. */
 const MAX_HOURLY_RATE = 1_000_000_000;
 
-/** An optional hourly rate: a finite non-negative number up to MAX_HOURLY_RATE, or null. */
 export function optionalRate(value: unknown, field: string): number | null | undefined {
   const rate = optionalNumber(value, field);
   if (rate != null && rate > MAX_HOURLY_RATE)
@@ -74,7 +66,6 @@ export function requireName(value: unknown, field: string, maxLength: number): s
   return trimmed;
 }
 
-/** Parses "1,2,3" path segments into ids. */
 export function parseIdList(value: string, limit = 100): number[] {
   const ids = value.split(',').map(part => Number(part.trim()));
   if (ids.length === 0 || ids.some(id => !isSafeInteger(id) || id <= 0)) {
@@ -90,7 +81,7 @@ export function parseId(value: string | string[] | undefined): number {
   return id;
 }
 
-/** Accepts "YYYY-MM-DD" or an RFC 3339 timestamp; returns null for "YYYY-MM-DD" so the caller can apply a timezone. */
+/** Returns `{ date }` for "YYYY-MM-DD" so the caller can apply a timezone. */
 export function parseDateOrInstant(value: string, field: string): { date: string } | { instant: Date } {
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return { date: value };
   return { instant: parseInstant(value, field) };

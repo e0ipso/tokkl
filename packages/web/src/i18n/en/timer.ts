@@ -1,9 +1,5 @@
 import type { MessageGroup } from '../catalog.ts';
 
-/**
- * The timer bar and what reports on the timer: its buttons and modes, the manual form, the clock,
- * the long-running reminder, notifications and the keyboard shortcut list.
- */
 export const timer = {
   region: 'Timer',
   running: 'Running',
@@ -34,7 +30,6 @@ export const timer = {
   manualMode: 'Manual mode',
   manualModeTitle: 'Manual mode (M)',
 
-  /** The paused clock's name: the chain's elapsed time. */
   clockPaused: '{elapsed} elapsed, paused',
   clockEdit: '{elapsed} elapsed, edit start time',
   editStartTime: 'Edit start time',

@@ -51,7 +51,6 @@ test('zonedToUtc and dateKey round-trip', () => {
 test('calendar helpers', () => {
   assert.equal(addDays('2026-02-28', 1), '2026-03-01');
   assert.equal(addDays('2026-01-01', -1), '2025-12-31');
-  // 2026-10-14 is a Wednesday.
   assert.equal(startOfWeek('2026-10-14', 1), '2026-10-12');
   assert.equal(startOfWeek('2026-10-14', 0), '2026-10-11');
   assert.equal(startOfWeek('2026-10-12', 1), '2026-10-12');
@@ -80,7 +79,6 @@ test('clockMinutes reads the local wall clock, with seconds as a fraction', () =
 });
 
 test('clockSpanOnDay places entries by clock time on Madrid DST days', () => {
-  // Spring: a 10:00-11:00 entry sits at 600-660, not one hour higher.
   assert.deepEqual(clockSpanOnDay(at('2026-03-29T08:00:00Z'), at('2026-03-29T09:00:00Z'), '2026-03-29', MADRID), {
     top: 600,
     bottom: 660,
@@ -90,7 +88,6 @@ test('clockSpanOnDay places entries by clock time on Madrid DST days', () => {
     top: 90,
     bottom: 210,
   });
-  // Autumn: 10:00-11:00 CET.
   assert.deepEqual(clockSpanOnDay(at('2026-10-25T09:00:00Z'), at('2026-10-25T10:00:00Z'), '2026-10-25', MADRID), {
     top: 600,
     bottom: 660,
@@ -103,7 +100,6 @@ test('clockSpanOnDay places entries by clock time on Madrid DST days', () => {
 });
 
 test('clockSpanOnDay clips multi-day entries and skips days they miss', () => {
-  // 2026-03-28 22:00 CET to 2026-03-30 02:00 CEST.
   const start = at('2026-03-28T21:00:00Z');
   const stop = at('2026-03-30T00:00:00Z');
   assert.deepEqual(clockSpanOnDay(start, stop, '2026-03-28', MADRID), { top: 1320, bottom: 1440 });
@@ -111,7 +107,6 @@ test('clockSpanOnDay clips multi-day entries and skips days they miss', () => {
   assert.deepEqual(clockSpanOnDay(start, stop, '2026-03-30', MADRID), { top: 0, bottom: 120 });
   assert.equal(clockSpanOnDay(start, stop, '2026-03-27', MADRID), null);
   assert.equal(clockSpanOnDay(start, stop, '2026-03-31', MADRID), null);
-  // A stop exactly at the day's first instant, or a start exactly at the next midnight, misses the day.
   assert.equal(clockSpanOnDay(at('2026-03-28T20:00:00Z'), at('2026-03-28T23:00:00Z'), '2026-03-29', MADRID), null);
   assert.equal(clockSpanOnDay(at('2026-03-29T22:00:00Z'), at('2026-03-29T23:00:00Z'), '2026-03-29', MADRID), null);
 });
@@ -122,7 +117,6 @@ test('clockSpanOnDay on a day whose midnight does not exist', () => {
   const stop = at('2026-09-06T05:00:00Z');
   assert.deepEqual(clockSpanOnDay(start, stop, '2026-09-05', 'America/Santiago'), { top: 1380, bottom: 1440 });
   assert.deepEqual(clockSpanOnDay(start, stop, '2026-09-06', 'America/Santiago'), { top: 0, bottom: 120 });
-  // An entry starting at the first instant of the day sits at 01:00 on the clock.
   assert.deepEqual(clockSpanOnDay(at('2026-09-06T04:00:00Z'), stop, '2026-09-06', 'America/Santiago'), {
     top: 60,
     bottom: 120,
@@ -134,14 +128,12 @@ test('clockSpanOnDay places an empty range on the day that contains it', () => {
   const midnight = at('2026-06-16T22:00:00Z');
   assert.deepEqual(clockSpanOnDay(midnight, midnight, '2026-06-17', MADRID), { top: 0, bottom: 0 });
   assert.equal(clockSpanOnDay(midnight, midnight, '2026-06-16', MADRID), null);
-  // Inside the day, and at the next midnight, which belongs to the next day.
   const nine = at('2026-06-17T07:00:00Z');
   assert.deepEqual(clockSpanOnDay(nine, nine, '2026-06-17', MADRID), { top: 540, bottom: 540 });
   assert.equal(clockSpanOnDay(nine, nine, '2026-06-16', MADRID), null);
   const nextMidnight = at('2026-06-17T22:00:00Z');
   assert.equal(clockSpanOnDay(nextMidnight, nextMidnight, '2026-06-17', MADRID), null);
   assert.deepEqual(clockSpanOnDay(nextMidnight, nextMidnight, '2026-06-18', MADRID), { top: 0, bottom: 0 });
-  // A range that ends at midnight still misses the next day.
   assert.equal(clockSpanOnDay(at('2026-06-16T21:00:00Z'), midnight, '2026-06-17', MADRID), null);
   assert.deepEqual(clockSpanOnDay(at('2026-06-16T21:00:00Z'), midnight, '2026-06-16', MADRID), {
     top: 1380,
@@ -167,22 +159,15 @@ test('addClockMinutes shifts by local clock time across Madrid DST changes', () 
   // Spring: 01:00 CET plus 120 clock minutes is 03:00 CEST, one hour of elapsed time.
   const one = at('2026-03-29T00:00:00Z');
   assert.equal(addClockMinutes(one, 120, MADRID).toISOString(), '2026-03-29T01:00:00.000Z');
-  // A result inside the spring gap (02:30) lands after it, at 03:30 CEST.
   assert.equal(addClockMinutes(at('2026-03-29T00:30:00Z'), 60, MADRID).toISOString(), '2026-03-29T01:30:00.000Z');
-  // Autumn: 01:30 CEST plus 60 is 02:30, which happens twice; it resolves to the later one (CET).
   assert.equal(addClockMinutes(at('2026-10-24T23:30:00Z'), 60, MADRID).toISOString(), '2026-10-25T01:30:00.000Z');
-  // 00:00 CEST plus 240 is 04:00 CET, five hours of elapsed time.
   assert.equal(addClockMinutes(at('2026-10-24T22:00:00Z'), 240, MADRID).toISOString(), '2026-10-25T03:00:00.000Z');
 });
 
 test('addClockMinutes handles negative shifts, midnight crossings and milliseconds', () => {
-  // 03:00 CEST minus 120 is 01:00 CET.
   assert.equal(addClockMinutes(at('2026-03-29T01:00:00Z'), -120, MADRID).toISOString(), '2026-03-29T00:00:00.000Z');
-  // 23:00 CET on the 28th plus 240 is 03:00 CEST on the 29th.
   assert.equal(addClockMinutes(at('2026-03-28T22:00:00Z'), 240, MADRID).toISOString(), '2026-03-29T01:00:00.000Z');
-  // 00:30 CET on the 29th minus 60 is 23:30 CET on the 28th.
   assert.equal(addClockMinutes(at('2026-03-28T23:30:00Z'), -60, MADRID).toISOString(), '2026-03-28T22:30:00.000Z');
-  // 04:00 CET on 2026-10-26 minus 240 crosses midnight back to 00:00 CET.
   assert.equal(addClockMinutes(at('2026-10-26T03:00:00Z'), -240, MADRID).toISOString(), '2026-10-25T23:00:00.000Z');
   assert.equal(addClockMinutes(at('2026-10-14T08:00:05.250Z'), 30, MADRID).toISOString(), '2026-10-14T08:30:05.250Z');
   assert.equal(addClockMinutes(at('2026-10-14T08:00:00Z'), 0, MADRID).toISOString(), '2026-10-14T08:00:00.000Z');

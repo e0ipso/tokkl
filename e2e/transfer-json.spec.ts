@@ -106,7 +106,6 @@ test('JSON restore previews without writing, then restores missing entities with
     ['Design', 'Website', 7200],
   ]);
   expect(account.tags).toEqual(['ops', 'ux']);
-  // The deleted entry in the file stays out; the others keep their instants, links and tags.
   expect(
     account.entries.map(e => ({
       description: e.description,
@@ -147,7 +146,6 @@ test('JSON restore previews without writing, then restores missing entities with
     },
   ]);
 
-  // The management pages show the restored data without a reload.
   await page.getByRole('link', { name: 'Projects' }).click();
   const projectRow = (name: string) =>
     page.getByRole('row').filter({ has: page.getByRole('cell', { name, exact: true }) });
@@ -162,7 +160,6 @@ test('JSON restore previews without writing, then restores missing entities with
   await page.getByRole('link', { name: 'Tags' }).click();
   await expect(page.locator('.tag-chip')).toHaveText(['ops', 'ux']);
 
-  // Restoring the same file again adds nothing.
   await openSettings(page);
   await chooseJson(page, backup);
   await expect(summary).toContainText('0 entries to add');
@@ -287,8 +284,7 @@ test('JSON restore committed while a timer runs skips the running entry and keep
   await expect(timer.getByRole('button', { name: 'Stop timer' })).toBeVisible();
 });
 
-// The backup records the account zone, so a no-time entry restored into a New York account keeps
-// the Madrid date it was made on.
+// The backup records the account zone, so a no-time entry restored in New York keeps its Madrid date.
 test('a no-time entry round-trips through the JSON backup into another account, and a second restore adds nothing', async ({
   page,
   data,

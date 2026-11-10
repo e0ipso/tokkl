@@ -22,13 +22,7 @@ import {
 import { SettingsCard } from './SettingsCard.tsx';
 import { t } from '../../../i18n/messages.ts';
 
-/**
- * The form keeps only what the user typed and has not saved; every other field shows the stored
- * value, so a background refetch, such as after a change on another device, updates the untouched
- * fields and leaves the edits and focus alone. A field changed back to the stored value is no longer
- * an edit, except while a save is pending: the stored value may be about to change, so everything
- * typed then stays an edit until the save settles. Saving sends only the edited fields.
- */
+/** Keeps only unsaved edits (see useServerDraft), so a refetch updates untouched fields; saves send only edits. */
 export function PreferencesSection({ prefs, limits }: { prefs: Preferences; limits: PomodoroLimits }) {
   const toast = useToast();
   const settings = useSettings();
@@ -39,8 +33,7 @@ export function PreferencesSection({ prefs, limits }: { prefs: Preferences; limi
   const { draft, edits, set } = form;
   const dropEditsEqualTo = (stored: Editable) => form.dropEditsMatching((key, value) => isStored(key, value, stored));
 
-  // Only whole numbers go to the server; it checks the allowed values, and its 400 shows on the
-  // field it names, as in "Invalid pomodoro_long_break_every: expected ...".
+  // Only whole numbers go to the server; its 400 names the field, as in "Invalid pomodoro_long_break_every".
   const submit = () => {
     if (!fields.validate(numberErrors(draft))) return;
     if (!form.hasEdits) {

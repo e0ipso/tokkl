@@ -167,7 +167,6 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
             ['%_\\'],
           );
         }
-        // A range pages the same order in SQL: every slice equals that slice of the full list.
         const allProjects = await runner.readSnapshot(r => r.projects.list(1));
         assert.ok(allProjects.length >= 3);
         for (const range of [
@@ -191,7 +190,6 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
             await runner.readSnapshot(r => r.tags.list(1, undefined, range)),
             allTags.slice(range.offset, range.offset + range.limit),
           );
-        // Member tasks run in workspace order, then the folded name order; a range pages that order.
         await connection.db
           .insertInto('workspace_users')
           .values([
@@ -225,7 +223,6 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
             await runner.readSnapshot(r => r.tasks.listForMember(1, {}, range)),
             memberTasks.slice(range.offset, range.offset + range.limit),
           );
-        // Sort keys are the listed tasks' own values, and an id filter reads only those tasks.
         const workspaceTasks = await runner.readSnapshot(r => r.tasks.list(1));
         assert.deepEqual(
           await runner.readSnapshot(r => r.tasks.listSortKeys(1, {})),
@@ -449,7 +446,6 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       await storage.transaction(ctx => ctx.clients.setArchived(ws.id, client.id, true));
       await storage.transaction(ctx => ctx.clients.deleteAndDetachProjects(ws.id, client.id));
       assert.equal(await read(ws.id), 4);
-      // A rolled-back write leaves the revision as it was.
       await assert.rejects(
         storage.transaction(async ctx => {
           await ctx.clients.create({ workspaceId: ws.id, name: 'Rolled back', notes: null, archived: false });

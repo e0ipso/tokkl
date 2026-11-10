@@ -3,7 +3,6 @@ import type { TimerPublication } from '../../src/domain/timerSettlement.ts';
 import type { ImportRunner } from '../../src/services/importGuards.ts';
 import { createImportOperations, type ImportOptions } from '../../src/services/importJson.ts';
 
-/** Import operations that take the importing user's id first and build that user's operations for each call. */
 export function importsById<R extends EntryRepositories>(runner: ImportRunner<R>, publish: TimerPublication) {
   const forUser = (userId: number) => createImportOperations(runner, userId, publish);
   return {

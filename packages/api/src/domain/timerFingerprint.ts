@@ -1,18 +1,9 @@
-/**
- * The timer fingerprint: the text stored with each timer revision (`timer_revisions.fingerprint`).
- * Settlement compares it as a string to tell whether the visible state changed, so the encoding
- * must stay byte for byte what earlier servers stored. This module is the only place that writes
- * it, and nothing reads data back out of it: what settlement needs from the last revision, such
- * as the session entry it showed, is stored in columns of its own.
- */
+/** Compared as a string per revision, so the encoding must stay byte for byte stable. Write-only. */
 import type { TagLabel, TimerSnapshot } from './model.ts';
 
 const orderedTags = (tags: TagLabel[]) => [...tags].sort((a, b) => a.id - b.id).map(t => ({ id: t.id, name: t.name }));
 
-/**
- * Encodes the canonical domain fields of `snapshot`, with `chainTags` the pause chain's tags as
- * stored. Audit and driver representations never number visible state.
- */
+/** `chainTags` are the pause chain's tags as stored. */
 export function encodeTimerFingerprint(snapshot: TimerSnapshot, chainTags: TagLabel[]): string {
   const e = snapshot.running,
     c = snapshot.pauseChain,
@@ -63,7 +54,7 @@ export function encodeTimerFingerprint(snapshot: TimerSnapshot, chainTags: TagLa
   });
 }
 
-/** The fingerprint of a user with nothing running, no chain and no session: the state before revision 1. */
+/** The state before revision 1. */
 export const IDLE_TIMER_FINGERPRINT = encodeTimerFingerprint(
   { running: null, pauseChain: null, session: null, revision: null },
   [],

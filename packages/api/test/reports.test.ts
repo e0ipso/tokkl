@@ -31,7 +31,6 @@ async function seed(ctx: TestContext) {
   await add('2026-10-05T10:00:00Z', 1800, { project_id: alpha.body.id, description: 'Build', tags: ['dev'] });
   await add('2026-10-06T08:00:00Z', 7200, { project_id: beta.body.id, description: 'Research' });
   await add('2026-10-07T08:00:00Z', 900, { description: 'Email' });
-  // Outside the range used below.
   await add('2026-09-01T08:00:00Z', 600, { description: 'Old' });
   // Running entries are left out of reports.
   await ctx.json('POST', `${base}/time_entries`, { start: '2026-10-06T12:00:00Z', duration: -1 });
@@ -135,7 +134,6 @@ test('app report endpoint returns totals, series and nested groups', async () =>
   assert.equal(res.body.series[0].seconds, 5400);
   const acme = res.body.groups.find((g: any) => g.title === 'ACME');
   assert.equal(acme.sub_groups[0].title, 'Alpha');
-  // Entries are paged by /api/app/report/entries rather than embedded in the report.
   assert.equal(res.body.entries, undefined);
   const page = await ctx.json('POST', '/api/app/report/entries', { start_date: '2026-10-05', end_date: '2026-10-11' });
   assert.equal(page.body.total, 4);
@@ -202,7 +200,7 @@ interface BulkEntry {
   description?: string;
 }
 
-/** Inserts stopped entries straight into the database; thousands of HTTP calls would be too slow. */
+/** Thousands of HTTP calls would be too slow. */
 async function insertEntries(ctx: TestContext, entries: BulkEntry[]): Promise<number[]> {
   return transaction(ctx.db, async operation => {
     const ids: number[] = [];
@@ -251,7 +249,7 @@ test('app CSV exports cover multi-year ranges and match the app report; v3 CSVs 
   };
   const jsonEntries = async (body: Record<string, unknown>) =>
     (await ctx.json('POST', '/api/app/report/entries', { ...range, ...body })).body.entries as any[];
-  // Description, start date and duration columns of the detailed CSV.
+  // Description, start date and duration columns.
   const detailedColumns = (rows: string[][]) => rows.slice(1).map(row => [row[5], row[7], row[11]]);
   const expectedColumns = (entries: any[]) =>
     entries.map(entry => [entry.description, entry.start.slice(0, 10), formatDuration(entry.seconds)]);
@@ -335,7 +333,6 @@ test('no-time entries count in totals, carry all_day in report rows and leave th
     assert.equal(res.status, 200);
     return (await parseCsv(await res.text())).slice(1);
   };
-  // Description, start date, start time, end date, end time and duration.
   const cells = (rows: string[][]): string[][] =>
     rows.map(row => [5, 7, 8, 9, 10, 11].map(column => row[column] ?? ''));
   const expected = [
@@ -462,7 +459,6 @@ test('app report for the detailed and weekly tabs carries totals without sub-gro
   const ctx = await setup();
   const { alpha, beta } = await seed(ctx);
   const range = { start_date: '2026-10-05', end_date: '2026-10-11' };
-  // The query packages/web/src/pages/reports/query.ts sends from the detailed and weekly tabs.
   const res = await ctx.json('POST', '/api/app/report', { ...range, grouping: 'projects', sub_grouping: 'projects' });
   assert.equal(res.status, 200);
   assert.equal(res.body.entries, undefined);
@@ -493,7 +489,7 @@ test('app weekly report totals every entry in long ranges, by project or client'
     [null, null],
   ]);
 
-  // 6000 entries over 181 days, more than the 5000 the old client-side weekly tab could sum.
+  // 6000 entries over 181 days.
   const days = 181;
   const seeded = Array.from({ length: 6000 }, (_, i) => {
     const start = Date.UTC(2026, 0, 1) + (i % days) * 86_400_000 + (Math.floor(i / days) % 20) * 3_600_000;
@@ -512,7 +508,6 @@ test('app weekly report totals every entry in long ranges, by project or client'
   };
   const summaryTotal = async (body: Record<string, unknown> = {}) =>
     (await ctx.json('POST', '/api/app/report', { ...range, ...body })).body.totals.seconds as number;
-  /** Each column total equals the entries dated inside that column, and everything adds up to the total. */
   const assertColumns = (grid: any) => {
     grid.columns.forEach((column: { start: string; end: string }, i: number) => {
       const expected = sum(entry => entry.start.slice(0, 10) >= column.start && entry.start.slice(0, 10) <= column.end);
@@ -585,7 +580,6 @@ test('app weekly report totals every entry in long ranges, by project or client'
   );
   assert.equal(byClient.total, all.total);
 
-  // The first weekday comes from the account preference.
   assert.equal((await ctx.json('PUT', '/api/v9/me', { beginning_of_week: 0 })).status, 200);
   const sundayWeeks = await weekly();
   assert.deepEqual(sundayWeeks.columns[0], { start: '2026-01-01', end: '2026-01-03' });
@@ -610,8 +604,7 @@ test('app detailed entries page through every match in a stable global order', a
   const ctx = await setup();
   const total = 600;
   const descriptions = ['alpha', 'bravo', 'charlie', 'delta'];
-  // Insert in a scrambled order so ids do not follow start times. Pairs share a start, and
-  // durations and descriptions repeat, so every sort has ties for the id to break.
+  // Scrambled so ids do not follow start times; repeated starts, durations and descriptions give every sort ties.
   const ids = await insertEntries(
     ctx,
     Array.from({ length: total }, (_, i) => {
@@ -627,7 +620,6 @@ test('app detailed entries page through every match in a stable global order', a
   const page = async (body: Record<string, unknown>) =>
     ctx.json('POST', '/api/app/report/entries', { ...range, ...body });
 
-  // Walking every page reaches each entry exactly once.
   const walked: number[] = [];
   for (let n = 1; n <= 12; n++) {
     const res = await page({ page: n, page_size: 50 });
@@ -685,7 +677,6 @@ test('app detailed entries page through every match in a stable global order', a
   assert.equal(tooLarge.body, "'page_size' must be at most 500");
   assert.equal((await page({ page_size: 0 })).status, 400);
 
-  // A page past the end returns the last page and says so.
   const last = await page({ page: 3, page_size: 250 });
   const beyond = await page({ page: 99, page_size: 250 });
   assert.equal(beyond.status, 200);
@@ -697,7 +688,6 @@ test('app detailed entries page through every match in a stable global order', a
   assert.deepEqual([empty.body.total, empty.body.page, empty.body.pages, empty.body.entries], [0, 1, 1, []]);
 });
 
-/** Report requests covering every job shape the worker returns: JSON with headers, and CSV. */
 function reportRequests(wid: number): Array<[string, Record<string, unknown>]> {
   const range = { start_date: '2026-10-05', end_date: '2026-10-11' };
   return [
@@ -714,7 +704,6 @@ function reportRequests(wid: number): Array<[string, Record<string, unknown>]> {
   ];
 }
 
-/** Status, headers and body of a response, without the headers that depend on the clock or socket. */
 async function snapshot(response: Response) {
   const headers = [...response.headers].filter(([name]) => !['date', 'connection', 'keep-alive'].includes(name));
   return { status: response.status, headers, body: await response.text() };
@@ -752,14 +741,13 @@ test('SQLite file: reports on a file-backed database are built in the worker and
     assert.equal(inline.status, 200, `${path}: ${inline.body}`);
     assert.deepEqual(worker, inline, path);
   }
-  // The report lane's worker took the reports and the download lane's the detailed CSVs; both still run.
+  // The report lane's worker took the reports and the download lane's the CSVs; both still run.
   assert.equal(workers.started.length, 2);
   for (const record of workers.started) assert.equal(record.exitCode, null);
 });
 
 test('SQLite file: an idle report worker lets the process exit once the server closes', async () => {
-  // The child serves a file-backed app, runs one report, closes the server and returns without
-  // process.exit. Before the fix the worker's message port held the process open indefinitely.
+  // The child returns without process.exit; a worker message port left open would hold the process.
   const script = fileURLToPath(new URL('./fixtures/serveOneReport.ts', import.meta.url));
   const { code, signal, stdout } = await new Promise<{ code: number | null; signal: string | null; stdout: string }>(
     resolve => {
@@ -781,8 +769,7 @@ test('SQLite file: a crashed report worker fails its pending jobs with 500 and t
   const logged = t.mock.method(console, 'error', () => {});
   const [summary, search] = reportRequests(ctx.wid);
 
-  // With the database file gone the worker throws while opening it, before it takes any job. The
-  // app keeps its own open connection, so only report jobs are affected.
+  // The worker throws opening the moved file, before any job; the app's own connection is unaffected.
   const moved = `${file.path}.moved`;
   renameSync(file.path, moved);
   const failed = await Promise.all([summary!, search!].map(([path, body]) => file.request('POST', path, body)));
@@ -790,8 +777,7 @@ test('SQLite file: a crashed report worker fails its pending jobs with 500 and t
     { status: 500, body: '"Internal Server Error"' },
     { status: 500, body: '"Internal Server Error"' },
   ]);
-  // One line per failed request, and one for the worker that could not open the file. That one
-  // carries the stack frames but not the error's message, which names the missing file.
+  // The worker's line carries stack frames but not the message, which names the missing file.
   const lines = logged.mock.calls.map(call => JSON.parse(String(call.arguments[0])) as Record<string, unknown>);
   assert.deepEqual(lines.map(line => line.msg).sort(), [
     'Report worker failed to start',
@@ -805,7 +791,6 @@ test('SQLite file: a crashed report worker fails its pending jobs with 500 and t
   assert.ok(crashed.length >= 1);
   await Promise.all(crashed.map(({ worker, exitCode }) => (exitCode === null ? once(worker, 'exit') : null)));
   for (const record of crashed) assert.notEqual(record.exitCode, null);
-  // Requests that read on the main connection keep working while reports fail.
   assert.equal((await file.json('GET', '/api/v9/me/time_entries/current')).status, 200);
 
   renameSync(moved, file.path);
@@ -816,6 +801,5 @@ test('SQLite file: a crashed report worker fails its pending jobs with 500 and t
   const restarted = workers.started.slice(crashed.length);
   assert.equal(restarted.length, 1);
   assert.equal(restarted[0]!.exitCode, null);
-  // The restarted worker logs nothing.
   assert.equal(logged.mock.callCount(), lines.length);
 });

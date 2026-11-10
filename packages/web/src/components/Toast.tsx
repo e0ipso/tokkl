@@ -72,7 +72,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   );
 }
 
-/** A toast's action button, such as Undo: it runs the action, then dismisses the toast. */
+/** Runs the action, then dismisses the toast. */
 function ToastAction({ action, onDone }: { action: NonNullable<Toast['action']>; onDone: () => void }) {
   return (
     <button
@@ -88,7 +88,7 @@ function ToastAction({ action, onDone }: { action: NonNullable<Toast['action']>;
   );
 }
 
-/** A circled exclamation mark, so an error toast does not rely on its red background alone. */
+/** So an error toast does not rely on its red background alone. */
 function ErrorIcon() {
   return (
     <svg

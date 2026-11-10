@@ -20,7 +20,7 @@ export async function hashPassword(password: string): Promise<string> {
   return `scrypt$${N}$${R}$${P}$${salt.toString('base64')}$${key.toString('base64')}`;
 }
 
-/** A hash nobody's password matches, verified for unknown emails so response time does not reveal them. */
+/** Verified for unknown emails so response time does not reveal them. */
 let dummyHash: Promise<string> | undefined;
 export async function verifyAgainstDummy(password: string): Promise<false> {
   dummyHash ??= hashPassword(randomBytes(16).toString('hex'));
@@ -41,7 +41,7 @@ export async function verifyPassword(password: string, stored: string): Promise<
   return timingSafeEqual(actual, expected);
 }
 
-/** 32 hex characters, the same shape as a Toggl API token. */
+/** The same shape as a Toggl API token. */
 export function generateApiToken(): string {
   return randomBytes(16).toString('hex');
 }

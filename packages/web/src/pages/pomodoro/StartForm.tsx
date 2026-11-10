@@ -7,10 +7,7 @@ import { EMPTY_DRAFT, type EntryDraft } from '../../components/useEntryFields.ts
 import { LENGTH_FIELDS, lengthText, sessionConfig, type LengthEdits, type LengthKey } from './sessionLengths.ts';
 import { t } from '../../i18n/messages.ts';
 
-/**
- * The lengths and entry fields of a new session. The lengths apply to this session only, within the
- * server's `limits`.
- */
+/** The lengths apply to this session only, within the server's `limits`. */
 export function StartForm({
   preferences,
   limits,

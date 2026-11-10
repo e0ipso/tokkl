@@ -22,8 +22,7 @@ export function appRoutes(deps: AppRouteDeps): Router {
   const { sessions } = deps;
   const app = createRouter(),
     auth = deps.auth.requireAuth;
-  // The status reply also names this server's API version and capabilities, so a client picks its
-  // routes from them, and never from a 404, and the Pomodoro lengths the server accepts.
+  // Clients pick routes from the API version and capabilities, never from a 404.
   app.get('/status', async (_req, res) => {
     const status: AppStatus = {
       setup_required: await sessions.setupRequired(),
@@ -39,7 +38,7 @@ export function appRoutes(deps: AppRouteDeps): Router {
   app.post('/password-resets/:token', sessions.resetPassword);
   app.post('/login', sessions.login);
   app.post('/logout', sessions.logout);
-  // The same reads and saves as the v9 `/me/preferences`, with the validation headers of /api/app.
+  // Same as the v9 `/me/preferences`, plus the /api/app validation headers.
   app.get(
     '/me/preferences',
     auth,
@@ -53,7 +52,7 @@ export function appRoutes(deps: AppRouteDeps): Router {
     const entry = await deps.entriesFor(res.locals.auth).restore(parseId(req.params.id));
     return res.json(serializeTimeEntry(entry, { meta: true, user: res.locals.auth.user }));
   });
-  // Both halves or neither: the entry keeps the first, a new entry takes the second.
+  // Both halves or neither.
   app.post('/time_entries/:id/split', auth, async (req, res) => {
     const id = parseId(req.params.id);
     const split = parseEntrySplit(readJson(req));
@@ -64,7 +63,6 @@ export function appRoutes(deps: AppRouteDeps): Router {
       second: serializeTimeEntry(second, presentation),
     });
   });
-  // A client that caches a workspace's project list reads it again only when this number changed.
   app.get(
     '/workspaces/:wid/catalog',
     auth,
@@ -73,7 +71,7 @@ export function appRoutes(deps: AppRouteDeps): Router {
       return { revision: await queries.catalogRevision(ws) };
     }),
   );
-  // The entry a client picks the next start's project from, as `/me/time_entries?meta=true` lists it.
+  // As `/me/time_entries?meta=true` lists it.
   app.get(
     '/time_entries/latest',
     auth,
@@ -103,7 +101,7 @@ export function appRoutes(deps: AppRouteDeps): Router {
       ),
     ),
   );
-  // The trash read stops at the newest TRASH_READ_LIMIT entries; this says how many there are.
+  // The trash read stops at TRASH_READ_LIMIT; this says how many there are.
   app.get(
     '/trash/total',
     auth,
@@ -122,7 +120,7 @@ export function appRoutes(deps: AppRouteDeps): Router {
     if (!deleted) throw notFound('Time entry not found in trash');
     return res.json({ deleted });
   });
-  // Exports stream: headers go out with the first piece, once the credential and range were checked.
+  // Headers go out with the first piece, after the credential and range checks.
   app.get('/export.json', auth, async (_req, res) => {
     const instant = new Date().toISOString();
     const filename = `tokkl-${instant.slice(0, 10)}.json`;

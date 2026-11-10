@@ -58,7 +58,7 @@ test('framework errors keep their client status and anything else is a 500 that 
     assert.deepEqual(errorReply(error), { status: 500, headers: {}, body: 'Internal Server Error' });
 });
 
-/** A response stand-in that records what the handler wrote; `connected` decides whether its socket is open. */
+/** `connected` decides whether its socket is open. */
 function recordingResponse(connected: boolean) {
   const written: Array<{ status: number; body: unknown }> = [];
   let status = 0;
@@ -145,7 +145,6 @@ test('a redacted diagnostic keeps the name, a plain code and the frames, never t
   assert.ok(diagnostic.frames.length > 0);
   assert.ok(diagnostic.frames.every(frame => frame.startsWith('at ')));
   assert.doesNotMatch(JSON.stringify(diagnostic), /hunter2|forged|secret/);
-  // A code that is not a short plain word could carry data, so it is left out.
   assert.equal(redactedDiagnostic(Object.assign(new Error('x'), { code: 'user me@example.com' })).code, undefined);
   assert.deepEqual(redactedDiagnostic('thrown text'), { name: 'string', frames: [] });
 });

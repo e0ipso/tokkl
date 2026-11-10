@@ -1,9 +1,4 @@
-/**
- * Timer actions: start and stop the timer, pause, resume and discard a pause chain, and run a
- * Pomodoro session. Each action checks the revision the client saw and answers with the view as
- * committed. Every stop of the running entry goes through `stopRunningEntry`, which refuses a user
- * who is no longer a member of the entry's workspace.
- */
+/** Each action checks the client's revision and answers the committed view. Stops go through `stopRunningEntry`. */
 import { nextPhase, startSession, type PomodoroSessionConfig } from '@tokkl/common/pomodoroSession';
 import type { Clock, OperationContext } from './ports.ts';
 import type { EntryDetails, Id, PauseChain, PomodoroSession, User } from './model.ts';
@@ -20,65 +15,49 @@ import { settleTimer, settlementDue, touchTimer, type TimerPublication } from '.
 import { buildTimerView, type TimerView } from './timerView.ts';
 
 export interface StartPomodoro {
-  /**
-   * The timer revision the client saw; the start is refused unless it is current, because a start
-   * replaces whatever runs. Absent only for older clients: `OPTIONAL_REVISION_ACTIONS` in
-   * `commands/timers.ts` says which client may omit it and when that ends.
-   */
+  /** Refused unless current, since a start replaces whatever runs. See `OPTIONAL_REVISION_ACTIONS`. */
   revision?: number;
-  /** The workspace of the session's entry; the default workspace when absent or null. */
+  /** The default workspace when absent or null. */
   workspaceId?: Id | null;
-  /** The lengths the client sent; the others come from the user's preferences. */
+  /** The others come from the user's preferences. */
   lengths: Partial<PomodoroSessionConfig>;
   entry: Omit<NewEntry, 'allDay' | 'times' | 'workspaceId'>;
-  /** The request's `Idempotency-Key`; a repeat answers the timer as it is now and starts nothing. */
+  /** A repeat answers the timer as it is now and starts nothing. */
   idempotency?: IdempotencyClaim;
 }
 
 export interface StartTimer {
-  /** The timer revision the client saw. */
   revision: number;
-  /** The workspace of the new entry; the default workspace when absent or null. */
+  /** The default workspace when absent or null. */
   workspaceId?: Id | null;
-  /** When the entry starts; now when absent. */
+  /** Now when absent. */
   start?: Date;
   entry: Omit<NewEntry, 'allDay' | 'times' | 'workspaceId'>;
-  /** The request's `Idempotency-Key`; a repeat answers the timer as it is now and starts nothing. */
   idempotency?: IdempotencyClaim;
 }
 
-/**
- * Runs a start once per idempotency key. A repeat is answered before the revision check, which the
- * first start moved on, and changes nothing: the action's reply is then the timer as it is now.
- */
+/** A repeat is answered before the revision check, which the first start moved on, and changes nothing. */
 function startOnce(ctx: EntryContext, user: User, claim: IdempotencyClaim | undefined, start: () => Promise<Id>) {
   return idempotent(ctx, user.id, claim, { create: start, reference: id => id, replay: async id => id });
 }
 
-/**
- * An edit of the running entry. It names what the client saw with `revision`, `entryId` or both,
- * and is refused unless each one it names still holds.
- */
+/** Refused unless everything it names (`revision`, `entryId` or both) still holds. */
 export type EditTimer = EditPrecondition & {
-  /** A new start for the running entry; it stays when absent. */
+  /** It stays when absent. */
   start?: Date;
-  /** The running entry's labels to change; absent ones stay. Its stop and workspace never change. */
+  /** Absent labels stay. Its stop and workspace never change. */
   entry: Omit<EntryFields, 'workspaceId'>;
 };
 
-/**
- * What an edit checks before it acts. A revision refuses the edit after any change to the timer;
- * an entry id refuses it only once that entry no longer runs, so an unrelated change, such as a
- * catalog rename the running entry shows, does not send the client round a 409 loop.
- */
+/** An entry id refuses only once that entry stops running, so a catalog rename causes no 409 loop. */
 type EditPrecondition =
   | {
-      /** The timer revision the client saw. */ revision: number;
-      /** The entry the client saw running. */ entryId?: Id;
+      revision: number;
+      entryId?: Id;
     }
   | { revision?: undefined; entryId: Id };
 
-/** A refused timer action. It carries the current view, so the client can catch up without another read. */
+/** Carries the current view, so the client can catch up without another read. */
 export class TimerRefusal extends StateConflict<TimerView> {}
 async function refusal(ctx: EntryContext, user: User, now: Date, message: string): Promise<never> {
   throw new TimerRefusal(message, await buildTimerView(ctx, user, now));
@@ -99,7 +78,6 @@ async function pausedAt(ctx: EntryContext, user: User, revision: number, now: Da
   if (!c || c.cloneEntryId !== null) return refusal(ctx, user, now, 'The timer is not paused');
   return c;
 }
-/** A running entry that starts at `start`, in whole seconds. */
 const runningFrom = (start: Date, labels: StartPomodoro['entry']): NewEntry => ({
   ...labels,
   allDay: false,
@@ -119,11 +97,7 @@ export interface TimerRunner<R extends EntryRepositories> {
 }
 type ActionWork = (ctx: EntryContext, user: User) => Promise<void>;
 
-/**
- * The view of a user's timer read in one snapshot, when it needs no settling: the state an action
- * would answer without writing. Undefined when settling would write, or when the action would
- * refuse the read (a missing user or a missing workspace), so the caller takes the write path.
- */
+/** Undefined when settling would write or the action would refuse the read; the caller then writes. */
 async function settledView(repositories: EntryRepositories, userId: Id, now: Date): Promise<TimerView | undefined> {
   const user = await repositories.users.get(userId);
   if (!user) return undefined;
@@ -136,10 +110,7 @@ async function settledView(repositories: EntryRepositories, userId: Id, now: Dat
   return buildTimerView(repositories, user, now, data);
 }
 
-/**
- * The timer operations of one user. Each action reads the user's row again under its guards, so
- * only `signedIn.id` is used. Each action reads the time once, from `clock`.
- */
+/** Each action rereads the user's row under its guards, so only `signedIn.id` is used, and reads `clock` once. */
 export function createTimerOperations<R extends EntryRepositories>(
   runner: TimerRunner<R>,
   signedIn: Pick<User, 'id'>,
@@ -147,10 +118,7 @@ export function createTimerOperations<R extends EntryRepositories>(
   clock: Clock,
 ) {
   const userId = signedIn.id;
-  /**
-   * Runs `work` on the settled state and answers with the view as committed. The view is built
-   * once, after every before-commit hook of the whole transaction has run, and nothing changes it.
-   */
+  /** The view is built once, after every before-commit hook of the transaction has run. */
   async function action(now: Date, work: ActionWork, wids: Id[] = [], includeDefault = false) {
     let reply: Readonly<TimerView> | undefined;
     await runner.transaction(async ctx => {
@@ -165,7 +133,6 @@ export function createTimerOperations<R extends EntryRepositories>(
     if (!reply) throw new Error('The timer reply was not built');
     return reply;
   }
-  /** Starts a session and answers the id of its first pomodoro's entry. */
   async function startPomodoroWork(ctx: EntryContext, user: User, start: StartPomodoro, wid: Id, now: Date) {
     if (start.revision !== undefined) await checkRevision(ctx, user, start.revision, now);
     const config = { ...getPomodoroSessionConfig(user), ...start.lengths };
@@ -182,7 +149,7 @@ export function createTimerOperations<R extends EntryRepositories>(
     });
     return entry.id;
   }
-  /** Moves the session on. A new work phase stops the ended entry and starts a copy of it. */
+  /** A new work phase stops the ended entry and starts a copy of it. */
   async function nextPhaseWork(ctx: EntryContext, user: User, seen: number, now: Date) {
     const s = await sessionAt(ctx, user, seen, now);
     const { next } = calendarInput(() =>
@@ -205,7 +172,6 @@ export function createTimerOperations<R extends EntryRepositories>(
       phase: { kind: next.kind, startedAt: next.startedAt.toISOString(), completed: next.completed },
     });
   }
-  /** Stops the running entry and adds its stored length to the pause chain. */
   async function pauseWork(ctx: EntryContext, user: User, revision: number | undefined, now: Date) {
     if (revision !== undefined) await checkRevision(ctx, user, revision, now);
     if (await ctx.timers.getSession(user.id)) return refusal(ctx, user, now, 'A Pomodoro session cannot be paused');
@@ -226,7 +192,7 @@ export function createTimerOperations<R extends EntryRepositories>(
       cloneEntryId: null,
     });
   }
-  /** Starts a copy of the paused entry; the chain keeps counting through it. */
+  /** The chain keeps counting through the copy. */
   async function resumeWork(ctx: EntryContext, user: User, seen: number, now: Date) {
     const c = await pausedAt(ctx, user, seen, now),
       tags = await ctx.tags.findByIds(c.workspaceId, c.tagIds);
@@ -241,19 +207,13 @@ export function createTimerOperations<R extends EntryRepositories>(
     await ctx.timers.savePauseChain({ ...c, cloneEntryId: clone.id });
   }
   return {
-    /**
-     * Reads the timer in a read snapshot, so a read never waits for the write guards. Only a state
-     * that settling would change takes the write path, which settles, numbers and publishes it.
-     */
+    /** Read snapshot, so a read never waits for the write guards; only a state that needs settling writes. */
     async getTimerState(): Promise<TimerView> {
       const now = clock.now();
       const settled = await runner.readSnapshot(repositories => settledView(repositories, userId, now));
       return settled ? Object.freeze(settled) : action(now, async () => {});
     },
-    /**
-     * Starts a running entry the way a v9 create does: a running timer stops at the new start,
-     * and a Pomodoro session or pause chain it belonged to ends.
-     */
+    /** Like a v9 create: a running timer stops at the new start, and its Pomodoro session or pause chain ends. */
     async startTimer(start: StartTimer): Promise<TimerView> {
       const now = clock.now();
       const explicit = start.workspaceId;
@@ -270,7 +230,6 @@ export function createTimerOperations<R extends EntryRepositories>(
         !explicit,
       );
     },
-    /** Stops the running entry at `stop`, or now, the way a v9 stop does. */
     async stopTimer(revision: number, stop?: Date): Promise<TimerView> {
       const now = clock.now();
       return action(now, async (ctx, user) => {
@@ -280,10 +239,7 @@ export function createTimerOperations<R extends EntryRepositories>(
         await stopRunningEntry(ctx, user, e, stop ?? now);
       });
     },
-    /**
-     * Edits the running entry's labels and start the way a v9 edit of it does, with the same
-     * validation and the same membership check.
-     */
+    /** Same validation and membership check as a v9 edit. */
     async editTimer(edit: EditTimer): Promise<TimerView> {
       const now = clock.now();
       return action(now, async (ctx, user) => {
@@ -322,11 +278,7 @@ export function createTimerOperations<R extends EntryRepositories>(
         await ctx.timers.deleteSession(user.id);
       });
     },
-    /**
-     * Pauses the running entry. A `revision` is checked like any other action's; without one the
-     * pause acts on whatever runs, for older clients (see `OPTIONAL_REVISION_ACTIONS` in
-     * `commands/timers.ts`).
-     */
+    /** Without a `revision` the pause acts on whatever runs, for older clients (`OPTIONAL_REVISION_ACTIONS`). */
     async pauseTimer(revision: number | undefined): Promise<TimerView> {
       const now = clock.now();
       return action(now, (ctx, user) => pauseWork(ctx, user, revision, now));

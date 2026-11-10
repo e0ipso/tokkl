@@ -20,7 +20,7 @@ import { t } from '../i18n/messages.ts';
 
 const PAGE_DAYS = 14;
 
-/** Today's and this week's tracked time. It ticks on its own, so running time does not re-render the page. */
+/** Ticks on its own, so running time does not re-render the page. */
 function PeriodTotals({ entries }: { entries: TimeEntry[] }) {
   const settings = useSettings();
   const now = useNow(30_000);
@@ -82,8 +82,7 @@ export function TimerPage() {
   });
   useShortcuts(settings.shortcuts, handlers);
 
-  // The empty list's "Manual mode" button goes away once manual mode is on, so focus moves to the
-  // description field instead of dropping to the page.
+  // The empty list's "Manual mode" button goes away once manual mode is on, so focus moves to the description.
   const focusAfterManual = useRef(false);
   const switchToManual = () => {
     focusAfterManual.current = true;

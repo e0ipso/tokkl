@@ -6,7 +6,7 @@ import { entityId, utcInstant } from '../conversion.ts';
 import { StorageConflict } from '../../domain/ports.ts';
 import { classifyConflict } from '../errors.ts';
 
-/** Most expired records one call deletes. The maintenance job calls again for the rest. */
+/** The maintenance job calls again for the rest. */
 const CLEANUP_BATCH = 100;
 
 export function createIdempotencyKeysRepository(

@@ -4,11 +4,7 @@ import { INERT_EXEMPT, inertOutside } from '../components/inertOutside.ts';
 import { t } from '../i18n/messages.ts';
 import { useFocusTrap } from '../components/useFocusTrap.ts';
 
-/**
- * The phone's More sheet: a modal dialog over the bottom bar. Focus starts on its first link, Tab
- * cycles inside it and the page behind is inert. Escape, the close button and a tap on the backdrop
- * all close it; the caller moves focus back to the More button once the sheet is gone.
- */
+/** A modal over the bottom bar; the caller moves focus back to the More button once the sheet is gone. */
 export function MoreSheet({ onClose, children }: { onClose: () => void; children: ReactNode }) {
   const backdrop = useRef<HTMLDivElement>(null);
   const ref = useRef<HTMLDivElement>(null);

@@ -3,13 +3,7 @@ import { currentAccount, expect, test } from './fixtures.ts';
 import { meWithSession, sessionCookie } from './auth-tests-helpers.ts';
 import { login } from './helpers.ts';
 
-// The theme saved on the server is cached in the browser and applied before React
-// mounts, so a dark choice on a light system never flashes the light UI on reload.
-// A blocking script in the head applies that cache, so it holds even when the bundle is slow.
-// The theme picked in Settings decides the page and chart colours.
-// The two media-scoped theme-color metas follow that choice, and "Match the system" restores them.
-// A failed logout request and an expired session also clear the cached theme.
-// When the failed request leaves the user signed in, the reloaded page says so.
+// A dark choice on a light system never flashes light on reload: a blocking head script applies the cached theme.
 
 const CSRF = { 'X-Tokkl-CSRF': '1' };
 const CACHE_KEY = 'tokkl.theme';
@@ -26,11 +20,7 @@ async function saveTheme(page: Page, theme: Theme) {
 const dataTheme = (page: Page) => page.evaluate(() => document.documentElement.getAttribute('data-theme'));
 const cachedTheme = (page: Page) => page.evaluate(key => window.localStorage.getItem(key), CACHE_KEY);
 
-/**
- * Reloads and reads data-theme at DOMContentLoaded. The preferences response is held until the
- * read, since on a fast server it can arrive first and apply the server's theme. A test that holds
- * it longer keeps its own route; this one falls back to it.
- */
+/** The preferences response is held until the read, since on a fast server it can arrive first. */
 async function themeAtFirstParse(page: Page) {
   let release = () => {};
   const held = new Promise<void>(resolve => {
@@ -109,8 +99,7 @@ test('a cached dark theme is on the first frame while the bundle is still downlo
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   expect(await cachedTheme(page)).toBe('dark');
 
-  // Records <html> on the first animation frame of the next load. `rendered` tells whether React
-  // had already put anything in #root, which would mean the bundle beat the frame.
+  // `rendered` tells whether React had already filled #root, which would mean the bundle beat the frame.
   await page.addInitScript(() => {
     requestAnimationFrame(() => {
       const html = document.documentElement;
@@ -169,12 +158,10 @@ test('the server preference replaces a stale cache, and with nothing cached the 
   await saveTheme(page, 'light');
   await page.evaluate(key => window.localStorage.setItem(key, 'dark'), CACHE_KEY);
 
-  // The stale cache applies first, then the server's light theme replaces it.
   expect(await themeAtFirstParse(page)).toBe('dark');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
   expect(await cachedTheme(page)).toBe('light');
 
-  // Back on "Match the system", the server answer drops both the attribute and the cache.
   await saveTheme(page, 'system');
   await page.reload();
   await expect(page.getByRole('region', { name: 'Timer' })).toBeVisible();
@@ -205,7 +192,6 @@ test('both log out buttons clear the cached theme', async ({ page }) => {
   expect(await themeAtFirstParse(page)).toBeNull();
 });
 
-/** Logs in, saves a dark theme and reloads, so the theme is both on <html> and in the cache. */
 async function loginWithCachedDark(page: Page) {
   await login(page);
   await saveTheme(page, 'dark');
@@ -238,7 +224,6 @@ test('a failed logout request still clears the cached theme', async ({ page, run
   await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible();
   expect(await cachedTheme(page)).toBeNull();
   await expect(page.locator('html')).not.toHaveAttribute('data-theme');
-  // The session did end, so there is no "still signed in" message.
   await expect(page.getByRole('alert')).toHaveCount(0);
 });
 
@@ -280,13 +265,11 @@ test('a logout the server never carries out clears the cache, then says the user
     await expect(page.locator('html'), where).not.toHaveAttribute('data-theme');
     release();
     await page.unroute('**/api/v9/me/preferences', hold);
-    // Still signed in: the account's own theme comes back from the server.
     await expect(page.locator('html'), where).toHaveAttribute('data-theme', 'dark');
     if (where === 'sidebar') await message.getByRole('button', { name: 'Dismiss' }).click();
     await expect(message).toHaveCount(where === 'sidebar' ? 0 : 1);
   }
 
-  // Try again once the server answers: the session ends, and logging in again shows no message.
   await page.unroute('**/api/app/logout', failLogout);
   await message.getByRole('button', { name: 'Try again' }).click();
   await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible();
@@ -340,9 +323,7 @@ test('an expired session clears the cached theme once, and the login page follow
     colours.light['--bg'],
   );
 
-  // One probe on load and one after the cache is cleared. Refocusing the tab refetches /me once
-  // more, and that 403 clears nothing. A loop would refetch within milliseconds, so a quiet
-  // second after each step shows there is none.
+  // A 403 loop would refetch /me within milliseconds, so a quiet second after each step shows there is none.
   const isMe = (response: { url(): string }) => new URL(response.url()).pathname === '/api/v9/me';
   await expect.poll(() => meRequests.length).toBe(2);
   await page.waitForTimeout(1_000);
@@ -356,7 +337,6 @@ test('an expired session clears the cached theme once, and the login page follow
   await page.waitForTimeout(1_000);
   expect(meRequests).toHaveLength(3);
 
-  // Logging in on that same page works, and the saved theme comes back.
   await page.getByLabel('Email').fill(currentAccount().email);
   await page.getByLabel('Password').fill(currentAccount().password);
   await page.getByRole('button', { name: 'Log in' }).click();
@@ -365,10 +345,8 @@ test('an expired session clears the cached theme once, and the login page follow
   expect(await cachedTheme(page)).toBe('dark');
 });
 
-// The tokens are light-dark(light, dark) in source, but the production build compiles that into
-// variables switched on <html>, so a nested color-scheme does not flip them. The reference values
-// therefore come from the logged-out page in a fresh context per emulated scheme: no data-theme
-// there, so only the media query decides. No hex is written here.
+// The build compiles light-dark() into variables switched on <html>, so reference values come from the
+// logged-out page per emulated scheme. No hex is written here.
 type Scheme = 'light' | 'dark';
 type Token = '--bg' | '--chart-billable';
 type TokenColours = Record<Scheme, Record<Token, string>>;
@@ -410,13 +388,12 @@ async function systemTokenColours(browser: Browser, baseURL: string): Promise<To
   return colours;
 }
 
-/** The page background. styles.css paints it on <html>; <body> stays transparent. */
+/** styles.css paints it on <html>; <body> stays transparent. */
 const pageBackground = (page: Page) => page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor);
 const fill = (mark: Locator) => mark.evaluate(element => getComputedStyle(element).fill);
 
 const REPORT_WEEK = '/reports?from=2026-01-05&to=2026-01-11';
 
-/** Seeds one billable entry on Monday 5 January 2026 so the summary chart draws a billable bar. */
 async function seedBillableEntry(page: Page) {
   const me = await page.request.get('/api/v9/me');
   expect(me.ok()).toBe(true);
@@ -434,7 +411,6 @@ async function seedBillableEntry(page: Page) {
   expect(response.ok()).toBe(true);
 }
 
-/** Picks a theme in the Settings Theme select and saves the Preferences card. */
 async function chooseTheme(page: Page, label: 'Match the system' | 'Light' | 'Dark') {
   await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Settings' }).click();
   const preferences = page.getByRole('form', { name: 'Preferences' });
@@ -449,10 +425,7 @@ async function expectPageColours(page: Page, colours: TokenColours, scheme: Sche
     .toBe(colours[scheme]['--bg']);
 }
 
-/**
- * The light and dark theme-color metas' colours, in that order, resolved to rgb() through a probe so
- * they compare with the --bg token values.
- */
+/** Resolved to rgb() through a probe so they compare with the --bg token values. */
 const themeColors = (page: Page) =>
   page.evaluate(() =>
     (['light', 'dark'] as const).map(scheme => {
@@ -468,7 +441,6 @@ const themeColors = (page: Page) =>
     }),
   );
 
-/** An explicit theme puts its own --bg in both metas; with none, each meta keeps its scheme's --bg. */
 async function expectThemeColors(page: Page, colours: TokenColours, theme: Scheme | null) {
   const expected = theme
     ? [colours[theme]['--bg'], colours[theme]['--bg']]
@@ -521,7 +493,6 @@ test('Match the system follows the emulated color scheme', async ({ page, browse
   await saveTheme(page, 'dark');
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-  // The cached dark theme fills both metas on load, before Settings changes anything.
   await expectThemeColors(page, colours, 'dark');
   await chooseTheme(page, 'Match the system');
   await expect(page.locator('html')).not.toHaveAttribute('data-theme');

@@ -13,10 +13,9 @@ import { lenientNumber, pageWindow } from '../src/http/params.ts';
 import { offsetRange, pageRange, slicePage } from '../src/lib/pagination.ts';
 import { addWorkspaceMember, createWorkspace } from './fixtures/domain.ts';
 
-/** `limit` items from the 0-based `offset`, as the offset paging of `/me/tasks` answers them. */
 const sliceOffset = <T>(items: readonly T[], offset: number, limit: number): T[] => items.slice(offset, offset + limit);
 
-/** Every v9 DELETE answers an empty 200, as Toggl's docs list no response body for them. */
+/** Toggl's docs list no response body for v9 DELETEs. */
 async function assertEmptyOk(response: Response): Promise<void> {
   assert.equal(response.status, 200);
   assert.equal(await response.text(), '');
@@ -230,7 +229,6 @@ test('task listings follow Toggl shapes: workspace envelope, project array, pagi
   for (const name of ['p1', 'p2']) await ctx.json('POST', `${base}/projects`, { name });
   assert.equal((await ctx.json('GET', `${base}/projects`)).body.length, 3);
   assert.equal((await ctx.json('GET', `${base}/projects?per_page=2&page=2`)).body.length, 1);
-  // Paged in SQL, each page is byte for byte the slice the full listing gives, lenient values included.
   const all = JSON.parse(await (await ctx.request('GET', `${base}/projects?active=both`)).text()) as unknown[];
   for (const paging of ['per_page=2&page=2', 'per_page=1', 'page=1.5&per_page=2', 'page=9e15', 'page=x&per_page=0']) {
     const [page, perPage] = ['page', 'per_page'].map(name => new URLSearchParams(paging).get(name) ?? undefined);
@@ -364,7 +362,6 @@ test('client_id null clears a project client; legacy cid still works', async () 
   assert.equal(renamed.body.client_id, null);
 });
 
-// Hourly rates must be finite, non-negative and at most 1e9.
 const BAD_RATES: Array<[string, string]> = [
   ['1e400', 'expected a non-negative number'],
   ['-1', 'expected a non-negative number'],
@@ -431,7 +428,6 @@ test('the largest accepted rates keep report amounts finite', async () => {
   await ctx.json('PUT', base, { default_hourly_rate: 1e9 });
   const capped = await ctx.json('POST', `${base}/projects`, { name: 'Capped', billable: true, rate: 1e9 });
   const inherits = await ctx.json('POST', `${base}/projects`, { name: 'Default rate', billable: true });
-  // The longest entry allowed (999 h) on each project.
   for (const project of [capped.body, inherits.body]) {
     await ctx.json('POST', `${base}/time_entries`, {
       start: '2026-10-01T00:00:00Z',
@@ -448,7 +444,6 @@ test('the largest accepted rates keep report amounts finite', async () => {
   assert.ok(Number.isSafeInteger(totals.body.billable_amount_in_cents));
 });
 
-// Project and task totals read the partial live-entry indexes.
 test('project and task totals use the live-entry indexes and count running, not deleted, entries', async () => {
   const ctx = await setup();
   const base = `/api/v9/workspaces/${ctx.wid}`;
@@ -509,7 +504,6 @@ for (const version of [1, 2, 5, 6])
     }
   });
 
-// Deleting a client renames colliding projects instead of failing or merging them.
 test('deleting a client renames projects whose names collide with unassigned ones', async () => {
   const ctx = await setup();
   const base = `/api/v9/workspaces/${ctx.wid}`;
@@ -535,13 +529,11 @@ test('deleting a client renames projects whose names collide with unassigned one
   assert.equal((await ctx.json('GET', `/api/v9/me/time_entries/${entry.body.id}`)).body.project_id, acmeSite.id);
   assert.equal(await nameOf(unassigned.id), 'Website');
 
-  // The same client name again: "Website (ACME)" is taken now, so a number is appended.
   const acmeAgain = await client('ACME');
   const second = await project({ name: 'Website', client_id: acmeAgain.id });
   await deleteClient(acmeAgain.id);
   assert.equal(await nameOf(second.id), 'Website (ACME) 2');
 
-  // Two clients with the same project name: the first freed name wins, the second gets a suffix.
   const one = await client('One');
   const two = await client('Two');
   const oneSite = await project({ name: 'Shop', client_id: one.id });
@@ -551,7 +543,6 @@ test('deleting a client renames projects whose names collide with unassigned one
   await deleteClient(two.id);
   assert.equal(await nameOf(twoSite.id), 'Shop (Two)');
 
-  // Generated names stay within the 255 character limit.
   const long = 'x'.repeat(255);
   await project({ name: long });
   const big = await client('Big');

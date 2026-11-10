@@ -138,7 +138,6 @@ test('accepting an invite creates the account, its workspace and membership, and
   assert.equal(me.status, 200);
   assert.equal(((await me.json()) as { email: string }).email, 'ana@example.com');
 
-  // Every app report reads the new account's default workspace.
   const range = { start_date: '2026-10-01', end_date: '2026-10-07' };
   for (const path of [
     '/api/app/report',
@@ -156,7 +155,6 @@ test('accepting an invite creates the account, its workspace and membership, and
     'a used invite is no longer pending',
   );
 
-  // With no name, the workspace is "My workspace", as for the first admin.
   const unnamed = await invite(admin);
   assert.equal((await accept(admin, unnamed.token, { email: 'nameless@example.com' })).status, 200);
   const nameless = (await storageFor(admin.db).users.findByEmail('nameless@example.com'))!;

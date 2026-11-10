@@ -21,7 +21,6 @@ test('start and stop a timer with a new project and tag', async ({ page, data })
   await expect(timer.getByRole('button', { name: 'Stop timer' })).toBeVisible();
   await expect(timer.getByLabel('Description')).toHaveValue('Write the PRD');
   await expect(page).toHaveTitle(/0:00:0\d · Write the PRD/);
-  // A running timer shows a "Running" label, and the nav dot has text, not just colour.
   const timerLink = page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Timer running' });
   await expect(timer.getByText('Running', { exact: true })).toBeVisible();
   await expect(timerLink).toHaveCount(1);
@@ -32,8 +31,7 @@ test('start and stop a timer with a new project and tag', async ({ page, data })
   const backdated = await api.backdate(running.id, 10);
   await timer.getByRole('button', { name: 'Stop timer' }).click();
   await expect(timer.getByRole('button', { name: 'Start timer' })).toBeVisible();
-  // Stopping snaps the entry to the time resolution; until then it kept its exact start, which the
-  // title's elapsed time above counts from.
+  // Stopping snaps the entry; until then it kept its exact start, which the title's elapsed time counts from.
   const [stopped] = await api.entries();
   expect(stopped!.id).toBe(running.id);
   const step = (await data.me()).time_resolution_minutes * 60_000;
@@ -76,8 +74,7 @@ test('manual entry across midnight, edit and delete with undo', async ({ page })
 });
 
 test('keyboard shortcuts start, stop and continue', async ({ page, data }) => {
-  // A finished entry from yesterday, 10:00 to 11:15 UTC, gives "c" something to continue
-  // without crossing a day boundary in Europe/Madrid.
+  // Yesterday 10:00 to 11:15 UTC, so "c" continues it without crossing a day boundary in Europe/Madrid.
   const day = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
   await data.createEntry({ description: 'Shortcut seed', start: `${day}T10:00:00Z`, stop: `${day}T11:15:00Z` });
   await login(page);
@@ -119,7 +116,6 @@ test('undoing a discard while another timer runs restores the entry stopped on t
   await timer.getByRole('button', { name: 'Start timer' }).click();
   const kept = await nextRunning(api, discarded.id);
 
-  // Only one timer runs, so the restored entry stops now, snapped to the time resolution.
   await page.getByRole('button', { name: 'Undo' }).click();
   await expect(page.locator('.entry-line', { has: page.locator('input[value="Started by mistake"]') })).toHaveCount(1);
   const all = await api.entries();
@@ -169,9 +165,7 @@ test('Continue, a favorite and C each replace a running timer', async ({ page, d
       Array<{ description: string; start: string; stop: string }>
     >;
   const step = (await data.me()).time_resolution_minutes * 60_000;
-  // Exactly one entry runs and it is `description`. `previous` was replaced seconds after it
-  // started, so it rounded to zero and is the newest of `trashed` entries in the trash, with zero
-  // length on a grid point.
+  // `previous` was replaced seconds after it started, so it rounded to zero and is the newest of `trashed`.
   const expectReplaced = async (description: string, previous: string, trashed: number) => {
     await expect(timer.getByLabel('Description')).toHaveValue(description);
     await expect
@@ -194,7 +188,6 @@ test('Continue, a favorite and C each replace a running timer', async ({ page, d
   await timer.getByRole('button', { name: 'Start timer' }).click();
   await expect(timer.getByRole('button', { name: 'Stop timer' })).toBeVisible();
 
-  // A double click starts one entry, not two.
   await page
     .locator('.entry-line', { has: page.locator('input[value="Earlier work"]') })
     .getByRole('button', { name: 'Continue this entry' })
@@ -208,7 +201,6 @@ test('Continue, a favorite and C each replace a running timer', async ({ page, d
   await page.locator('body').click({ position: { x: 5, y: 400 } });
   await page.keyboard.press('c');
   await expectReplaced('Earlier work', 'Standup', 3);
-  // The seed and the running replacement.
   expect(await entries()).toHaveLength(2);
   await timer.getByRole('button', { name: 'Stop timer' }).click();
   await expect(timer.getByRole('button', { name: 'Start timer' })).toBeVisible();
@@ -238,7 +230,6 @@ test('a manual entry across the autumn clock change moves the date to its stop d
   // 23:00 CEST to 3:30 CET: the repeated hour makes it 5.5 hours.
   await expect(timer.locator('.manual-duration')).toHaveText('5:30:00');
 
-  // A failed save keeps the date and times.
   await page.route(
     /\/api\/v9\/workspaces\/\d+\/time_entries\?/,
     route =>

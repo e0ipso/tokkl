@@ -1,8 +1,4 @@
-/**
- * Settlement: before a write commits, the user's timer state is made consistent (a session or a
- * pause chain whose entry stopped is dropped) and, when the visible state changed, gets a new
- * revision that is published after commit.
- */
+/** Before commit the timer is made consistent; a visible change gets a revision published after commit. */
 import type { OperationContext, Repositories } from './ports.ts';
 import type { Id, TagLabel, TimerSnapshot } from './model.ts';
 import { encodeTimerFingerprint, IDLE_TIMER_FINGERPRINT } from './timerFingerprint.ts';
@@ -11,19 +7,14 @@ import { buildTimerView, type TimerView } from './timerView.ts';
 type SettlementRepositories = Pick<Repositories, 'users' | 'entries' | 'timers' | 'tags'>;
 type SettlementContext = OperationContext<SettlementRepositories>;
 
-/** One local application instance owns this callback. No connection or database identity is exposed.
- * `incarnation` is the user row's `createdAt`. It tells apart accounts that reuse a deleted id. */
+/** `incarnation` is the user row's `createdAt`; it tells apart accounts that reuse a deleted id. */
 export type TimerPublication = (userId: Id, view: TimerView, incarnation: string) => Promise<void>;
 export interface LocalTimerPublication {
   publish: TimerPublication;
   forgetUser(userId: Id): void;
 }
 
-/**
- * True when settling `snapshot` would write: a session or pause chain is detached from the running
- * entry, or the visible state differs from the stored revision's fingerprint. `chainTags` are the
- * pause chain's tags as stored. A state this calls settled reads the same with or without settling.
- */
+/** True when settling would write. A state this calls settled reads the same with or without settling. */
 export function settlementDue(snapshot: TimerSnapshot, chainTags: TagLabel[]): boolean {
   const runningId = snapshot.running?.id ?? null;
   if (snapshot.session && snapshot.session.entryId !== runningId) return true;
@@ -31,7 +22,7 @@ export function settlementDue(snapshot: TimerSnapshot, chainTags: TagLabel[]): b
   return encodeTimerFingerprint(snapshot, chainTags) !== (snapshot.revision?.fingerprint ?? IDLE_TIMER_FINGERPRINT);
 }
 
-/** Drops a session or pause chain whose entry is no longer the running one; returns what it left. */
+/** Returns the entry ids it left. */
 async function dropDetached(ctx: SettlementContext, userId: Id, data: TimerSnapshot): Promise<Set<Id>> {
   const runningId = data.running?.id ?? null;
   const left = new Set<Id>();
@@ -47,7 +38,7 @@ async function dropDetached(ctx: SettlementContext, userId: Id, data: TimerSnaps
   return left;
 }
 
-/** The first left session entry that was discarded: deleted with a zero-length span. */
+/** Discarded: deleted with a zero-length span. */
 async function discardedPomodoro(ctx: SettlementContext, userId: Id, left: Set<Id>) {
   for (const id of left) {
     const entry = await ctx.entries.get(userId, id, true);
@@ -56,7 +47,7 @@ async function discardedPomodoro(ctx: SettlementContext, userId: Id, left: Set<I
   return null;
 }
 
-/** The caller acquired the stable user parent before reading state, including absent state. */
+/** The caller locked the user before reading state, including absent state. */
 export async function settleTimer(ctx: SettlementContext, userId: Id, publish: TimerPublication): Promise<boolean> {
   const user = await ctx.users.get(userId);
   if (!user) return false;
@@ -84,7 +75,7 @@ export async function settleTimer(ctx: SettlementContext, userId: Id, publish: T
   return changed;
 }
 
-/** Settles the user's timer once, just before this transaction commits. */
+/** Settles once, just before this transaction commits. */
 export function touchTimer(ctx: SettlementContext, userId: Id, publish: TimerPublication): void {
   ctx.beforeCommit(`timer:${userId}`, async () => {
     await settleTimer(ctx, userId, publish);

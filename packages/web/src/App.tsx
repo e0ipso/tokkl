@@ -16,12 +16,8 @@ import { InvitePage } from './pages/InvitePage.tsx';
 import { ResetPasswordPage } from './pages/ResetPasswordPage.tsx';
 
 /**
- * Ends the session once when /me answers 403, whether it expired while the app was open or before
- * this page load. Clearing the cache also drops the status and /me queries, which App reads, so
- * the state change re-renders App and its queries fetch again. That second 403 finds the session
- * already ended and does nothing, so the 403 path cannot clear and refetch in a loop. A successful
- * /me, after the next login, re-arms it. This runs before paint, so the login page never shows in
- * the previous user's theme.
+ * Ends the session once per 403 from /me; the clear re-renders App, and the second 403 does nothing.
+ * Runs before paint, so the login page never shows in the previous user's theme.
  */
 function useEndSessionOnForbidden(forbidden: boolean, signedIn: boolean) {
   const qc = useQueryClient();
@@ -30,9 +26,7 @@ function useEndSessionOnForbidden(forbidden: boolean, signedIn: boolean) {
   useLayoutEffect(() => {
     if (signedIn || !forbidden || ended) return;
     endSession(qc);
-    // qc.clear() notifies no mounted query, so this state change is what re-renders App and makes
-    // its queries fetch again. The rule's alternative, deriving the value during render, cannot
-    // run the cache clear, which has to happen once and before paint.
+    // qc.clear() notifies no mounted query, so this state change re-renders App; the clear must run once, before paint.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setEnded(true);
   }, [forbidden, signedIn, ended, qc]);
@@ -47,7 +41,7 @@ function Splash({ children }: { children: ReactNode }) {
   );
 }
 
-/** The session gate: one-time link pages, first-run setup, the login page, or the signed-in app. */
+/** One-time link pages, first-run setup, the login page, or the signed-in app. */
 export function App() {
   const status = useAppStatus();
   const me = useMe();

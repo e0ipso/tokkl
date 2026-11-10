@@ -8,9 +8,6 @@ import { Icon } from './Icon.tsx';
 import { projectColorStyle } from './ProjectLabel.tsx';
 import { t } from '../i18n/messages.ts';
 
-/** The parts of the week calendar above the hour grid. */
-
-/** Previous, current and next buttons with the shown day or week. */
 export function CalendarToolbar({
   dayMode,
   selectedDay,
@@ -67,7 +64,7 @@ export function CalendarToolbar({
   );
 }
 
-/** The week's days as one Tab stop in day mode: arrows, Home and End move between them and select. */
+/** One Tab stop in day mode: arrows, Home and End move between days and select. */
 export function DayStrip({
   weekDays,
   selectedDay,
@@ -118,7 +115,7 @@ export function DayStrip({
   );
 }
 
-/** One cell per shown day, outside the hour scroller. Add controls and chips are siblings. */
+/** Outside the hour scroller. Add controls and chips are siblings. */
 export function AllDayRow({
   days,
   entries,

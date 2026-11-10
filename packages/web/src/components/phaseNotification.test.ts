@@ -8,9 +8,8 @@ import {
   requestNotificationAccess,
 } from './phaseNotification.ts';
 
-// A minimal window, document and Notification stand in for the browser's. `setup` picks what the
-// page reports: its permission, a permission request's answer, whether the API exists or its
-// constructor throws (as Chrome on Android does), a secure context and the page's visibility.
+// Stand-ins for window, document and Notification; `setup` picks permission, API presence, a throwing
+// constructor (as Chrome on Android), secure context and visibility.
 interface Setup {
   permission?: NotificationPermission | 'throws';
   answer?: NotificationPermission | 'rejects';

@@ -22,11 +22,7 @@ const state = (revision: number, running_entry: TimeEntry | null) => timerState(
 
 const EDIT_PATH = '/api/app/timer/edit';
 
-/**
- * A fetch that holds every request until the test answers it, in any order. A v9 update is
- * answered with the entry; a running-entry edit with a state running entry 7, at revisions 4, 5
- * and on.
- */
+/** Holds every request until the test answers it. A running-entry edit answers states at revisions 4, 5 and on. */
 function holding() {
   const requests: Array<{ path: string; body: Record<string, unknown>; answer: () => void }> = [];
   let revision = 3;
@@ -100,7 +96,6 @@ test('a running-entry edit goes through the timer naming its entry, with no revi
   assert.equal(qc.getQueryData<TimerState>(keys.timer)?.revision, 5);
 });
 
-/** A fetch that answers each request with the next of `replies` and records what was sent. */
 function answering(...replies: Array<{ status: number; body: unknown }>) {
   const sent: Array<{ request: string; body?: Record<string, unknown> }> = [];
   const fetch = (path: string, init: RequestInit) => {

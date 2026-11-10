@@ -1,13 +1,4 @@
-/**
- * Housekeeping that runs on a timer instead of inside requests. It deletes idempotency keys past
- * their retention, expired sessions, expired rate-limit rows, and used or expired invite and
- * password reset links. Each table is cleaned a batch per transaction, so no request waits long
- * behind it, and rows another write holds stay for a later run. Nothing here decides an answer:
- * every reader already ignores the expired rows, so a late run only lets the tables grow.
- *
- * The timer does not keep the process alive, and closing waits for a run in progress so storage is
- * not closed under it.
- */
+/** Deletes expired rows a batch per transaction. Readers ignore expired rows, so a late run only lets tables grow. */
 import type {
   Clock,
   IdempotencyKeysRepository,
@@ -18,10 +9,9 @@ import type {
 import { idempotencyCutoff } from '../domain/idempotency.ts';
 import { silentLogger, type Logger } from '../lib/logger.ts';
 
-/** How often the job runs. It only bounds the tables' growth. */
+/** It only bounds the tables' growth. */
 export const MAINTENANCE_INTERVAL_MS = 60 * 60 * 1000;
 
-/** The repositories the job cleans, each through one batched delete. */
 interface MaintenanceRepositories {
   idempotencyKeys: Pick<IdempotencyKeysRepository, 'deleteExpired'>;
   sessions: Pick<SessionsRepository, 'deleteExpired'>;
@@ -29,12 +19,11 @@ interface MaintenanceRepositories {
   tokens: Pick<TokensRepository, 'deleteSpent'>;
 }
 
-/** Opens the write transactions the job deletes in. A `Storage` is one. */
+/** A `Storage` is one. */
 interface MaintenanceTransactions {
   transaction<T>(work: (context: MaintenanceRepositories) => Promise<T>): Promise<T>;
 }
 
-/** One cleanup: deletes a batch and returns how many rows it deleted. */
 type Cleanup = (repositories: MaintenanceRepositories, now: Date) => Promise<number>;
 
 const CLEANUPS = {
@@ -44,10 +33,10 @@ const CLEANUPS = {
   accountTokens: (r, now) => r.tokens.deleteSpent(now.toISOString()),
 } as const satisfies Record<string, Cleanup>;
 
-/** Rows each cleanup deleted in one run; a failed cleanup is left out. */
+/** A failed cleanup is left out. */
 type MaintenanceReport = Partial<Record<keyof typeof CLEANUPS, number>>;
 
-/** Runs `cleanup` a batch per transaction until a batch deletes nothing, and returns the total. */
+/** Until a batch deletes nothing. */
 async function untilClean(storage: MaintenanceTransactions, cleanup: Cleanup, now: Date): Promise<number> {
   let total = 0;
   for (;;) {
@@ -57,10 +46,7 @@ async function untilClean(storage: MaintenanceTransactions, cleanup: Cleanup, no
   }
 }
 
-/**
- * Runs every cleanup once, as of the time `clock` reads when the run starts. One that fails is
- * logged and the others still run.
- */
+/** As of the time `clock` reads at the start. A failing cleanup is logged and the others still run. */
 export async function runMaintenance(
   storage: MaintenanceTransactions,
   { clock, logger = silentLogger }: { clock: Clock; logger?: Logger },
@@ -79,7 +65,6 @@ export async function runMaintenance(
   return report;
 }
 
-/** Runs the job every hour until closed. Each run deletes what has expired by `clock`'s time. */
 export function startMaintenance(
   storage: MaintenanceTransactions,
   { clock, logger = silentLogger }: { clock: Clock; logger?: Logger },
@@ -96,7 +81,7 @@ export function startMaintenance(
   }, MAINTENANCE_INTERVAL_MS);
   timer.unref();
   return {
-    /** Stops the timer and waits for a run in progress. */
+    /** Waits for a run in progress, so storage is not closed under it. */
     async close() {
       closed = true;
       clearInterval(timer);

@@ -8,11 +8,7 @@ import { useExclusive } from './useExclusive.ts';
 import { useBulkEdit, useDeleteEntries } from './useEntryListActions.ts';
 import { t } from '../i18n/messages.ts';
 
-/**
- * Actions on the selected entries. Every action ends the selection once the server answers. One
- * runs at a time: the action buttons are disabled until the server answers, so a double click
- * never deletes or edits the selection twice.
- */
+/** Every action ends the selection once the server answers, and the buttons stay disabled until then. */
 export function BulkBar({ ids, onDone }: { ids: number[]; onDone: () => void }) {
   const [picker, setPicker] = useState<'project' | 'tags' | null>(null);
   const projectRef = useRef<HTMLButtonElement>(null);

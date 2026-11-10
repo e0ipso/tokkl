@@ -1,7 +1,4 @@
-/**
- * Read use cases for the HTTP API. Routes receive these bound to one credential-checked snapshot
- * and never see repositories, so workspace scoping, filtering and ordering live here.
- */
+/** Bound to one credential-checked snapshot; routes never see repositories. */
 import type {
   ClientFilter,
   ClientsRepository,
@@ -39,7 +36,7 @@ import { getClient, getProject, getTask } from './catalogs.ts';
 import { getTimeEntry } from './entryAccess.ts';
 import { offsetRange, pageRange, slicePage, type PageWindow, type RowRange } from '../lib/pagination.ts';
 
-/** Reads about accounts, the instance and workspace membership. No repository here can write. */
+/** No repository here can write. */
 interface AccountReadRepositories {
   users: Pick<UsersRepository, 'list'>;
   workspaces: Pick<WorkspacesRepository, 'forMember' | 'listForUser' | 'getRole' | 'countMembers' | 'listMembers'>;
@@ -47,7 +44,6 @@ interface AccountReadRepositories {
   tokens: Pick<TokensRepository, 'listPendingInvites'>;
   transfers: TransfersRepository;
 }
-/** Reads of the clients, projects, tasks and tags in the workspaces a user belongs to. */
 interface CatalogReadRepositories {
   workspaces: Pick<WorkspacesRepository, 'listForUser' | 'catalogRevision'>;
   clients: Pick<ClientsRepository, 'list' | 'get'>;
@@ -55,20 +51,18 @@ interface CatalogReadRepositories {
   tasks: Pick<TasksRepository, 'list' | 'get' | 'listSortKeys' | 'count' | 'listByCreation' | 'listForMember'>;
   tags: Pick<TagsRepository, 'list'>;
 }
-/** Reads of one user's time entries. */
 interface EntryReadRepositories {
   entries: Pick<EntriesRepository, 'list' | 'get' | 'running' | 'bounds' | 'listDeleted' | 'countDeleted'>;
 }
 type ReadQueryRepositories = AccountReadRepositories & CatalogReadRepositories & EntryReadRepositories;
 
-/** A workspace with the caller's membership role in it. */
 interface MemberWorkspace {
   workspace: Workspace;
   role: MembershipRole | undefined;
 }
 export interface WorkspaceProject {
   project: ProjectSummary;
-  /** The workspace's currency, which Toggl repeats on every project. */
+  /** Toggl repeats it on every project. */
   defaultCurrency: string;
 }
 interface Organization {
@@ -95,7 +89,6 @@ export interface TaskSearch {
   sortField: TaskSortField;
   sortOrder: SortOrder;
 }
-/** One page of a task search and how many tasks match it in all. */
 interface TaskSearchPage {
   tasks: TaskSummary[];
   totalCount: number;
@@ -126,7 +119,7 @@ function compareTasks(field: TaskSortField, order: SortOrder) {
       : a.createdAt.localeCompare(b.createdAt)) || a.id - b.id);
 }
 
-/** Rows from every workspace the user belongs to, in workspace order. */
+/** In workspace order. */
 async function acrossWorkspaces<T>(
   r: Pick<CatalogReadRepositories, 'workspaces'>,
   userId: Id,
@@ -142,9 +135,8 @@ function createAccountQueries(r: AccountReadRepositories, deploymentSessionDays:
   });
   return {
     instanceSettings: (): Promise<InstanceSettings> => getInstanceSettings(r, deploymentSessionDays),
-    /** 403 unless the user is a member; a missing workspace looks the same. */
+    /** A missing workspace looks the same. */
     workspace: (userId: Id, workspaceId: Id): Promise<Workspace> => memberWorkspace(r, userId, workspaceId),
-    /** 403 unless the user owns the workspace. */
     ownedWorkspace: (userId: Id, workspaceId: Id): Promise<Workspace> => ownedWorkspace(r, userId, workspaceId),
     async memberWorkspace(userId: Id, workspaceId: Id): Promise<MemberWorkspace> {
       return withRole(userId, await memberWorkspace(r, userId, workspaceId));
@@ -183,7 +175,7 @@ export function createCatalogQueries(r: CatalogReadRepositories) {
       acrossWorkspaces(r, userId, async ws => changedAfter(await r.tags.list(ws.id), changedSince)),
     memberTasks: (userId: Id, filter: MemberTaskFilter): Promise<TaskSummary[]> =>
       r.tasks.listForMember(userId, memberTaskFilter(filter)),
-    /** `limit` of `memberTasks` from the 0-based `offset`, or all from it, read as those rows only. */
+    /** Reads only those rows. */
     async memberTasksFrom(userId: Id, filter: MemberTaskFilter, offset: number, limit?: number) {
       const range = offsetRange(offset, limit);
       return range ? r.tasks.listForMember(userId, memberTaskFilter(filter), range) : [];
@@ -191,19 +183,13 @@ export function createCatalogQueries(r: CatalogReadRepositories) {
     workspaceProjects: (ws: Workspace, filter?: ProjectFilter) => projectsOf(ws, filter),
     /** Changes whenever the workspace's v9 project list may answer differently, totals and `status` aside. */
     catalogRevision: (ws: Workspace): Promise<number> => r.workspaces.catalogRevision(ws.id),
-    /** One page of `workspaceProjects`, read from the database as that page only. */
+    /** Reads only that page. */
     async workspaceProjectsPage(ws: Workspace, filter: ProjectFilter, window: PageWindow): Promise<WorkspaceProject[]> {
       const range = pageRange(window);
       return range ? projectsOf(ws, filter, range) : [];
     },
     workspaceProject: (ws: Workspace, id: Id): Promise<ProjectSummary> => getProject(r, ws.id, id),
-    /**
-     * One page of the workspace's tasks. SQL applies the project, state and `since` filters. With
-     * no search, a creation-time order is SQL's too, with its count and page. The name order folds
-     * case and compares as `localeCompare` does, which no engine repeats, and the search folds case
-     * as JavaScript does, so both run in memory: on the ids, names and creation instants of the
-     * matching tasks only, and only the page's tasks are read in full.
-     */
+    /** SQL filters; the `localeCompare` name order and case-folded search run in memory on sort keys. */
     async searchTasks(ws: Workspace, search: TaskSearch, window: PageWindow): Promise<TaskSearchPage> {
       const filter = { projectId: search.projectId, active: search.active, changedSince: search.changedSince };
       const needle = search.search?.toLowerCase();
@@ -229,12 +215,12 @@ export function createCatalogQueries(r: CatalogReadRepositories) {
     workspaceClients: (ws: Workspace, filter?: ClientFilter): Promise<Client[]> => r.clients.list(ws.id, filter),
     workspaceClient: (ws: Workspace, id: Id): Promise<Client> => getClient(r, ws.id, id),
     workspaceTags: (ws: Workspace, search?: string): Promise<Tag[]> => r.tags.list(ws.id, search),
-    /** One page of `workspaceTags`, read from the database as that page only. */
+    /** Reads only that page. */
     async workspaceTagsPage(ws: Workspace, search: string | undefined, window: PageWindow): Promise<Tag[]> {
       const range = pageRange(window);
       return range ? r.tags.list(ws.id, search, range) : [];
     },
-    /** Every task in the workspace, active or not. */
+    /** Active or not. */
     workspaceTasks: (ws: Workspace): Promise<TaskSummary[]> => r.tasks.list(ws.id),
   };
 }
@@ -243,10 +229,7 @@ function createEntryQueries(r: EntryReadRepositories) {
   return {
     timeEntries: (userId: Id, filter: EntryFilter): Promise<EntryDetails[]> => r.entries.list(userId, filter),
     runningEntry: (userId: Id): Promise<EntryDetails | undefined> => r.entries.running(userId),
-    /**
-     * The user's newest live entry by start, running or stopped, in any workspace: the first entry
-     * `/me/time_entries` lists. Read with LIMIT 1 on the user and start index.
-     */
+    /** The first entry `/me/time_entries` lists, read with LIMIT 1 on the user and start index. */
     latestEntry: async (userId: Id): Promise<EntryDetails | undefined> =>
       (await r.entries.list(userId, { limit: 1 }))[0],
     timeEntry: (userId: Id, id: Id): Promise<EntryDetails> => getTimeEntry(r, userId, id),
@@ -256,7 +239,6 @@ function createEntryQueries(r: EntryReadRepositories) {
   };
 }
 
-/** The account, catalog and entry queries over one snapshot, plus `relatedData`, which spans all three. */
 export function createReadQueries(r: ReadQueryRepositories, deploymentSessionDays: number) {
   const accounts = createAccountQueries(r, deploymentSessionDays),
     catalogs = createCatalogQueries(r),

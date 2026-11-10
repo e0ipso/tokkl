@@ -6,26 +6,20 @@ import {
 import type { JsonObject, User } from './model.ts';
 import { MAX_NAME_LENGTH } from './catalogCommands.ts';
 import { MAX_DESCRIPTION_LENGTH } from './entryCommands.ts';
-/** Longest email or full name an account keeps. */
 export const MAX_ACCOUNT_TEXT_LENGTH = 255;
-/** Shortest password accepted when one is set. */
 export const MIN_PASSWORD_LENGTH = 8;
-/** Longest password accepted when one is set. Existing longer passwords still verify. */
+/** Existing longer passwords still verify. */
 export const MAX_PASSWORD_LENGTH = 1024;
 
-/** One `@` with something on each side and no whitespace: a check for typos, not deliverability. */
+/** A check for typos, not deliverability. */
 export const isEmailAddress = (value: string) => /^[^@\s]+@[^@\s]+$/.test(value);
 
-/**
- * The account key of an email: trimmed, with only ASCII A-Z lowercased. users.email_key folds the
- * same letters on every engine, so two emails share a key exactly when they are the same account.
- * toLowerCase would also fold letters such as Ä that the key keeps apart.
- */
+/** Folds only ASCII A-Z, like users.email_key on every engine; toLowerCase would also fold Ä. */
 export function normalizeEmail(email: string): string {
   return email.trim().replace(/[A-Z]/g, letter => String.fromCharCode(letter.charCodeAt(0) + 32));
 }
 
-/** Defaults for the preferences this app reads. Unknown keys sent by clients are kept as-is. */
+/** Unknown keys sent by clients are kept as-is. */
 export const DEFAULT_PREFERENCES = {
   date_format: 'YYYY-MM-DD',
   timeofday_format: 'H:mm',
@@ -68,7 +62,7 @@ const oneOf = (...values: string[]): PreferenceRule => ({
   valid: value => typeof value === 'string' && values.includes(value),
   expected: `one of ${values.join(', ')}`,
 });
-/** Accepts a JSON integer from `min` to `max`, both included. Fractions, numeric strings, null and booleans fail. */
+/** Fractions, numeric strings, null and booleans fail. */
 const integerFrom = (min: number, max: number): PreferenceRule => ({
   valid: value => Number.isInteger(value) && (value as number) >= min && (value as number) <= max,
   expected: `an integer from ${min} to ${max}`,
@@ -95,10 +89,7 @@ function isFavorite(value: unknown): boolean {
   );
 }
 
-/**
- * Known preferences Tokkl's clients read, with the values they can use. Other keys are stored as
- * sent. A Map, so a key such as `constructor` finds no inherited rule.
- */
+/** Other keys are stored as sent. A Map, so a key such as `constructor` finds no inherited rule. */
 const PREFERENCE_RULES = new Map<string, PreferenceRule>(
   Object.entries({
     date_format: format,
@@ -125,7 +116,7 @@ const PREFERENCE_RULES = new Map<string, PreferenceRule>(
 
 const isUsable = (key: string, value: unknown) => PREFERENCE_RULES.get(key)?.valid(value) ?? true;
 
-/** Why a preference value is unusable, as the 400 message, or undefined when the app can use it. */
+/** The 400 message, or undefined when the value is usable. */
 export function preferenceProblem(key: string, value: unknown): string | undefined {
   const rule = PREFERENCE_RULES.get(key);
   return !rule || rule.valid(value) ? undefined : `Invalid ${key}: expected ${rule.expected}`;

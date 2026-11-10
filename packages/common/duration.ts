@@ -3,7 +3,6 @@ import type { DurationFormat } from '@tokkl/types';
 /** Toggl rejects entries longer than 999 hours. */
 export const MAX_DURATION_SECONDS = 999 * 3600;
 
-/** The longest no-time entry: one day's worth. */
 export const MAX_ALL_DAY_SECONDS = 24 * 3600;
 
 const UNIT_SECONDS: ReadonlyMap<string, number> = new Map([
@@ -24,17 +23,13 @@ const UNIT_SECONDS: ReadonlyMap<string, number> = new Map([
   ['seconds', 1],
 ]);
 
-/** Keeps a parsed total only when it fits the 999-hour limit; also drops NaN and Infinity. */
 function withinLimit(seconds: number): number | null {
   return seconds <= MAX_DURATION_SECONDS ? seconds : null;
 }
 
 /**
- * Parses what a person types into a duration field and returns whole seconds.
- *
- * Accepted: "1:30" (h:mm), "1:30:15" (h:mm:ss), "90" (minutes), "1.5" or "1,5h"
- * (decimal hours when a unit or separator says so), "1h 30m", "1h30m", "45s".
- * Returns null for anything else, and for any duration over MAX_DURATION_SECONDS.
+ * Accepts "1:30", "1:30:15", "90" (minutes), "1.5" or "1,5h" (hours), "1h 30m", "1h30m" and "45s".
+ * Null for anything else and for anything over MAX_DURATION_SECONDS.
  */
 export function parseDuration(raw: string): number | null {
   const input = raw.trim().toLowerCase().replace(',', '.');

@@ -1,11 +1,7 @@
-/**
- * Where the long-timer reminder remembers, per account, which timer it already asked about and
- * whether the user confirmed it. It lives in localStorage so every tab of the account agrees, and
- * in memory when storage is blocked. Plain TypeScript with no React, so node:test can load it.
- */
+/** In localStorage so every tab of the account agrees, in memory when storage is blocked. */
 
 interface Reminder {
-  /** The timer it is about: the entry id and start time, so correcting the start resets it. */
+  /** Entry id and start time, so correcting the start resets it. */
   timer: string;
   notified: boolean;
   confirmed: boolean;
@@ -29,10 +25,10 @@ export function reminderKey(accountId: number): string {
 }
 
 interface ReminderStore {
-  /** The stored reminder. The same object comes back until the stored text changes. */
+  /** The same object comes back until the stored text changes. */
   read(key: string): Reminder | null;
   write(key: string, value: Reminder): void;
-  /** Calls `onChange` when this tab or another one writes the reminders. */
+  /** Fires for writes from this tab or another one. */
   subscribe(onChange: () => void): () => void;
 }
 

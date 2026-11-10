@@ -1,10 +1,7 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 import { EMAIL, PASSWORD, SETUP_CODE, currentAccount, type Account } from './fixtures.ts';
 
-/**
- * Logs in through the form as this worker's account (`currentAccount()`). On a server with no
- * account yet it creates the setup admin instead.
- */
+/** On a server with no account yet it creates the setup admin instead. */
 export async function login(page: Page) {
   await page.goto('/');
   const setup = page.getByRole('heading', { name: 'Create the first admin' });
@@ -25,10 +22,6 @@ export async function login(page: Page) {
   await expect(page.getByRole('region', { name: 'Timer' })).toBeVisible();
 }
 
-/**
- * Logs in through the form as an account that already exists, such as one from the `users`
- * fixture: `await loginAs(page, user.account)`.
- */
 export async function loginAs(page: Page, account: Pick<Account, 'email' | 'password'>) {
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible();
@@ -48,14 +41,13 @@ function luminance(color: string): number {
   }, 0);
 }
 
-/** WCAG 2 contrast ratio between two computed rgb() or rgba() colours. */
 export function contrast(a: string, b: string): number {
   const la = luminance(a);
   const lb = luminance(b);
   return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
 }
 
-/** The hue token in styles.css that each section, as App.tsx names it in data-section, fills with. */
+/** The hue token each data-section fills with. */
 const SECTION_HUES = {
   timer: '--hue-orange',
   pomodoro: '--hue-cyan',
@@ -67,10 +59,7 @@ const SECTION_HUES = {
 
 export type Section = keyof typeof SECTION_HUES;
 
-/**
- * `item` marks the open page in the navigation: it is filled with its section's hue and set in
- * bold, and the page's main element carries the same section.
- */
+/** Filled with its section's hue and bold; the page's main element carries the same section. */
 export async function expectSectionHue(page: Page, item: Locator, section: Section): Promise<void> {
   const hue = await page.evaluate(token => {
     const probe = document.createElement('div');

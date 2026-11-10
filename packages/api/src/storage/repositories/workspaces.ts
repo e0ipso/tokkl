@@ -1,4 +1,3 @@
-/** Workspaces and their members. */
 import { now } from '../../lib/clock.ts';
 import { sql, type Kysely } from 'kysely';
 import type { Backend } from '../config.ts';

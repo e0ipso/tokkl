@@ -21,28 +21,18 @@ import { timerRoutes } from './routes/timer.ts';
 import { togglV9Routes } from './routes/toggl/index.ts';
 
 interface HttpAppOptions {
-  /** What the sign-in, rate limit and health check adapters read and write directly. */
   storage: Storage;
   config: Config;
   setup: SetupState;
-  /** Where request lines and request failures are logged. */
   logger: Logger;
 }
 
-/** The HTTP application over a set of application services. */
 export interface HttpApp {
   app: Express;
-  /**
-   * New requests get a 503 and running ones are aborted, then the services close. The caller still
-   * stops its server and closes the timer bus and storage.
-   */
+  /** New requests get a 503 and running ones abort; the caller still closes server, bus and storage. */
   close(): Promise<void>;
 }
 
-/**
- * Composes the HTTP adapters (authentication, sessions, rate limits, routers) around `services`.
- * `index.ts` builds the services with `createApplicationServices` and passes them in.
- */
 export function createHttpApp(
   services: ApplicationServices,
   { storage, config, setup, logger }: HttpAppOptions,

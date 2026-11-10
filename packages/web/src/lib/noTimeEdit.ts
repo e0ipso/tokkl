@@ -1,9 +1,6 @@
 import type { TimeEntryInput } from '@tokkl/types';
 
-/**
- * The no-time fields to send when saving the editor in no-time mode. A no-time entry whose day and
- * duration are untouched sends none, so saving other fields leaves its time alone.
- */
+/** Untouched day and duration send none, so saving other fields leaves the time alone. */
 export function noTimeFields(
   entry: { all_day: boolean },
   next: { day: string; seconds: number },

@@ -31,8 +31,7 @@ interface SessionCase {
   expected: unknown;
 }
 
-// The fixture holds one shape per function, keyed by `input.function`, and the phase kinds are
-// plain strings in JSON, so TypeScript cannot narrow the imported array to these cases itself.
+// Phase kinds are plain strings in the JSON fixture, so TypeScript cannot narrow it to these cases.
 const sessionCases = sessionFixture as unknown as SessionCase[];
 const errors: Record<string, ErrorConstructor> = { RangeError };
 
@@ -44,7 +43,6 @@ function fromPhase(phase: SessionPhase): unknown {
   return { ...phase, startedAt: phase.startedAt.toISOString() };
 }
 
-/** Calls the function a case names and turns every Date in the result into an ISO string. */
 function run(input: Input, config: PomodoroSessionConfig): unknown {
   switch (input.function) {
     case 'startSession':

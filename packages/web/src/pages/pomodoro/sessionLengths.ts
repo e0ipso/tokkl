@@ -3,10 +3,7 @@ import type { PomodoroLimits, Preferences } from '@tokkl/types';
 import type { MessageKey } from '../../i18n/messages.ts';
 import { stepperStatus } from '../../components/lengthStepper.ts';
 
-/**
- * The lengths the start form edits for one session, the preference each one starts from and its
- * limit in the server's `pomodoro_limits`. The label and units are catalog keys.
- */
+/** Labels and units are catalog keys; `limit` names the server's `pomodoro_limits` entry. */
 export const LENGTH_FIELDS = [
   {
     key: 'workMinutes',
@@ -51,10 +48,9 @@ export const LENGTH_FIELDS = [
 
 export type LengthKey = (typeof LENGTH_FIELDS)[number]['key'];
 
-/** The text typed into each length card, for the cards the user changed. */
 export type LengthEdits = Partial<Record<LengthKey, string>>;
 
-/** A card's text: what was typed, else the saved preference, else the server's default. */
+/** What was typed, else the saved preference, else the server's default. */
 export function lengthText(
   edits: LengthEdits,
   preferences: Preferences,
@@ -64,7 +60,7 @@ export function lengthText(
   return edits[field.key] ?? String(preferences[field.preference] ?? limits[field.limit].default);
 }
 
-/** The session's lengths, or the first card whose text is not a length the server accepts. */
+/** Or the first card whose text the server would not accept. */
 export function sessionConfig(
   edits: LengthEdits,
   preferences: Preferences,

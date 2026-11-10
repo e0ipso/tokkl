@@ -18,7 +18,6 @@ import { t } from '../i18n/messages.ts';
 
 type Pending = { kind: 'archive' | 'delete'; client: Client };
 
-/** Clients: the list with its filters, the editor and the archive and delete dialogs. */
 export function ClientsPage() {
   const wid = useWid();
   const clientsQuery = useClients();
@@ -40,8 +39,7 @@ export function ClientsPage() {
     movesTimer: true,
     success: (_result, client) => t('manage.clientArchived', { name: client.name }),
     onSuccess: (_result, client) => {
-      // The dialog had focus and would give it back to the row's menu button. When the row leaves
-      // the list, that button goes with it.
+      // The dialog would give focus back to the row's menu button, which leaves with the row.
       closeModalThen(
         () => setPending(null),
         () => {

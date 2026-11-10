@@ -22,14 +22,12 @@ test('pickers and the entry editor finish by touch on a phone and save what the 
   const row = page.locator('.entry-line', { has: page.locator('input[value="Phone edit"]') });
   await expect(row).toBeVisible();
   await expectNoPageOverflow(page);
-  // The idle timer bar and each of its controls fit the phone screen.
   const timer = page.getByRole('region', { name: 'Timer' });
   await expectFits(timer);
   const controls = timer.locator('input, button').filter({ visible: true });
   expect(await controls.count()).toBeGreaterThanOrEqual(7);
   for (const control of await controls.all()) await expectFits(control);
 
-  // Project and task from the row's picker.
   await tap(row.locator('.entry-project'));
   const projectPicker = page.getByRole('dialog').filter({ has: page.getByPlaceholder('Find or create project…') });
   await expectFits(projectPicker);
@@ -37,7 +35,6 @@ test('pickers and the entry editor finish by touch on a phone and save what the 
   await expect(projectPicker).toBeHidden();
   await expect(row.locator('.project-label')).toContainText('Website: Design');
 
-  // A new tag from the row's tag picker, closed with a tap outside.
   await tap(row.locator('.entry-tags'));
   const tagPicker = page.getByRole('dialog').filter({ has: page.getByPlaceholder('Find or create tags…') });
   await expectFits(tagPicker);
@@ -76,7 +73,6 @@ test('pickers and the entry editor finish by touch on a phone and save what the 
   const savedRow = page.locator('.entry-line', { has: page.locator('input[value="Phone edit, saved"]') });
   await expect(savedRow.locator('.entry-duration')).toHaveValue('1:45:00');
 
-  // The timer bar's picker, then start and stop.
   await timer.getByLabel('Description').fill('Phone timer');
   await tap(timer.getByRole('button', { name: 'Project' }));
   await expectFits(projectPicker);
@@ -94,8 +90,6 @@ test('pickers and the entry editor finish by touch on a phone and save what the 
   await expectNoPageOverflow(page);
 });
 
-// A phone shows one day, today, under a strip of the week's seven days, so long names truncate
-// inside the day's column and the strip keeps all seven days on screen.
 test('the day calendar fits a phone screen with long block and favourite names', async ({ page }) => {
   await page.clock.setFixedTime(new Date('2026-06-17T16:00:00Z'));
   await login(page);
@@ -125,8 +119,7 @@ test('the day calendar fits a phone screen with long block and favourite names',
   await expect(page.locator('.calendar-column.today')).toBeVisible();
   await expect(page.locator('.calendar-column')).toHaveCount(1);
   await expectNoPageOverflow(page);
-  // The toolbar, the strip and the scrolling calendar body fit the screen. scrollIntoViewIfNeeded
-  // stops about a pixel short of the body's bottom edge, so centre the body first.
+  // scrollIntoViewIfNeeded stops about a pixel short of the body's bottom edge, so centre the body first.
   await expectFits(page.locator('.calendar-toolbar'));
   const strip = page.getByRole('group', { name: 'Days of the week' });
   await expectFits(strip);
@@ -144,8 +137,6 @@ test('the day calendar fits a phone screen with long block and favourite names',
   }
 });
 
-// On a phone the bulk bar sticks to the top of the screen, with its count, while the
-// selected list scrolls under it; the timer bar scrolls away instead of covering it.
 test('the bulk bar and its count stay on screen while a long selection scrolls', async ({ page }) => {
   await login(page);
   const api = await TimerApi.open(page);

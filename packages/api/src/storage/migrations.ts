@@ -13,7 +13,7 @@ import {
   totalsIndexes,
 } from './schema.ts';
 
-/** Storage-internal immutable history. The second version adds covering history totals indexes. */
+/** Immutable history. */
 export function migrations(backend: Backend): readonly Migration[] {
   return [
     { version: 1, name: 'baseline', statements: baselineDDL(backend) },
@@ -38,10 +38,7 @@ export function migrations(backend: Backend): readonly Migration[] {
   ];
 }
 
-/**
- * Explicit application startup initializer: migrates the database to the current history, or
- * refuses it. Report connections never call it.
- */
+/** Report connections never call it. */
 export async function initializeDatabase(config: StorageConfig): Promise<StorageConnection<PhysicalDatabase>> {
   await sqlitePreflight(config, migrations('sqlite'));
   const connection = await openConnection<PhysicalDatabase>(config);

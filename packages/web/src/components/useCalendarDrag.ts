@@ -17,20 +17,13 @@ import { pxToMinute, snapMinute } from '../lib/calendarLayout.ts';
 import type { Settings } from '../lib/settings.ts';
 import { useToast } from './Toast.tsx';
 
-/** The clock minute under `clientY` in a day column. */
 function minuteAt(clientY: number, column: HTMLElement): number {
   return pxToMinute(clientY - column.getBoundingClientRect().top);
 }
 
 /**
- * Dragging on the week calendar: on an empty slot to create an entry, on a block to move it, on its
- * bottom edge to change its end. The gesture rules are `stepGesture` in lib/calendarGesture.ts and
- * the saved change is `dropChange` in lib/calendarDrop.ts; this hook connects them to the pointer
- * events, the hold timer, the native touch listener and the entry mutations.
- *
- * `onHold` runs when a touch hold turns into a drag, so the held finger's travel is not taken for a
- * swipe. `onOpen` opens an entry in the editor: a clicked or tapped block, or the entry a create
- * drag made.
+ * Wires `stepGesture` (lib/calendarGesture.ts) and `dropChange` (lib/calendarDrop.ts) to pointer and touch events.
+ * `onHold` marks a touch hold turning into a drag, so its travel is not a swipe.
  */
 export function useCalendarDrag({
   root,
@@ -51,8 +44,7 @@ export function useCalendarDrag({
   const updateRunning = useUpdateRunningEntry();
   const toast = useToast();
   const [drag, setDrag] = useState<CalendarDrag | null>(null);
-  // The machine's state, for handlers that run before React re-renders. A touch fires pointer up
-  // and then pointer leave in one go; the first clears the drag, so the gesture saves at most once.
+  // Read by handlers before React re-renders. Pointer up then leave in one go saves once.
   const gesture = useRef(IDLE);
   const holdTimer = useRef<number | null>(null);
 
@@ -62,7 +54,6 @@ export function useCalendarDrag({
     holdTimer.current = null;
   };
 
-  /** Saves a finished drag. */
   const save = async (dropped: CalendarDrag) => {
     const change = dropChange(dropped, settings, dayMode);
     try {
@@ -149,13 +140,11 @@ export function useCalendarDrag({
       next,
     });
 
-  /** Starts a create drag on an empty slot of `day`. */
   const beginCreate = (event: PointerEvent<HTMLElement>, day: string) => {
     const minute = snapMinute(minuteAt(event.clientY, event.currentTarget), stepMinutes);
     down(event, { kind: 'create', day, fromMinute: minute, toMinute: minute });
   };
 
-  /** Starts moving a block, or resizing it from its bottom edge. */
   const beginBlock = (
     event: PointerEvent,
     kind: 'move' | 'resize',
@@ -171,7 +160,6 @@ export function useCalendarDrag({
       deltaMinutes: 0,
     });
 
-  /** Follows the pointer over the column of `day`. */
   const moveOver = (event: PointerEvent<HTMLElement>, day: string) => {
     const current = gesture.current.drag;
     if (!current) return;
@@ -179,17 +167,15 @@ export function useCalendarDrag({
     dispatch({ type: 'follow', drag: followPointer(current, pointer, stepMinutes, dayMode) });
   };
 
-  /** A pointer moved over the calendar: a held touch that wanders too far is a scroll, not a drag. */
+  /** A held touch that wanders too far is a scroll, not a drag. */
   const wander = (event: PointerEvent) =>
     dispatch({ type: 'wander', pointerId: event.pointerId, x: event.clientX, y: event.clientY });
 
-  /** The browser took the touch for a scroll, so a held or dragged block goes back where it was. */
+  /** A held or dragged block goes back where it was. */
   const cancel = () => dispatch({ type: 'cancel' });
 
-  /** Saves the gesture once the pointer is up or has left the calendar. */
   const finish = () => dispatch({ type: 'up' });
 
-  /** Whether a gesture is being held or dragged, when the grid must not open its context menu. */
   const holding = () => isHolding(gesture.current);
 
   return { drag, stepMinutes, beginCreate, beginBlock, moveOver, wander, cancel, finish, holding };

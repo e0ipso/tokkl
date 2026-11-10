@@ -8,7 +8,6 @@ import type { WeeklyReport } from '@tokkl/types';
 import type { ReportPatch, WeeklyRows } from './urlState.ts';
 import { t } from '../../i18n/messages.ts';
 
-/** Day columns show the weekday; week columns show the part of the week inside the range. */
 function columnLabel(column: WeeklyReport['columns'][number], mode: WeeklyReport['mode']) {
   return mode === 'days'
     ? { label: weekdayName(column.start), sublabel: shortDate(column.start) }

@@ -5,23 +5,18 @@ import { keys } from './keys.ts';
 declare module '@tanstack/react-query' {
   interface Register {
     queryMeta: {
-      /**
-       * A 403 from this query means the credential is gone, not that the account lacks a right. It
-       * asks /me again, and /me decides what the app shows (App's session gate).
-       */
+      /** A 403 here means the credential is gone, so /me decides what the app shows. */
       sessionProbe?: boolean;
     };
     mutationMeta: {
-      /** The write can move the timer revision, so timer actions wait for it (`MOVES_TIMER`). */
+      /** Timer actions wait for it. */
       movesTimer?: boolean;
     };
   }
 }
 
-// TanStack Query only listens for visibilitychange. Clicking back into a window that stayed
-// visible, such as one beside another app, fires focus alone, and the timer must refresh then
-// too (docs/PRD.md C3). Visibility still decides whether the app counts as focused. Switching
-// tabs fires both events, so one refresh per second is enough.
+// TanStack only listens for visibilitychange, but clicking back into a visible window fires focus alone.
+// Switching tabs fires both, so one refresh per second is enough.
 const REFOCUS_GAP_MS = 1000;
 
 function listenForFocus(): void {
@@ -44,10 +39,7 @@ function listenForFocus(): void {
   });
 }
 
-/**
- * The app's query client. Client errors (4xx) are not retried. A query marked `sessionProbe` that
- * answers 403 sends the app back to /me, the one place that ends a session.
- */
+/** Client errors (4xx) are not retried. A `sessionProbe` 403 sends the app back to /me. */
 export function createQueryClient(): QueryClient {
   listenForFocus();
   const client: QueryClient = new QueryClient({

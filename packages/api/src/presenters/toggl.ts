@@ -1,8 +1,4 @@
-/**
- * Toggl Track v9 shaped JSON for domain records. Each shape extends the `@tokkl/types` DTO that
- * Tokkl's own clients read with the extra fields Toggl clients expect. HTTP routes, the timer state
- * and the JSON export all present records through here, so a record looks the same everywhere.
- */
+/** Toggl v9 shapes over the `@tokkl/types` DTOs; every route, the timer state and the JSON export use them. */
 import type {
   AdminAccount,
   Client as ClientDto,
@@ -29,7 +25,7 @@ import type {
 } from '../domain/model.ts';
 import { togglTime } from '../lib/values.ts';
 
-/** Toggl serialises an always-present timestamp too; this keeps the result typed as a string. */
+/** Keeps the result typed as a string. */
 const stamp = (iso: string): string => togglTime(iso)!;
 const wholeSeconds = (iso: string) => Math.floor(Date.parse(iso) / 1000);
 
@@ -76,7 +72,7 @@ interface TogglWorkspace extends WorkspaceDto {
   [field: string]: unknown;
 }
 
-/** `membership` is the caller's `workspace_users` role; an owner is Toggl's workspace admin. */
+/** `membership` is the caller's role; an owner is Toggl's workspace admin. */
 export function serializeWorkspace(ws: Workspace, membership: MembershipRole | undefined): TogglWorkspace {
   const admin = membership === 'owner';
   return {
@@ -121,7 +117,7 @@ export function serializeWorkspace(ws: Workspace, membership: MembershipRole | u
   };
 }
 
-/** Toggl's organization for a workspace: Tokkl has one organization per workspace. */
+/** Tokkl has one organization per workspace. */
 export function serializeOrganization(ws: Workspace, owner: boolean, memberCount: number) {
   return {
     id: ws.id,
@@ -318,9 +314,8 @@ interface TogglTimeEntry extends TimeEntryDto {
 }
 
 export interface TimeEntryPresentation {
-  /** Adds the project, client, task and user names, as Toggl's `meta=true` does. */
+  /** As Toggl's `meta=true` does. */
   meta?: boolean;
-  /** The owner, for `user_name` in meta fields. */
   user?: User;
 }
 

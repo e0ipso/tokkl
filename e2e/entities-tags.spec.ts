@@ -3,12 +3,10 @@ import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
 import { EntityApi, countRequests, entryRow, yesterday } from './entity-tests-helpers.ts';
 
-/** Tag names per entry description, as the API stores them. */
 async function savedTags(api: EntityApi): Promise<Record<string, string[]>> {
   return Object.fromEntries((await api.entries()).map(entry => [entry.description, [...entry.tags].sort()]));
 }
 
-/** Tag chips per entry row in the timer list. */
 async function historyChips(page: Page, descriptions: string[]): Promise<Record<string, string[]>> {
   await page.getByRole('link', { name: 'Timer' }).click();
   await expect(entryRow(page, descriptions[0]!)).toBeVisible();
@@ -19,7 +17,6 @@ async function historyChips(page: Page, descriptions: string[]): Promise<Record<
   return chips;
 }
 
-/** Tag chips per row of the detailed report. */
 async function reportChips(page: Page, descriptions: string[]): Promise<Record<string, string[]>> {
   await page.goto('/reports?range=all_time&tab=detailed');
   const rows = page.locator('tr.entry-row');
@@ -31,7 +28,7 @@ async function reportChips(page: Page, descriptions: string[]): Promise<Record<s
   return chips;
 }
 
-/** Tags the picker offers on an entry row, with whether each is checked; closes the picker. */
+/** Closes the picker afterwards. */
 async function pickerTags(page: Page, description: string): Promise<Array<[string, boolean]>> {
   await page.getByRole('link', { name: 'Timer' }).click();
   await entryRow(page, description).locator('.entry-tags').click();
@@ -90,7 +87,6 @@ test('renaming an attached tag with Enter or blur saves once and reaches entries
     'Design crit': ['code review'],
   });
 
-  // Clicking away saves the draft, once.
   await page.getByRole('link', { name: 'Tags' }).click();
   await page.getByRole('button', { name: 'Rename code review' }).click();
   input = page.getByRole('textbox', { name: 'New name for code review' });
@@ -100,7 +96,6 @@ test('renaming an attached tag with Enter or blur saves once and reaches entries
   expect(renames()).toBe(2);
   expect(await savedTags(api)).toEqual({ 'Code walkthrough': ['ops', 'peer review'], 'Design crit': ['peer review'] });
 
-  // Escape drops the draft without a request.
   await page.getByRole('button', { name: 'Rename peer review' }).click();
   input = page.getByRole('textbox', { name: 'New name for peer review' });
   await input.fill('discarded');
@@ -145,7 +140,6 @@ test('deleting an attached tag takes it off its entries and keeps the entries', 
 
   expect((await api.tags()).map(t => t.name)).toEqual(['ops']);
   const after = await api.entries();
-  // Same entries, same fields, minus the tag.
   const withoutTags = (entries: typeof before) =>
     entries
       .map(({ id, description, start, stop, duration, billable, project_id }) => ({
@@ -173,8 +167,6 @@ test('deleting an attached tag takes it off its entries and keeps the entries', 
   });
 });
 
-// The delete dialog gives focus back to the row's Delete button, and that row goes away,
-// so focus moves to the next row's Delete button, else the previous one, else the page heading.
 test('deleting tags by keyboard keeps focus in the tags list', async ({ page }) => {
   await login(page);
   const api = await EntityApi.open(page);

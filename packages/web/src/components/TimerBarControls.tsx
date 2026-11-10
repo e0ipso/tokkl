@@ -2,7 +2,7 @@ import { Icon } from './Icon.tsx';
 import type { TimerBarMode } from './timerBarView.ts';
 import { t } from '../i18n/messages.ts';
 
-/** The bar's main button: Add in manual mode, Pause or Resume and Stop for a timer, else Start or Save. */
+/** Add in manual mode, Pause or Resume and Stop for a timer, else Start or Save. */
 export function TimerButtons({
   mode,
   busy,
@@ -93,7 +93,6 @@ export function TimerButtons({
   );
 }
 
-/** Discard for a running entry, otherwise the timer and manual mode buttons. */
 export function ModeSwitch({
   mode,
   onDiscard,

@@ -25,10 +25,7 @@ async function chartRows(page: Page): Promise<string[][]> {
   return cellTexts(details.locator('tbody tr'));
 }
 
-/**
- * Monday 5 to Sunday 11 January 2026, Europe/Madrid. Alpha bills 100 USD an hour, Beta falls back
- * to the workspace's 50 EUR, and non-billable time has no amount.
- */
+/** Monday 5 to Sunday 11 January 2026, Madrid. Alpha bills 100 USD/h, Beta falls back to the workspace's 50 EUR. */
 async function seedMixedWeek(api: ReportApi) {
   await api.setWorkspace({ default_hourly_rate: 50, default_currency: 'EUR', rounding: 0, rounding_minutes: 0 });
   await api.setWeekStart(1);
@@ -122,7 +119,6 @@ test('summary totals, groups, chart and weekly grid reconcile with known data an
     ['Total', '2:00:00', '1:00:00', '1:30:00', '0:30:00', '0:45:00', '-', '-', '5:45:00'],
   ]);
 
-  // With one currency left, each row shows its amount.
   await page.goto(`${WEEK}&projects=${beta}`);
   const euros = await money(page, 5_000, 'EUR');
   await expect(total(page, 'Amount')).toHaveText(euros);
@@ -143,9 +139,6 @@ test('each Amount figure stays on one line inside its tile from a tablet to a de
   }
 });
 
-// Non-billable bars are striped as well as coloured, the legend is read out, and the
-// chart takes its size from the --chart-* properties. The column the arrows reach gets a
-// band and an axis strip.
 test('the summary chart stripes non-billable bars, reads out its legend and sizes itself from CSS', async ({
   page,
   api,
@@ -166,7 +159,6 @@ test('the summary chart stripes non-billable bars, reads out its legend and size
   await expect(chart).toHaveAttribute('height', '300');
   const billable = chart.locator('path.mark-billable');
   const other = chart.locator('path.mark-other');
-  // Monday to Wednesday are billable; Thursday and Friday are not.
   await expect(billable).toHaveCount(3);
   await expect(other).toHaveCount(2);
   expect((await billable.first().boundingBox())?.width).toBeCloseTo(10, 1);
@@ -191,7 +183,6 @@ test('the summary chart stripes non-billable bars, reads out its legend and size
   expect(await legend.evaluate(element => element.closest('[aria-hidden="true"]') === null)).toBe(true);
   expect(await paint(legend.locator('.mark-other'))).toEqual({ pattern: 'pattern', stripes: 1, solid: false });
 
-  // Home makes Monday, which has only billable time, the active column.
   await chart.focus();
   await page.keyboard.press('Home');
   const active = chart.locator('g.is-active');
@@ -202,9 +193,6 @@ test('the summary chart stripes non-billable bars, reads out its legend and size
   await expect(page.getByRole('status').filter({ hasText: 'Mon, 5 Jan 2026' })).toContainText('Billable 2:00:00');
 });
 
-// The chart is an SVG element marked data-own-arrows, so its arrow keys move the active
-// column and never reach the page's range shortcut. Once focus leaves the chart, the shortcut
-// moves the range again.
 test('arrow keys on the summary chart move its column and leave the report range alone', async ({ page, api }) => {
   await seedMixedWeek(api);
   await login(page);
@@ -229,9 +217,7 @@ test('arrow keys on the summary chart move its column and leave the report range
 });
 
 test('detailed rows sort globally and page across a range longer than a year', async ({ page, api }) => {
-  // 105 entries four days apart from 1 January 2025. Durations and descriptions are permutations
-  // unrelated to the dates, so a sort that only covered one page would show. Durations are distinct
-  // multiples of the default 5-minute time resolution, so the server stores them unchanged.
+  // Durations and descriptions are permutations unrelated to the dates, so a sort covering one page would show.
   const entries = Array.from({ length: 105 }, (_, i) => ({
     description: `Task ${String((i * 58) % 105).padStart(3, '0')}`,
     start: Date.UTC(2025, 0, 1 + i * 4, 9),
@@ -248,7 +234,6 @@ test('detailed rows sort globally and page across a range longer than a year', a
   const pager = page.getByRole('navigation', { name: 'Pages' });
   const rows = page.locator('tr.entry-row');
 
-  /** Descriptions and durations of both pages, in display order. */
   const readPages = async () => {
     await expect(pager).toContainText('1 to 100 of 105');
     const seen = await cellTexts(rows);
@@ -293,7 +278,6 @@ test('saving a detailed row persists the change and refreshes the summary, chart
   const row = page.locator('tr.entry-row', { hasText: 'Change me' });
   await row.click();
   const editor = page.getByRole('dialog', { name: 'Edit entry' });
-  // 10:00 to 11:00 in Madrid becomes 10:00 to 12:30.
   await expect(editor.getByLabel('End', { exact: true })).toHaveValue('11:00');
   await editor.getByLabel('End', { exact: true }).fill('12:30');
   await editor.getByLabel('End', { exact: true }).blur();

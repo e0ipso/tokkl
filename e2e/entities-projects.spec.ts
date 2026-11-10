@@ -14,7 +14,6 @@ import {
   type Entry,
 } from './entity-tests-helpers.ts';
 
-/** The fields an entry must keep when its project goes away. */
 function kept(entry: Entry) {
   return {
     id: entry.id,
@@ -60,12 +59,10 @@ test('project settings, rate and estimate persist, and archiving hides the proje
   const row = page.getByRole('row').filter({ has: page.getByRole('button', { name: 'Edit Website' }) });
   await expect(row.getByRole('cell').nth(3)).toHaveText('Yes');
   await expect(row.getByRole('cell').nth(4)).toContainText('80.00');
-  // One tracked hour of a four-hour estimate.
   await expect(row.getByRole('cell').nth(5)).toHaveText('1:00:00');
   await expect(row.getByRole('progressbar', { name: 'Estimate used' })).toHaveAttribute('aria-valuenow', '25');
   await expect(row).toContainText('25% of 4 h');
 
-  // A fresh load shows the saved values in the editor.
   await page.reload();
   await page.getByRole('button', { name: 'Edit Website' }).click();
   editor = page.getByRole('dialog', { name: 'Edit project' });
@@ -94,7 +91,6 @@ test('project settings, rate and estimate persist, and archiving hides the proje
   await expect.poll(async () => (await api.project(project.id)).active).toBe(true);
   await page.getByRole('link', { name: 'Timer' }).click();
   expect(await timerPickerProjects(page)).toContain('Website');
-  // Archiving and restoring left the settings alone.
   expect(await api.project(project.id)).toMatchObject({
     rate: 80,
     currency: 'USD',
@@ -103,8 +99,6 @@ test('project settings, rate and estimate persist, and archiving hides the proje
   });
 });
 
-// A dialog opened from a row menu gives focus back to that row's menu button, since the
-// menu item that opened it is gone.
 test('closing a dialog opened from the row menu returns focus to the menu button', async ({ page }) => {
   await login(page);
   const api = await EntityApi.open(page);
@@ -121,14 +115,11 @@ test('closing a dialog opened from the row menu returns focus to the menu button
   await expect(dialog).toBeHidden();
   await expect(more('Website')).toBeFocused();
 
-  // Archiving from the menu by keyboard still works.
   await choose('Intranet', 'Archive');
   await expect.poll(async () => (await api.project(intranet.id)).active).toBe(false);
   await expect(page.getByRole('button', { name: 'Edit Intranet' })).toHaveCount(0);
 });
 
-// A row that leaves the list after an action from its menu takes the focused menu button
-// with it, so focus moves to the next row, else the previous one, else the page heading.
 test('archiving or deleting a project by keyboard keeps focus in the projects list', async ({ page }) => {
   await login(page);
   const api = await EntityApi.open(page);
@@ -154,15 +145,12 @@ test('archiving or deleting a project by keyboard keeps focus in the projects li
   await expect(heading).toBeFocused();
   await expect(heading).toHaveCSS('outline-width', '2px');
 
-  // A row that stays in the list, as under All, keeps focus on its own menu button.
   await page.getByRole('group', { name: 'Project status' }).getByRole('button', { name: 'All' }).click();
   await rowActionByKeyboard(page, 'Beta', 'Restore');
   await expect.poll(async () => (await api.projects()).find(project => project.name === 'Beta')?.active).toBe(true);
   await expect(rowMenu(page, 'Beta')).toBeFocused();
 });
 
-// Focus moves past a leaving row only when it would otherwise be lost. A user who moves to
-// another control while the archive request runs keeps focus there.
 test('archiving a project leaves focus alone when the user moved it while the request ran', async ({ page }) => {
   await login(page);
   const api = await EntityApi.open(page);
@@ -199,8 +187,6 @@ test('archiving a project leaves focus alone when the user moved it while the re
   expect((await api.project(beta.id)).active).toBe(false);
 });
 
-// Restoring a project under the Archived filter takes its row, and the focused menu button,
-// out of the list, so focus moves to another row's menu, else the page heading.
 test('restoring archived projects by keyboard keeps focus in the projects list', async ({ page }) => {
   await login(page);
   const api = await EntityApi.open(page);
@@ -265,7 +251,6 @@ test('deleting a project and keeping its entries clears their project and refres
   expect(after.map(entry => entry.project_id)).toEqual([null, null]);
   expect(await api.trash()).toEqual([]);
 
-  // Back to the report the app already had in its cache: it must show the change.
   await page.goBack();
   await expectSameDocument(page);
   await expect(breakdown.getByText('Without project')).toBeVisible();
@@ -326,7 +311,6 @@ test('deleting a project with its entries moves them to the trash and refreshes 
   await expect(page.getByRole('row').filter({ hasText: 'Survivor' })).toHaveCount(0);
 });
 
-/** The colour --text resolves to on this page. */
 function textToken(page: Page): Promise<string> {
   return page.evaluate(() => {
     const probe = document.createElement('div');
@@ -345,7 +329,6 @@ async function expectColourOnDotOnly(name: Locator, dot: Locator, hex: string, t
   expect(await dot.evaluate(el => getComputedStyle(el).backgroundColor)).not.toBe(text);
 }
 
-// No text is painted in a project colour; the colour only marks the dot.
 test('a project colour marks its dot while the entry row, picker and Projects table names stay in the text colour', async ({
   page,
 }) => {

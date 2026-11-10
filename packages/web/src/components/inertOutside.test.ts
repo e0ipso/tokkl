@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { inertOutside, type InertNode } from './inertOutside.ts';
 
-/** A stand-in element: its children, and whether it is or holds another node. */
 interface FakeNode extends InertNode<FakeNode> {
   inert: boolean;
 }
@@ -51,12 +50,10 @@ test('stacked modals wake an element only when the last one covering it closes',
   Object.assign(body, { children, contains: (other: FakeNode | null) => children.some(c => c.contains(other)) });
 
   const releaseFirst = inertOutside(body, [first]);
-  // The second modal mounts later, over the first.
   children.push(second);
   const releaseSecond = inertOutside(body, [second]);
   assert.deepEqual([page.inert, first.inert, second.inert], [true, true, false]);
 
-  // The first modal closes while the second is still open: the page stays covered.
   releaseFirst();
   assert.equal(page.inert, true);
   releaseSecond();

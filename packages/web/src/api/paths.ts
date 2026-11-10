@@ -1,4 +1,3 @@
-/** Base paths of the server's two APIs: the Toggl-compatible v9 API and the app's own. */
 export const V9 = '/api/v9';
 export const APP = '/api/app';
 

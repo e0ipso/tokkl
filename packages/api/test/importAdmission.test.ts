@@ -18,7 +18,6 @@ import { entryAccount, entryTimerFactory } from './storage/support/entry-timer.t
 import { setup, type TestContext } from './helpers.ts';
 import { entryCount } from './fixtures/observations.ts';
 
-/** The `Retry-After` of a refused import, in seconds: a short wait, like a full report queue. */
 const BUSY_RETRY_SECONDS = 5;
 
 const busy = (error: unknown) =>
@@ -126,7 +125,6 @@ test('a place lent to work stays taken until the work settles', async () => {
   admission.admit(1, 1);
 });
 
-/** An import body sent in two parts, the second only when the test says so. */
 function slowImport(ctx: TestContext, port: number, body: string) {
   const req = httpRequest({
     host: '127.0.0.1',
@@ -154,12 +152,10 @@ test('a second import from one account gets 503 with Retry-After while the first
     format: 'tokkl-export',
     time_entries: [{ id: 1, start: '2026-10-05T09:00:00Z', stop: '2026-10-05T10:00:00Z', description: 'held' }],
   });
-  // The fixture server's port: a plain request finds it.
   const probe = await ctx.request('GET', '/api/app/status');
   const port = Number(new URL(probe.url).port);
 
   const first = slowImport(ctx, port, file);
-  // The first request has its place once the server read its headers.
   let second = await ctx.json('POST', '/api/app/import/json', file);
   for (let tries = 0; second.status !== 503 && tries < 50; tries++) {
     await sleep(20);
@@ -185,7 +181,6 @@ test('a second import from one account gets 503 with Retry-After while the first
   assert.equal(third.body.skipped_duplicates, 1);
   assert.equal(await entryCount(ctx), 1);
 
-  // A client that gives up before its body arrives frees its place.
   const abandoned = slowImport(ctx, port, file);
   abandoned.response.catch(() => {});
   await sleep(50);
@@ -198,7 +193,7 @@ test('a second import from one account gets 503 with Retry-After while the first
   assert.equal(after.status, 200);
 });
 
-/** A signal that reads as aborted from its `at`-th check on, counting every check. */
+/** Reads as aborted from its `at`-th check on, counting every check. */
 function abortsAt(at: number) {
   let checks = 0;
   const signal = {
@@ -253,7 +248,6 @@ test('a cancelled import stops between records and before commit, and rolls back
     ],
   ] as const;
   for (const [kind, run] of kinds) {
-    // A run that is never cancelled counts the checks a whole import makes.
     const counted = await runner.transaction(r => r.users.createAccount(entryAccount(`${kind}-whole`)));
     const whole = abortsAt(Infinity);
     await run(counted.id, whole.signal);

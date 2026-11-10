@@ -1,33 +1,25 @@
 import { use, type ComponentType } from 'react';
 import { loadPageModule } from './pageLoad.ts';
 
-/**
- * Pages that load their code on first visit. The timer page, the one every sign-in opens, stays in
- * the main bundle; the rest each get a chunk. Every stylesheet is imported once by styles.css, so a
- * chunk carries no CSS and loading one never changes the cascade.
- */
+/** Every page but the timer page loads on first visit. styles.css imports every stylesheet, so chunks carry no CSS. */
 
 interface LazyPage {
-  /** Renders the page once its module has loaded; until then it suspends to the shell's fallback. */
+  /** Suspends to the shell's fallback until the module loads. */
   Page: ComponentType;
-  /** Starts loading the module, or loads it again after a failure. */
   prefetch: () => void;
-  /** Forgets a failed load, so the next render loads the module again. */
+  /** So the next render loads the module again. */
   forgetFailure: () => void;
 }
 
 type Attempt =
   | { status: 'pending'; promise: Promise<ComponentType> }
   | { status: 'loaded'; component: ComponentType }
-  /** `final` when a visit's load failed; a failed prefetch, which may not reload, leaves the visit its own try. */
+  /** A failed prefetch, which may not reload, leaves the visit its own try. */
   | { status: 'failed'; error: unknown; final: boolean };
 
 /**
- * Wraps a page module's loader. A load goes through `loadPageModule`, which retries it and, when
- * the page is being visited, reloads the tab once (after a deploy the old chunk files are gone). A
- * prefetch never reloads; the visit after a failed prefetch gets its own try. A visit's load that
- * still fails stays failed, so the route's error boundary shows it instead of retrying on every
- * render, until Try again (`retryFailedPages`) or the next `prefetch` loads it again.
+ * A visit's load retries and may reload the tab once (old chunks vanish after a deploy); a prefetch never
+ * reloads. A failed visit stays failed until Try again or the next `prefetch`.
  */
 function lazyPage(load: () => Promise<ComponentType>): LazyPage {
   let attempt: Attempt | null = null;
@@ -98,12 +90,12 @@ const BY_HREF: Readonly<Record<string, LazyPage>> = {
   '/admin': admin,
 };
 
-/** Lets every page whose load failed load again on its next render: the error screen's Try again. */
+/** The error screen's Try again. */
 export function retryFailedPages(): void {
   for (const page of Object.values(BY_HREF)) page.forgetFailure();
 }
 
-/** Starts loading the page a navigation link opens, so the click right after renders it at once. */
+/** So the click right after renders it at once. */
 export function prefetchPage(href: string): void {
   BY_HREF[href]?.prefetch();
 }

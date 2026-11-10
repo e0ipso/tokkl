@@ -16,7 +16,7 @@ async function entryWith(ctx: TestContext, body: Record<string, unknown>): Promi
 
 const liveCount = async (ctx: TestContext) => (await storageFor(ctx.db).entries.list(ctx.user.id)).length;
 
-/** What a split leaves that a client sees, without the ids and write times that differ per run. */
+/** Without the ids and write times that differ per run. */
 function shown({ id: _id, at: _at, ...fields }: Entry) {
   return fields;
 }
@@ -40,7 +40,6 @@ test('a split answers the same two entries the client used to write with a creat
   const split = await entryWith(ctx, fields);
   const manual = await entryWith(ctx, fields);
 
-  // The old client: create the second half with the entry's fields, then shorten the original.
   const cut = '2026-10-14T08:30:00.000Z';
   const created = await ctx.json('POST', `/api/v9/workspaces/${ctx.wid}/time_entries?meta=true`, {
     created_with: 'tokkl-web',
@@ -74,10 +73,8 @@ test('a split answers the same two entries the client used to write with a creat
     [reply.body.second.start, reply.body.second.stop],
     ['2026-10-14T08:30:00+00:00', '2026-10-14T09:15:00+00:00'],
   );
-  // The listing shows the halves as the reply does.
   const listed = await ctx.json('GET', `/api/v9/me/time_entries/${reply.body.second.id}?meta=true`);
   assert.deepEqual(shown(listed.body), shown(reply.body.second));
-  // The new half records the client that asked for the split, as the old create did.
   const rows = storageFor(ctx.db).entries;
   assert.equal((await rows.get(ctx.user.id, reply.body.second.id))?.createdWith, 'tokkl-web');
   assert.equal((await rows.get(ctx.user.id, created.body.id))?.createdWith, 'tokkl-web');
@@ -107,7 +104,6 @@ test('a refused split changes nothing', async () => {
   const count = await liveCount(ctx);
   const at = (value: string) => ({ at: value });
   const cases: Array<[string, unknown, number, string]> = [
-    // The cut moves to the grid; at the start or the stop it leaves nothing to split off.
     [
       `/api/app/time_entries/${stopped.id}/split`,
       at('2026-10-14T08:02:00Z'),
@@ -147,7 +143,6 @@ test('a refused split changes nothing', async () => {
     const reply = await ctx.json('POST', path, body);
     assert.deepEqual([reply.status, reply.body], [status, message], path);
   }
-  // Another account's entry is not found for this one.
   const theirs = await other.json('POST', `/api/app/time_entries/${stopped.id}/split`, at('2026-10-14T08:30:00Z'));
   assert.deepEqual([theirs.status, theirs.body], [404, 'Time entry not found']);
   assert.equal(await liveCount(ctx), count);

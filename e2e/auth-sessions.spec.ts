@@ -17,12 +17,10 @@ import {
   withAuth,
 } from './auth-tests-helpers.ts';
 
-// Password changes revoke other sessions, and session cookies expire. Each scenario runs
-// its own disposable server, so the shared e2e account keeps its password.
+// Each scenario runs its own disposable server, so the shared e2e account keeps its password.
 
 const NEW_PASSWORD = 'second password 2';
 
-/** Logs in over the API and returns the session cookie and how long until it expires. */
 async function logIn(baseURL: string): Promise<{ session: string; expiresInMs: number }> {
   const api = await request.newContext({ baseURL });
   try {
@@ -77,14 +75,12 @@ test('changing the password keeps this browser logged in and logs the other one 
     await card.getByLabel('Repeat new password').fill(NEW_PASSWORD);
     await card.getByRole('button', { name: 'Change password' }).click();
     await expect(page.getByRole('status')).toContainText('Password changed. Other browsers were logged out.');
-    // A new password replaces the API token, and the token card shows the new one without a reload.
     const replacement = (await (await page.request.get(`${server.baseURL}/api/v9/me`)).json()).api_token;
     expect(replacement).not.toBe(apiToken);
     const tokenCard = page.locator('#api-token');
     await tokenCard.getByRole('button', { name: 'Show' }).click();
     await expect(tokenCard.getByLabel('API token', { exact: true })).toHaveText(replacement);
 
-    // This browser keeps its session for reads, writes and a reload.
     await page.reload();
     await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
     expect((await page.request.get(`${server.baseURL}/api/v9/me`)).status()).toBe(200);
@@ -101,7 +97,6 @@ test('changing the password keeps this browser logged in and logs the other one 
     });
     expect(write.status()).toBe(200);
 
-    // The other browser's reads and writes fail, and a refresh lands on the login form.
     expect((await otherContext.request.get(`${server.baseURL}/api/v9/me`)).status()).toBe(403);
     const otherWrite = await otherContext.request.post(
       `${server.baseURL}/api/v9/workspaces/${workspaceId}/time_entries`,
@@ -116,7 +111,6 @@ test('changing the password keeps this browser logged in and logs the other one 
 
     expect(await loginStatus(server.baseURL, ACCOUNT.password)).toBe(403);
     expect(await loginStatus(server.baseURL, NEW_PASSWORD)).toBe(200);
-    // The old API token stops working and the new one signs in.
     expect(await meWithBasic(server.baseURL, basic(apiToken, 'api_token'))).toBe(403);
     expect(await meWithBasic(server.baseURL, basic(replacement, 'api_token'))).toBe(200);
   } finally {
@@ -164,7 +158,6 @@ test('a session cookie stops working after the 30-day lifetime', async ({ server
   const first = await servers.start({ slot: 3 });
   const { apiToken } = await createAccount(first.baseURL);
   const { session, expiresInMs } = await logIn(first.baseURL);
-  // The cookie carries the same 30-day lifetime the server enforces.
   expect(expiresInMs).toBeGreaterThan(days(30) - 60_000);
   expect(expiresInMs).toBeLessThanOrEqual(days(30));
   expect(await meWithSession(first.baseURL, session)).toBe(200);
@@ -177,13 +170,10 @@ test('a session cookie stops working after the 30-day lifetime', async ({ server
 
   const expired = await servers.start({ slot: 3, dataDir: first.dataDir, clockShiftMs: days(30) + 60_000 });
   expect(await meWithSession(expired.baseURL, session)).toBe(403);
-  // Expiry applies to sessions only; the API token and a fresh login still work.
   expect(await meWithBasic(expired.baseURL, basic(apiToken, 'api_token'))).toBe(200);
   expect(await loginStatus(expired.baseURL, ACCOUNT.password)).toBe(200);
 });
 
-// An admin's session_days and invite_days apply to sessions and invites created after the
-// change. They are stored with the data, so a restart keeps them; earlier sessions keep their expiry.
 test('stored session and invite lifetimes apply to new sessions and invites, across a restart', async ({ servers }) => {
   const first = await servers.start({ slot: 3 });
   const { apiToken } = await createAccount(first.baseURL);
@@ -217,7 +207,6 @@ test('stored session and invite lifetimes apply to new sessions and invites, acr
   });
   await first.stop();
 
-  // Restart the same data two days later, by the server's clock.
   const later = await servers.start({ slot: 3, dataDir: first.dataDir, clockShiftMs: days(2) + 60_000 });
   await withAuth(later.baseURL, admin, async api => {
     expect(await (await api.get('/api/app/admin/settings')).json()).toEqual({

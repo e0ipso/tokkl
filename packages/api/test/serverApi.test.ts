@@ -7,10 +7,7 @@ import { composeApp } from './fixtures/app.ts';
 import { OPTIONAL_REVISION_ACTIONS } from '../src/commands/timers.ts';
 import { createLogger } from '../src/lib/logger.ts';
 
-/**
- * A request whose status tells a server with the capability from one without it: a 404 for a
- * missing route, or the answer an older server gives a body it does not know.
- */
+/** The status tells a server with the capability from one without it: a 404, or an older server's answer. */
 const PROBES: Record<ServerCapability, (ctx: TestContext) => Promise<number>> = {
   'app-preferences': async ctx => (await ctx.json('GET', '/api/app/me/preferences')).status,
   'timer-actions': async ctx => (await ctx.json('POST', '/api/app/timer/stop', { revision: 0 })).status,
@@ -95,7 +92,6 @@ test('GET /api/app/status names the Pomodoro limits a session start enforces', a
       await ctx.json('POST', '/api/app/pomodoro/end', { revision: started.body.revision });
     }
   }
-  // A new account starts from the defaults.
   const { body: idle } = await ctx.json<TimerState>('GET', '/api/app/timer');
   const session = await ctx.json<TimerState>('POST', '/api/app/pomodoro', { revision: idle.revision });
   const pomodoro = session.body.pomodoro!;
@@ -129,7 +125,6 @@ test('only the actions listed as optional-revision act without a revision, each 
     assert.equal(`POST ${path}` in OPTIONAL_REVISION_ACTIONS, false, path);
     assert.equal((await ctx.json('POST', path, {})).status, 400, path);
   }
-  // The listed ones act on whatever runs.
   const listed = Object.keys(OPTIONAL_REVISION_ACTIONS).sort();
   assert.deepEqual(listed, ['POST /api/app/pomodoro', 'POST /api/app/timer/pause']);
   assert.equal((await ctx.json('POST', '/api/app/timer/pause', {})).status, 200);

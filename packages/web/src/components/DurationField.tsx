@@ -3,11 +3,7 @@ import { formatDuration, parseDuration } from '@tokkl/common/duration';
 import type { DurationFormat } from '@tokkl/types';
 import { t } from '../i18n/messages.ts';
 
-/**
- * Text field that accepts any duration grammar from @tokkl/common/duration and commits on blur or
- * Enter. While the user is not editing it shows `seconds`, so a saved or refetched value replaces
- * the text; while editing it shows what was typed.
- */
+/** Accepts any @tokkl/common/duration grammar and commits on blur or Enter; shows `seconds` while not editing. */
 export function DurationField({
   seconds,
   onCommit,
@@ -23,7 +19,7 @@ export function DurationField({
   disabled?: boolean;
   className?: string;
   ariaLabel?: string;
-  /** Extra props for the input, such as the id, ref and aria attributes of a form field. */
+  /** Such as the id, ref and aria attributes of a form field. */
   inputProps?: Omit<ComponentPropsWithRef<'input'>, 'value' | 'onChange' | 'onBlur' | 'onFocus' | 'onKeyDown'>;
 }) {
   const shown = formatDuration(seconds, format === 'decimal' ? 'improved' : format);

@@ -27,10 +27,7 @@ const DESCRIPTION = {
   month: 'reports.chartMonths',
 } as const satisfies Record<Resolution, MessageKey>;
 
-/**
- * Stacked columns of tracked hours per day, week or month. Billable time sits on the baseline as a
- * solid column and the rest stacks above it in stripes, split by a surface-colored gap.
- */
+/** Billable time sits on the baseline as a solid column; the rest stacks above it in stripes. */
 export function SeriesChart({
   series,
   resolution,
@@ -172,7 +169,6 @@ export function SeriesChart({
   );
 }
 
-/** The element's content width, kept up to date while it resizes. */
 function useWidth(ref: RefObject<HTMLElement | null>): number {
   const [width, setWidth] = useState(0);
   useEffect(() => {
@@ -188,7 +184,7 @@ function useWidth(ref: RefObject<HTMLElement | null>): number {
   return width;
 }
 
-/** Reads the geometry from the element's custom properties once, before the first paint. */
+/** Once, before the first paint. */
 function useGeometry(ref: RefObject<HTMLElement | null>): Geometry {
   const [geometry, setGeometry] = useState(DEFAULT_GEOMETRY);
   useLayoutEffect(() => {

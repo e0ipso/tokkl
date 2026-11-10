@@ -1,12 +1,9 @@
-/**
- * What a client asks of accounts, workspaces and instance settings, already parsed by
- * `commands/accounts.ts`. Passwords here passed the length rules; nothing is hashed yet.
- */
+/** Parsed by `commands/accounts.ts`. Passwords passed the length rules; nothing is hashed yet. */
 import type { AccountChanges } from './ports.ts';
 import type { InstanceSettings, JsonObject, UserRole } from './model.ts';
 import type { RoundingMode } from './workspaceValues.ts';
 
-/** A new account from first-admin setup or an invite. The role comes from the setup or the invite. */
+/** The role comes from the setup or the invite. */
 export interface NewAccount {
   email: string;
   fullname: string;
@@ -20,7 +17,7 @@ export interface InviteRequest {
   note: string | null;
 }
 
-/** An admin's change to an account: at least one of the two. */
+/** At least one of the two. */
 export interface AccessChange {
   role?: UserRole;
   disabled?: boolean;
@@ -28,7 +25,6 @@ export interface AccessChange {
 
 interface PasswordChange {
   password: string;
-  /** What the client sent as the current password; checked against the stored hash. */
   currentPassword: string;
 }
 
@@ -37,7 +33,7 @@ export interface ProfileUpdate {
   password?: PasswordChange;
 }
 
-/** Known preferences hold values the app can use; other keys are kept as sent. */
+/** Known preferences hold usable values; other keys are kept as sent. */
 export type PreferenceChanges = JsonObject;
 
 export type SettingChanges = Partial<InstanceSettings>;

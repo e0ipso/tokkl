@@ -1,4 +1,3 @@
-/** A block on one calendar day: its stored span in clock minutes, and the lane the layout gives it. */
 export interface LaneBlock {
   top: number;
   bottom: number;
@@ -6,26 +5,15 @@ export interface LaneBlock {
   lanes: number;
 }
 
-/**
- * Whether two blocks share stored time. A block that only touches the other at an end does not,
- * and neither do two zero-length blocks at different instants. Two zero-length blocks at the same
- * instant do, so neither hides the other.
- */
+/** Touching ends do not overlap; zero-length blocks at the same instant do, so neither hides the other. */
 function overlaps(a: LaneBlock, b: LaneBlock): boolean {
   if (a.top === a.bottom && b.top === b.bottom) return a.top === b.top;
   return a.top < b.bottom && b.top < a.bottom;
 }
 
 /**
- * Sorts a day's blocks by start, then by end, and gives each a lane and the number of lanes in its
- * cluster. Blocks share a cluster while their stored spans overlap; a block takes the first lane
- * that no overlapping block of the cluster holds. The spans are the stored ones, not the drawn
- * heights, so a zero-length or very short entry that only touches the entry starting where it
- * ends stays in that entry's lane. At the same start the shorter span comes first for the same
- * reason: it closes its cluster before the longer one opens the next. A zero-length entry inside
- * another entry's span still overlaps it and takes a lane beside it, and zero-length entries at
- * one instant take lanes beside each other. Sets `lane` and `lanes` on the blocks and returns them
- * in the sorted order.
+ * Lanes come from stored spans, not drawn heights, so a short entry touching the next stays in its lane.
+ * At equal starts the shorter span comes first. Sets `lane` and `lanes`; returns the sorted blocks.
  */
 export function assignLanes<T extends LaneBlock>(blocks: T[]): T[] {
   const sorted = [...blocks].sort((a, b) => a.top - b.top || a.bottom - b.bottom);
@@ -48,18 +36,11 @@ export function assignLanes<T extends LaneBlock>(blocks: T[]): T[] {
   return sorted;
 }
 
-/** Whether two blocks cover any of the same width of the column, given their lanes. */
 function sharesWidth(a: LaneBlock, b: LaneBlock): boolean {
   return a.lane / a.lanes < (b.lane + 1) / b.lanes && b.lane / b.lanes < (a.lane + 1) / a.lanes;
 }
 
-/**
- * The height in pixels a block is drawn at least, so that `minHeight` pixels of it show below every
- * zero-length block over its start. A zero-length block is drawn `minHeight` tall from its start and
- * sits above the blocks it shares the column with, so a block that starts at or just under one would
- * otherwise be hidden by it. A zero-length block needs `minHeight` itself. `pxPerMinute` converts
- * the blocks' clock minutes to pixels.
- */
+/** Tall enough that `minHeight` pixels show below every zero-length block drawn over its start. */
 export function heightClearingMarkers(
   block: LaneBlock,
   blocks: readonly LaneBlock[],

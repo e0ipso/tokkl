@@ -8,7 +8,6 @@ const NOW = new Date('2026-01-01T10:00:00Z');
 const totalTime = (page: Page) => page.locator('.report-totals div', { hasText: 'Total time' }).locator('dd');
 const rangeButton = (page: Page) => page.locator('.range-button');
 
-/** Waits for the URL to carry exactly this range, then for the report to show it. */
 async function expectRange(page: Page, from: string, to: string, label: string, total: string | null) {
   await expect
     .poll(() => {
@@ -37,7 +36,6 @@ test('preset and custom ranges step by exact dates across month and year boundar
   page,
   api,
 }) => {
-  // One entry on each side of the two week boundaries around New Year.
   await api.entry({ description: 'Sunday 28 Dec', start: '2025-12-28T10:00:00Z', stop: '2025-12-28T11:00:00Z' });
   await api.entry({ description: 'Monday 29 Dec', start: '2025-12-29T10:00:00Z', stop: '2025-12-29T12:00:00Z' });
   await api.entry({ description: 'Sunday 4 Jan', start: '2026-01-04T10:00:00Z', stop: '2026-01-04T13:00:00Z' });
@@ -46,7 +44,6 @@ test('preset and custom ranges step by exact dates across month and year boundar
   await page.clock.setFixedTime(NOW);
   await login(page);
 
-  // Weeks start on Monday: this week runs from Monday 29 December to Sunday 4 January.
   await page.goto('/reports');
   await expect(rangeButton(page)).toContainText('This week');
   await expect(rangeButton(page)).toContainText('29 Dec 2025 to 4 Jan 2026');
@@ -59,7 +56,6 @@ test('preset and custom ranges step by exact dates across month and year boundar
   await page.keyboard.press('ArrowRight');
   await expectRange(page, '2026-01-05', '2026-01-11', '5 Jan to 11 Jan', '4:00:00');
 
-  // Weeks start on Sunday: this week runs from Sunday 28 December to Saturday 3 January.
   await api.setWeekStart(0);
   await page.goto('/reports?range=this_week');
   await expect(rangeButton(page)).toContainText('28 Dec 2025 to 3 Jan 2026');
@@ -70,7 +66,6 @@ test('preset and custom ranges step by exact dates across month and year boundar
   await page.keyboard.press('ArrowRight');
   await expectRange(page, '2026-01-04', '2026-01-10', '4 Jan to 10 Jan', '7:00:00');
 
-  // Whole months move by calendar months, whatever their length.
   await choosePreset(page, 'This month');
   await expect(rangeButton(page)).toContainText('1 Jan to 31 Jan');
   await expect(totalTime(page)).toHaveText('7:00:00');
@@ -82,14 +77,12 @@ test('preset and custom ranges step by exact dates across month and year boundar
   for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowRight');
   await expectRange(page, '2026-02-01', '2026-02-28', '1 Feb to 28 Feb', null);
 
-  // Years step back to the previous calendar year.
   await choosePreset(page, 'This year');
   await expect(rangeButton(page)).toContainText('1 Jan to 31 Dec');
   await page.keyboard.press('ArrowLeft');
   await expectRange(page, '2025-01-01', '2025-12-31', '1 Jan to 31 Dec 2025', '3:00:00');
   await expect(rangeButton(page)).toContainText('Last year');
 
-  // A custom range of days moves by its own length, across the new year.
   await chooseCustom(page, '2025-12-27', '2025-12-29');
   await expectRange(page, '2025-12-27', '2025-12-29', '27 Dec to 29 Dec 2025', '3:00:00');
   await page.getByRole('button', { name: 'Next period' }).click();
@@ -99,7 +92,6 @@ test('preset and custom ranges step by exact dates across month and year boundar
   for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowLeft');
   await expectRange(page, '2025-12-24', '2025-12-26', '24 Dec to 26 Dec 2025', null);
 
-  // A custom range of whole months moves by that many calendar months.
   await chooseCustom(page, '2025-11-01', '2025-12-31');
   await expectRange(page, '2025-11-01', '2025-12-31', '1 Nov to 31 Dec 2025', '3:00:00');
   await page.keyboard.press('ArrowRight');
@@ -115,8 +107,7 @@ test('a saved report URL restores every control and the matching results', async
   const beta = await api.project({ name: 'Beta', client_id: acme });
   const gamma = await api.project({ name: 'Gamma' });
 
-  // 103 matches lasting 5 to 515 minutes, multiples of the default 5-minute time resolution so the
-  // server stores them unchanged; odd ones are tagged "draft".
+  // Multiples of the default 5-minute resolution, so the server stores them unchanged; odd ones are tagged "draft".
   for (let i = 1; i <= 103; i++) {
     const start = Date.UTC(2025, 10, 1 + (i % 61), 9);
     await api.entry({
@@ -183,7 +174,6 @@ test('a saved report URL restores every control and the matching results', async
   await page.keyboard.press('Escape');
   await expect(page.getByRole('checkbox', { name: 'paid' })).toBeHidden();
 
-  // 5 × (1 + 2 + ... + 103) minutes; odd matches are tagged "draft".
   const all = hms(((103 * 104) / 2) * 5 * 60);
   await tabs.getByRole('tab', { name: 'Weekly' }).click();
   await expect(page.getByRole('group', { name: 'Rows' }).getByRole('button', { name: 'Clients' })).toHaveAttribute(
@@ -208,7 +198,6 @@ test('a saved report URL restores every control and the matching results', async
       ['draft', hms(52 * 52 * 5 * 60)],
       ['Without tags', hms(51 * 52 * 5 * 60)],
     ]);
-  // The page number survives tab changes, so returning to the detailed tab shows the same rows.
   await tabs.getByRole('tab', { name: 'Detailed' }).click();
   await expect(pager).toContainText('101 to 103 of 103');
 });
@@ -237,7 +226,6 @@ test('"Is not" chosen before any client or tag option stays negated and excludes
   const invoiced = await api.tagId('invoiced');
   await login(page);
 
-  // The project case runs on the phone in e2e/mobile-reports.spec.ts.
   for (const { label, param, option, id } of [
     { label: 'Client', param: 'clients', option: 'Globex', id: globex },
     { label: 'Tag', param: 'tags', option: 'invoiced', id: invoiced },
@@ -269,8 +257,6 @@ test('"Is not" chosen before any client or tag option stays negated and excludes
   }
 });
 
-// The reports description search is the shared SearchBox; typing still filters the
-// report through the URL, and clearing it brings every entry back.
 test('typing in the description search filters the report and the URL, and clearing it restores both', async ({
   page,
   api,

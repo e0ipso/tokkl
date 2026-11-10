@@ -1,8 +1,3 @@
-/**
- * Account operations: first-admin setup, an admin's user management and instance settings, and a
- * user's own profile, preferences and workspace settings. Links and sessions live in their own
- * modules; `createAccountOperations` puts them together.
- */
 import { now } from '../lib/clock.ts';
 import type { OperationContext } from './ports.ts';
 import type { Id, InstanceSettings, JsonObject, User, Workspace } from './model.ts';
@@ -33,21 +28,18 @@ import { getInstanceSettings } from './instanceSettings.ts';
 import { noWorkspaceAccess, ownedWorkspace } from './membership.ts';
 import { createSessionOperations } from './sessions.ts';
 
-/** An attempt either ran its check, or was refused unchecked with the seconds to wait. */
 export type PasswordAttemptResult = { refused: false; valid: boolean } | { refused: true; retryAfter: number };
-/** The HTTP/auth adapter supplies FailureLimiter.attempt with passwordCounters and its address. */
 export interface AccountPasswordAttempt {
   attempt(check: () => Promise<boolean>): Promise<PasswordAttemptResult>;
 }
-/** Required at operations that need entry/timer work. Implement with the same operation context. */
+/** Implement with the same operation context. */
 export interface AccountEntryEffects<R extends AccountRepositories = AccountRepositories> {
   reanchorTimezone(context: OperationContext<R>, userId: Id, oldTimezone: string, newTimezone: string): Promise<void>;
-  /** Discover timer owners under workspace guards, before acquiring the complete sorted user set. */
+  /** Finds timer owners under the workspace guards, before locking the full sorted user set. */
   affectedDeletionUsers(context: OperationContext<R>, userId: Id, workspaces: Workspace[]): Promise<Id[]>;
   beforeDelete(context: OperationContext<R>, user: User, soleWorkspaces: Workspace[]): Promise<void>;
 }
 
-/** The largest stored preferences object, as JSON. */
 const MAX_PREFERENCES_BYTES = 64 * 1024;
 
 function createAdminOperations<R extends AccountRepositories>(
@@ -145,7 +137,7 @@ function createAdminOperations<R extends AccountRepositories>(
   };
 }
 
-/** The hash of the new password, once the current one checked out under the shared attempt limit. */
+/** Checks the current password under the shared attempt limit. */
 async function verifiedPasswordHash(
   seen: User,
   change: NonNullable<ProfileUpdate['password']>,
@@ -162,7 +154,7 @@ function createProfileOperations<R extends AccountRepositories>(
   runner: AccountRunner<R>,
   security: AccountSecurityEffects,
 ) {
-  /** Writes the profile under the user's guard; the credential must still hold there. */
+  /** Under the user's guard; the credential must still hold there. */
   async function applyProfile(
     ctx: OperationContext<R>,
     seen: User,
@@ -214,7 +206,6 @@ function createProfileOperations<R extends AccountRepositories>(
         });
       });
     },
-    /** A password change also needs the current password, checked through `attempt`. */
     async updateProfile(
       seen: User,
       credential: AccountCredential,
@@ -231,10 +222,7 @@ function createProfileOperations<R extends AccountRepositories>(
   };
 }
 
-/**
- * `userId`'s preference saves. Saving guards only the user. A deletion that commits while the save
- * waits makes the user lock restart the transaction, which then finds the account gone.
- */
+/** Guards only the user. A deletion that commits meanwhile restarts the transaction, which finds the account gone. */
 export function createPreferenceOperations<R extends AccountRepositories>(
   runner: Pick<AccountRunner<R>, 'transaction'>,
   userId: Id,
@@ -246,7 +234,7 @@ export function createPreferenceOperations<R extends AccountRepositories>(
         if (!isActiveUser(user)) throw refused();
         const serialized = JSON.stringify({ ...user.preferences, ...changes });
         if (serialized.length > MAX_PREFERENCES_BYTES) throw invalidInput('Preferences are too large');
-        // JSON request overflow is saved as null by the existing JSON serialization behavior.
+        // The JSON round trip stores overflowing numbers (Infinity) as null.
         await ctx.users.setPreferences(userId, JSON.parse(serialized) as JsonObject);
         return getPreferences((await ctx.users.get(userId))!);
       });

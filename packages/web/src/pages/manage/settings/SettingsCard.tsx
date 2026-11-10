@@ -1,7 +1,6 @@
 import type { FormEvent, ReactNode, Ref } from 'react';
 import { t } from '../../../i18n/messages.ts';
 
-/** One settings section: a card with a title, an optional intro line and its own save button. */
 export function SettingsCard({
   id,
   title,
@@ -15,7 +14,7 @@ export function SettingsCard({
 }: {
   id: string;
   title: string;
-  /** Lets the section move focus to its title, for example when the focused row went away. */
+  /** For example when the focused row went away. */
   titleRef?: Ref<HTMLHeadingElement>;
   intro?: ReactNode;
   children: ReactNode;

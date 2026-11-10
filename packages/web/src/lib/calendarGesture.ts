@@ -2,10 +2,7 @@ import type { TimeEntry } from '@tokkl/types';
 import { clampDayMove } from './calendarDay.ts';
 import { pxToMinute, snapMinute } from './calendarLayout.ts';
 
-/**
- * The gesture state machine of the week calendar's drags, with no DOM, timers or requests. The
- * hook in components/useCalendarDrag.ts feeds it pointer events and acts on what it returns.
- */
+/** No DOM, timers or requests; components/useCalendarDrag.ts feeds it pointer events. */
 
 export type CalendarDrag =
   | { kind: 'create'; day: string; fromMinute: number; toMinute: number }
@@ -19,12 +16,11 @@ export type CalendarDrag =
       deltaMinutes: number;
     };
 
-/** A touch drag starts after a hold, so a plain finger still scrolls the grid. */
+/** A touch drag starts after a hold, so a plain finger still scrolls. */
 export const LONG_PRESS_MS = 500;
-/** A held touch that moves further than this before the hold completes is a scroll. */
+/** Moving further before the hold completes makes it a scroll. */
 export const LONG_PRESS_TOLERANCE_PX = 10;
 
-/** A touch that is being held on a column or block, and the drag it becomes if the hold completes. */
 interface Press {
   readonly next: CalendarDrag;
   readonly pointerId: number;
@@ -32,10 +28,7 @@ interface Press {
   readonly y: number;
 }
 
-/**
- * A held touch and an active drag are tracked apart, as a mouse drag never waits for a hold. The
- * hook runs the hold timer while `press` is set: a new press object starts a new timer.
- */
+/** The hook runs the hold timer while `press` is set; a new press object starts a new timer. */
 export interface GestureState {
   readonly press: Press | null;
   readonly drag: CalendarDrag | null;
@@ -50,27 +43,20 @@ interface PointerAt {
 }
 
 export type GestureEvent =
-  /** A pointer went down on a column or block; `next` is the drag it starts. */
   | ({ readonly type: 'down'; readonly pointerType: string; readonly next: CalendarDrag } & PointerAt)
-  /** The hold timer of the current press ran out. */
   | { readonly type: 'held' }
-  /** A pointer moved anywhere over the calendar. */
   | ({ readonly type: 'wander' } & PointerAt)
-  /** The pointer moved the active drag to `drag` (see `followPointer`). */
   | { readonly type: 'follow'; readonly drag: CalendarDrag }
   /** The browser took the touch for a scroll. */
   | { readonly type: 'cancel' }
-  /** The pointer is up or has left the calendar. */
   | { readonly type: 'up' };
 
-/** What the hook must do after an event, beyond drawing the new state. */
 export type GestureOutcome =
   | { readonly kind: 'none' }
-  /** A touch hold became a drag, so the held finger's travel is not a swipe. */
+  /** The held finger's travel is not a swipe. */
   | { readonly kind: 'hold' }
-  /** A touch lifted before the hold completed on a block: open it like a click. */
+  /** A touch lifted before the hold on a block opens it like a click. */
   | { readonly kind: 'tap'; readonly entry: TimeEntry }
-  /** A drag ended: save it (see `dropChange` in calendarDrop.ts). */
   | { readonly kind: 'drop'; readonly drag: CalendarDrag };
 
 interface GestureStep {
@@ -81,10 +67,8 @@ interface GestureStep {
 const NONE: GestureOutcome = { kind: 'none' };
 
 /**
- * The next state for `event`. Mouse and pen drags start at once. A touch waits out a hold; a lift,
- * a scroll or a finger that wanders past the tolerance before then leaves the gesture to the
- * browser, and a quick tap on a block opens it. A drop clears the drag before it is saved, so a
- * touch's pointer up and pointer leave in one go save the gesture at most once.
+ * Touch waits out a hold; lifting, scrolling or wandering first leaves it to the browser. A drop clears
+ * the drag first, so pointer up and leave together save once.
  */
 export function stepGesture(state: GestureState, event: GestureEvent): GestureStep {
   switch (event.type) {
@@ -120,17 +104,12 @@ export function stepGesture(state: GestureState, event: GestureEvent): GestureSt
   }
 }
 
-/** Whether a gesture is being held or dragged, when the grid must not open its context menu. */
+/** Then the grid must not open its context menu. */
 export function isHolding(state: GestureState): boolean {
   return state.press !== null || state.drag !== null;
 }
 
-/**
- * Where the active drag goes as the pointer moves over the column of `day`. `minute` is the clock
- * minute under the pointer in that column. A create drag follows it on its own day only; a move or
- * resize follows the pointer's travel since it went down, in whole steps. A day-mode move stays on
- * the shown day; the week view lets a block cross midnight. An unchanged drag comes back as it is.
- */
+/** A create follows its own day only; a move or resize follows the travel in whole steps. */
 export function followPointer(
   drag: CalendarDrag,
   pointer: { readonly day: string; readonly minute: number; readonly y: number },

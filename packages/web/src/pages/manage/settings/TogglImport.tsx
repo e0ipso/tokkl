@@ -52,7 +52,7 @@ function ImportSummary({ result }: { result: ImportResult }) {
   );
 }
 
-/** Checkboxes for a team export: whose rows to import. */
+/** For a team export: whose rows to import. */
 function ImportUsers({
   users,
   selected,
@@ -83,7 +83,7 @@ function ImportUsers({
   );
 }
 
-/** Imports a Toggl Track detailed CSV: every file and user choice is previewed before the import. */
+/** Every file and user choice is previewed before the import. */
 export function TogglImport({ timeZone }: { timeZone: string }) {
   const toast = useToast();
   const qc = useQueryClient();

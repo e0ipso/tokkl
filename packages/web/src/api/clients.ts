@@ -21,10 +21,7 @@ export interface ClientBody {
   notes?: string | null;
 }
 
-/**
- * Client writes. Pass them to a mutation together with `stale.clients` or `stale.clientCreated`. A
- * create carries an `Idempotency-Key` (`postCreate` in idempotency.ts).
- */
+/** Pass them to a mutation with `stale.clients` or `stale.clientCreated`. */
 export const clientRequests = {
   create: (wid: number, body: ClientBody) => postCreate<Client>(wsPath(wid, 'clients'), body, { decode: object }),
   update: (wid: number, id: number, body: ClientBody) =>

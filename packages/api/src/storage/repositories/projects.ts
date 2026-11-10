@@ -1,4 +1,3 @@
-/** Projects of a workspace, with their client name and tracked total. */
 import { now } from '../../lib/clock.ts';
 import { type Kysely } from 'kysely';
 import type { Backend } from '../config.ts';

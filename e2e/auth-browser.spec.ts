@@ -22,7 +22,6 @@ import {
 import { PHONE, expectFits, expectNoPageOverflow } from './mobile-tests-helpers.ts';
 import { chooseJson, transferFixture } from './transfer-tests-helpers.ts';
 
-/** GET /api/app/status of a server with no admin yet, with the API version and capabilities it names. */
 const FRESH_STATUS = {
   setup_required: true,
   api_version: 1,
@@ -44,8 +43,6 @@ const FRESH_STATUS = {
     long_rest_every: { min: 1, max: 12, default: 4 },
   },
 };
-
-// Failed setup and login in the browser, and what logout leaves behind.
 
 test('a wrong setup code shows an error, and a retry with the right code creates the account', async ({
   page,
@@ -76,7 +73,6 @@ test('a wrong setup code shows an error, and a retry with the right code creates
   expect(await (await page.request.get(`${server.baseURL}/api/app/status`)).json()).toEqual(FRESH_STATUS);
   expect((await page.context().cookies(server.baseURL)).some(c => c.name === 'tokkl_session')).toBe(false);
 
-  // The form keeps what was typed, so only the code needs fixing.
   await page.getByLabel('Setup code').fill(SETUP_CODE);
   await page.getByRole('button', { name: 'Create admin account' }).click();
   await expect(page.getByRole('region', { name: 'Timer' })).toBeVisible();
@@ -86,7 +82,6 @@ test('a wrong setup code shows an error, and a retry with the right code creates
   expect((await me.json()).email).toBe(ACCOUNT.email);
 });
 
-// The setup error points at the server log, so the log must carry the code until the first admin exists.
 test('the startup log prints the setup code until the first admin exists', async ({ servers }) => {
   const SETUP_LINE = `No admin account yet. Open the web UI and use this setup code to create it: ${SETUP_CODE}`;
   const fresh = await servers.start({ slot: 0 });
@@ -172,8 +167,8 @@ test('account preferences persist across restart and a legacy backup leaves its 
   await page.reload();
   await expect(defaults.getByRole('spinbutton', { name: 'Work', exact: true })).toHaveValue('42');
 
-  // Check the stored row too: a read-time filter alone would leave the obsolete keys on disk.
-  // The page leaves first, because it reads the timer again once the server's stream ends.
+  // Check the stored row too: a read-time filter would leave obsolete keys on disk. The page leaves first,
+  // since it reads the timer again once the server's stream ends.
   await leavePages(page.context());
   await upgraded.stop();
   const restarted = await servers.start({ slot: 0, dataDir: upgraded.dataDir });
@@ -182,7 +177,6 @@ test('account preferences persist across restart and a legacy backup leaves its 
   });
 });
 
-// Ten wrong setup codes from one address refuse even the right one, and the 429 says when to retry.
 test('ten wrong setup codes lock setup on this address, and the setup form says so', async ({
   page,
   runtimeErrors,
@@ -276,7 +270,6 @@ test('after logout the old session is refused, and reload or back shows no priva
   await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Log out' }).click();
   await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible();
 
-  // The server dropped the session itself, not only the browser's cookie.
   expect(await meWithSession(baseURL!, session)).toBe(403);
   expect((await page.context().cookies()).some(c => c.name === 'tokkl_session')).toBe(false);
 
@@ -290,7 +283,6 @@ test('after logout the old session is refused, and reload or back shows no priva
   await expectNoPrivateData();
   await page.reload();
   await expectNoPrivateData();
-  // History holds the settings page and the timer page from the logged-in visit.
   await page.goBack();
   await expect(page).toHaveURL(`${baseURL}/settings`);
   await expectNoPrivateData();
@@ -299,10 +291,6 @@ test('after logout the old session is refused, and reload or back shows no priva
   await expectNoPrivateData();
 });
 
-// Wrong passwords count per account and address, so ten lock that account here while
-// other emails from the same address still get the usual answer. Setup codes have their own count.
-// An email that differs only in ASCII case is the same account and shares its count.
-// Every 429 says when to retry; the account's window opened seconds ago, so nearly all of it is left.
 test('ten wrong passwords lock the account on this address, and the login form says so', async ({
   page,
   runtimeErrors,
@@ -347,7 +335,6 @@ test('ten wrong passwords lock the account on this address, and the login form s
   });
   expect(basicLocked.status()).toBe(429);
   expectNearlyFullWindow(basicLocked);
-  // A password change checks the current password against the same counters, even over the API token.
   const changeLocked = await page.request.put(`${server.baseURL}/api/v9/me`, {
     headers: { authorization: basic(apiToken, 'api_token') },
     data: { current_password: ACCOUNT.password, password: 'second password 2' },
@@ -362,8 +349,6 @@ test('ten wrong passwords lock the account on this address, and the login form s
   await expect(alert).toHaveText('Incorrect email or password');
 });
 
-// Login, setup and invite acceptance refuse a request without X-Tokkl-CSRF before doing
-// anything else: 403, no cookie, nothing charged to a limiter, and the invite stays usable.
 test('login, setup and invite acceptance without the CSRF header are refused and charge nothing', async ({
   servers,
 }) => {
@@ -376,7 +361,6 @@ test('login, setup and invite acceptance without the CSRF header are refused and
     expect(response.headers()['set-cookie'], path).toBeUndefined();
   };
   try {
-    // More wrong codes than the setup limit allows, then the right one: none of them is counted.
     for (let i = 0; i < 11; i++) await refused('/api/app/setup', { setup_code: 'WRONG-CODE', ...ACCOUNT });
     await refused('/api/app/setup', { setup_code: SETUP_CODE, ...ACCOUNT });
     expect(await (await api.get('/api/app/status')).json()).toEqual(FRESH_STATUS);
@@ -400,8 +384,6 @@ test('login, setup and invite acceptance without the CSRF header are refused and
   }
 });
 
-// A cross-site form can post a JSON-shaped text/plain body, which the server parses, but
-// it cannot add the header, so it cannot sign the browser into the account it names.
 test('a cross-site form that posts valid credentials does not sign the browser in', async ({ page, servers }) => {
   const server = await servers.start({ slot: 0 });
   await createAccount(server.baseURL);
@@ -424,8 +406,6 @@ test('a cross-site form that posts valid credentials does not sign the browser i
   expect(withHeader.status()).toBe(200);
 });
 
-// The sidebar shows who is signed in above Log out, one line each, with the full value in title.
-// Changing only the case of one's own email is not "already in use".
 test('the sidebar names the signed-in user and follows profile changes', async ({ page, servers }) => {
   const server = await servers.start({ slot: 0 });
   await createAccount(server.baseURL);
@@ -462,7 +442,6 @@ test('the sidebar names the signed-in user and follows profile changes', async (
   const longBox = (await user.boundingBox())!;
   expect(longBox.x + longBox.width).toBeLessThanOrEqual(navBox.x + navBox.width + 0.5);
 
-  // With no full name, the email stands alone.
   await profile.getByLabel('Full name').fill('');
   await profile.getByRole('button', { name: 'Save' }).click();
   await expect(name).toHaveCount(0);
@@ -473,8 +452,6 @@ test('the sidebar names the signed-in user and follows profile changes', async (
   });
 });
 
-// On a phone the setup and login cards, their fields, buttons and error fit the screen
-// without sideways scrolling, in light and dark.
 test.describe('on a phone', () => {
   test.use(PHONE);
 

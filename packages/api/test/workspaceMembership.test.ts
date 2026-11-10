@@ -285,7 +285,6 @@ test('GET /workspaces/:wid/users lists the workspace members and refuses non-mem
   );
 });
 
-/** A's catalog and entries as A sees them, to show that B's refused requests changed nothing. */
 async function workspaceState(ctx: TestContext) {
   const base = `/api/v9/workspaces/${ctx.wid}`;
   const read = async (path: string) => (await ctx.json('GET', path)).body;
@@ -299,10 +298,7 @@ async function workspaceState(ctx: TestContext) {
   };
 }
 
-/**
- * Gives `ctx` a client, a project, a task, a tag and one stopped entry using all of them. Each name
- * starts with `prefix`, so two accounts' records can be told apart.
- */
+/** Each name starts with `prefix`, so two accounts' records can be told apart. */
 async function seedWorkspace(ctx: TestContext, prefix = '') {
   const base = `/api/v9/workspaces/${ctx.wid}`;
   const client = (await ctx.json('POST', `${base}/clients`, { name: `${prefix}Client` })).body;
@@ -432,7 +428,6 @@ test('PUT /me accepts only a default workspace the caller belongs to, and app re
   assert.equal(own.status, 200);
   assert.equal(own.body.totals.entry_count, 0, "B's report holds none of A's entries");
 
-  // A member may make the shared workspace its default; once the membership ends, the app reports refuse it.
   await addWorkspaceMember(a.db, a.wid, b.user.id, 'member');
   const joined = await b.json('PUT', '/api/v9/me', { default_workspace_id: a.wid });
   assert.equal(joined.status, 200);
@@ -498,7 +493,6 @@ test("purging the trash needs membership of the entry's workspace", async () => 
   assert.equal((await b.json('DELETE', `/api/app/trash/${own[0]}`)).body.deleted, 1, 'an own entry is purged');
   assert.equal((await b.json('DELETE', `/api/app/trash/${own[0]}`)).status, 404, 'a purged entry is gone');
 
-  // Emptying the trash keeps the entries of the workspace B left.
   assert.equal((await b.json('DELETE', '/api/app/trash')).body.deleted, 1);
   assert.deepEqual((await inTrash()).sort(), [...shared].sort());
   for (const id of shared) assert.ok(await storageFor(a.db).entries.get(b.user.id, id, true), `entry ${id} is kept`);
@@ -520,7 +514,6 @@ test("a non-member cannot delete another workspace's project or trash its entrie
   assert.equal(kept.body.project_id, project.id);
 });
 
-/** What `ctx` sees through each /me collection: workspace ids, and record names per collection. */
 async function meCollections(ctx: TestContext) {
   const names = (list: Array<{ name: string }>) => list.map(item => item.name).sort();
   const related = (await ctx.json('GET', '/api/v9/me?with_related_data=true')).body;
@@ -541,7 +534,6 @@ async function meCollections(ctx: TestContext) {
   };
 }
 
-/** The collections a caller should see when it belongs to `wids` holding records named with `prefixes`. */
 function expectedCollections(wids: number[], prefixes: string[]) {
   const names = (kind: string) => prefixes.map(prefix => `${prefix}${kind}`).sort();
   const catalog = { clients: names('Client'), projects: names('Project'), tasks: names('Task'), tags: names('Tag') };

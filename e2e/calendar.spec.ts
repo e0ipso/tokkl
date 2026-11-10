@@ -47,8 +47,6 @@ test('calendar view shows entries and creates one by dragging', async ({ page })
   await expect(page.locator('input[value="Planning from calendar"]')).toBeVisible();
 });
 
-// Each Madrid clock change: the browser's today, an entry at 10:00-11:00 local, and an entry that
-// a two-hour drag moves into (or across) the changed hour.
 const CLOCK_CHANGES = [
   {
     name: 'autumn',
@@ -103,8 +101,6 @@ for (const change of CLOCK_CHANGES) {
   });
 }
 
-// Every block is a group named "description, project, duration", and a block under 45
-// minutes shows the project after the description on its one line.
 test('calendar blocks are named by description, project and duration, and short blocks show the project', async ({
   page,
 }) => {
@@ -142,8 +138,6 @@ test('calendar blocks are named by description, project and duration, and short 
   await expect(plain.locator('.calendar-block-line')).toHaveText('Inbox');
 });
 
-// Each block holds a button that Tab reaches: Enter or Space opens the editor a click opens,
-// and closing the editor puts focus back on the block.
 test('a calendar block opens its editor from the keyboard', async ({ page }) => {
   await page.clock.setFixedTime(new Date('2026-06-17T16:00:00Z'));
   await login(page);
@@ -170,15 +164,10 @@ test('a calendar block opens its editor from the keyboard', async ({ page }) => 
   await editor.getByRole('button', { name: 'Close', exact: true }).click();
   await expect(open).toBeFocused();
 
-  // A mouse click still opens the editor once, through the drag gesture.
   await block.click();
   await expect(page.getByRole('dialog')).toHaveCount(1);
 });
 
-// A zero-length entry (stored before the API refused spans that round to zero, or a short timer
-// restored from the trash) can sit where the next entry starts. Lanes follow the stored spans, so
-// the pair shares one lane with the thin marker above its successor. Spans that overlap still sit
-// side by side.
 test("a zero-length entry shares its successor's lane and both stay clickable, while overlapping entries split lanes", async ({
   page,
   data,
@@ -206,8 +195,7 @@ test("a zero-length entry shares its successor's lane and both stay clickable, w
   expect(markerBox.width).toBeCloseTo(successorBox.width, 1);
   expect(successorBox.width).toBeCloseTo(inner - 4, 1);
 
-  // Playwright clicks only where the block is the topmost element, so each click proves the
-  // marker is not covered by the entry it touches.
+  // Playwright clicks only where the block is topmost, so each click proves the marker is not covered.
   const editor = page.getByRole('dialog', { name: 'Edit entry' });
   await marker.click();
   await expect(editor.getByLabel('Description')).toHaveValue('Switch');
@@ -225,11 +213,8 @@ test("a zero-length entry shares its successor's lane and both stay clickable, w
   expect(late.x).toBeGreaterThanOrEqual(early.x + early.width);
 });
 
-// Several zero-length entries can share one grid point. They sit side by side so each stays
-// clickable, and the entry that starts there keeps its full width.
 test('zero-length entries at one instant sit side by side and each opens its own editor', async ({ page, data }) => {
   await page.clock.setFixedTime(new Date('2026-06-17T16:00:00Z'));
-  // Madrid, Wednesday 2026-06-17 (CEST): two markers at 09:00, then an entry that starts there.
   await data.createZeroLengthEntry('Switch one', '2026-06-17T07:00:00Z');
   await data.createZeroLengthEntry('Switch two', '2026-06-17T07:00:00Z');
   await data.createEntry({ description: 'Follow-up', start: '2026-06-17T07:00:00Z', stop: '2026-06-17T08:00:00Z' });
@@ -248,7 +233,6 @@ test('zero-length entries at one instant sit side by side and each opens its own
   const successorBox = (await todayBlock(page, 'Follow-up').boundingBox())!;
   expect(oneBox.width).toBeCloseTo(inner / 2 - 4, 1);
   expect(twoBox.width).toBeCloseTo(oneBox.width, 1);
-  // Side by side, in either order.
   expect(Math.abs(twoBox.x - oneBox.x)).toBeGreaterThanOrEqual(oneBox.width);
   expect(successorBox.width).toBeCloseTo(inner - 4, 1);
 
@@ -265,8 +249,6 @@ test('zero-length entries at one instant sit side by side and each opens its own
   }
 });
 
-// A zero-length entry at local midnight belongs to the day that starts at that midnight, and an
-// entry that ends at midnight stays on its own day.
 test('a zero-length entry at local midnight is drawn on the day it starts and opens its editor', async ({
   page,
   data,
@@ -296,11 +278,8 @@ test('a zero-length entry at local midnight is drawn on the day it starts and op
   );
 });
 
-// A zero-length entry is a thin bar over a short entry that starts at the same instant. The bar
-// stays on top and the short entry is drawn tall enough to show below it, so each opens its own editor.
 test('a zero-length entry and a short entry starting with it both open their own editor', async ({ page, data }) => {
   await page.clock.setFixedTime(new Date('2026-06-17T16:00:00Z'));
-  // Madrid, Wednesday 2026-06-17 (CEST): 09:00 to 09:00 and 09:00 to 09:05, 11:00 to 11:00 and 11:00 to 11:10.
   await data.createZeroLengthEntry('Switch nine', '2026-06-17T07:00:00Z');
   await data.createEntry({ description: 'Short five', start: '2026-06-17T07:00:00Z', stop: '2026-06-17T07:05:00Z' });
   await data.createZeroLengthEntry('Switch eleven', '2026-06-17T09:00:00Z');
@@ -321,12 +300,10 @@ test('a zero-length entry and a short entry starting with it both open their own
     const shortBox = (await shortBlock.boundingBox())!;
     expect(shortBox.y).toBeCloseTo(markerBox.y, 1);
 
-    // Playwright clicks only where the block is the topmost element.
     await markerBlock.click();
     await expect(editor.getByLabel('Description')).toHaveValue(marker);
     await page.keyboard.press('Escape');
     await expect(editor).toBeHidden();
-    // At least 6px of the short entry show below the marker, and the click lands there.
     expect(shortBox.y + shortBox.height).toBeGreaterThanOrEqual(markerBox.y + markerBox.height + 6);
     await shortBlock.click({ position: { x: shortBox.width / 2, y: shortBox.height - 3 } });
     await expect(editor.getByLabel('Description')).toHaveValue(short);
@@ -335,9 +312,6 @@ test('a zero-length entry and a short entry starting with it both open their own
   }
 });
 
-// The running block and the now line use --state-running, the running block is dashed so
-// colour is not its only mark, and only today's day head is a filled badge: the timer's orange
-// sticker inverted, so the mark is a shape as well as a colour.
 test('the running block and the now line use the running colour, and today is a filled badge', async ({ page }) => {
   await login(page);
   const timer = page.getByRole('region', { name: 'Timer' });
@@ -346,7 +320,6 @@ test('the running block and the now line use the running colour, and today is a 
   await expect(timer.getByRole('button', { name: 'Stop timer' })).toBeVisible();
   await openCalendar(page);
 
-  /** The computed colour of a token, read through a throwaway element. */
   const token = (property: string) =>
     page.evaluate(name => {
       const probe = document.createElement('div');
@@ -373,7 +346,6 @@ test('the running block and the now line use the running colour, and today is a 
   );
 });
 
-/** The day the day view shows, and the first and last day of the strip above it, by accessible name. */
 async function expectDayView(
   page: Page,
   range: string,
@@ -388,7 +360,6 @@ async function expectDayView(
   await expect(strip.getByRole('button').last()).toHaveAccessibleName(week[1]);
 }
 
-/** Swipes sideways across the calendar grid: left for the next day, right for the previous one. */
 async function swipeDay(page: Page, direction: 'left' | 'right'): Promise<void> {
   const box = await calendarBodyBox(page);
   const y = box.y + box.height / 2;
@@ -400,8 +371,6 @@ async function swipeDay(page: Page, direction: 'left' | 'right'): Promise<void> 
 test.describe('on a phone', () => {
   test.use(PHONE);
 
-  // The strip runs from the account's first weekday, here Wednesday, so an entry on the Tuesday
-  // before it counts on no day and not in the week total, although the calendar loads it.
   testWithSettings(
     'the day view shows today under a strip of the week with daily totals, and a tapped day shows its entries',
     async ({ page, api }) => {
@@ -449,8 +418,6 @@ test.describe('on a phone', () => {
     },
   );
 
-  // Sunday 21 June is today and the last day of a Monday week, so the next day is in another week:
-  // the range, the strip and the entries follow it there and back.
   testWithSettings(
     'swipes and the day arrows step one day across the week boundary, and T returns to today',
     async ({ page, api }) => {
@@ -508,14 +475,11 @@ test.describe('on a phone', () => {
     await openCalendar(page);
     await expect(page.locator('.calendar-range')).toHaveText('Wed, 17 Jun');
     const writes = entryWrites(page);
-    // With 07:00 at the top of the grid, the block sits below the part the sticky timer bar covers.
     await scrollCalendarTo(page, 7);
     await calendarBodyBox(page);
     const block = (await todayBlock(page, 'Swiped block').boundingBox())!;
     const y = block.y + block.height / 2;
 
-    // The finger lands on the block and wanders sideways before the long press, so it is a swipe,
-    // not a move: the next day comes in and the block stays where it was.
     await touchSwipe(page, { x: block.x + block.width * 0.8, y }, { x: block.x + block.width * 0.2, y });
     await expect(page.locator('.calendar-range')).toHaveText('Thu, 18 Jun');
     await expect(page.locator('.calendar-column')).toHaveCount(1);
@@ -566,8 +530,7 @@ for (const viewport of [
   });
 }
 
-// The account is in Europe/Madrid and the browser in New York, where Madrid's midnight is still
-// the evening before, so a chip on the wrong day would show up a column early.
+// The account is in Madrid and the browser in New York, so a chip on the wrong day would show a column early.
 test.describe('no-time entries', () => {
   test.use({ timezoneId: 'America/New_York', viewport: { width: 1280, height: 800 } });
 
@@ -575,7 +538,6 @@ test.describe('no-time entries', () => {
     page,
     data,
   }) => {
-    // Madrid: Monday 15 June, today, and the Sunday that ends the week.
     await data.createEntry({ description: 'Standup', start: '2026-06-15T07:00:00Z', stop: '2026-06-15T08:00:00Z' });
     const chores = await data.createNoTimeEntry({ description: 'Admin chores', day: '2026-06-15', duration: 5400 });
     await data.createNoTimeEntry({ description: 'Sunday errands', day: '2026-06-21', duration: 2700 });
@@ -591,12 +553,10 @@ test.describe('no-time entries', () => {
     await expect(chip).toBeVisible();
     await expect(cells.nth(6).getByRole('button', { name: 'Sunday errands, 0:45:00', exact: true })).toBeVisible();
     await expect(allDay.locator('.calendar-chip')).toHaveCount(2);
-    // Chips stay out of the hour grid, whose only block is the timed entry.
     await expect(page.locator('.calendar-block:not(.calendar-ghost)')).toHaveCount(1);
     await expect(page.locator('.calendar-day-head').first().locator('small')).toHaveText('2:30:00');
     await expect(page.locator('.calendar-toolbar strong')).toHaveText('3:15:00');
 
-    // No resize handle, and dragging a chip moves nothing.
     await expect(chip.locator('.calendar-resize')).toHaveCount(0);
     const writes = entryWrites(page);
     await dragBy(page, chip, 2);
@@ -607,7 +567,6 @@ test.describe('no-time entries', () => {
       stop: '2026-06-14T23:30:00+00:00',
     });
 
-    // The phone day view keeps today's chip and total.
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(page.locator('.calendar-column')).toHaveCount(1);
     await expect(
@@ -644,7 +603,6 @@ test.describe('all-day creation', () => {
     for (let index = 0; index < 7; index++) {
       const cell = (await cells.nth(index).boundingBox())!;
       const head = (await page.locator('.calendar-day-head').nth(index).boundingBox())!;
-      // Each day badge has a two-pixel horizontal margin inside its column.
       expect(cell.x + 2).toBeCloseTo(head.x, 1);
       expect(cell.width - 4).toBeCloseTo(head.width, 1);
     }
@@ -658,7 +616,6 @@ test.describe('all-day creation', () => {
     await page.getByRole('button', { name: 'Next week', exact: true }).click();
     await expect(page.locator('.calendar-range')).toHaveText('22 Jun to 28 Jun');
     const add = row.getByRole('button', { name: 'Add all-day entry for 2026-06-22', exact: true });
-    // The last toolbar button precedes the first day in the native Tab order.
     await page.getByRole('button', { name: 'Next week', exact: true }).focus();
     await page.keyboard.press('Tab');
     await expect(add).toBeFocused();
@@ -707,7 +664,6 @@ test.describe('all-day creation', () => {
     await expect(page.locator('.calendar-toolbar strong')).toHaveText('1:30:00');
     await page.screenshot({ path: testInfo.outputPath('all-day-desktop-occupied.png') });
 
-    // Escape and Cancel both discard a populated draft without writing an entry.
     await page.keyboard.press('Space');
     await expect(dialog.getByLabel('Duration', { exact: true })).toHaveValue('');
     await dialog.getByLabel('Description', { exact: true }).fill('Discard with Escape');
@@ -768,7 +724,6 @@ test.describe('all-day creation', () => {
     await dialog.getByRole('button', { name: 'Add entry', exact: true }).click();
     await expect(dialog).toHaveCount(0);
     await expect(add).toBeFocused();
-    // The first entry, the failed save and its automatic retry with the same key, then the user's retry.
     expect(writes).toEqual(['POST', 'POST', 'POST', 'POST']);
     expect(await data.entries()).toHaveLength(2);
     await expect(cells.first().locator('.calendar-chip')).toHaveCount(2);
@@ -834,7 +789,6 @@ test.describe('all-day creation', () => {
     const expectedDate = (await lastAdd.getAttribute('aria-label'))!.replace('Add all-day entry for ', '');
     await adds.first().click();
     const dialog = page.getByRole('dialog', { name: 'Add all-day entry' });
-    // The draft is not modal: the days behind it stay reachable by Tab.
     await expect(dialog).not.toHaveAttribute('aria-modal');
     await dialog.getByLabel('Description', { exact: true }).fill('First day draft');
     await dialog.getByRole('button', { name: 'Close', exact: true }).focus();

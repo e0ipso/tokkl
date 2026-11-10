@@ -7,27 +7,21 @@ import { instantAt } from './entryTime.ts';
 import type { Settings } from './settings.ts';
 import { snappedInstant, snappedSeconds } from './snapping.ts';
 
-/** What a finished calendar drag does to the entries, as the server should receive it. */
 type DropChange =
-  /** A plain click on an empty slot, or a resize of a running entry: nothing to save. */
+  /** A click on an empty slot, or a resize of a running entry. */
   | { readonly kind: 'none' }
-  /** A click on a block that did not move it: open it in the editor. */
+  /** A click that did not move the block: open it. */
   | { readonly kind: 'open'; readonly entry: TimeEntry }
-  /** A create drag: a new entry over the dragged range, opened once saved. */
+  /** Opened once saved. */
   | { readonly kind: 'create'; readonly start: string; readonly stop: string }
-  /** A move or resize of a stopped entry: its new start and stop, a field left out staying as it is. */
+  /** A field left out stays as it is. */
   | { readonly kind: 'update'; readonly id: number; readonly start?: string; readonly stop?: string }
-  /**
-   * A move of the running entry: its new start, sent through the timer, which refuses it once the
-   * entry no longer runs, so a drag never moves an entry another device just stopped.
-   */
+  /** Sent through the timer, which refuses it once the entry stopped elsewhere. */
   | { readonly kind: 'moveRunning'; readonly id: number; readonly start: string };
 
 type DropSettings = Pick<Settings, 'timeZone' | 'timeResolution'>;
 
-/** The new entry a create drag over clock minutes `fromMinute` to `toMinute` of `day` makes. */
 function createChange(drag: Extract<CalendarDrag, { kind: 'create' }>, settings: DropSettings): DropChange {
-  // A plain click (no drag) does nothing; creating needs a dragged range.
   if (drag.toMinute === drag.fromMinute) return { kind: 'none' };
   const stepMinutes = dragStep(settings.timeResolution);
   // Whole steps from midnight are on the resolution grid, so the range needs no snapping.
@@ -40,12 +34,7 @@ function createChange(drag: Extract<CalendarDrag, { kind: 'create' }>, settings:
   };
 }
 
-/**
- * The change a finished drag makes. Blocks are drawn on the local clock, so drops move endpoints
- * by clock minutes, not elapsed time. The dropped boundary then goes to the nearest point of the
- * resolution grid, as the preview shows it, so an entry imported off the grid lands on it and the
- * server keeps the drop. `dayMode` keeps a move on the shown day, also on a 25-hour day.
- */
+/** Drops move endpoints by clock minutes, then to the nearest grid point, so off-grid imports land on it. */
 export function dropChange(drag: CalendarDrag, settings: DropSettings, dayMode: boolean): DropChange {
   if (drag.kind === 'create') return createChange(drag, settings);
   const { entry, deltaMinutes } = drag;

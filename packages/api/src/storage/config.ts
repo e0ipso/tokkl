@@ -19,7 +19,7 @@ export interface ServerConfig {
   readonly queryTimeoutMs: number;
   readonly tls: { readonly mode: 'disable' } | { readonly mode: 'verify-full'; readonly caFile?: string };
 }
-/** Serializable connection settings. Contains secrets; never log or return this value over HTTP. */
+/** Contains secrets; never log or return it over HTTP. */
 export type StorageConfig = SqliteConfig | ServerConfig;
 
 export class StorageConfigurationError extends ConfigurationError {
@@ -38,11 +38,9 @@ function bounded(value: string | null, fallback: number, min: number, max: numbe
   return number;
 }
 
-/** How long a SQLite statement waits for another connection's write lock. */
 const SQLITE_BUSY_TIMEOUT_MS = 5000;
 const SERVER_OPTIONS = new Set(['pool_max', 'connect_timeout_ms', 'query_timeout_ms', 'sslmode', 'sslrootcert']);
 
-/** A `sqlite:///absolute/path` URL. */
 function sqliteFileConfig(raw: string): SqliteConfig {
   // Check the raw path before URL's dot-segment normalization can hide it.
   if (!raw.startsWith('sqlite:///') || /[?#]/.test(raw)) throw new StorageConfigurationError();
@@ -58,7 +56,7 @@ function sqliteFileConfig(raw: string): SqliteConfig {
   return { backend: 'sqlite', filename, busyTimeoutMs: SQLITE_BUSY_TIMEOUT_MS };
 }
 
-/** Each option at most once; only full verification or no TLS at all, with an optional CA file. */
+/** Each option at most once; full verification or no TLS, with an optional CA file. */
 function serverTls(params: URLSearchParams): ServerConfig['tls'] {
   for (const key of params.keys()) {
     if (!SERVER_OPTIONS.has(key) || params.getAll(key).length !== 1) throw new StorageConfigurationError();
@@ -71,7 +69,6 @@ function serverTls(params: URLSearchParams): ServerConfig['tls'] {
   return mode === 'disable' ? { mode } : { mode, ...(caFile === null ? {} : { caFile }) };
 }
 
-/** A `postgres://`, `postgresql://`, `mysql://` or `mariadb://` URL. */
 function serverConfig(raw: string): ServerConfig {
   const url = new URL(raw);
   const backend = url.protocol === 'postgresql:' ? 'postgres' : url.protocol.slice(0, -1);
@@ -108,7 +105,7 @@ function serverConfig(raw: string): ServerConfig {
   };
 }
 
-/** Only an absent selector defaults. Unknown options and insecure TLS verification modes are errors. */
+/** Only an absent selector defaults. Unknown options and insecure TLS modes are errors. */
 export function parseStorageConfig(env: { TOKKL_DATABASE_URL?: string }, dataDir: string): StorageConfig {
   const raw = env.TOKKL_DATABASE_URL;
   if (raw === undefined)
@@ -127,7 +124,7 @@ export function parseStorageConfig(env: { TOKKL_DATABASE_URL?: string }, dataDir
   }
 }
 
-/** Excludes username, password, database, filesystem paths and arbitrary URL query values. */
+/** Leaves out credentials, database, paths and query values. */
 export function safeDestination(config: StorageConfig): string {
   if (config.backend === 'sqlite') return config.filename === ':memory:' ? 'sqlite:memory' : 'sqlite:file';
   const host = config.host.includes(':') ? `[${config.host}]` : config.host;

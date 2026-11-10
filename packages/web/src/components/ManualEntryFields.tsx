@@ -14,11 +14,7 @@ import { useExclusive } from './useExclusive.ts';
 import type { EntryDraft } from './useEntryFields.ts';
 import { t } from '../i18n/messages.ts';
 
-/**
- * The manual form of the timer bar: a date with a start and end time, or with "No times" a
- * duration. `add` saves the draft with those times; after a timed entry the next one starts where
- * the stored one stopped.
- */
+/** After a timed entry the next one starts where the stored one stopped. */
 export function useManualEntry(settings: Settings, { onAdded }: { onAdded: () => void }) {
   const create = useCreateEntry();
   const toast = useToast();
@@ -39,7 +35,7 @@ export function useManualEntry(settings: Settings, { onAdded }: { onAdded: () =>
     return saved;
   };
 
-  /** Adds a no-time entry for the chosen day. The next start stays where the last timed entry ended. */
+  /** The next start stays where the last timed entry ended. */
   const addNoTimes = async (draft: EntryDraft) => {
     const { seconds, error } = noTimeDuration(durationText, settings.timeResolution);
     if (!errors.validate([['duration', error]]) || seconds === null) return;
@@ -106,7 +102,6 @@ export function useManualEntry(settings: Settings, { onAdded }: { onAdded: () =>
 
 type ManualEntry = ReturnType<typeof useManualEntry>;
 
-/** The manual form's fields inside the timer bar's controls row. */
 export function ManualEntryFields({
   manual,
   settings,

@@ -32,7 +32,6 @@ const setupWith = (proc: ApiProcess, code: string) =>
   });
 const login = (proc: ApiProcess, password: string) => post(proc, '/api/app/login', { email: EMAIL, password });
 
-/** Sorted statuses of `count` parallel requests, alternating between two processes. */
 async function parallelStatuses(count: number, request: (i: number) => Promise<Response>): Promise<number[]> {
   const responses = await Promise.all(Array.from({ length: count }, (_, i) => request(i)));
   return responses.map(response => response.status).sort();
@@ -43,7 +42,7 @@ async function expectStatus(response: Response, status: number, what: string): P
   assert.equal(response.status, status, `${what}: ${text}`);
 }
 
-/** A refusal from the limiter: 429 with a whole number of seconds inside the window. */
+/** 429 with a whole number of seconds inside the window. */
 async function expectRefused(response: Response, what: string): Promise<void> {
   await expectStatus(response, 429, what);
   const retryAfter = Number(response.headers.get('retry-after'));
@@ -58,7 +57,6 @@ test('postgres: failure limits are shared by two API processes and survive a res
   assert.ok(fixture.config.backend === 'postgres');
   const root = mkdtempSync(join(tmpdir(), 'tokkl-limits-'));
   const processes: ApiProcess[] = [];
-  // Every child goes before the database does.
   t.after(async () => {
     for (const proc of processes) if (proc.child.exitCode === null) proc.child.kill('SIGTERM');
     await Promise.allSettled(
@@ -79,7 +77,6 @@ test('postgres: failure limits are shared by two API processes and survive a res
   };
 
   await t.test('setup codes: wrong codes sent to A and B count toward one limit', async () => {
-    // Setup stays incomplete here, so this case gets its own database.
     const namespace = await fixture.namespace!();
     const url = databaseUrl(namespace.config);
     const a = await start(url, 'setup-a');

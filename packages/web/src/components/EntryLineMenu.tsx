@@ -3,7 +3,7 @@ import { Icon } from './Icon.tsx';
 import { Popover } from './Overlay.tsx';
 import { t } from '../i18n/messages.ts';
 
-/** A row's More actions menu. Edit and Duplicate need a single entry; Pin and Delete take the whole row. */
+/** Edit and Duplicate need a single entry; Pin and Delete take the whole row. */
 export function EntryLineMenu({
   anchor,
   count,
@@ -14,7 +14,6 @@ export function EntryLineMenu({
   onDelete,
 }: {
   anchor: RefObject<HTMLElement | null>;
-  /** How many entries the row holds. */
   count: number;
   onClose: () => void;
   onEdit: () => void;
@@ -22,7 +21,6 @@ export function EntryLineMenu({
   onPin: () => void;
   onDelete: () => void;
 }) {
-  /** Closes the menu, then runs the item. */
   const item = (action: () => void) => () => {
     onClose();
     action();

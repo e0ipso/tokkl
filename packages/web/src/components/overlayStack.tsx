@@ -1,11 +1,7 @@
 import { createContext, useCallback, useContext, useLayoutEffect, useState, type ReactNode } from 'react';
 
-/**
- * The open modals and popovers, in the order they opened. Global key handlers ask whether an
- * overlay is open, and a modal asks whether it is topmost before Escape closes it.
- */
+/** In opening order. Global key handlers check for an open overlay; a modal checks it is topmost before Escape. */
 interface OverlayStack {
-  /** Adds a layer and returns the function that removes it. */
   push(layer: symbol): () => void;
   isOpen(): boolean;
   isTopmost(layer: symbol): boolean;
@@ -37,10 +33,7 @@ export function useOverlayStack(): OverlayStack {
   return useContext(OverlayStackContext);
 }
 
-/**
- * Registers the calling overlay for as long as it is mounted, from the same commit that puts it in
- * the DOM. Returns whether it is the topmost overlay, to call from event handlers.
- */
+/** From the same commit that mounts it. Returns whether it is topmost, to call from event handlers. */
 export function useOverlayLayer(): () => boolean {
   const stack = useOverlayStack();
   const [layer] = useState(() => Symbol('overlay'));

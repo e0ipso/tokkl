@@ -2,10 +2,8 @@ import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
 import { OtherDevice, countPolls, daysAgo, entryRow, setVisibility } from './groups-refresh-tests-helpers.ts';
 
-// Cross-device freshness (docs/PRD.md C3): the server pushes timer changes over the event stream,
-// the history refetches every 60 s and on window focus, and the timer state, which carries the
-// running entry, polls every 30 s only while the stream is down. Another device changes entries
-// through the API while this page only watches.
+// docs/PRD.md C3: timer changes come over the event stream, the history refetches every 60 s and on focus,
+// and the timer state polls every 30 s only while the stream is down.
 
 let device: OtherDevice;
 test.beforeEach(async ({ baseURL }) => {
@@ -35,7 +33,6 @@ test('Show more days follows older entries added and deleted on another device',
   await expect(more).toBeVisible();
   await expect(entryRow(page, 'Older history')).toHaveCount(0);
 
-  // Deleted entries stay in the trash, but must no longer make older history available.
   await device.deleteEntry(old.id);
   await page.clock.fastForward(60_000);
   await expect(more).toHaveCount(0);
@@ -56,9 +53,7 @@ test("another device's timer changes arrive by push and its history edits throug
   await expect(entryRow(page, 'Old history')).toHaveCount(1);
   const polls = countPolls(page);
 
-  // A start and a stop reach the timer and the history at once, with no read of the timer state
-  // and no clock jump. This runs first: the one-minute jump below outlasts the stream's silence
-  // timeout, and the stream that replaces it reads the timer state again.
+  // This runs first: the one-minute jump below outlasts the stream's silence timeout, whose replacement rereads.
   const remote = await device.startTimer('Remote timer');
   await expect(timer.getByRole('button', { name: 'Stop timer' })).toBeVisible();
   await expect(timer.getByLabel('Description')).toHaveValue('Remote timer');
@@ -67,7 +62,6 @@ test("another device's timer changes arrive by push and its history edits throug
   await expect(entryRow(page, 'Remote timer')).toHaveCount(1);
   expect(polls.timer).toBe(0);
 
-  // An edit leaves the timer state alone, so nothing pushes it: the history list shows it at the next 60-second tick.
   const pushed = polls.history;
   await device.updateEntry(history.id, { description: 'Edited elsewhere' });
   await expect(timer.getByRole('button', { name: 'Start timer' })).toBeVisible();
@@ -86,8 +80,7 @@ test("making the window visible again refreshes another device's history edit at
   });
   await login(page);
   await expect(entryRow(page, 'Old history')).toHaveCount(1);
-  // The stream's first state is fresh for a second (`staleTime` in useTimerState); past that the
-  // focus reads the timer state again.
+  // The stream's first state is fresh for a second (`staleTime`); past that focus rereads the timer state.
   await page.waitForTimeout(1_100);
   const polls = countPolls(page);
 
@@ -111,8 +104,7 @@ test("focusing a window that stayed visible refreshes another device's history e
   });
   await login(page);
   await expect(entryRow(page, 'Old history')).toHaveCount(1);
-  // The stream's first state is fresh for a second (`staleTime` in useTimerState); past that the
-  // focus reads the timer state again.
+  // The stream's first state is fresh for a second (`staleTime`); past that focus rereads the timer state.
   await page.waitForTimeout(1_100);
   const polls = countPolls(page);
 
@@ -136,12 +128,10 @@ test('a refresh keeps the description being typed in the running timer and in a 
   const timer = page.getByRole('region', { name: 'Timer' });
   await expect(timer.getByLabel('Description')).toHaveValue('Remote timer');
   await expect(page.locator('.entry-list .entry-line')).toHaveCount(2);
-  // Days run newest first: "Other history", then "Old history". The typed text replaces the
-  // value attribute, so the row is held by position.
+  // The typed text replaces the value attribute, so the row is held by position.
   const row = page.locator('.entry-list .entry-line').nth(1);
   const oldId = [...(await device.entries()).values()].find(entry => entry.description === 'Old history')!.id;
 
-  // Typing in the running timer, not saved yet. The other device renames the entry and tags it.
   const timerDescription = timer.getByLabel('Description');
   await timerDescription.fill('Local timer draft');
   await device.updateEntry(remote.id, { description: 'Renamed elsewhere', tags: ['remote'] });
@@ -153,7 +143,6 @@ test('a refresh keeps the description being typed in the running timer and in a 
   await expect(timerDescription).toBeFocused();
   await expect(timerDescription).toHaveValue('Local timer draft');
 
-  // Typing in a list row, not saved yet, while the other device edits a different entry.
   const rowDescription = row.getByLabel('Description');
   await rowDescription.fill('Local row draft');
   await device.updateEntry(other.id, { description: 'Other edited again' });
@@ -162,14 +151,11 @@ test('a refresh keeps the description being typed in the running timer and in a 
   await expect(rowDescription).toBeFocused();
   await expect(rowDescription).toHaveValue('Local row draft');
 
-  // Committing saves what was typed.
   await rowDescription.press('Enter');
   await expect.poll(async () => (await device.entries()).get(oldId)?.description).toBe('Local row draft');
 });
 
-// With similar entries grouped (the default), rows merge by description, project, task, tags and
-// billable flag, so another device's edit to the entry being typed in must not remount its row
-// or reset the unsaved text.
+// Grouped rows merge by description, project, task, tags and billable, so an edit must not remount the row.
 test('a refresh keeps an unsaved row description when another device edits that entry', async ({ page }) => {
   await device.createEntry({ description: 'Old history', start: at(daysAgo(1), 9), stop: at(daysAgo(1), 10) });
   const project = await device.createProject('Acme');
@@ -188,7 +174,6 @@ test('a refresh keeps an unsaved row description when another device edits that 
   await expect(rowDescription).toBeFocused();
   await expect(rowDescription).toHaveValue('Local row draft');
 
-  // A rename of the same entry arrives with the 60-second poll and still leaves the draft alone.
   await device.updateEntry(id, { description: 'Renamed elsewhere' });
   const refreshed = page.waitForResponse(response => new URL(response.url()).pathname === '/api/v9/me/time_entries');
   await page.clock.fastForward(60_000);

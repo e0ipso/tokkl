@@ -6,7 +6,7 @@ import { useToast } from './Toast.tsx';
 import { useExclusive } from './useExclusive.ts';
 import { t } from '../i18n/messages.ts';
 
-/** Multi-select tag chooser; unknown names can be created. Works with tag names, like the Toggl API. */
+/** Unknown names can be created. Works with tag names, like the Toggl API. */
 export function TagPicker({
   anchor,
   value,

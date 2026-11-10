@@ -18,7 +18,7 @@ import {
   type TestServer,
 } from './helpers.ts';
 
-/** Longer than any test runs, so a stream that closes did so because of a recheck, not a keep-alive tick. */
+/** So a stream that closes did so because of a recheck, not a keep-alive tick. */
 const SLOW_KEEP_ALIVE_MS = 600_000;
 /** A stream that should close but does not fails the test instead of holding the run open. */
 const STREAM_TEST = { timeout: 30_000 };
@@ -27,17 +27,12 @@ type Message = { event: string; data: string } | { comment: string };
 
 interface EventStream {
   response: Response;
-  /** The next message, or null once the server has ended the stream. */
   next: () => Promise<Message | null>;
-  /** The next `timer` event's state, skipping comments and keep-alives. Fails if the stream ends first. */
   nextState: () => Promise<TimerState>;
-  /** The next `keep-alive` event, skipping everything else. Fails if the stream ends first. */
   nextKeepAlive: () => Promise<Message>;
-  /** Resolves once the server has ended the stream, skipping whatever arrives before. */
   ended: () => Promise<void>;
 }
 
-/** An app over `ctx.db` whose timer streams use `limits`, and a request signed in by `ctx.user`'s API token. */
 function streamingApp(ctx: TestContext, limits: Partial<TimerStreamLimits>) {
   return replaceFixtureApp(ctx, limits);
 }
@@ -46,7 +41,6 @@ function basic(user: { apiToken: string }): Record<string, string> {
   return { authorization: `Basic ${Buffer.from(`${user.apiToken}:api_token`).toString('base64')}` };
 }
 
-/** Sends JSON to `server` and reads the JSON reply. */
 async function call(server: TestServer, method: string, path: string, headers: Record<string, string>, body?: unknown) {
   const response = await server.request(path, {
     method,
@@ -56,10 +50,6 @@ async function call(server: TestServer, method: string, path: string, headers: R
   return { status: response.status, body: (await response.json()) as any };
 }
 
-/**
- * Opens GET /api/app/timer/events on `server` and reads it as Server-Sent Events. The stream is
- * aborted when the test ends, so no connection outlives it.
- */
 async function openStream(
   t: NodeTestContext,
   server: TestServer,
@@ -251,7 +241,6 @@ test('a stream closes at once when its credential ends', STREAM_TEST, async t =>
   assert.equal(rotated.status, 200);
   await tokenStream.ended();
 
-  // A password-Basic stream ends when the password changes.
   const password = { authorization: `Basic ${Buffer.from(`bob@example.com:${PASSWORD}`).toString('base64')}` };
   const passwordStream = await openStream(t, server, password);
   await passwordStream.nextState();
@@ -337,7 +326,6 @@ test(
     const stream = await openStream(t, server, basic(ctx.user));
     const opened = await stream.nextState();
 
-    // Hold every delivery to the streams until released.
     const release = Promise.withResolvers<void>();
     const deliver = services.timerStreams.publish.bind(services.timerStreams);
     t.mock.method(services.timerStreams, 'publish', async (id: number, state: TimerState) => {

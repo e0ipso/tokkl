@@ -19,22 +19,14 @@ import {
 import { addUser, setup, type TestContext } from './helpers.ts';
 import { at } from './fixtures/clock.ts';
 
-/** An instant on the day these tests track time on. */
 const iso = (time: string) => at(time).toISOString();
-/** The same instant as the v9 API writes it. */
 const v9 = (time: string) => `2026-10-14T${time}+00:00`;
 
 interface SessionContext extends TestContext {
-  /** Publishes the hub made for the user since the last call. */
-  /** Waits until every committed state is delivered, then counts the deliveries since the last call. */
   published: () => Promise<number>;
 }
 
-/**
- * A user on an instance with a 1-minute resolution, whose Pomodoro preferences are 1-minute work
- * phases and rests with a long rest after every 2 work phases. `user` is read after the
- * preferences were saved, as a request would read it.
- */
+/** 1-minute resolution, 1-minute phases, a long rest after every 2 work phases. `user` is read after saving them. */
 async function sessionSetup(): Promise<SessionContext> {
   const ctx = await setup();
   assert.equal((await ctx.json('PUT', '/api/app/admin/settings', { time_resolution_minutes: 1 })).status, 200);
@@ -56,7 +48,6 @@ async function sessionSetup(): Promise<SessionContext> {
   return { ...ctx, user: (await getUser(ctx.db, ctx.user.id))!, published };
 }
 
-/** The user's entries outside the trash, oldest first, with the fields a pomodoro carries over. */
 async function stored(ctx: TestContext) {
   return (await listTimeEntries(ctx.db, ctx.user.id)).reverse().map(row => {
     const { id, start, stop, description, project_id, tags, billable } = serializeTimeEntry(row);
@@ -64,7 +55,6 @@ async function stored(ctx: TestContext) {
   });
 }
 
-/** The ids of the user's entries in the trash, with their start and stop as the v9 API writes them. */
 async function trashed(ctx: TestContext) {
   return (await listDeletedEntries(ctx.db, ctx.user.id)).map(row => {
     const { id, start, stop } = serializeTimeEntry(row);
@@ -72,7 +62,6 @@ async function trashed(ctx: TestContext) {
   });
 }
 
-/** Asserts that the change from `before` to `after` raised the revision by one and published once. */
 async function assertOneChange(
   ctx: SessionContext,
   before: TimerState,
@@ -134,7 +123,6 @@ test('a session cycle stores each pomodoro on rest to work and starts the next a
   };
   assert.deepEqual(await stored(ctx), [{ id: first, start: v9('09:00:00'), stop: null, ...draft }]);
 
-  // Work to short rest, confirmed in overtime, changes the session only.
   let before = state;
   state = await nextPomodoroPhase(ctx.db, ctx.user, state.revision, at('09:01:10'));
   await assertOneChange(ctx, before, state, 'work to short rest');
@@ -147,7 +135,6 @@ test('a session cycle stores each pomodoro on rest to work and starts the next a
   });
   assert.deepEqual(await stored(ctx), [{ id: first, start: v9('09:00:00'), stop: null, ...draft }]);
 
-  // An edit through v9 to the open pomodoro changes the state and carries into the next pomodoro.
   before = state;
   const edit = { description: 'Final', tags: ['deep', 'review'], billable: false };
   assert.equal((await ctx.json('PUT', `/api/v9/workspaces/${ctx.wid}/time_entries/${first}`, edit)).status, 200);
@@ -189,7 +176,6 @@ test('a session cycle stores each pomodoro on rest to work and starts the next a
     number: 2,
   });
 
-  // The long rest resets the count, and its pomodoro meets the first one on the grid.
   before = state;
   state = await nextPomodoroPhase(ctx.db, ctx.user, state.revision, at('09:04:00'));
   await assertOneChange(ctx, before, state, 'long rest to work');
@@ -216,7 +202,6 @@ test('a session cycle stores each pomodoro on rest to work and starts the next a
 test('End session stores the open pomodoro, and one too short to keep goes to the trash on rest to work and on End', async () => {
   const ctx = await sessionSetup();
 
-  // End during a rest stores the work phase and the rest as one pomodoro.
   let state = await startPomodoro(ctx.db, ctx.user, { description: 'Write' }, at('10:00:00'));
   const written = state.running_entry!.id;
   state = await nextPomodoroPhase(ctx.db, ctx.user, state.revision, at('10:01:00'));
@@ -233,8 +218,7 @@ test('End session stores the open pomodoro, and one too short to keep goes to th
     [[written, v9('10:00:00'), v9('10:02:00')]],
   );
 
-  // Skipping through a pomodoro in seconds leaves nothing to keep. Rest to work sends it to the
-  // trash, names it in the state, and the session goes on with the next pomodoro.
+  // Skipping through a pomodoro in seconds leaves nothing to keep: it goes to the trash and the session goes on.
   state = await startPomodoro(ctx.db, ctx.user, { description: 'Skim' }, at('11:00:00'));
   const skimmed = state.running_entry!.id;
   state = await nextPomodoroPhase(ctx.db, ctx.user, state.revision, at('11:00:05'));
@@ -252,7 +236,6 @@ test('End session stores the open pomodoro, and one too short to keep goes to th
   // Settlement at commit kept the discard: a read finds the same revision with it.
   assert.deepEqual(await getTimerState(ctx.db, ctx.user, at('11:00:10')), state);
 
-  // End sends the next one to the trash too.
   before = state;
   state = await endPomodoro(ctx.db, ctx.user, state.revision, at('11:00:20'));
   await assertOneChange(ctx, before, state, 'End on a pomodoro too short to keep');
@@ -285,7 +268,6 @@ test('pause, resume and pause again add up the stored seconds, and discard ends 
   assert.equal(started.status, 200);
   await ctx.published();
 
-  // Pause stops the entry and keeps the fields Resume clones, with the seconds the entry stored.
   let before = await getTimerState(ctx.db, ctx.user, at('09:05:00'));
   let state = await pauseTimer(ctx.db, ctx.user, at('09:10:00'));
   await assertOneChange(ctx, before, state, 'pause');
@@ -301,7 +283,6 @@ test('pause, resume and pause again add up the stored seconds, and discard ends 
   assert.equal(state.running_entry, null);
   assert.deepEqual(state.pause, { paused: true, seconds: 600, ...fields, clone_entry_id: null });
 
-  // Resume starts a clone at the confirm instant and keeps the chain.
   before = state;
   state = await resumeTimer(ctx.db, ctx.user, state.revision, at('09:15:00'));
   await assertOneChange(ctx, before, state, 'resume');
@@ -312,13 +293,11 @@ test('pause, resume and pause again add up the stored seconds, and discard ends 
   );
   assert.deepEqual(state.pause, { paused: false, seconds: 600, ...fields, clone_entry_id: clone.id });
 
-  // Pausing the clone extends the chain.
   before = state;
   state = await pauseTimer(ctx.db, ctx.user, at('09:20:00'));
   await assertOneChange(ctx, before, state, 'pause of the clone');
   assert.deepEqual(state.pause, { paused: true, seconds: 900, ...fields, clone_entry_id: null });
 
-  // A tag deleted while paused leaves the chain and stays out when another tag is created.
   before = state;
   assert.equal((await ctx.json('DELETE', `${ws}/tags/${deep}`)).status, 200);
   state = await getTimerState(ctx.db, ctx.user, at('09:21:00'));
@@ -336,7 +315,6 @@ test('pause, resume and pause again add up the stored seconds, and discard ends 
   assert.deepEqual(state.running_entry?.tag_ids, [calls]);
   const kept = { ...fields, tag_ids: [calls], tags: ['calls'] };
 
-  // A pause too short to keep sends the clone to the trash and adds nothing.
   const short = state.running_entry!.id;
   state = await pauseTimer(ctx.db, ctx.user, at('09:25:10'));
   assert.deepEqual(state.pause, { paused: true, seconds: 900, ...kept, clone_entry_id: null });
@@ -345,7 +323,6 @@ test('pause, resume and pause again add up the stored seconds, and discard ends 
     [short],
   );
 
-  // A start that is not a resume ends the chain, so pausing that entry starts a new one.
   const email = await ctx.json('POST', `${ws}/time_entries`, {
     start: v9('09:40:00'),
     duration: -1,
@@ -367,7 +344,6 @@ test('pause, resume and pause again add up the stored seconds, and discard ends 
     clone_entry_id: null,
   });
 
-  // Discard ends the chain and writes nothing.
   await ctx.published();
   before = state;
   state = await discardPause(ctx.db, ctx.user, state.revision, at('09:50:00'));
@@ -383,10 +359,7 @@ test('pause, resume and pause again add up the stored seconds, and discard ends 
   );
 });
 
-/**
- * Asserts that `action` at `now` is refused with a 409 that carries the state as it stands, and
- * that the refusal changed nothing and published nothing.
- */
+/** The refusal carries the current state and changes or publishes nothing. */
 async function assertRefused(
   ctx: SessionContext,
   label: string,
@@ -412,7 +385,6 @@ test('a refused action gets a 409 with the current state and changes nothing', a
   const ctx = await sessionSetup();
   const { db, user } = ctx;
 
-  // Nothing runs: no session to change, nothing to pause, no chain to resume or discard.
   const idle = at('08:00:00');
   await assertRefused(
     ctx,
@@ -425,7 +397,6 @@ test('a refused action gets a 409 with the current state and changes nothing', a
   await assertRefused(ctx, 'resume without a chain', idle, async now => await resumeTimer(db, user, 0, now));
   await assertRefused(ctx, 'discard without a chain', idle, async now => await discardPause(db, user, 0, now));
 
-  // A revision that is not an integer is a bad request, whatever the state.
   for (const revision of ['0', 0.5, Number.POSITIVE_INFINITY, null, undefined, true]) {
     for (const action of [nextPomodoroPhase, endPomodoro, resumeTimer, discardPause]) {
       await assert.rejects(
@@ -450,8 +421,7 @@ test('a refused action gets a 409 with the current state and changes nothing', a
     async now => await resumeTimer(db, user, state.revision, now),
   );
 
-  // Two devices confirm Next phase on the revision they both saw: the first one advances the
-  // session, and the second is refused instead of skipping a phase.
+  // The second device to confirm Next phase on the same revision is refused instead of skipping a phase.
   const seen = state.revision;
   state = await nextPomodoroPhase(db, user, seen, at('09:01:00'));
   assert.equal(state.pomodoro?.phase.kind, 'shortRest');
@@ -474,7 +444,6 @@ test('a refused action gets a 409 with the current state and changes nothing', a
   assert.equal(state.pomodoro?.phase.kind, 'work');
   state = await endPomodoro(db, user, state.revision, at('09:03:00'));
 
-  // Resume and Discard need the current revision, and a chain that is paused.
   const timer = await ctx.json('POST', `/api/v9/workspaces/${ctx.wid}/time_entries`, {
     start: v9('10:00:00'),
     duration: -1,
@@ -530,7 +499,6 @@ test('starting a session stops the running timer at the session start and ends a
   assert.equal(state.pomodoro?.pomodoro_start, iso('09:10:20'));
   await endPomodoro(db, user, state.revision, at('09:30:00'));
 
-  // A paused chain ends.
   await startTimer('10:00:00', 'Call');
   assert.equal((await pauseTimer(db, user, at('10:05:00'))).pause?.paused, true);
   state = await startPomodoro(db, user, { description: 'Focus' }, at('10:06:00'));
@@ -540,7 +508,6 @@ test('starting a session stops the running timer at the session start and ends a
   );
   await endPomodoro(db, user, state.revision, at('10:30:00'));
 
-  // So does a resumed one, whose clone stops at the session start.
   await startTimer('11:00:00', 'Review');
   const paused = await pauseTimer(db, user, at('11:05:00'));
   const clone = (await resumeTimer(db, user, paused.revision, at('11:10:00'))).running_entry!.id;
@@ -549,7 +516,6 @@ test('starting a session stops the running timer at the session start and ends a
   assert.equal((await stored(ctx)).find(({ id }) => id === clone)?.stop, v9('11:20:00'));
   await endPomodoro(db, user, state.revision, at('11:30:00'));
 
-  // A session may start in another workspace the user belongs to, and never in one it does not.
   const bob = await addUser(ctx, { email: 'bob@example.com', role: 'user' });
   const before = await getTimerState(db, user, at('12:00:00'));
   await assert.rejects(
@@ -573,12 +539,10 @@ test('a session takes each length from the start body, or else from the preferen
       pomodoro.long_rest_every,
     ];
 
-  // Without overrides the session takes the user's preferences.
   let state = await startPomodoro(db, user, {}, at('09:00:00'));
   assert.deepEqual(lengths(state), [1, 1, 1, 2]);
   await endPomodoro(db, user, state.revision, at('09:01:00'));
 
-  // Each override replaces its preference on its own, and null leaves the preference.
   state = await startPomodoro(
     db,
     user,
@@ -587,7 +551,6 @@ test('a session takes each length from the start body, or else from the preferen
   );
   assert.deepEqual(lengths(state), [50, 1, 1, 3]);
   assert.equal(state.pomodoro?.phase.planned_end, iso('10:50:00'));
-  // The session keeps the lengths it started with when the preferences change.
   assert.equal(
     (await ctx.json('POST', '/api/v9/me/preferences', { pomodoro_break_interval_in_minutes: 7 })).status,
     200,
@@ -596,7 +559,6 @@ test('a session takes each length from the start body, or else from the preferen
   assert.equal(state.pomodoro?.phase.planned_end, iso('10:51:00'));
   await endPomodoro(db, user, state.revision, at('10:52:00'));
 
-  // An override outside its range is a bad request, and nothing starts.
   const before = await getTimerState(db, user, at('11:00:00'));
   const invalid: Array<[Record<string, unknown>, string]> = [
     [{ work_minutes: 0 }, 'Invalid work_minutes: expected an integer from 1 to 180'],
@@ -628,7 +590,6 @@ test('a session start with a stale revision gets 409 and leaves the running time
   assert.equal(running.status, 200);
   const seen = running.body.revision;
 
-  // A client that saw the timer before this start must not replace the timer it never saw.
   await assertRefused(
     ctx,
     'a session start on a stale revision',
@@ -647,7 +608,6 @@ test('a session start with a stale revision gets 409 and leaves the running time
     assert.equal(bad.body, 'Invalid revision: expected an integer');
   }
 
-  // The current revision starts the session, as does a body without one, from an older client.
   const started = await ctx.json<TimerState>('POST', '/api/app/pomodoro', { revision: seen, description: 'Focus' });
   assert.equal(started.status, 200);
   assert.equal(started.body.pomodoro?.phase.kind, 'work');

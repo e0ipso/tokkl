@@ -8,8 +8,6 @@ import { keys, stale } from './keys.ts';
 import { V9, wsPath } from './paths.ts';
 import type { Project, Task } from '@tokkl/types';
 
-/** Projects and their tasks. */
-
 export function useProjects() {
   const wid = useWid();
   return useQuery({
@@ -19,7 +17,7 @@ export function useProjects() {
   });
 }
 
-/** Every task the account can see, archived ones included. */
+/** Archived ones included. */
 export function useTasks() {
   const wid = useWid();
   return useQuery({
@@ -29,10 +27,7 @@ export function useTasks() {
   });
 }
 
-/**
- * Tasks of one project, archived ones included. The key starts with `keys.tasks`, so invalidating
- * `keys.tasks` refreshes it too.
- */
+/** Archived ones included; keyed under `keys.tasks`. */
 export function useProjectTasks(projectId: number | null) {
   const wid = useWid();
   return useQuery({
@@ -48,7 +43,6 @@ export function taskTrackedSeconds(task: Task): number {
   return Math.floor(task.tracked_seconds / 1000);
 }
 
-/** The project fields the editor sends. */
 export interface ProjectBody {
   name: string;
   color: string;
@@ -60,13 +54,9 @@ export interface ProjectBody {
   estimated_hours: number | null;
 }
 
-/** What happens to a deleted project's entries: they lose the project, or go to the trash. */
 export type ProjectDeletionMode = 'unassign' | 'delete';
 
-/**
- * Project and task writes. Pass them to a mutation together with the matching `stale` list. A
- * create carries an `Idempotency-Key` (`postCreate` in idempotency.ts).
- */
+/** Pass them to a mutation with the matching `stale` list. Creates carry an `Idempotency-Key`. */
 export const projectRequests = {
   create: (wid: number, body: Partial<Project> & { name: string }) =>
     postCreate<Project>(wsPath(wid, 'projects'), body, { decode: object }),
@@ -82,7 +72,7 @@ export const projectRequests = {
     api.delete(wsPath(wid, 'projects', projectId, 'tasks', id)),
 };
 
-/** Creates a project from a picker, with no toast: the picker shows the new project picked. */
+/** No toast: the picker shows the new project picked. */
 export function useCreateProject() {
   const wid = useWid();
   const qc = useQueryClient();

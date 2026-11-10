@@ -1,8 +1,4 @@
-/**
- * Time entry writes: create, edit, stop, delete, restore and purge. Each runs in the transaction its
- * caller opened (`services/entryOperations.ts`) and never opens one. Every write guards the user's
- * timer and settles it before commit, because the running entry is part of the timer.
- */
+/** Runs in the caller's transaction. Every write guards and settles the user's timer. */
 import { MAX_DURATION_SECONDS } from '@tokkl/common/duration';
 import { snapInstant } from '@tokkl/common/snap';
 import { dateKey, startOfDay } from '@tokkl/common/time';
@@ -41,7 +37,7 @@ function assertWorkspace(sent: EntryFields, wid: Id): void {
 
 const stored = (date: Date) => new Date(isoSeconds(date)).toISOString();
 
-/** Caller holds the user's guard. This helper does not acquire a workspace guard. */
+/** The caller holds the user's guard; this takes no workspace guard. */
 export async function reanchorNoTimeEntries(
   ctx: { entries: Pick<EntriesRepository, 'listAllDay' | 'update'> },
   userId: Id,
@@ -60,7 +56,7 @@ export async function reanchorNoTimeEntries(
   }
 }
 
-/** Stops `entry` at `at` on the resolution grid. One too short to keep is discarded: false. */
+/** Discards an entry too short to keep and answers false. */
 async function stopEntryAt(
   ctx: { settings: Pick<SettingsRepository, 'read'>; entries: Pick<EntriesRepository, 'update'> },
   user: User,
@@ -88,24 +84,19 @@ async function stopEntryAt(
   return true;
 }
 
-/**
- * Stops `entry`, the user's running entry, at `at`, the way every timer path stops it: only a member
- * of the entry's workspace may, as for a v9 stop. Anyone else gets 403 and, because the refusal
- * throws, the caller's whole transaction rolls back. Answers what `stopEntryAt` answers.
- */
+/** Only a member of the entry's workspace may stop it; anyone else gets 403 and the transaction rolls back. */
 export async function stopRunningEntry(ctx: EntryContext, user: User, entry: TimeEntry, at: Date): Promise<boolean> {
   await memberWorkspace(ctx, user.id, entry.workspaceId);
   return stopEntryAt(ctx, user, entry, at);
 }
 
-/** Stops the running entry, unless it is `exceptId`, before another entry starts running. */
 async function stopRunning(ctx: EntryContext, user: User, at: Date, exceptId?: Id): Promise<void> {
   const running = await ctx.entries.running(user.id);
   if (!running || running.id === exceptId) return;
   await stopRunningEntry(ctx, user, running, at < new Date(running.start) ? new Date() : at);
 }
 
-/** A new timed entry's span: `stop`, else `start + duration` for a non-negative one, else running. */
+/** `stop`, else `start + duration` for a non-negative duration, else running. */
 function newTimedSpan(entry: NewEntry): Span {
   const { times } = entry;
   const start = timedStart(times, new Date());
@@ -121,7 +112,6 @@ export interface CreateOptions {
   exact?: boolean;
 }
 
-/** Validates a new entry for live writes and exact imports, and returns what to store. */
 export async function prepareEntry(
   ctx: EntryContext,
   user: User,
@@ -157,7 +147,6 @@ export async function prepareEntry(
   };
 }
 
-/** Guards the user and the workspace, and settles the timer before commit. */
 async function entryWrite(ctx: EntryContext, userId: Id, wid: Id, publish: TimerPublication): Promise<User> {
   const user = await protectEntryOperation(ctx, userId, [wid]);
   await memberWorkspace(ctx, user.id, wid);
@@ -191,7 +180,7 @@ export async function updateTimeEntry(
   return applyEntryUpdate(ctx, user, wid, id, changes);
 }
 
-/** A timed entry's span after an update. Times the edit left alone are `unchanged`. */
+/** `unchanged` when the edit left the times alone. */
 function updatedTimedSpan(current: TimeEntry, changes: EntryChanges): Span & { unchanged: boolean } {
   const { times } = changes;
   const currentStart = new Date(current.start),
@@ -209,7 +198,7 @@ function updatedTimedSpan(current: TimeEntry, changes: EntryChanges): Span & { u
   return { start, stop, unchanged };
 }
 
-/** The edit itself. The caller has protected the user, checked the workspace and touched the timer. */
+/** The caller has guarded the user, checked the workspace and touched the timer. */
 async function applyEntryUpdate(
   ctx: EntryContext,
   user: User,
@@ -240,18 +229,12 @@ async function applyEntryUpdate(
   });
 }
 
-/** The two entries a split leaves: the original, cut short, and the new one after it. */
 interface SplitEntries {
   first: EntryDetails;
   second: EntryDetails;
 }
 
-/**
- * Splits a stopped, timed entry at the grid point nearest `split.at`. The entry keeps the first
- * half and a new entry with its fields takes the second. The halves come from the entry's snapped
- * span, so they add up to it. The edit and the create make the same checks as any other, in one
- * transaction: a refusal leaves the entry as it was.
- */
+/** Splits at the grid point nearest `split.at`, from the snapped span; a refusal leaves the entry as it was. */
 export async function splitTimeEntry(
   ctx: EntryContext,
   seen: User,
@@ -331,12 +314,7 @@ export async function restoreTimeEntry(
   return ctx.entries.restore(user.id, id);
 }
 
-/**
- * Deletes trashed entries for good, as many as it deleted. Purging one entry of a workspace the
- * user left is refused with the 403 a restore gets, and one not in the trash deletes nothing.
- * Emptying the trash deletes the entries of the user's workspaces and keeps those of workspaces
- * the user left, since no change may touch them.
- */
+/** Purging one entry of a left workspace gets 403; emptying the trash keeps that workspace's entries. */
 export async function purgeDeletedEntries(
   ctx: EntryContext,
   userId: Id,
@@ -356,7 +334,6 @@ export async function purgeDeletedEntries(
   return ctx.entries.purgeDeleted(user.id, { workspaceIds: member, id });
 }
 
-/** One operation on one entry. See `EntryPatchStep` for when each refusal is reported. */
 async function applyPatchStep(ctx: EntryContext, user: User, wid: Id, id: Id, step: EntryPatchStep) {
   if (step.touchesTimes && (await getTimeEntry(ctx, user.id, id)).allDay)
     throw invalidInput('No-time entries have no start or end time');
@@ -366,7 +343,7 @@ async function applyPatchStep(ctx: EntryContext, user: User, wid: Id, id: Id, st
   throw edit.error;
 }
 
-/** Applies every step to each entry in its own savepoint; a refused entry is reported, not fatal. */
+/** Each entry gets its own savepoint; a refused entry is reported, not fatal. */
 export async function patchTimeEntries(
   ctx: EntryContext,
   seen: User,

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { storageFor } from './fixtures/database.ts';
 import { setup } from './helpers.ts';
 
-/** Names every plain object inherits, plus `__proto__`, which JSON.parse keeps as an own key. */
+/** `__proto__` stays an own key through JSON.parse. */
 const PROTOTYPE_NAMES = ['constructor', '__proto__', 'toString', 'hasOwnProperty', 'valueOf'];
 
 test('prototype-named preference keys are stored and read like any other unknown key', async () => {
@@ -23,7 +23,6 @@ test('prototype-named preference keys are stored and read like any other unknown
   }
   const stored = (await storageFor(ctx.db).users.get(ctx.user.id))!.preferences;
   for (const key of PROTOTYPE_NAMES) assert.ok(Object.hasOwn(stored, key), key);
-  // Known keys keep their rules next to them.
   const refused = await ctx.json('POST', '/api/v9/me/preferences', { constructor: 1, theme: 'neon' });
   assert.equal(refused.status, 400);
   assert.equal(refused.body, 'Invalid theme: expected one of system, light, dark');

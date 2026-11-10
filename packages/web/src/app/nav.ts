@@ -1,12 +1,11 @@
 import type { IconName } from '../components/Icon.tsx';
 import type { MessageKey } from '../i18n/messages.ts';
 
-/** A section's hue: styles/shell.css maps each to a fill and the text colour on it (data-section). */
+/** styles/shell.css maps each to a fill and the text colour on it (data-section). */
 export type Section = 'timer' | 'pomodoro' | 'reports' | 'projects' | 'settings' | 'more';
 
 export interface NavItem {
   href: string;
-  /** The catalog key of the link text. */
   label: MessageKey;
   icon: IconName;
   section: Section;
@@ -15,9 +14,8 @@ export interface NavItem {
 }
 
 /**
- * Every page in the navigation. On phones the inMore items move from the bottom bar into the More
- * sheet. Reports keeps its own hue there; the other inMore items take More's. adminOnly items show
- * only to admins; the server still refuses everyone else.
+ * On phones inMore items move to the More sheet; only Reports keeps its hue there. The server still refuses
+ * non-admins on adminOnly pages.
  */
 export const NAV: readonly NavItem[] = [
   { href: '/', label: 'shell.navTimer', icon: 'timer', section: 'timer' },
@@ -31,15 +29,15 @@ export const NAV: readonly NavItem[] = [
   { href: '/settings', label: 'shell.navSettings', icon: 'settings', section: 'settings' },
 ];
 
-/** The phone breakpoint; styles/shell.css uses the same max-width for the bottom bar. */
+/** styles/shell.css uses the same max-width for the bottom bar. */
 export const PHONE_QUERY = '(max-width: 760px)';
 
-/** Whether `href` is the open page: the timer only at "/", every other page with its subpaths. */
+/** The timer only at "/", every other page with its subpaths. */
 export function isActive(href: string, location: string): boolean {
   return href === '/' ? location === '/' : location.startsWith(href);
 }
 
-/** The open page's section hue; pages read it for their stickers. Every route is in NAV, Admin too. */
+/** Every route is in NAV, Admin too. */
 export function sectionOf(location: string): Section {
   return NAV.find(item => isActive(item.href, location))?.section ?? 'timer';
 }

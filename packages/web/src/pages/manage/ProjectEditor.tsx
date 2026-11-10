@@ -19,7 +19,7 @@ function amountText(value: number | null): string {
   return value === null ? '' : String(value);
 }
 
-/** Create or edit a project. Editing an existing project also shows its tasks. */
+/** Editing an existing project also shows its tasks. */
 export function ProjectEditor({ project, onClose }: { project: Project | null; onClose: () => void }) {
   const wid = useWid();
   const formId = useId();

@@ -1,6 +1,5 @@
 import type { MessageGroup } from '../catalog.ts';
 
-/** The Settings page: its sections, the preference fields, workspace, API token and data transfer. */
 export const settings = {
   title: 'Settings',
   sectionsLabel: 'Settings sections',
@@ -18,7 +17,6 @@ export const settings = {
   workspaceLoadFailed: 'Could not load the workspace: {message}',
   loadingWorkspace: 'Loading the workspace…',
 
-  // Profile
   profileSaved: 'Profile saved',
   enterValidEmail: 'Enter a valid email address',
   fullName: 'Full name',
@@ -30,7 +28,6 @@ export const settings = {
   browserZone: 'This browser is set to {browser}, but the account uses {account}.',
   useZone: 'Use {zone}',
 
-  // Password
   passwordChanged: 'Password changed. Other browsers were logged out.',
   enterCurrentPassword: 'Enter your current password',
   passwordTooShort: {
@@ -45,7 +42,6 @@ export const settings = {
   repeatNewPassword: 'Repeat new password',
   passwordMinimum: { one: 'At least {count} character.', other: 'At least {count} characters.' },
 
-  // Preferences
   noChanges: 'No changes to save',
   preferencesSaved: 'Preferences saved',
   notifications: 'Notifications',
@@ -61,7 +57,6 @@ export const settings = {
   durationImproved: 'Improved',
   durationClassic: 'Classic',
   durationDecimal: 'Decimal',
-  /** A format choice with an example, such as "24-hour (14:05)". */
   formatOption: '{label} ({sample})',
   groupSimilar: 'Group similar time entries in the timer list',
   keyboardShortcuts: 'Keyboard shortcuts',
@@ -76,7 +71,6 @@ export const settings = {
   spokenHours: 'hours',
   wholeNumber: 'Enter a whole number of {unit}',
 
-  // Workspace
   workspaceSaved: 'Workspace saved',
   enterWorkspaceName: 'Enter a workspace name',
   currencyInvalid: 'Currency must be a 3-letter code, like EUR',
@@ -97,7 +91,6 @@ export const settings = {
   roundingHint:
     'The Reports page rounds each entry. Tracked entries keep their exact times. Toggl API report calls round only when they ask for it.',
 
-  // API token
   tokenReset: 'New API token created. Update the tools that use it.',
   tokenCopyFailed: 'Could not copy. Show the token and copy it by hand.',
   tokenCopied: 'API token copied',
@@ -110,14 +103,13 @@ export const settings = {
   copy: 'Copy',
   resetToken: 'Reset token',
   tryIt: 'Try it',
-  /** Where to point Toggl tools; the placeholders are code elements with the URLs. */
+  /** The placeholders are code elements with the URLs. */
   apiBase:
     'Any tool that lets you change the Toggl base URL can use this server. Point it at {api}, and the reports API at {reports}.',
   resetTokenTitle: 'Reset the API token?',
   resetTokenBody:
     'The current token stops working right away. Every tool or script that uses it fails until you give it the new one.',
 
-  // Data
   export: 'Export',
   exportHint:
     'JSON has your clients, projects, tasks, tags, time entries and settings. CSV has one row per time entry, with the same columns as the Toggl Track detailed report.',
@@ -142,7 +134,6 @@ export const settings = {
   restored: { one: 'Restored {count} entry', other: 'Restored {count} entries' },
   entriesToAdd: { one: '{count} entry to add', other: '{count} entries to add' },
   entriesAdded: { one: '{count} entry added', other: '{count} entries added' },
-  /** The other records a restore adds, such as "2 projects, 1 client, 0 tasks, 3 tags to add". */
   othersToAdd: '{projects}, {clients}, {tasks}, {tags} to add',
   othersAdded: '{projects}, {clients}, {tasks}, {tags} added',
   problems: 'Problems',
@@ -168,7 +159,7 @@ export const settings = {
   createdProjects: 'Created projects: {list}',
   newClients: 'New clients: {list}',
   createdClients: 'Created clients: {list}',
-  /** Shown when the server sent fewer problems than rows failed. English keeps "problems" for one. */
+  /** When the server sent fewer problems than rows failed. English keeps "problems" for one. */
   firstProblems: { one: 'First {count} problems', other: 'First {count} problems' },
   problemRow: 'Row {row}: {message}',
   importUsers: {

@@ -13,8 +13,7 @@ export function containsName(backend: Backend, column: string, search: string): 
     ? sql<boolean>`strpos(${sql.ref(column)}, ${nameKey(backend, search)}) > 0`
     : sql<boolean>`instr(${sql.ref(column)}, ${nameKey(backend, search)}) > 0`;
 }
-/** SQLite's historic INTEGER affinity can hold finite real estimates. Project them
- * as REAL so the bridge's strict integer/ID normalization does not reject amounts. */
+/** SQLite's INTEGER affinity can hold real estimates; read them as REAL so the bridge does not reject them. */
 export function taskEstimate(backend: Backend, column: string): RawBuilder<number | null> {
   return backend === 'sqlite'
     ? sql<number | null>`cast(${sql.ref(column)} as real)`
@@ -30,10 +29,7 @@ export function catalogTotal(backend: Backend, kind: 'project' | 'task', now: st
   return sql<number>`coalesce((select sum(${epoch(backend, sql`coalesce(te.stop, ${now})`)} - ${epoch(backend, sql`te.start`)})
     from time_entries te where ${sql.ref(`te.${kind}_id`)} = ${ref} and te.deleted_at is null), 0)`;
 }
-/**
- * Adds one to the workspace's catalog revision. Every project and client write calls it in its own
- * transaction, which already holds the workspace's row lock, so the bump waits on nothing new.
- */
+/** Callers already hold the workspace row lock, so the bump waits on nothing new. */
 export async function bumpCatalogRevision(db: Kysely<PhysicalDatabase>, workspaceId: number): Promise<void> {
   await db
     .updateTable('workspaces')

@@ -2,12 +2,11 @@ import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
 import { instant, metadataOf, nextRunning, TimerApi, type Metadata } from './timer-tests-helpers.ts';
 
-// Autocomplete, Continue and favorites must copy every field into a new running entry
-// (docs/PRD.md T4, T5, T11), and a replacement stops the old timer at the new start (T2).
+// Autocomplete, Continue and favorites copy every field (docs/PRD.md T4, T5, T11); a replacement stops the old timer (T2).
 
 const yesterday = () => new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
 
-/** Two projects with a task each; the entries below are billable on a non-billable project and vice versa. */
+/** The entries below are billable on a non-billable project and vice versa. */
 async function seedMetadata(api: TimerApi): Promise<{ review: Metadata; standup: Metadata }> {
   const design = await api.createProject('Design');
   const wireframes = await api.createTask(design, 'Wireframes');
@@ -39,7 +38,6 @@ test('autocomplete copies project, task, tags and billable into a new running en
   const timer = page.getByRole('region', { name: 'Timer' });
   await timer.getByLabel('Description').fill('Design');
   await expect(page.locator('.suggestions').getByRole('button', { name: /Design review/ })).toBeVisible();
-  // The suggestion the arrows reach is selected and has a 3px bar as well as the tint.
   await timer.getByLabel('Description').press('ArrowDown');
   const highlighted = page.locator('.suggestions').getByRole('option', { selected: true });
   await expect(highlighted).toContainText('Design review');
@@ -60,7 +58,6 @@ test('autocomplete copies project, task, tags and billable into a new running en
   expect(running.id).not.toBe(seed.id);
   expect(running.stop).toBeNull();
   expect(metadataOf(running)).toEqual(metadataOf(review));
-  // The suggestion's source entry is untouched.
   expect((await api.entries()).find(entry => entry.id === seed.id)).toEqual(seed);
 });
 
@@ -90,8 +87,7 @@ test('Continue and a favorite copy every field and stop the replaced timer at th
     tags: [],
     billable: false,
   });
-  // The plain timer has run a while, so replacing it keeps it. The continued one is replaced
-  // seconds after it started, so it rounds to zero and goes to the trash.
+  // The continued one is replaced seconds after it started, so it rounds to zero and goes to the trash.
   await api.backdate(plain.id, 10);
 
   await page
@@ -104,7 +100,6 @@ test('Continue and a favorite copy every field and stop the replaced timer at th
   expect(metadataOf(continued)).toEqual(metadataOf(review));
   await expect(timer.getByLabel('Description')).toHaveValue('Design review');
 
-  // The chip shows the project after the description and is named by both.
   const chip = page.locator('.favorites').getByRole('button', { name: 'Standup, Operations', exact: true });
   await expect(chip.locator('.favorite-project')).toHaveText('Operations');
   await chip.click();
@@ -115,7 +110,6 @@ test('Continue and a favorite copy every field and stop the replaced timer at th
   const all = await api.entries();
   const byId = new Map(all.map(entry => [entry.id, entry]));
   expect(all.filter(entry => entry.stop === null).map(entry => entry.id)).toEqual([favorite.id]);
-  // A replaced timer stops on the grid point nearest the new start.
   const step = (await data.me()).time_resolution_minutes * 60_000;
   const saved = byId.get(plain.id)!;
   expect(instant(saved.stop) % step).toBe(0);
@@ -124,7 +118,6 @@ test('Continue and a favorite copy every field and stop the replaced timer at th
   expect(trashed!.id).toBe(continued.id);
   expect(trashed!.stop).toBe(trashed!.start);
   expect(byId.has(continued.id)).toBe(false);
-  // Replacing never rewrites the stopped entries' metadata.
   expect(metadataOf(saved)).toEqual(metadataOf(plain));
   expect(metadataOf(trashed!)).toEqual(metadataOf(review));
   expect(byId.get(seed.id)).toEqual(seed);
@@ -183,7 +176,6 @@ test('the idle bar edits its draft without writing an entry, and Start takes eve
   await timer.getByLabel('Description').blur();
   await expect(timer.getByLabel('Description')).toHaveValue('Pager handover');
 
-  // Picking a task on a billable project turns billable on in the draft.
   await timer.getByRole('button', { name: 'Project' }).click();
   await page.locator('.picker-subitem', { hasText: 'On call' }).click();
   await expect(timer.getByRole('button', { name: 'Project' })).toContainText('Operations: On call');
@@ -198,7 +190,6 @@ test('the idle bar edits its draft without writing an entry, and Start takes eve
   await billable.click();
   await expect(billable).toHaveAttribute('aria-pressed', 'false');
 
-  // Still idle: nothing is running and no entry was created or patched.
   await expect(timer).not.toHaveClass(/is-running/);
   await expect(timer.getByRole('button', { name: 'Start timer' })).toBeVisible();
   expect(await api.current()).toBeNull();

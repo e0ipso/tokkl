@@ -1,13 +1,8 @@
-/**
- * Numbers a report shows: totals, a time series, the weekly grid and the groupings of entries.
- * Each one takes entries a batch at a time, in start/id order, and answers once all have arrived;
- * it keeps sums and first-seen labels, never the entries themselves.
- */
+/** Aggregates keep sums and first-seen labels, never the entries. */
 import { addDays, daysBetween, startOfWeek } from '@tokkl/common/time';
 import type { Dimension } from '../domain/reportCommands.ts';
 import type { ReportEntry } from './reports.ts';
 
-/** Takes entries in start/id order and answers with what they add up to. */
 export interface Aggregate<T> {
   add(entry: ReportEntry): void;
   result(): T;
@@ -86,19 +81,16 @@ export function timeSeries(
 export type WeeklyRows = 'projects' | 'clients';
 
 interface WeeklyGrid {
-  /** One column per day for ranges up to a week, one per week for anything longer. */
+  /** One column per day for ranges up to a week, one per week beyond. */
   mode: 'days' | 'weeks';
-  /** Each column's first and last day inside the range. */
+  /** Clipped to the range. */
   columns: Array<{ start: string; end: string }>;
   rows: Array<{ id: number | null; title: string; color: string | null; cells: number[]; total: number }>;
   columnTotals: number[];
   total: number;
 }
 
-/**
- * Totals per project or client and per day or week over every entry added. Week columns start on
- * `beginningOfWeek`; the first and last are clipped to the range.
- */
+/** Week columns start on `beginningOfWeek`; the first and last are clipped to the range. */
 export function weeklyGrid(
   startDate: string,
   endDate: string,
@@ -151,7 +143,7 @@ export interface GroupKey {
   color: string | null;
 }
 
-/** Keys for an entry along a dimension. Tags can yield several keys; an untagged entry yields one null key. */
+/** Tags can yield several keys; an untagged entry yields one null key. */
 function keysFor(entry: ReportEntry, dimension: Dimension): GroupKey[] {
   switch (dimension) {
     case 'project':
@@ -183,10 +175,7 @@ function groupKeyString(key: GroupKey, dimension: Dimension): string {
   return dimension === 'description' ? `d:${key.title}` : `i:${key.id ?? 'none'}`;
 }
 
-/**
- * Groups along `dimension`, each split along `subDimension`, largest first. A group keeps the key
- * of the first entry that reached it; equal totals keep the order in which groups first appeared.
- */
+/** Largest first. A group keeps the key of the first entry that reached it; ties keep first-seen order. */
 export function grouping(dimension: Dimension, subDimension: Dimension = 'none'): Aggregate<Group[]> {
   const groups = new Map<
     string,

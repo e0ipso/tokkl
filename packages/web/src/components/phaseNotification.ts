@@ -1,9 +1,6 @@
 import { t } from '../i18n/messages.ts';
 
-/**
- * The browser's notification permission. 'insecure' is a page served over plain HTTP from another
- * host, where browsers refuse notifications; 'unsupported' is a browser without the API.
- */
+/** 'insecure': plain HTTP from another host, where browsers refuse notifications; 'unsupported': no API. */
 export type NotificationAccess = NotificationPermission | 'insecure' | 'unsupported';
 
 const ICON_URL = '/icons/icon-192.png';
@@ -23,10 +20,7 @@ export function notificationAccess(): NotificationAccess {
   }
 }
 
-/**
- * Asks the browser for permission and returns what it answered. Call it only from the Allow
- * notifications button's click handler. Browsers ignore or block a request without a user gesture.
- */
+/** Call only from the Allow notifications click: browsers ignore or block a request without a user gesture. */
 export async function requestNotificationAccess(): Promise<NotificationAccess> {
   const api = notificationApi();
   if (!api || notificationAccess() !== 'default') return notificationAccess();
@@ -38,12 +32,7 @@ export async function requestNotificationAccess(): Promise<NotificationAccess> {
   return notificationAccess();
 }
 
-/**
- * Shows a notification, but only while the page is hidden; in view, the in-app banner says it.
- * Without the API or permission, or when the constructor throws, as Chrome on Android does for page
- * notifications, nothing shows, and the banner remains. A notification with the same tag replaces
- * the previous one. A click focuses the tab and closes the notification.
- */
+/** Only while the page is hidden. Chrome on Android throws for page notifications; the banner remains then. */
 export function notifyInBackground(title: string, body: string, tag: string): void {
   if (document.visibilityState !== 'hidden') return;
   const api = notificationApi();
@@ -60,12 +49,8 @@ export function notifyInBackground(title: string, body: string, tag: string): vo
 }
 
 /**
- * hasFocus also detects a visible window that is not in front, unlike visibilityState.
- * https://developer.mozilla.org/en-US/docs/Web/API/Document/hasFocus
- * requireInteraction and renotify have limited support: a browser may ignore persistence or
- * replacement alerts. Keep the in-app banner and loop until Next/End regardless of dismissal.
- * https://developer.mozilla.org/en-US/docs/Web/API/Notification/requireInteraction
- * https://developer.mozilla.org/en-US/docs/Web/API/Notification/renotify
+ * hasFocus also catches a visible window not in front. requireInteraction and renotify are unreliable,
+ * so the banner stays and the alarm loops until Next/End.
  */
 export function notifySessionPhaseEnd(phaseStart: string, phaseLabel: string): Notification | null {
   if (document.hasFocus()) return null;

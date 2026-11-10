@@ -1,7 +1,4 @@
-/**
- * Clients, projects, tasks and tags of a workspace. Writes take the workspace guard, keep names
- * unique, and settle the timers whose running entry shows the changed record.
- */
+/** Writes take the workspace guard, keep names unique, and settle the timers showing the changed record. */
 import { PROJECT_COLORS } from '@tokkl/common/colors';
 import type {
   ClientsRepository,
@@ -31,9 +28,7 @@ import {
 
 type CatalogRepositories = Pick<Repositories, 'clients' | 'projects' | 'tasks' | 'tags'>;
 export type CatalogContext = OperationContext<CatalogRepositories>;
-/** Required for metadata mutations. Prepare discovers/locks affected users before changes.
- * Keep the original baseline on repeated preparation in the same context. Settlement uses
- * that context; publication runs only after commit and release. Tag cleanup joins it too. */
+/** Prepare locks affected users before changes, keeping the first baseline; publishing waits for commit. */
 export interface CatalogTimerEffects {
   prepare(context: CatalogContext, workspaceId: Id): Promise<{ settle(): Promise<void>; publish(): Promise<void> }>;
   removeTagFromPauseChains(context: CatalogContext, tagId: Id): Promise<void>;
@@ -45,7 +40,7 @@ async function invalidate(ctx: CatalogContext, wid: Id, effects: CatalogTimerEff
     ctx.afterCommit(() => pending.publish());
   });
 }
-/** Runs `work` in the caller's transaction under the workspace guard; a duplicate name is a 400. */
+/** A duplicate name is a 400. */
 async function write<T>(
   ctx: CatalogContext,
   wid: Id,
@@ -154,7 +149,7 @@ export function deleteClient(ctx: CatalogContext, wid: Id, id: Id, effects: Cata
     await ctx.clients.deleteAndDetachProjects(wid, id);
   });
 }
-/** The chosen client's id; one chosen by name is created when missing. */
+/** One chosen by name is created when missing. */
 async function resolveClient(
   ctx: CatalogContext,
   wid: Id,
@@ -170,7 +165,6 @@ async function resolveClient(
   if (choice.id !== null) await getClient(ctx, wid, choice.id);
   return choice.id;
 }
-/** The stored project fields: each sent field, else the fallback's. */
 function projectInput(fields: ProjectFields, fallback: ProjectInput): ProjectInput {
   const pick = <K extends keyof ProjectFields & keyof ProjectInput>(key: K) =>
     (fields[key] === undefined ? fallback[key] : fields[key]) as ProjectInput[K];
@@ -300,7 +294,7 @@ export function createTag(ctx: CatalogContext, wid: Id, name: string): Promise<T
     true,
   );
 }
-/** Tag ids by name, creating missing tags. Each name is trimmed and must not be blank. */
+/** Creates missing tags. Each name is trimmed and must not be blank. */
 export function resolveTagNames(ctx: CatalogContext, wid: Id, names: string[]): Promise<Id[]> {
   return write(
     ctx,

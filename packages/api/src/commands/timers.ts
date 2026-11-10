@@ -1,4 +1,3 @@
-/** Timer action bodies, parsed into commands. */
 import { POMODORO_SESSION_CONFIG_RANGES, type PomodoroSessionConfig } from '@tokkl/common/pomodoroSession';
 import type { PomodoroLimits, ServerCapability } from '@tokkl/types';
 import type { EditTimer, StartPomodoro, StartTimer } from '../domain/timers.ts';
@@ -27,18 +26,7 @@ function readLengths(body: JsonBody): Partial<PomodoroSessionConfig> {
   return lengths;
 }
 
-/**
- * The actions that still take a body without `revision`, each with the capability that announced
- * the revision check. A client that sends a revision is refused when the timer moved on; a body
- * without one acts on whatever runs, so clients from before the capability keep working.
- *
- * Planned: a later release requires `revision` on these actions too, as every other timer action
- * does. The timer routes log each user agent that omits it, at info level and at most hourly per
- * action, so operators can tell when no client in use still does. Then parse it with
- * `parseRevision` in `parseStartPomodoro` and `parsePauseTimer`, make it required in
- * `StartPomodoro` and `TimerOperations.pauseTimer`, drop that log and remove this table. The
- * capabilities stay announced, since clients probe them.
- */
+/** Actions older clients may send without `revision`; without one they act on whatever runs. */
 export const OPTIONAL_REVISION_ACTIONS = Object.freeze({
   'POST /api/app/pomodoro': 'pomodoro-revision',
   'POST /api/app/timer/pause': 'pause-revision',
@@ -46,12 +34,11 @@ export const OPTIONAL_REVISION_ACTIONS = Object.freeze({
 
 export type OptionalRevisionAction = keyof typeof OPTIONAL_REVISION_ACTIONS;
 
-/** The `revision` of an action in `OPTIONAL_REVISION_ACTIONS`; undefined when the body has none. */
 function optionalRevision(body: JsonBody): number | undefined {
   return body.revision == null ? undefined : parseRevision(body.revision);
 }
 
-/** A session start; see `OPTIONAL_REVISION_ACTIONS` for its optional revision. */
+/** Revision optional: see `OPTIONAL_REVISION_ACTIONS`. */
 export function parseStartPomodoro(body: JsonBody): StartPomodoro {
   return {
     revision: optionalRevision(body),
@@ -61,18 +48,17 @@ export function parseStartPomodoro(body: JsonBody): StartPomodoro {
   };
 }
 
-/** The timer revision the client last saw. Timer actions refuse to act on a newer one. */
+/** Timer actions refuse when the timer has moved past it. */
 export function parseRevision(value: unknown): number {
   if (typeof value !== 'number' || !Number.isSafeInteger(value))
     throw invalidInput('Invalid revision: expected an integer');
   return value;
 }
 
-/** An optional instant field; absent and null both mean now. */
+/** Absent and null both mean now. */
 const optionalInstant = (value: unknown, field: string): Date | undefined =>
   value == null ? undefined : parseInstant(value, field);
 
-/** A timer start: the revision the client saw, the entry's labels, and an optional `start` instant. */
 export function parseStartTimer(body: JsonBody): StartTimer {
   return {
     revision: parseRevision(body.revision),
@@ -82,17 +68,15 @@ export function parseStartTimer(body: JsonBody): StartTimer {
   };
 }
 
-/** A timer stop: the revision the client saw and an optional `stop` instant. */
 export function parseStopTimer(body: JsonBody): { revision: number; stop?: Date } {
   return { revision: parseRevision(body.revision), stop: optionalInstant(body.stop, 'stop') };
 }
 
-/** A pause; see `OPTIONAL_REVISION_ACTIONS` for its optional revision. Older clients send no body. */
+/** Revision optional: see `OPTIONAL_REVISION_ACTIONS`. Older clients send no body. */
 export function parsePauseTimer(body: JsonBody): { revision?: number } {
   return { revision: optionalRevision(body) };
 }
 
-/** The id of the entry the client saw running. */
 function optionalEntryId(value: unknown): number | undefined {
   if (value == null) return undefined;
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1)
@@ -100,11 +84,7 @@ function optionalEntryId(value: unknown): number | undefined {
   return value;
 }
 
-/**
- * A running timer edit: what the client saw, the labels to change and an optional new `start`.
- * The client names what it saw by `revision`, by `entry_id` (the entry it edits is still the
- * running one), or by both. A body with neither is refused as a missing revision.
- */
+/** Names what the client saw by `revision`, `entry_id` (still running) or both; neither is a missing revision. */
 export function parseEditTimer(body: JsonBody): EditTimer {
   const entryId = optionalEntryId(body.entry_id);
   const changes = { start: optionalInstant(body.start, 'start'), entry: parseLabelChanges(body) };

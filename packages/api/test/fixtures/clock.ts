@@ -1,11 +1,9 @@
 import type { Clock } from '../../src/domain/ports.ts';
 
-/** A clock that always reads `at`. */
 export function fixedClock(at: Date): Clock {
   return { now: () => new Date(at) };
 }
 
-/** A clock that reads what the test last set. */
 export function manualClock(start: Date): Clock & { set(at: Date): void } {
   let current = start;
   return {
@@ -16,5 +14,5 @@ export function manualClock(start: Date): Clock & { set(at: Date): void } {
   };
 }
 
-/** `time` ("HH:MM:SS") on the day the timer tests run, 2026-10-14 UTC. */
+/** `time` is "HH:MM:SS" on 2026-10-14 UTC. */
 export const at = (time: string) => new Date(`2026-10-14T${time}Z`);

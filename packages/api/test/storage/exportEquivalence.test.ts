@@ -23,7 +23,7 @@ import { exportBody } from '../fixtures/exports.ts';
 import { entryAccount, entryTimerFactory } from './support/entry-timer.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 
-/** Deterministic pseudo-random numbers, so every backend gets the same history. */
+/** So every backend gets the same history. */
 function random(seed: number) {
   let state = seed >>> 0;
   const next = () => {
@@ -37,9 +37,9 @@ function random(seed: number) {
   return { next, int, pick: <T>(values: readonly T[]): T => values[int(values.length)]! };
 }
 
-/** Descriptions CSV must quote, JSON must escape, and ones that differ only in case or accents. */
+/** CSV must quote these, JSON must escape them, and some differ only in case or accents. */
 const DESCRIPTIONS = ['plain', 'Plain', 'ålpha', 'a, b', 'say "hi"', 'line\nbreak', '', 'tab\there', '😀 emoji', '\\'];
-/** More than two batches, so pages meet at batch boundaries. */
+/** So pages meet at batch boundaries. */
 const ENTRIES = 2 * EXPORT_BATCH_SIZE + 137;
 
 const ASSEMBLIES: ExportAssemblyJob[] = [
@@ -60,7 +60,6 @@ function runnerFor(connection: StorageConnection<PhysicalDatabase>, backend: Bac
 }
 type Operations = ReturnType<typeof runnerFor>;
 
-/** An account with two workspaces, catalogs and `entries` entries that tie on start, run, and sit in the trash. */
 async function seedAccount(
   connection: StorageConnection<PhysicalDatabase>,
   operations: Operations,
@@ -113,7 +112,6 @@ async function seedAccount(
       starts.length && rand.next() < 0.15 ? rand.pick(starts) : first + rand.int(30 * 24 * 60) * 60_000 + rand.int(999);
     starts.push(start);
     const inSecond = rand.next() < 0.2;
-    // The running entry has no project: a project's tracked time counts it up to now.
     const project = i === 3 ? null : inSecond ? projects[1]! : rand.pick([projects[0]!, null]);
     return {
       user_id: user.id,
@@ -122,7 +120,6 @@ async function seedAccount(
       task_id: project?.id === projects[0]!.id && rand.next() < 0.5 ? task.id : null,
       description: description(rand),
       start: new Date(start).toISOString(),
-      // A running entry: the JSON export lists it, the CSV export skips it.
       stop: i === 3 ? null : new Date(start + rand.int(5 * 3_600_000)).toISOString(),
       billable: Number(rand.next() < 0.5),
       duronly: 0,
@@ -155,7 +152,6 @@ async function seedAccount(
   return user;
 }
 
-/** The body `runner` streams for `userId`'s export, and the size of each piece. */
 async function streamed(runner: ReportRunner, userId: number, assembly: ExportAssemblyJob) {
   const chunks: string[] = [];
   await runExport(runner, userId, assembly, async chunk => {
@@ -164,7 +160,6 @@ async function streamed(runner: ReportRunner, userId: number, assembly: ExportAs
   return chunks.join('');
 }
 
-/** A body's entry count (CSV lines, or JSON entries) and the digest of its entries. */
 function summary(assembly: ExportAssemblyJob, body: string): [number, string] {
   const digest = (text: string) => createHash('sha256').update(text).digest('hex').slice(0, 16);
   if (assembly.kind === 'export-csv') return [body.split('\n').length, digest(body)];
@@ -274,7 +269,6 @@ test('a worker export waits for its output to take what it sent', { timeout: 120
   }).then(() => {
     settled = true;
   });
-  // Hold every piece until the worker stops sending.
   let seen = -1;
   while (!chunks.length || seen !== chunks.length) {
     seen = chunks.length;
@@ -285,7 +279,6 @@ test('a worker export waits for its output to take what it sent', { timeout: 120
   assert.ok(ahead <= EXPORT_BYTES_AHEAD + largest, `${ahead} bytes went out before any was taken`);
   assert.ok(ahead < Buffer.byteLength(expected));
   assert.equal(settled, false);
-  // Take the pieces as they come; the export settles only once the last one was taken.
   while (!settled) {
     for (const resolve of held.splice(0)) resolve();
     await setImmediate();

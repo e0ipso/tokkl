@@ -1,4 +1,4 @@
-/** Tags of a workspace; names are unique by their case-folded key. */
+/** Names are unique by their case-folded key. */
 import { now } from '../../lib/clock.ts';
 import { type Kysely } from 'kysely';
 import type { Backend } from '../config.ts';

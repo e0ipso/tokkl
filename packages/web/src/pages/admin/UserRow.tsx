@@ -11,7 +11,6 @@ import { changeField, changeMessage } from './accountChange.ts';
 import { ROLES, absoluteLink, isUserRole } from './roles.ts';
 import { t } from '../../i18n/messages.ts';
 
-/** One account: its role, status and the admin actions on it. */
 export function UserRow({
   user,
   self,
@@ -44,8 +43,7 @@ export function UserRow({
     onSuccess: created => onResetLink(user, absoluteLink(created.url)),
   });
 
-  // The controls stay enabled while a change is pending, so the one that failed keeps focus and
-  // its error can take it; a second change waits for the first.
+  // Controls stay enabled while a change is pending, so the failed one keeps focus; a second change waits.
   const change = (body: AccountChange) => {
     if (update.isPending) return;
     fields.clear(changeField(body));

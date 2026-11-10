@@ -1,20 +1,14 @@
 import type { MessageGroup } from '../catalog.ts';
 
-/**
- * Time entries: the timer page around the list, the list and its rows, menus and bulk bar, the
- * editor, the shared fields and pickers, and the messages about saving and deleting entries.
- */
 export const entries = {
-  /** The toast after saving a finished entry, with the duration the server stored. */
+  /** With the duration the server stored. */
   added: 'Added {duration}',
   duplicated: 'Entry duplicated',
   deleted: 'Entry deleted',
   splitDone: 'Entry split in two',
   pinned: 'Pinned to favorites',
   favoritesFull: 'You can pin up to {max} favorites',
-  /** A number of entries, as in "2 entries deleted, 1 entry failed". */
   count: { one: '{count} entry', other: '{count} entries' },
-  /** Several entries deleted at once. */
   deletedMany: { one: '{count} entry deleted', other: '{count} entries deleted' },
   /** The English wording says "entries" even for one; the plural forms keep that. */
   failedMany: { one: '{count} entries failed: {reason}', other: '{count} entries failed: {reason}' },
@@ -63,7 +57,6 @@ export const entries = {
   edit: 'Edit',
   duplicate: 'Duplicate',
   pin: 'Pin as favorite',
-  /** The menu's delete for a group of several entries. */
   deleteCount: { one: 'Delete {count} entry', other: 'Delete {count} entries' },
 
   bulkLabel: 'Bulk actions',

@@ -1,4 +1,4 @@
-/** Clients of a workspace. Deleting one detaches its projects under unique names. */
+/** Deleting a client detaches its projects under unique names. */
 import { now } from '../../lib/clock.ts';
 import { type Kysely } from 'kysely';
 import type { Backend } from '../config.ts';

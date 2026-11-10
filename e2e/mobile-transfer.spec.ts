@@ -19,7 +19,7 @@ import {
 
 test.use(PHONE);
 
-/** The account without server-assigned IDs and totals, so a restored copy compares equal. */
+/** Without server-assigned IDs and totals, so a restored copy compares equal. */
 function portable(account: Account) {
   return {
     entries: account.entries.map(e => [
@@ -48,7 +48,6 @@ test('Toggl CSV import, JSON export and JSON restore finish by touch on a phone 
   await tapNav(page, 'Settings');
   const csvSummary = page.locator('.import-summary').first();
 
-  // The same Toggl CSV file the desktop import scenario uses.
   await tapUpload(
     page,
     page.locator('label.file-button', { hasText: 'Choose CSV file' }),
@@ -73,7 +72,6 @@ test('Toggl CSV import, JSON export and JSON restore finish by touch on a phone 
     ['Website', 'Acme', 5400 + 3600 + 4500],
   ]);
 
-  // The timer list shows the recent row without a reload.
   await tapNav(page, 'Timer');
   const row = page.locator('.entry-line', { has: page.locator('input[value="Recent import"]') });
   await expect(row.locator('.project-label')).toContainText('Website');
@@ -83,7 +81,6 @@ test('Toggl CSV import, JSON export and JSON restore finish by touch on a phone 
   expect(exported.filename).toMatch(/^tokkl-\d{4}-\d{2}-\d{2}\.json$/);
   expect((JSON.parse(exported.text) as { time_entries: unknown[] }).time_entries).toHaveLength(5);
 
-  // Empty the account, then restore the exported file through the phone controls.
   await data.reset();
   await expectEmptyAccount(page, data.workspaceId);
   await tapUpload(page, page.locator('label.file-button', { hasText: 'Choose JSON file' }), {

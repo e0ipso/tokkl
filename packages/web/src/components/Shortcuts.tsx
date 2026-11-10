@@ -3,7 +3,6 @@ import { Modal } from './Overlay.tsx';
 import { useOverlayStack } from './overlayStack.tsx';
 import { t, type MessageKey } from '../i18n/messages.ts';
 
-/** Each key as printed on the keyboard, with the catalog key of what it does. */
 const SHORTCUTS: Array<[string, MessageKey]> = [
   ['N', 'timer.shortcutNew'],
   ['S', 'timer.shortcutStop'],
@@ -20,10 +19,7 @@ function isTyping(target: EventTarget | null): boolean {
   return target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName);
 }
 
-/**
- * Single-key shortcuts, ignored while typing or while a modal or popover is open. `handlers` may
- * change every render; the listener always calls the latest ones.
- */
+/** Ignored while typing or while an overlay is open. The listener always calls the latest `handlers`. */
 export function useShortcuts(enabled: boolean, handlers: Record<string, () => void>) {
   const overlays = useOverlayStack();
   const handle = useEffectEvent((event: KeyboardEvent) => {

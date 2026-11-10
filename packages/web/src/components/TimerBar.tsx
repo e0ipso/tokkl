@@ -21,11 +21,9 @@ export interface TimerBarHandle {
   stop: () => void;
   toggleManual: () => void;
   startFrom: (draft: EntryDraft) => void;
-  /** Moves focus to the description field. */
   focus: () => void;
 }
 
-/** The bar at the top of the timer page: running timer, new timer, or manual entry form. */
 export function TimerBar({ recentEntries, ref }: { recentEntries: TimeEntry[]; ref?: Ref<TimerBarHandle> }) {
   const settings = useSettings();
   const { data: timer } = useTimerState();
@@ -163,11 +161,7 @@ export function TimerBar({ recentEntries, ref }: { recentEntries: TimeEntry[]; r
   );
 }
 
-/**
- * Writes the element's height to a custom property on <html> while it is mounted, such as the
- * timer bar's --timer-bar-height: the bulk bar is not inside the timer bar, so it reads the height
- * from there to stick right under it.
- */
+/** The bulk bar is outside the timer bar, so it reads the height from <html> to stick right under it. */
 function useHeightProperty(ref: RefObject<HTMLElement | null>, property: string) {
   useEffect(() => {
     const element = ref.current;

@@ -7,7 +7,7 @@ import { createProjectRepository } from './projects.ts';
 import { createTaskRepository } from './tasks.ts';
 import { createTagRepository } from './tags.ts';
 
-/** Construct only with the transaction runner's bound handle. No connection or pool is captured. */
+/** Only with the transaction runner's bound handle; captures no connection or pool. */
 export function createCatalogRepositories(
   db: Kysely<PhysicalDatabase>,
   backend: Backend,

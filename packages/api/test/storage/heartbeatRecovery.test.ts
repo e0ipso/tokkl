@@ -16,7 +16,7 @@ import { gate, readTimerStream, serveInvariant } from './support/invariantHttp.t
 const KEEP_ALIVE_MS = 150;
 const withoutTime = ({ server_time: _time, ...state }: TimerState) => state;
 
-/** Records the statements each snapshot read ran, and can hold the next read before it starts. */
+/** Can hold the next read before it starts. */
 function countedReads(storage: Storage, statements: () => number) {
   const reads: number[] = [];
   let held: { entered: ReturnType<typeof gate>; release: ReturnType<typeof gate> } | undefined;
@@ -169,17 +169,14 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         base = await revision();
       const entry = (await local.entries.running(u.id))!;
       const published = t.mock.method(apps[1]!.services.timerStreams, 'publish');
-      // Hold the next tick inside the stream's queue, before its credential check reads.
       const held = remote.hold();
       await held.entered.promise;
       const onBWrite = send(1, u, 'PUT', `${running}/${entry.id}`, { description: 'on B' });
-      // B's own delivery is now waiting for the stream's queue, which the held tick occupies.
       const deadline = performance.now() + 5000;
       while (published.mock.callCount() === 0) {
         assert.ok(performance.now() < deadline, 'local publish reached the stream');
         await new Promise(r => setTimeout(r, 5));
       }
-      // The reply does not wait for that delivery.
       let late: NodeJS.Timeout | undefined;
       const replied = await Promise.race([
         onBWrite,

@@ -25,12 +25,8 @@ import {
   type Metadata,
 } from './timer-tests-helpers.ts';
 
-// The server owns the session: it sets every phase start and planned end, and a device only shows
-// them and rings. A fake browser clock cannot move the server, so a test moves it past a planned
-// end with `ring` once every timer state has arrived (the page takes its clock offset from the
-// latest state). The server stores a pomodoro that ran under half a resolution step in the trash,
-// so a scenario that needs the stored entry backdates the running one first, as an edit from
-// another client would.
+// The server owns the session; a fake browser clock cannot move it, so `ring` moves the page past a planned end
+// once every state arrived. A pomodoro under half a step goes to the trash, so some scenarios backdate first.
 
 const START = '2026-01-15T09:42:00Z';
 const FIELDS: Metadata = {
@@ -47,22 +43,20 @@ const session = (page: Page) => page.getByRole('region', { name: 'Running Pomodo
 const banner = (page: Page) => page.getByRole('region', { name: 'Pomodoro phase ended' });
 const timer = (page: Page) => page.getByRole('region', { name: 'Timer', exact: true });
 const nav = (page: Page) => page.getByRole('navigation', { name: 'Main' });
-/** Each length's card label, the unit it shows and its maximum; every minimum is 1. */
+/** Every minimum is 1. */
 const LENGTHS = [
   ['Work', 'min', 180],
   ['Short rest', 'min', 60],
   ['Long rest', 'min', 60],
   ['Long rest every', 'pomodoros', 12],
 ] as const;
-/** The value field of a length's stepper card. */
 const length = (page: Page, label: string) => form(page).getByRole('spinbutton', { name: label, exact: true });
-/** The stepper card around a length's value field. */
 const lengthCard = (page: Page, label: string) =>
   form(page)
     .locator('.length-stepper')
     .filter({ has: page.getByRole('spinbutton', { name: label, exact: true }) });
 
-/** Opens the Pomodoro page. `fakeClock: false` keeps the browser clock real, for scenarios where the page writes its own timestamps. */
+/** `fakeClock: false` keeps the browser clock real, for scenarios where the page writes its own timestamps. */
 async function openPomodoro(page: Page, { fakeClock = true } = {}) {
   await watchTimerTraffic(page);
   if (fakeClock) await page.clock.install({ time: new Date(START) });
@@ -80,13 +74,12 @@ async function startPomodoro(page: Page, description = 'Session work') {
   await expect(session(page)).toBeVisible();
 }
 
-/** Moves the browser clock past the end of a one-minute phase, once the server's states have all arrived. */
+/** Once the server's states have all arrived. */
 async function ring(page: Page) {
   await settleTimerTraffic(page);
   await fastForwardStreaming(page, 65_000);
 }
 
-/** Moves the running entry's start two minutes back and waits until the page has the change. */
 async function backdate(page: Page, api: TimerApi) {
   const running = (await api.current())!;
   const moved = await api.backdate(running.id, 2);
@@ -94,7 +87,6 @@ async function backdate(page: Page, api: TimerApi) {
   return moved;
 }
 
-/** The server's timer state, without the time it was read at. */
 async function serverState(page: Page) {
   const { server_time: _, ...state } = (await (await page.request.get('/api/app/timer')).json()) as Record<
     string,
@@ -184,7 +176,6 @@ test('one-minute sessions retain entry fields, skip phases, count overtime and l
   await session(page).getByLabel('Description').fill('Edited session');
   await session(page).getByRole('button', { name: 'Next phase: Work' }).click();
   await expect(session(page).getByText('Pomodoro 2 of 2')).toBeVisible();
-  // The first pomodoro is stored; the second, which copied its fields, is the running entry.
   await expect
     .poll(
       async () =>
@@ -288,7 +279,6 @@ test('plus, minus and the arrow keys step a length by one and clamp at the edges
   await decrease.click({ force: true });
   await expect(work).toHaveValue('1');
 
-  // Out of range or empty, one press brings the value back into the range.
   await work.fill('240');
   await decrease.click();
   await expect(work).toHaveValue('180');
@@ -313,7 +303,6 @@ test('plus, minus and the arrow keys step a length by one and clamp at the edges
 
 test('the length cards sit in one row on a desktop and never split three and one', async ({ page }) => {
   await openPomodoro(page);
-  /** How many cards each row of the grid holds, top row first. */
   const rows = () =>
     form(page)
       .locator('.length-stepper')
@@ -583,7 +572,6 @@ test('a too-short pomodoro is announced and goes to the trash', async ({ page, d
   expect(await api.entries()).toEqual([]);
 });
 
-// What a person does on two devices: the second one is a separate browser context signed in as the same user.
 async function secondDevice(page: Page, browser: Parameters<typeof openSecondDevice>[1]) {
   return openSecondDevice(page, browser, {
     path: '/pomodoro',
@@ -606,7 +594,6 @@ test("a session started on one device shows on the other, and Next phase there s
   const { other, errors } = await secondDevice(page, browser);
   await expect(form(other)).toBeVisible();
 
-  // Nothing reloads or focuses the other device: the server pushes the session.
   await startPomodoro(page);
   await expect(session(other)).toBeVisible({ timeout: 2_000 });
   await expect(session(other).getByText('Pomodoro 1 of 2')).toBeVisible();
@@ -615,7 +602,6 @@ test("a session started on one device shows on the other, and Next phase there s
   const moved = await backdate(page, api);
   await settleTimerTraffic(other);
 
-  // Both devices ring for the same phase, each with its own audio.
   await other.getByRole('heading', { level: 1 }).click();
   await Promise.all([ring(page), ring(other)]);
   await expect(banner(page)).toBeVisible();
@@ -623,7 +609,6 @@ test("a session started on one device shows on the other, and Next phase there s
   await expect.poll(() => sounding(page)).toHaveLength(1);
   await expect.poll(() => sounding(other)).toHaveLength(1);
 
-  // Next phase on one device silences the other without a click there.
   await banner(other).getByRole('button', { name: 'Next phase' }).click();
   await expect(banner(page)).toHaveCount(0, { timeout: 2_000 });
   await expect.poll(() => sounding(page)).toEqual([]);
@@ -631,7 +616,6 @@ test("a session started on one device shows on the other, and Next phase there s
   await expect(session(page).getByRole('heading', { name: 'Short rest', exact: true })).toBeVisible();
   await expect(session(other).getByRole('heading', { name: 'Short rest', exact: true })).toBeVisible();
 
-  // End session on the first device ends it on the second, and the pomodoro is stored once.
   await session(page).getByRole('button', { name: 'End session' }).click();
   await expect(form(other)).toBeVisible({ timeout: 2_000 });
   const saved = await api.entries();
@@ -680,7 +664,6 @@ test("a second confirm with an old revision gets a conflict, advances nothing an
   expect(await serverState(page)).toEqual(settled);
   await expect(session(page).getByRole('heading', { name: 'Short rest', exact: true })).toBeVisible();
   await expect(banner(page)).toHaveCount(0);
-  // Only the running pomodoro exists: the second confirm stored and started nothing.
   expect((await api.entries()).map(entry => entry.stop)).toEqual([null]);
   await errors.verify(testInfo);
 });

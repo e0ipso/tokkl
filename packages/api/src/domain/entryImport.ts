@@ -1,4 +1,4 @@
-/** Writing imported entries with their exact times, one savepoint per record. */
+/** Imported entries keep their exact times; one savepoint per record. */
 import type { Id } from './model.ts';
 import { memoizeAsync } from '../lib/boundedCache.ts';
 import { protectEntryOperation, type EntryContext } from './entryAccess.ts';
@@ -8,11 +8,11 @@ import { memberWorkspace } from './membership.ts';
 import { touchTimer, type TimerPublication } from './timerSettlement.ts';
 import { prepareEntry } from './timeEntries.ts';
 
-/** Reference lookups an import remembers; a failed row's savepoint clears them all. */
+/** A failed row's savepoint clears the cache. */
 const IMPORT_REFERENCE_CACHE = 256;
 
 export interface ExactEntryImport {
-  /** Each record keeps its database writes, hooks and reference cache rollback-owned. */
+  /** Rolls back the record's writes, hooks and reference cache together. */
   savepoint<T>(work: () => Promise<T>): Promise<T>;
   create(entry: NewEntry): Promise<void>;
 }
@@ -29,7 +29,6 @@ function cachedReferences(ctx: EntryContext) {
   return { refs, clear: () => Object.values(cached).forEach(lookup => lookup.clear()) };
 }
 
-/** Callback-scoped import capability in the caller's transaction. All reads and writes use this guarded context. */
 export async function withExactEntryImport<T>(
   ctx: EntryContext,
   userId: Id,

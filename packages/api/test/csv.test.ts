@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CsvLimitError, parseCsv, toCsv } from '../src/lib/csv.ts';
 
-/** The character-by-character parser the incremental one replaced, kept to compare against. */
+/** A character-by-character reference parser to compare against. */
 function referenceParse(text: string): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
@@ -54,7 +54,6 @@ test('the parser reads quotes, line endings, a BOM and blank rows as before', as
     'trailing,"',
   ];
   for (const text of cases) assert.deepEqual(await parseCsv(text), referenceParse(text), JSON.stringify(text));
-  // Random text over the characters that matter, including long stretches between them.
   let seed = 7;
   const random = () => (seed = (seed * 1103515245 + 12345) % 2 ** 31) / 2 ** 31;
   const pieces = ['a', 'bc', ' ', '"', '""', ',', '\n', '\r', '\r\n', '\ufeff', 'x'.repeat(70_000)];

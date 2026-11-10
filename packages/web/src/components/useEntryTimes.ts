@@ -16,14 +16,7 @@ export type TimeFieldKey = 'start' | 'end' | 'duration';
 
 type Validate = (checks: ReadonlyArray<FieldCheck<TimeFieldKey>>) => boolean;
 
-/**
- * The date, start, end and duration fields of the entry editor, and the times a save sends.
- *
- * Times are typed to the minute, so only changed fields go back to the server: sending an
- * unchanged start would drop its seconds, or pick the wrong hour when a DST change makes the wall
- * time ambiguous. Saving snaps the entry to the time resolution, so the duration shows the snapped
- * length. A no-time entry shows only its day and stored duration.
- */
+/** Only changed fields are sent: an unchanged start would lose its seconds or pick the wrong hour across DST. */
 export function useEntryTimes(entry: TimeEntry, settings: Settings, now: Date) {
   const running = entry.stop === null;
   const [initial] = useState(() => ({
@@ -69,7 +62,6 @@ export function useEntryTimes(entry: TimeEntry, settings: Settings, now: Date) {
   const endChanged = day !== initial.day || endText !== initial.end;
   const durationChanged = durationText !== syncedDuration;
 
-  /** Start or end lost focus: the duration follows them. */
   const syncDuration = () => {
     if (!range?.stop || (!startChanged && !endChanged)) return;
     const text = formatDuration(snappedSeconds(range.start, range.stop, settings));
@@ -77,7 +69,6 @@ export function useEntryTimes(entry: TimeEntry, settings: Settings, now: Date) {
     setSyncedDuration(text);
   };
 
-  /** The duration lost focus: the end follows it. */
   const applyDuration = () => {
     if (!durationChanged) return;
     const seconds = parseDuration(durationText);
@@ -88,7 +79,7 @@ export function useEntryTimes(entry: TimeEntry, settings: Settings, now: Date) {
     setDurationText(formatDuration(snappedSeconds(start, stop, settings)));
   };
 
-  /** Switches No times. A timed entry keeps its date and takes the length its fields show now. */
+  /** A timed entry keeps its date and takes the length its fields show now. */
   const toggleNoTimes = (on: boolean) => {
     setNoTimes(on);
     if (!on || entry.all_day) return;
@@ -98,10 +89,7 @@ export function useEntryTimes(entry: TimeEntry, settings: Settings, now: Date) {
 
   const setNoTimeSeconds = (seconds: number) => setNoTimeLength(snapDuration(seconds, settings.timeResolution));
 
-  /**
-   * The time fields a save sends, or null after `validate` showed what to fix. Only a changed day,
-   * start, end or duration is sent.
-   */
+  /** Null after `validate` showed what to fix. */
   const changes = (validate: Validate): TimeEntryInput | null => {
     if (noTimes) {
       const send = noTimeFields(

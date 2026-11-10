@@ -12,9 +12,6 @@ import {
 } from './auth-tests-helpers.ts';
 import { PHONE, expectFits, expectNoPageOverflow } from './mobile-tests-helpers.ts';
 
-// An admin's password reset link opens /reset/:token, where a logged-out person sets a
-// new password and then logs in with it. The page fits a phone.
-
 test.use(PHONE);
 
 const RESET_PATH = /^\/api\/app\/password-resets\/[^/]+$/;
@@ -61,7 +58,6 @@ test('a reset link sets a new password, ends old sessions, and the new password 
   const me = await page.request.get(`${server.baseURL}/api/v9/me`);
   expect(await me.json()).toMatchObject({ email: account.email });
 
-  // The link is spent: opening it again shows the error instead of the form.
   runtimeErrors.allowResponse({ status: 404, method: 'GET', path: RESET_PATH, reason: 'a used reset link' });
   await page.goto(`${server.baseURL}${link}`);
   await expect(page.getByRole('heading', { name: 'Reset link not valid' })).toBeVisible();
@@ -69,8 +65,6 @@ test('a reset link sets a new password, ends old sessions, and the new password 
   await expect(page.getByLabel('New password')).toHaveCount(0);
 });
 
-// The server's password rules show on the password field, which gets focus, like the
-// other password forms.
 test('a password the server rejects shows its error on the password field', async ({
   page,
   runtimeErrors,
@@ -108,15 +102,12 @@ test('a password the server rejects shows its error on the password field', asyn
     await expect(page.locator('.auth-error')).toHaveCount(0);
   }
 
-  // Typing clears the error, and a valid password still goes through.
   await password.fill('long enough now');
   await expect(password).not.toHaveAttribute('aria-invalid');
   await submit.tap();
   await expect(page.getByRole('heading', { name: 'Password changed' })).toBeVisible();
 });
 
-// A link spent after the form loaded gets the same 404 as any bad link. That
-// is about the link, not the password, so it shows under the form and the field stays valid.
 test('a link used elsewhere while the form is open shows the 404 under the form', async ({
   page,
   runtimeErrors,

@@ -16,13 +16,10 @@ import {
   withAuth,
 } from './auth-tests-helpers.ts';
 
-// Who may reach what. The shared e2e server has a single account, the only admin. Scenarios that
-// need a second account start a disposable server and add it through an invite.
+// The shared e2e server has one account, the only admin; scenarios needing a second start a disposable server.
 
 const NO_ACCESS = 'User does not have access to this resource.';
 
-// Every workspace route resolves the workspace through its membership, and a workspace the
-// caller is not in, existing or not, answers the same 403. PUT /me refuses it as the default.
 test('a workspace the account does not belong to is refused on every route and as the default', async ({
   data,
   baseURL,
@@ -52,8 +49,6 @@ test('a workspace the account does not belong to is refused on every route and a
   });
 });
 
-// The admin API is for signed-in active admins, and the last active admin cannot be
-// demoted or disabled.
 test('the admin API lists the account and keeps the last active admin', async ({ servers }) => {
   const server = await servers.start({ slot: 5 });
   const { apiToken } = await createAccount(server.baseURL);
@@ -90,8 +85,6 @@ test('the admin API lists the account and keeps the last active admin', async ({
   expect(await meWithBasic(server.baseURL, basic(ACCOUNT.email, ACCOUNT.password))).toBe(200);
 });
 
-// Revoking an account's sessions signs every browser out, the admin's own included, and
-// leaves its API token working.
 test('revoking sessions logs every browser out and keeps the API token', async ({ page, runtimeErrors, servers }) => {
   const server = await servers.start({ slot: 5 });
   const { apiToken } = await createAccount(server.baseURL);
@@ -128,8 +121,6 @@ async function accountId(api: APIRequestContext, email: string): Promise<number>
   return accounts.find(account => account.email === email)!.id;
 }
 
-// Deleting an account, confirmed by its email, removes it with its private workspace and
-// signs its browser out. The email is then free for a new, empty account.
 test('deleting an invited account signs it out everywhere and frees its email', async ({
   page,
   runtimeErrors,
@@ -187,15 +178,12 @@ test('deleting an invited account signs it out everywhere and frees its email', 
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible();
 
-  // The same email can be invited again and starts with an empty workspace.
   const again = await acceptInvite(server.baseURL, await createInvite(server.baseURL, apiToken, 'user'), member.email);
   await withAuth(server.baseURL, basic(again.apiToken, 'api_token'), async api => {
     expect(await (await api.get('/api/v9/me/time_entries')).json()).toEqual([]);
   });
 });
 
-// An admin cannot delete themselves or the last active admin. Deleting an admin also kills
-// the invite links they created.
 test("admins cannot delete themselves or the last admin, and a deleted admin's invites stop working", async ({
   servers,
 }) => {

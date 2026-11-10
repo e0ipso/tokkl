@@ -6,7 +6,6 @@ import type { StorageConfig } from '../../../src/storage/config.ts';
 import { afterStatements } from './statementHook.ts';
 const config = JSON.parse(process.env.TOKKL_TEST_CONFIG!) as StorageConfig;
 const mode = process.env.TOKKL_TEST_MODE!;
-/** Tells the parent the statement ran, then waits for its go-ahead. */
 const hold = async () => {
   process.send?.('ddl-applied');
   await new Promise<void>(resolve => process.once('message', () => resolve()));

@@ -5,10 +5,7 @@ export interface OverlapEntry {
   all_day: boolean;
 }
 
-/**
- * Ids of finished timed entries whose time range overlaps another timed entry. Toggl allows
- * overlaps; we only flag them. No-time entries have no clock range, so they are left out.
- */
+/** Toggl allows overlaps; we only flag them. No-time entries are left out. */
 export function overlappingIds(entries: OverlapEntry[]): Set<number> {
   const timed = entries.flatMap(e => (e.stop && !e.all_day ? [{ id: e.id, start: e.start, stop: e.stop }] : []));
   const sorted = timed.sort((a, b) => a.start.localeCompare(b.start));

@@ -13,16 +13,14 @@ import type {
 import { isFiniteNumber, isInstant, isSafeInteger } from '@tokkl/common/validators';
 import { t } from '../i18n/messages.ts';
 
-/** What the views show when another device changed the timer before this action reached the server. */
 export const TIMER_CONFLICT_MESSAGE = t('timer.conflict');
 
-/** What the views show when an action could not reach the server. */
 export const TIMER_OFFLINE_MESSAGE = t('timer.offline');
 
-/** Why a timer action failed in a way the views explain: the timer moved on, or the server was unreachable. */
+/** The timer moved on, or the server was unreachable. */
 export class TimerActionError extends Error {
   readonly kind: 'conflict' | 'offline';
-  /** The server's current state, for a conflict. */
+  /** Set for a conflict. */
   readonly state: TimerState | null;
 
   constructor(kind: 'conflict' | 'offline', state: TimerState | null = null) {
@@ -49,7 +47,7 @@ const oneOf =
   value =>
     values.some(candidate => candidate === value);
 
-/** Checks every field of `T`, so a field added to `T` must be checked too. */
+/** A field added to `T` must be checked too. */
 function shape<T>(fields: { readonly [K in keyof T]-?: Check }): Check {
   const entries: Array<[string, Check]> = Object.entries(fields);
   return value => isRecord(value) && entries.every(([key, check]) => check(value[key]));
@@ -122,12 +120,11 @@ const isState = shape<TimerState>({
   ),
 });
 
-/** Whether `value` is a whole timer state, its running entry, pause and session included. */
+/** Running entry, pause and session included. */
 export function isTimerState(value: unknown): value is TimerState {
   return isState(value);
 }
 
-/** A reply that should have been a timer state and was not. */
 export class UnreadableTimerStateError extends Error {
   constructor() {
     super(t('timer.unreadableState'));
@@ -135,29 +132,21 @@ export class UnreadableTimerStateError extends Error {
   }
 }
 
-/**
- * Decodes a timer state reply, failing when the server sent something else, so a malformed state
- * fails its request the way a failed request does.
- */
+/** A malformed state fails its request the way a failed request does. */
 export function timerStateOf(value: unknown): TimerState {
   if (!isTimerState(value)) throw new UnreadableTimerStateError();
   return value;
 }
 
-/** What to write into the caches for an arriving state. */
 interface TimerUpdate {
   state: TimerState;
-  /** The clock offset taken at arrival, or null if the state's server time is unreadable. */
+  /** Null if the state's server time is unreadable. */
   offset: number | null;
-  /** True when the state moved past a cached one, so lists built from entries are out of date. */
+  /** The state moved past a cached one, so entry lists are out of date. */
   changed: boolean;
 }
 
-/**
- * Decides what an arriving state changes. A state older than the cached one is dropped (null),
- * because a slow response or a replayed event must not undo a newer state. An equal revision is
- * kept: it carries a fresher server time.
- */
+/** Drops an older state (null), so a slow reply cannot undo a newer one; an equal one keeps the fresher clock. */
 export function planTimerUpdate(
   cached: TimerState | undefined,
   incoming: TimerState,
@@ -171,10 +160,7 @@ export function planTimerUpdate(
   };
 }
 
-/**
- * Turns a 409 whose body is a timer state into a conflict, with the state riding along so it can
- * replace the stale one. Anything else is returned unchanged.
- */
+/** The state rides along to replace the stale one. Anything else is returned unchanged. */
 export function explainTimerConflict(error: unknown): unknown {
   if (error instanceof ApiError && error.status === 409 && isTimerState(error.body)) {
     return new TimerActionError('conflict', error.body);
@@ -182,24 +168,13 @@ export function explainTimerConflict(error: unknown): unknown {
   return error;
 }
 
-/**
- * Turns a failed timer request into the error the views show. A 409 whose body is a timer state
- * is a conflict (`explainTimerConflict`). A request that never got a reply (fetch rejects with a
- * TypeError) is offline, and so is one that got none within its deadline. Anything else is
- * returned unchanged, keeping its message. Whether the write may have landed is
- * `isOutcomeUnknown`'s call, not this one's.
- */
+/** A 409 with a state is a conflict; no reply, or none within the deadline, is offline. Others pass unchanged. */
 export function explainTimerActionError(error: unknown): unknown {
   if (error instanceof TypeError || error instanceof RequestTimeoutError) return new TimerActionError('offline');
   return explainTimerConflict(error);
 }
 
-/**
- * Whether a failed write may still have reached the server and acted. That is so when it got no
- * reply (fetch rejects with a TypeError) or none within its deadline, when the server failed with
- * a 5xx, which a proxy also sends for a request the server may have run, and when a 2xx reply
- * could not be parsed or decoded. A 4xx is a refusal: the write did nothing.
- */
+/** No reply, a timeout, a 5xx (a proxy's may hide a run request) or an unreadable 2xx. A 4xx did nothing. */
 export function isOutcomeUnknown(error: unknown): boolean {
   return (
     error instanceof TypeError ||
@@ -211,29 +186,23 @@ export function isOutcomeUnknown(error: unknown): boolean {
   );
 }
 
-/** Query clients whose last timer write failed with an unknown outcome (`isOutcomeUnknown`). */
 const unknownTimers = new WeakSet<QueryClient>();
 
-/** Records that a timer write in `qc` may have landed although it failed. */
 export function markTimerUnknown(qc: QueryClient): void {
   unknownTimers.add(qc);
 }
 
-/** Whether the next timer write in `qc` must read the state first. */
 export function isTimerUnknown(qc: QueryClient): boolean {
   return unknownTimers.has(qc);
 }
 
-/** Records that a read after the unknown write brought the state up to date. */
 export function clearTimerUnknown(qc: QueryClient): void {
   unknownTimers.delete(qc);
 }
 
 /**
- * Mutation meta for a write that can move the timer revision: any entry write, and an edit of what
- * the running entry shows (its project, client, task or tags) or an import. Timer actions wait for
- * these writes and for no others, so a preference, profile or admin save never holds one up.
- * Timer actions themselves are not marked, so an action never waits for itself.
+ * Any entry write, an edit of what the running entry shows, or an import. Timer actions wait only for these;
+ * the actions are not marked, so they never wait for themselves.
  */
 export const MOVES_TIMER = { movesTimer: true } as const;
 
@@ -241,22 +210,12 @@ function isPendingTimerWrite(mutation: Mutation<unknown, Error, unknown, unknown
   return mutation.state.status === 'pending' && mutation.options.meta?.movesTimer === true;
 }
 
-/**
- * Whether a paused write is held until the browser is back online. A write can also be paused
- * while it waits for its turn in its scope, such as a second edit of one entry (`entryScope` in
- * entries.ts); that one goes out once the write before it settles, so it is waited for.
- */
+/** A write also pauses while waiting its turn in a scope; that one goes out once the one before settles. */
 function isHeldForConnection(mutation: Mutation<unknown, Error, unknown, unknown>): boolean {
   return mutation.state.isPaused && mutation.options.networkMode !== 'always' && !onlineManager.isOnline();
 }
 
-/**
- * Waits until no write marked `MOVES_TIMER` is in flight, and says whether it had to wait. An edit
- * of the running entry moves the revision, so an action that reads the revision while that edit is
- * pending would send a stale one and conflict with this tab's own edit. Such a write held until the
- * browser is back online would release the action only then, so the action fails at once with a
- * `TimerActionError` of kind `offline`, as one sent without a connection does.
- */
+/** Returns whether it waited. A write held for the connection would hold the action, so the action fails offline. */
 export function settleOtherWrites(qc: QueryClient): Promise<boolean> {
   const cache = qc.getMutationCache();
   const others = () => cache.getAll().filter(isPendingTimerWrite);
@@ -276,7 +235,7 @@ export function settleOtherWrites(qc: QueryClient): Promise<boolean> {
   });
 }
 
-/** Whether two states show the same session phase and the same pause, whatever else moved the revision. */
+/** Whatever else moved the revision. */
 function sameSubject(a: TimerState, b: TimerState): boolean {
   return (
     a.pomodoro?.phase.start === b.pomodoro?.phase.start &&
@@ -285,11 +244,7 @@ function sameSubject(a: TimerState, b: TimerState): boolean {
   );
 }
 
-/**
- * The revision an action sends after waiting for this tab's own edit. If the phase and pause the
- * user saw are still the server's, only the edit moved the revision, so the action goes out at the
- * new one. Otherwise it keeps the revision the user saw and the server answers with a conflict.
- */
+/** If the user's phase and pause are still the server's, only this tab's edit moved the revision; else a conflict. */
 export function revisionToSend(seen: TimerState, fresh: TimerState): number {
   return sameSubject(seen, fresh) ? fresh.revision : seen.revision;
 }

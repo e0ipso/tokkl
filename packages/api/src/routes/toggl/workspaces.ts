@@ -7,7 +7,6 @@ import { parseId } from '../../lib/values.ts';
 import { serializeWorkspace, serializeWorkspaceMember } from '../../presenters/toggl.ts';
 import { parseWorkspaceChanges } from '../../commands/accounts.ts';
 
-/** A workspace's settings and its members. */
 export function workspaceRoutes(deps: Pick<Deps, 'readFor' | 'accountsFor'>): Router {
   const api = createRouter();
   api.get(

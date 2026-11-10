@@ -56,7 +56,6 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           .execute();
         assert.equal((await c.db.selectFrom('storage_migrations').selectAll().execute()).length, 1);
         await c.close();
-        // Two independent processes/pools attempt the same upgrade, including a held lock.
         const children = [
           migrationChild(fixture.config, 'held'),
           migrationChild(fixture.config, 'concurrent'),
@@ -125,7 +124,6 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           assert.equal(ledger.at(-1)!.schema_hash, null);
           await sql`select * from failure_probe`.execute(c.db);
           await assert.rejects(runMigrations(c, migrations(backend)), /inconsistent-schema/);
-          // Fixture-only repair to reuse this disposable database for the process-death test.
           await sql`drop table failure_probe`.execute(c.db);
           await c.db.deleteFrom('storage_migrations').where('version', '=', next).execute();
         } else {

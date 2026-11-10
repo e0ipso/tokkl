@@ -19,7 +19,7 @@ import { draftOf } from './useEntryFields.ts';
 import { useBulkEdit, useDeleteEntries } from './useEntryListActions.ts';
 import { t } from '../i18n/messages.ts';
 
-/** One line in the list. With several entries it edits all of them at once through the bulk API. */
+/** With several entries it edits all of them at once through the bulk API. */
 export function EntryLine({
   entries,
   selected,
@@ -235,10 +235,7 @@ export function EntryLine({
   );
 }
 
-/**
- * The description of a row. It follows the stored description, unless the user is typing a change
- * of their own: a refresh must not throw that away. Committing it then saves the typed text.
- */
+/** Follows the stored description unless the user is typing a change, which a refresh must not throw away. */
 function useRowDescription(stored: string) {
   const [description, setDescription] = useState(stored);
   const input = useRef<HTMLInputElement>(null);

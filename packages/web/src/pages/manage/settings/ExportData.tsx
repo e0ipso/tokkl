@@ -6,10 +6,7 @@ import { reportUnlessCancelled, useCancellable } from '../../../components/useUn
 import { exportFilename } from './transferForm.ts';
 import { t } from '../../../i18n/messages.ts';
 
-/**
- * Saves the account's data as JSON or as CSV. One export runs at a time; Cancel stops it, and so
- * does leaving the page, without an error.
- */
+/** One export at a time; Cancel and leaving the page both stop it without an error. */
 export function ExportData() {
   const toast = useToast();
   const [exporting, setExporting] = useState<'json' | 'csv' | null>(null);

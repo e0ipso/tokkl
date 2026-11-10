@@ -6,8 +6,6 @@ import { V9, wsPath } from './paths.ts';
 import { createPreferenceSaves, type PreferenceSaves } from './preferenceSaves.ts';
 import type { Me, Preferences, Workspace } from '@tokkl/types';
 
-/** The signed-in account: /me, its preferences and its workspace. */
-
 export function useMe() {
   return useQuery({
     queryKey: keys.me,
@@ -16,7 +14,7 @@ export function useMe() {
   });
 }
 
-/** The account's workspace id. Only call below the auth gate, where /me has loaded. */
+/** Only call below the auth gate, where /me has loaded. */
 export function useWid(): number {
   const { data } = useMe();
   return data?.default_workspace_id ?? 0;
@@ -41,16 +39,12 @@ function savesOf(qc: QueryClient): PreferenceSaves {
   return saves;
 }
 
-/** Sends preference changes. The reply replaces the cached preferences. */
 type SendPreferences = (changes: Partial<Preferences>) => Promise<Preferences>;
 
 const sendPreferences: SendPreferences = changes =>
   api.post<Preferences>(`${V9}/me/preferences`, changes, { decode: object });
 
-/**
- * Saving preference changes: shown at once, sent one at a time in the order made, and on failure
- * only the failed save's own changes are dropped (see `PreferenceSaves`).
- */
+/** Shown at once, sent in order; a failure drops only its own changes (see `PreferenceSaves`). */
 export function savePreferencesOptions(qc: QueryClient, send: SendPreferences = sendPreferences) {
   const show = (preferences: Preferences | undefined) => {
     if (preferences) qc.setQueryData(keys.preferences, preferences);
@@ -93,10 +87,7 @@ export type WorkspaceChanges = Pick<
   'name' | 'default_currency' | 'default_hourly_rate' | 'rounding' | 'rounding_minutes'
 >;
 
-/**
- * Account writes. Pass them to a mutation together with the matching `stale` list, whose refetch
- * shows what changed: none of them reads its reply, the new token included.
- */
+/** Pass them to a mutation with the matching `stale` list; none reads its reply. */
 export const accountRequests = {
   saveProfile: (changes: ProfileChanges) => api.put(`${V9}/me`, changes),
   changePassword: (body: { current_password: string; password: string }) => api.put(`${V9}/me`, body),

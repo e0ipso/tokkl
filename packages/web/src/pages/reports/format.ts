@@ -27,12 +27,10 @@ const EMPTY_TITLES = {
   tasks: 'reports.withoutTask',
 } as const satisfies Record<Grouping, MessageKey>;
 
-/** A grouping's name as a column heading or option, such as "Project". */
 export function groupingLabel(grouping: Grouping): string {
   return t(GROUPING_LABELS[grouping]);
 }
 
-/** A grouping's name inside a sentence, such as "project" in "Show project breakdown". */
 export function groupingNoun(grouping: Grouping): string {
   return t(GROUPING_NOUNS[grouping]);
 }
@@ -41,10 +39,7 @@ export function groupTitle(title: string, grouping: Grouping): string {
   return title.trim() === '' ? t(EMPTY_TITLES[grouping]) : title;
 }
 
-/**
- * The single currency amounts can be shown in. Group amounts from the server are plain sums of
- * cents, so they only mean something when every amount in the report shares one currency.
- */
+/** Server group amounts are plain sums of cents, so they only mean something when all share one currency. */
 export function reportCurrency(report: Report): string | null {
   const [first, ...rest] = report.totals.amounts;
   return first && rest.length === 0 ? first.currency : null;

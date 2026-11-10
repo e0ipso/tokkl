@@ -19,7 +19,7 @@ const preferences: Preferences = {
   long_timer_reminder_hours: 8,
 };
 
-/** Limits as a server might publish them, unlike the ones this repo's server ships with. */
+/** Unlike the limits this repo's server ships with. */
 const limits: PomodoroLimits = {
   work_minutes: { min: 10, max: 60, default: 45 },
   short_rest_minutes: { min: 2, max: 20, default: 8 },
