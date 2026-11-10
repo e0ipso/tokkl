@@ -47,13 +47,11 @@ test('invalid known preferences are rejected with 400 and nothing is saved', asy
     { timerView: 'grid' },
     { manualMode: 'yes' },
     { collapseTimeEntries: 1 },
-    // Below, above, a fraction inside the range and a numeric string for every integer key.
     ...Object.entries(POMODORO_RANGES).flatMap(([key, [min, max]]) =>
       [min - 1, max + 1, min + 0.5, String(min)].map(value => ({ [key]: value })),
     ),
     { pomodoro_focus_interval_in_minutes: null },
     { pomodoro_focus_interval_in_minutes: true },
-    // A valid change next to an invalid one must not be saved either.
     { theme: 'dark', favorites: {} },
   ];
   for (const body of invalid) {
@@ -94,7 +92,6 @@ test('Pomodoro settings save and read back at the bounds of their ranges', async
     assert.equal((await ctx.json('GET', '/api/v9/me/preferences')).body[key], value, `${key}: ${value}`);
   }
 
-  // A client-specific save writes the account's record, which every client reads.
   assert.equal(
     (await ctx.json('POST', '/api/v9/me/preferences/android', { pomodoro_long_break_every: 6 })).status,
     200,

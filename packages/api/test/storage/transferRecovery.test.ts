@@ -43,7 +43,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
                   ctx.afterCommit(async () => {
                     events.push('failed-client');
                   });
-                  await createClient(input); // Actual engine unique violation after the first write.
+                  await createClient(input);
                 }
                 return result;
               };
@@ -66,7 +66,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
                   ctx.afterCommit(async () => {
                     events.push('failed-entry');
                   });
-                  await insertEntry({ ...input, projectId: 99999999 }); // Actual engine FK violation after side effects.
+                  await insertEntry({ ...input, projectId: 99999999 });
                 }
                 return result;
               };

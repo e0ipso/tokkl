@@ -1,8 +1,6 @@
 /**
- * Report workers that run nothing: each records the jobs a runner posts to it and settles one only
- * when the test says so. They speak the runner's side of the worker protocol (`ready`, a job's
- * `result` or `error`, exit on `close` or `terminate`), so lane scheduling can be tested without
- * threads or a database.
+ * Record posted jobs and settle them only when the test says so, speaking the runner's side of the worker
+ * protocol, so lane scheduling is tested without threads or a database.
  */
 import { EventEmitter } from 'node:events';
 import type { Worker } from 'node:worker_threads';
@@ -35,13 +33,11 @@ export class FakeReportWorker extends EventEmitter {
     setImmediate(() => this.emit('exit', 1));
     return Promise.resolve(1);
   }
-  /** Settles the job `id` with `result`, as a worker does once the job ends. */
   finish(id: number, result: JobResult = { type: 'json', body: '{}', headers: {} } as never): void {
     this.emit('message', { id, result });
   }
 }
 
-/** A starter for `ReportRunnerOptions.startWorker`, and the jobs posted to its workers, in order. */
 export function fakeReportWorkers() {
   const workers: FakeReportWorker[] = [];
   const posted: PostedJob[] = [];
@@ -53,7 +49,7 @@ export function fakeReportWorkers() {
   return { startWorker, workers, posted };
 }
 
-/** Resolves once the posted jobs reach `count`; fails after a second without them. */
+/** Fails after a second without them. */
 export async function postedJobs(posted: PostedJob[], count: number): Promise<PostedJob[]> {
   const deadline = Date.now() + 1000;
   while (posted.length < count) {

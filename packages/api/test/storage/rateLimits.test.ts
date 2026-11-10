@@ -26,7 +26,6 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         runner.transaction(r => work(r.rateLimits));
       const reserve = (counters: RateLimitCounter[], now: string, leaseMs = LEASE, windowMs = WINDOW) =>
         limits(r => r.reserve(counters, now, windowMs, leaseMs));
-      /** Failed checks: each reserves, then releases with a failure. */
       const fail = async (counters: RateLimitCounter[], now: string, times = 1) => {
         for (let i = 0; i < times; i++) {
           const held = await reserve(counters, now);
@@ -80,7 +79,6 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           assert.ok(results.every(result => result.ok));
           const reserved = (c: RateLimitCounter) => chosen.filter(set => set.includes(c)).length;
           for (const c of [shared, a, b]) assert.equal(await live(c), reserved(c));
-          // Every failed check charges all its counters in one write.
           await Promise.all(
             results.map((result, i) =>
               limits(r => r.release(result.ok ? result.reservations : [], chosen[i]!, true, at(2000), WINDOW)),
@@ -125,7 +123,6 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           const row = (await counterRow(full))!;
           assert.equal(Number(row.failures), 0);
           assert.equal(row.reset_at, at(10_000 + 2 * WINDOW));
-          // The first failure of a window starts it.
           await fail([full], at(20_000 + WINDOW));
           assert.equal((await counterRow(full))!.reset_at, at(20_000 + 2 * WINDOW));
         });
@@ -158,7 +155,6 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           assert.ok(await counterRow(leased));
           assert.equal(await live(leased), 1);
           await fail([counter('tick-2', 5)], at(7 * WINDOW));
-          // More expired reservations than one batch deletes, on a counter whose window ends with them.
           const many = counter('many', 1000);
           for (let i = 0; i < 600; i++) assert.ok((await reserve([many], at(7 * WINDOW), LEASE, LEASE)).ok);
           // The leased reservation and the 600, then the leased, tick-1 and many counters.

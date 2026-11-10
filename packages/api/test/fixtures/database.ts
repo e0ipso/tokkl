@@ -9,7 +9,6 @@ import { disposableBackend, type DisposableBackend } from '../storage/support/di
 import { registerPhysicalFixture } from './physical.ts';
 import { withShortcuts, type StorageWithShortcuts } from './storageShortcuts.ts';
 
-/** Identity only. All application work uses the associated asynchronous storage. */
 export interface FixtureDatabase {
   readonly backend: Backend;
 }
@@ -105,17 +104,13 @@ export function setServices(db: FixtureDatabase, services: ApplicationServices):
 }
 
 export type TimerListener = (state: { revision: number }) => unknown;
-/** Per user: who listens to delivered timer states, and the highest revision delivered so far. */
 export interface TimerObservation {
   listeners: Map<number, Set<TimerListener>>;
   reached: Map<number, number>;
 }
 const observations = new WeakMap<object, TimerObservation>();
 
-/**
- * Records every timer state the services deliver to streams, from the moment they are set, so a
- * test can wait for delivery (replies do not) and listen to the states delivered.
- */
+/** Replies do not wait for delivery, so tests wait on these records. */
 function observeTimerDeliveries(services: ApplicationServices): void {
   const streams = services.timerStreams;
   if (observations.has(streams)) return;

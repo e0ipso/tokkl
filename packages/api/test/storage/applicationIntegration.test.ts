@@ -118,14 +118,13 @@ for (const backend of ['postgres', 'mysql', 'mariadb'] as const)
           headers: { authorization: `Basic ${Buffer.from(`${user.apiToken}:api_token`).toString('base64')}` },
           body: JSON.stringify({ start: at }),
         });
-      // Each owner already runs a timer, so the starts below also stop one. That switch must not lock the other owner's rows on InnoDB.
+      // Each owner already runs a timer, so the starts below switch it; that must not lock the other owner's InnoDB rows.
       const seeded: number[] = [];
       for (const user of [owner, other]) {
         const result = await start(user, '2026-10-30T10:00:00Z');
         assert.equal(result.status, 200);
         seeded.push(((await result.json()) as { id: number }).id);
       }
-      // An entry write that holds the owner's guards until released.
       const held = storage.transaction(async ctx => {
         ownerEntry = (
           await createTimeEntry(

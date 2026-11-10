@@ -86,7 +86,6 @@ for (const backend of ['mysql', 'mariadb'] as const) {
           [1, 2],
           [2, 3],
         ]);
-        // The upgrade ends with the full current schema, rate-limit tables included.
         await assertSchema(connection.db, backend);
       } finally {
         await connection.close();

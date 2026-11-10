@@ -49,7 +49,6 @@ test('signed-in account operations refuse a stale credential', async t => {
 test('the signed-in account operations act for the signed-in user', async t => {
   const { services, storage, user, valid } = await signedIn(t);
   const accounts = services.accountsFor(valid);
-  // The signed-in user is the actor, and is no admin.
   await assert.rejects(
     accounts.revokeSessions(user.id),
     error => error instanceof ApplicationError && error.message === 'Admin access required',

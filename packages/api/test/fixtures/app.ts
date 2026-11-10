@@ -22,22 +22,18 @@ export interface TestAppOptions {
   setup: SetupState;
   /** Defaults to the single-process bus. The test owns its lifetime. */
   timerBus?: TimerBus;
-  /** Defaults to JSON lines at `config.logLevel`. */
   logger?: Logger;
   /** Defaults to a runner on `config.storage`. Closing the app closes it. */
   reports?: ReportExecutor;
-  /** Defaults to the system clock. */
   clock?: Clock;
-  /** Defaults to `DEFAULT_SERVICE_SETTINGS`, what `index.ts` passes. */
   settings?: ServiceSettings;
 }
 
-/** The server's settings with some timer stream limits changed. */
 export function streamSettings(limits: Partial<TimerStreamLimits>): ServiceSettings {
   return { ...DEFAULT_SERVICE_SETTINGS, timerStreams: { ...DEFAULT_SERVICE_SETTINGS.timerStreams, ...limits } };
 }
 
-/** The HTTP app and the services it serves, composed the way `index.ts` composes them. */
+/** Composed the way `index.ts` composes them. */
 export interface TestApp extends HttpApp {
   services: ApplicationServices;
 }
@@ -64,7 +60,6 @@ export function composeApp({
   return { ...createHttpApp(services, { storage, config, setup, logger }), services };
 }
 
-/** The Express app of `composeApp`, for tests that serve it and never call a service or close it. */
 export function createApp(options: TestAppOptions): Express {
   return composeApp(options).app;
 }

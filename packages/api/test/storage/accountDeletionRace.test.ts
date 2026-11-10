@@ -28,7 +28,7 @@ const effects: AccountEntryEffects<Repositories> = {
 };
 const security = { async recheckUser() {} };
 
-/** Runs each transaction's work, then holds the commit until `release`. */
+/** Holds each transaction's commit until `release`. */
 function holdingCommit(storage: Storage) {
   const entered = gate(),
     release = gate();
@@ -45,7 +45,7 @@ function holdingCommit(storage: Storage) {
   return { runner, entered, release };
 }
 
-/** Settles `pending` once the deletion committed, and checks it was still waiting until then. */
+/** And checks it was still waiting until then. */
 async function afterDeletion<T>(
   pending: Promise<T>,
   hold: ReturnType<typeof holdingCommit>,
@@ -106,7 +106,6 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           }),
         );
       const admin = await account('admin', 'admin');
-      /** Deletes `id` on the other connection and holds the commit until the hold is released. */
       const deleting = async (id: number, email: string) => {
         const hold = holdingCommit(competing);
         const deletion = createAccountOperations(hold.runner, security).deleteAccount(admin.id, id, email, effects);

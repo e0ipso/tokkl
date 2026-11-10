@@ -1,16 +1,12 @@
 import type { Repositories, Storage } from '../../src/domain/ports.ts';
 import { createStorage as createPlainStorage } from '../../src/storage/index.ts';
 
-/**
- * Storage plus one-call repository access for tests: `storage.users.get(id)` runs in its own read
- * snapshot and `storage.entries.insert(row)` in its own write transaction. Production code always
- * opens the unit of work itself; this exists so fixtures can seed and inspect rows in one line.
- */
+/** Each shortcut call runs in its own snapshot or transaction, so fixtures can seed and inspect in one line. */
 export type StorageWithShortcuts = Storage & Repositories;
 
 type MethodsOf<T> = { [K in keyof T]: T[K] extends (...args: never[]) => unknown ? K : never }[keyof T];
 
-/** The methods that only read. Everything else runs in a write transaction. */
+/** Everything else runs in a write transaction. */
 const READS: { [R in keyof Repositories]: ReadonlyArray<MethodsOf<Repositories[R]>> } = {
   users: ['count', 'countActiveAdmins', 'get', 'getWithTimerRevision', 'findByEmail', 'findByApiToken', 'list'],
   workspaces: ['get', 'forMember', 'listForUser', 'getRole', 'countMembers', 'listMembers'],
@@ -53,7 +49,6 @@ export function withShortcuts(storage: Storage): StorageWithShortcuts {
   );
 }
 
-/** `createStorage` with shortcuts, for tests that open their own connection. */
 export function createStorage(...args: Parameters<typeof createPlainStorage>): StorageWithShortcuts {
   return withShortcuts(createPlainStorage(...args));
 }

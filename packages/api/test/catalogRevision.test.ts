@@ -13,7 +13,6 @@ async function revision(ctx: TestContext, wid = ctx.wid): Promise<number> {
   return reply.body.revision;
 }
 
-/** Sends a request that must succeed. */
 async function ok(ctx: TestContext, method: string, path: string, body?: unknown, headers?: Record<string, string>) {
   const response = await ctx.request(method, path, body, headers);
   const text = await response.text();
@@ -59,7 +58,6 @@ const WRITES: Record<string, (f: Fixture) => Promise<unknown>> = {
   'CSV import creating a client and project': f =>
     ok(f.ctx, 'POST', '/api/app/import/toggl-csv', CSV, { 'content-type': 'text/csv' }),
   'JSON restore creating projects': async f => {
-    // Another account's export names a client and project this workspace does not have yet.
     const source = await addUser(f.ctx, { email: 'source@example.com', role: 'user' });
     const sourceWs = `/api/v9/workspaces/${source.wid}`;
     const client = await ok(source, 'POST', `${sourceWs}/clients`, { name: 'Elsewhere' });
@@ -107,7 +105,6 @@ test('the catalog revision starts at 0 and stays put on reads, entry and task wr
   await ok(ctx, 'POST', '/api/app/import/toggl-csv?dry_run=true', CSV, { 'content-type': 'text/csv' });
   assert.equal(await revision(ctx), 1, 'none of these changes the project list');
 
-  // A refused write changes nothing.
   assert.equal((await ctx.request('POST', `${ws}/projects`, { name: 'Project' })).status, 400);
   assert.equal(await revision(ctx), 1);
 });

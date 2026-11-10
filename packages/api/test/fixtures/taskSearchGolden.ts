@@ -1,6 +1,6 @@
 import type { TaskSearch } from '../../src/domain/queries.ts';
 
-/** The tasks the search tests seed: name `NAMES[i]` in project `i % 3`, active unless `i % 3 === 0`. */
+/** Task `i` is named `NAMES[i]`, in project `i % 3`, active unless `i % 3 === 0`. */
 // Case folding beyond ASCII (Kelvin sign, dotted I, sharp s, final sigma), accents, ties after
 // folding, punctuation, digits, LIKE wildcards and characters outside the BMP.
 export const NAMES = [
@@ -29,7 +29,6 @@ export const NAMES = [
   'zeta ',
 ];
 
-/** `project` indexes the seeded projects. */
 type GoldenQuery = Omit<TaskSearch, 'projectId'> & { project?: number };
 
 /** A search, its page window, the task names it answers in order, and its total count. */

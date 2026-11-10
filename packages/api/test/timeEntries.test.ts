@@ -44,14 +44,11 @@ async function runningCount(ctx: TestContext): Promise<number> {
   return (await storageFor(ctx.db).entries.list(ctx.user.id)).filter(row => row.stop === null).length;
 }
 
-// Continue and favorites (web `start(from, { replace: true })`) post a plain running entry;
-// the server stops whatever runs at the new entry's start, snapped to the time resolution.
 test('starting a second timer stops the first one at the new start, snapped to the resolution', async () => {
   const ctx = await setup();
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
   const project = await ctx.json('POST', `/api/v9/workspaces/${ctx.wid}/projects`, { name: 'Alpha', billable: true });
 
-  // Idle path: nothing runs, so the start simply creates the running entry.
   const first = await ctx.json('POST', url, {
     description: 'first',
     start: '2026-10-14T08:00:00Z',
@@ -87,7 +84,6 @@ test('starting a second timer stops the first one at the new start, snapped to t
   assert.equal(current.body.id, second.body.id);
   assert.equal(await runningCount(ctx), 1);
 
-  // Once the second entry stops, its start snaps to the point where the first one stopped.
   const secondNow = await ctx.json('PATCH', `${url}/${second.body.id}/stop`);
   assert.equal(secondNow.body.start, firstNow.body.stop);
 });
@@ -161,7 +157,6 @@ test('concurrent timer starts leave exactly one running entry', async () => {
   for (const row of rows) if (row.stop !== null) assert.ok(row.stop >= row.start, `${row.stop} >= ${row.start}`);
 });
 
-// Timestamps must be RFC 3339 strings with a zone and a real calendar date.
 test('zone-free, impossible and non-string timestamps are rejected without side effects', async () => {
   const ctx = await setup();
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
@@ -263,7 +258,6 @@ test('list start_date and end_date accept zoned instants and reject zone-free or
   }
 });
 
-// References are validated through the lightweight project/task lookups.
 test('entry project and task references are validated on create and update', async () => {
   const ctx = await setup();
   const base = `/api/v9/workspaces/${ctx.wid}`;
@@ -271,7 +265,6 @@ test('entry project and task references are validated on create and update', asy
   const billable = await ctx.json('POST', `${base}/projects`, { name: 'Billable', billable: true });
   const plain = await ctx.json('POST', `${base}/projects`, { name: 'Plain' });
   const task = await ctx.json('POST', `${base}/projects/${billable.body.id}/tasks`, { name: 'Design' });
-  // The caller must belong to a workspace to write to it.
   const otherWid = (await createWorkspace(ctx.db, 'Other')).id;
   await addWorkspaceMember(ctx.db, otherWid, ctx.user.id, 'member');
   const foreignProject = await ctx.json('POST', `/api/v9/workspaces/${otherWid}/projects`, { name: 'Foreign' });
@@ -302,7 +295,6 @@ test('entry project and task references are validated on create and update', asy
   assert.equal(unchanged.body.task_id, null);
   assert.equal(await entryCount(ctx), 1);
 
-  // Billable follows a changed project unless the request says otherwise.
   assert.equal(created.body.billable, false);
   const switched = await ctx.json('PUT', `${url}/${created.body.id}`, {
     project_id: billable.body.id,
@@ -521,7 +513,6 @@ test('the trash lists the newest thousand, counts them all, and emptying it dele
   const ctx = await setup();
   const other = await createWorkspace(ctx.db, 'Other');
   await addWorkspaceMember(ctx.db, other.id, ctx.user.id, 'owner');
-  // The newest thousand trashed entries all sit in the first workspace.
   await insertTrashedEntries(ctx.db, {
     userId: ctx.user.id,
     workspaceId: ctx.wid,
@@ -534,7 +525,6 @@ test('the trash lists the newest thousand, counts them all, and emptying it dele
     count: 3,
     newestDeletedAt: '2026-10-01T12:00:00.000Z',
   });
-  // The list stops at the newest thousand; the total says how many it left out.
   assert.equal((await ctx.json('GET', '/api/app/trash')).body.length, 1000);
   assert.deepEqual((await ctx.json('GET', '/api/app/trash/total')).body, { total: 1004, limit: 1000 });
 
@@ -545,12 +535,10 @@ test('the trash lists the newest thousand, counts them all, and emptying it dele
   assert.deepEqual((await ctx.json('GET', '/api/app/trash/total')).body, { total: 0, limit: 1000 });
 });
 
-/** An instant as the API returns it, to the second with a +00:00 offset. */
 function apiTime(date: Date): string {
   return `${date.toISOString().slice(0, 19)}+00:00`;
 }
 
-/** Asserts that `entry` was stored from `start` to `stop` and that its duration is stop minus start. */
 async function assertStored(ctx: TestContext, entry: any, start: string, stop: string): Promise<void> {
   assert.equal(entry.start, start);
   assert.equal(entry.stop, stop);
@@ -667,7 +655,6 @@ test('a running entry keeps its exact start until the stop endpoint snaps it', a
   const stop = Date.parse(stopped.body.stop) / 1000;
   assert.equal(start % 300, 0);
   assert.ok(Math.abs(start - realStart.getTime() / 1000) <= 150, stopped.body.start);
-  // The stop goes to the grid point nearest the moment the request stopped the timer.
   assert.equal(stop % 300, 0);
   assert.ok(stop >= before - 150 && stop <= after + 150, stopped.body.stop);
   assert.equal(stopped.body.duration, stop - start);
@@ -685,7 +672,6 @@ test('the stop endpoint sends a timer shorter than half a step to the trash at z
     tags: ['x'],
   });
   const stopped = await ctx.json('PATCH', `${url}/${running.body.id}/stop`);
-  // The reply still describes the entry, so a client can resume it, and its duration adds nothing.
   assert.equal(stopped.status, 200);
   assert.equal(stopped.body.duration, 0);
   assert.equal(stopped.body.stop, stopped.body.start);
@@ -1080,7 +1066,6 @@ test('an update turns an entry into a no-time entry and back', async () => {
   const entry = await ctx.json('POST', url, { start: '2026-10-14T09:07:00Z', duration: 5000, description: 'review' });
   await assertStored(ctx, entry.body, '2026-10-14T09:00:00+00:00', '2026-10-14T10:30:00+00:00');
 
-  // Turning it on keeps the local date and the duration.
   const on = await ctx.json('PUT', `${url}/${entry.body.id}`, { all_day: true });
   assert.equal(on.status, 200);
   await assertStored(ctx, on.body, '2026-10-13T22:00:00+00:00', '2026-10-13T23:30:00+00:00');
@@ -1108,7 +1093,6 @@ test('an update turns an entry into a no-time entry and back', async () => {
   assert.equal(off.body.all_day, false);
   assert.equal(await allDayColumn(ctx, entry.body.id), 0);
 
-  // A start and a stop sent while turning it on give the day and the duration.
   const fromSpan = await ctx.json('PUT', `${url}/${entry.body.id}`, {
     all_day: true,
     start: '2026-10-15T08:10:00+02:00',
@@ -1146,7 +1130,6 @@ test('a no-time entry changes its date and duration but refuses a time of day', 
   const kept = await ctx.json('GET', `/api/v9/me/time_entries/${id}`);
   await assertStored(ctx, kept.body, '2026-10-13T22:00:00+00:00', '2026-10-13T23:00:00+00:00');
 
-  // A client that PUTs the whole entry back sends its own start and stop.
   const whole = await ctx.json('PUT', `${url}/${id}`, { ...entry.body, description: 'whole' });
   assert.equal(whole.status, 200);
   await assertStored(ctx, whole.body, '2026-10-13T22:00:00+00:00', '2026-10-13T23:00:00+00:00');
@@ -1156,7 +1139,6 @@ test('a no-time entry changes its date and duration but refuses a time of day', 
   assert.equal(moved.status, 200);
   await assertStored(ctx, moved.body, '2026-10-15T22:00:00+00:00', '2026-10-15T23:30:00+00:00');
 
-  // Local midnight of another day moves the entry there.
   const byStart = await ctx.json('PUT', `${url}/${id}`, { start: '2026-10-17T00:00:00+02:00' });
   assert.equal(byStart.status, 200);
   await assertStored(ctx, byStart.body, '2026-10-16T22:00:00+00:00', '2026-10-16T23:30:00+00:00');

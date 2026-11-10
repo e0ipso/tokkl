@@ -7,10 +7,8 @@ import { syncBuiltinESMExports } from 'node:module';
 import type { TestContext } from './helpers.ts';
 
 /*
- * PUT /me with a password awaits scrypt twice: once to check current_password and once to hash the
- * new one. These tests hold one of those scrypt results until another request has committed, so the
- * ordering is fixed without timers. src/lib/crypto.ts binds scrypt when it loads, so the wrapper is
- * installed before anything from src is imported, and the app modules are imported afterwards.
+ * Holds a scrypt result until another request commits, so ordering needs no timers. src/lib/crypto.ts binds
+ * scrypt on load, so this wrapper is installed before any src import.
  */
 type ScryptCallback = (error: Error | null, key: Buffer) => void;
 const realScrypt = crypto.scrypt as unknown as (...args: unknown[]) => void;
@@ -36,10 +34,7 @@ const HASH = 2;
 const NEW_PASSWORD = 'reset by the owner';
 const ATTACKER_PASSWORD = 'set by the attacker';
 
-/**
- * Runs `during` when the `nth` scrypt call from now finishes, before its caller sees the result.
- * Resolves with whatever `during` returned, so a failed assertion inside it fails the test.
- */
+/** Resolves with what `during` returned, so a failed assertion inside it fails the test. */
 function duringScrypt(nth: number, during: () => Promise<unknown>): Promise<unknown> {
   return new Promise(resolve => {
     held = { remaining: nth, during, settle: resolve };

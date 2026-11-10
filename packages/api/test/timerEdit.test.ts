@@ -5,7 +5,7 @@ import { removeWorkspaceMember } from './fixtures/physical.ts';
 import { addUser, setup, type TestContext, timerState as state } from './helpers.ts';
 
 const edit = (ctx: TestContext, body: unknown) => ctx.json<TimerState>('POST', '/api/app/timer/edit', body);
-/** `state` without the instant it was read at, so two reads of one revision compare equal. */
+/** So two reads of one revision compare equal. */
 const timeless = (s: TimerState) => ({ ...s, server_time: null });
 
 async function running(ctx: TestContext): Promise<TimerState> {
@@ -111,7 +111,6 @@ test('an edit naming the running entry survives an unrelated change that a revis
     project_id: project.body.id,
   });
   const id = started.body.running_entry!.id;
-  // Renaming the project moves the timer on: its state shows the project's name.
   await ctx.json('PUT', `/api/v9/workspaces/${ctx.wid}/projects/${project.body.id}`, { name: 'Website' });
   const moved = await state(ctx);
   assert.ok(moved.revision > started.body.revision);
@@ -123,7 +122,6 @@ test('an edit naming the running entry survives an unrelated change that a revis
   assert.equal(edited.body.running_entry?.id, id);
   assert.equal(edited.body.running_entry?.description, 'Final');
   assert.equal(edited.body.revision, moved.revision + 1);
-  // Sent together, both must hold.
   const both = await edit(ctx, { entry_id: id, revision: moved.revision, description: 'Both' });
   assert.equal(both.status, 409);
   assert.equal((await edit(ctx, { entry_id: id, revision: edited.body.revision, billable: true })).status, 200);

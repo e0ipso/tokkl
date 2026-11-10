@@ -29,10 +29,7 @@ const WEEKLY = {
 
 const EXPORT = { kind: 'export-json' as const, exportedAt: '2026-01-01T00:00:00Z', filename: 'x' };
 
-/**
- * A runner with one place in each lane, both taken by a report and an export that wait until the
- * test ends, so the next job of either kind finds its lane full.
- */
+/** One place in each lane, held by a report and an export that wait until the test ends. */
 function fullRunner(t: TestContext): ReportRunner {
   let release!: () => void;
   const held = new Promise<void>(resolve => (release = resolve));
@@ -55,7 +52,7 @@ function fullRunner(t: TestContext): ReportRunner {
   return runner;
 }
 
-/** Settles with `promise`, or with 'pending' when it has not settled within `ms`. */
+/** Settles with 'pending' when `promise` has not settled within `ms`. */
 function within<T>(promise: Promise<T>, ms: number): Promise<T | 'pending'> {
   return Promise.race([promise, new Promise<'pending'>(resolve => setTimeout(() => resolve('pending'), ms))]);
 }
@@ -116,7 +113,6 @@ test('a download that runs past its deadline is given up with a 503 and Retry-Af
   assert.ok(Date.now() - started < 2000);
 });
 
-/** Application services over `reports` whose storage counts its read snapshots, and an account's export. */
 async function exportReads(t: TestContext, reports: ReportExecutor) {
   const db = await openSQLiteDatabase();
   const storage = storageFor(db);
@@ -241,10 +237,7 @@ test('a reserved place counts toward the queue limit until its holder queues a j
   );
 });
 
-/**
- * A report source whose snapshots wait, one gate per snapshot, and record the user each job reads
- * for. Every job then fails the credential lookup, which is all these tests need.
- */
+/** Snapshots wait, one gate per snapshot, and record each job's user; every job then fails the credential lookup. */
 function gatedSource() {
   const order: number[] = [];
   const gates: Array<() => void> = [];
@@ -260,7 +253,6 @@ function gatedSource() {
         },
       } as never),
   };
-  /** Waits until `count` jobs have started reading. */
   const reading = async (count: number) => {
     while (order.length < count) await new Promise(resolve => setImmediate(resolve));
   };
@@ -292,7 +284,6 @@ test('one account cannot take more than its share of the report queue', async t 
     release();
   }
   for (const result of await Promise.all([...mine, theirs])) assert.ok(result instanceof ApplicationError);
-  // Once its jobs finish, the account has its whole share again.
   const again = [1, 2, 3].map(() => runReport(runner, 1, 1, WEEKLY as never).catch(error => error));
   for (let i = 4; i < 7; i++) {
     await reading(i + 1);
@@ -301,7 +292,7 @@ test('one account cannot take more than its share of the report queue', async t 
   for (const result of await Promise.all(again)) assert.ok(result instanceof ApplicationError);
 });
 
-/** A database the fake workers never open; any file-backed config runs jobs in workers. */
+/** Any file-backed config runs jobs in workers; the fake workers never open it. */
 const WORKER = { backend: 'sqlite' as const, filename: 'unused.db', busyTimeoutMs: 5000 };
 const UNUSED: JobSource = { readSnapshot: () => Promise.reject(new Error('unused')) };
 
@@ -325,7 +316,6 @@ test('a slot queues work only for the account that reserved it', async t => {
   );
 });
 
-/** Reports for `users`, one each, that settle with their error or undefined. */
 const reportsFor = (runner: ReportRunner, users: number[]) =>
   users.map(user =>
     runReport(runner, user, 1, WEEKLY as never).then(
@@ -340,7 +330,7 @@ const exportsFor = (runner: ReportRunner, users: number[]) =>
       (error: Error) => error,
     ),
   );
-/** Lets every pending callback run, so a job that would start has started. */
+/** So a job that would start has started. */
 const quiet = async () => {
   for (let i = 0; i < 20; i++) await new Promise(resolve => setImmediate(resolve));
 };
@@ -406,8 +396,6 @@ test('a report request the client abandons gives back its place, queued or runni
   });
   const { source, reading, release } = gatedSource();
   const runner = createReportRunner(INLINE, source, { maxQueue: 4, maxPerUser: 2 });
-  // What each report request handed the runner, so the test knows when a job was queued and when
-  // the server saw its request close.
   const signals: AbortSignal[] = [];
   let submitted = 0;
   const reports: ReportExecutor = {
@@ -445,7 +433,7 @@ test('a report request the client abandons gives back its place, queued or runni
         response => response.status,
         () => 'aborted',
       );
-  /** Whether the account has `count` free places now. It holds them only while it checks. */
+  /** It holds them only while it checks. */
   const free = (count: number): Promise<boolean> => {
     const take = (left: number): Promise<boolean> =>
       left === 0 ? Promise.resolve(true) : runner.reserve({ userId: user.id }, () => take(left - 1));

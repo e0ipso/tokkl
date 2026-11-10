@@ -7,7 +7,6 @@ import type { TimerView } from '../src/domain/timerView.ts';
 import { setup } from './helpers.ts';
 import { at, manualClock } from './fixtures/clock.ts';
 
-/** Timer operations on the test database whose runner counts the write transactions it opens. */
 function countedTimers(db: Parameters<typeof storageFor>[0], user: { id: number }) {
   const storage = storageFor(db);
   const published: TimerView[] = [];
@@ -95,7 +94,6 @@ test('a read whose running entry lost its session settles it on the write path',
     lengths: {},
     entry: { description: 'focus', tagIds: [], billable: false, createdWith: 'test' },
   });
-  // The session points at an entry that is no longer running.
   const stored = await storage.timers.getSession(ctx.user.id);
   await storage.timers.saveSession({ ...stored!, entryId: session.running!.id + 1000 });
   const before = writes();

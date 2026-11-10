@@ -1,7 +1,6 @@
 import { runExportJob, type ExportAssemblyJob, type ExportSource } from '../../src/services/exportJobs.ts';
 import type { Client, Project, Tag, Task, TimeEntry, Workspace } from '@tokkl/types';
 
-/** The JSON export file, as far as the tests read it. */
 interface JsonExport {
   [key: string]: unknown;
   workspaces: Workspace[];
@@ -12,7 +11,6 @@ interface JsonExport {
   time_entries: TimeEntry[];
 }
 
-/** The body the export routes write for `assembly`, streamed by the production export job. */
 export async function exportBody(source: ExportSource, userId: number, assembly: ExportAssemblyJob): Promise<string> {
   const chunks: string[] = [];
   await runExportJob(source, { userId, assembly }, async chunk => {

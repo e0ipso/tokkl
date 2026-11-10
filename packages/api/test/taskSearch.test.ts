@@ -20,7 +20,6 @@ async function seed(ctx: TestContext) {
     const pid = projects[index % 3]!;
     const reply = await ctx.json('POST', `${ws}/projects/${pid}/tasks`, { name, active: index % 3 !== 0 });
     assert.equal(reply.status, 200, `${name}: ${JSON.stringify(reply.body)}`);
-    // Creation instants with ties, and update instants either side of the `since` used below.
     await corruptRecord(
       ctx.db,
       'tasks',

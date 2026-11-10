@@ -6,10 +6,10 @@ import type { TimerState } from '@tokkl/types';
 import type { Storage } from '../../../src/domain/ports.ts';
 
 export const gate = () => Promise.withResolvers<void>();
-/** Forces HTTP writes to overlap. The wrapped storage holds each write at its `storage.transaction`
- * call, before the engine opens a transaction, until every request passed to `overlap` has arrived,
- * then releases them together. On SQLite the hold comes before BEGIN IMMEDIATE, so the released
- * writes queue on the write lock instead of deadlocking on the barrier. */
+/**
+ * Holds each write at `storage.transaction` until every request in `overlap` arrived, then releases them.
+ * On SQLite that is before BEGIN IMMEDIATE, so released writes queue instead of deadlocking.
+ */
 export function transactionBarrier() {
   let armed: { remaining: number; entered: ReturnType<typeof gate>; release: ReturnType<typeof gate> } | undefined;
   return {
@@ -68,7 +68,6 @@ export async function readTimerStream(response: Response) {
   assert.equal(response.status, 200);
   const reader = response.body!.getReader(),
     states: TimerState[] = [];
-  // Arrival order of timer revisions and keep-alives.
   const events: Array<number | 'keep-alive'> = [];
   let ended = false,
     failure: unknown;
@@ -100,7 +99,6 @@ export async function readTimerStream(response: Response) {
     states,
     events,
     ended: () => ended,
-    /** `describe` adds what the caller saw to the deadline failure. */
     async until(
       predicate: () => boolean,
       { timeoutMs = 5000, describe }: { timeoutMs?: number; describe?: () => string } = {},

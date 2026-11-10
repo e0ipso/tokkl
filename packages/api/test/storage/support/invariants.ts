@@ -63,7 +63,6 @@ export async function assertInvariants(db: TestDb, backend: Backend): Promise<vo
       ...times,
     }),
   );
-  // Delete detaches a noncolliding client and recomputes its generated scope.
   await insert(db, backend, 'projects', {
     id: 40,
     workspace_id: 10,

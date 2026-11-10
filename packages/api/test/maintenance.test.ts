@@ -13,7 +13,6 @@ const PAST = '2000-01-01T00:00:00.000Z';
 const WINDOW = 15 * 60 * 1000;
 const hash = (name: string) => createHash('sha256').update(name).digest('hex');
 
-/** Signs in with a session cookie only. */
 const withCookie = (ctx: TestContext, cookie: string) =>
   ctx.request('GET', '/api/v9/me', undefined, { authorization: '', cookie });
 

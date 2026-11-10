@@ -10,12 +10,11 @@ import {
 import type { ReportExecutor } from '../../../src/services/reportRunner.ts';
 import type { ReportSource } from '../../../src/services/reports.ts';
 
-/** A report answered whole, or a detailed CSV that streams. */
 export type AnyReportJob = ReportJob | CsvDownloadJob;
 
 export const isCsvDownload = (job: AnyReportJob): job is CsvDownloadJob => job.kind in CSV_DOWNLOAD_FILENAMES;
 
-/** The whole answer a detailed CSV gave before it streamed: its pieces joined. */
+/** A detailed CSV's pieces joined, as the whole answer it gave before streaming. */
 const csvResult = (job: CsvDownloadJob, chunks: string[]): JobResult => ({
   type: 'csv',
   body: chunks.join(''),
@@ -23,7 +22,6 @@ const csvResult = (job: CsvDownloadJob, chunks: string[]): JobResult => ({
   headers: {},
 });
 
-/** Answers `job` from `source`, joining a streamed CSV into one result. */
 export async function answerJob(
   source: ReportSource,
   work: { userId: number; workspaceId: number; job: AnyReportJob },
@@ -37,7 +35,6 @@ export async function answerJob(
   return csvResult(job, chunks);
 }
 
-/** Answers `job` on `runner`: a report in its report lane, a detailed CSV in its download lane. */
 export async function answerOnRunner(
   runner: ReportExecutor,
   userId: number,

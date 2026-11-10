@@ -212,7 +212,6 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           await catalog.updateProject(ctx, wid, p.id, { name: 'Delivered' }, fx);
         });
         assert.deepEqual(heard, [user.id, member.id]);
-        // Leave the original user's workspace sole before deletion.
         await connection.db
           .deleteFrom('workspace_users')
           .where('workspace_id', '=', wid)

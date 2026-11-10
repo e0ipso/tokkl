@@ -37,7 +37,6 @@ interface HttpTask extends HttpCatalogItem {
 }
 type CatalogKind = 'clients' | 'projects' | 'tasks' | 'tags';
 
-/** One account and everything the test expects it to own after its own writes. */
 interface Account {
   name: string;
   user: User;
@@ -57,9 +56,8 @@ const sorted = (ids: Iterable<number>) => [...ids].sort((a, b) => a - b);
 const workspaceOf = (item: HttpCatalogItem) => item.workspace_id ?? item.wid;
 const seconds = (entries: EntryDetails[]) =>
   entries.reduce((sum, e) => sum + (Date.parse(e.stop!) - Date.parse(e.start)) / 1000, 0);
-// `at(minute)` counts from a whole hour two days ago. Every minute the test passes is a multiple of
-// five, so entries fall inside the default nine-day listing window and on the five-minute grid, and
-// snapping keeps each duration the test asked for.
+// Minutes count from a whole hour two days ago, multiples of five, so entries land in the default list
+// window and on the grid with their exact durations.
 const origin = Math.floor(Date.now() / 3_600_000) * 3_600_000 - 48 * 3_600_000;
 const at = (minute: number) => new Date(origin + minute * 60_000).toISOString();
 
@@ -73,9 +71,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       const c = await initializeDatabase(config),
         other = await openConnection<PhysicalDatabase>(config);
       const stores = [createStorage(c), createStorage(other)];
-      // The barrier holds requests at `storage.transaction`. On SQLite that is before BEGIN IMMEDIATE,
-      // so after release the writes take the write lock one at a time. The checks look only at
-      // results, which must be the same whether the writes ran side by side or in a queue.
+      // Held at `storage.transaction` (before BEGIN IMMEDIATE on SQLite); results must match side by side or queued.
       const barrier = transactionBarrier();
       const apps = stores.map(storage =>
         composeApp({
@@ -92,8 +88,6 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         await fixture.cleanup();
       });
 
-      // Three regular accounts, each owning one workspace. A and C send through app 0 and its
-      // connection, B through app 1 and the other connection.
       const accounts: Account[] = [];
       for (const [i, name] of ['a', 'b', 'c'].entries()) {
         const user = await stores[0]!.users.createAccount({
@@ -134,8 +128,6 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         return (text ? JSON.parse(text) : undefined) as T;
       }
       const read = async <T>(u: Account, path: string) => ok<T>(u, await send(u, 'GET', path));
-      /** Each account sends one write. The barrier holds them until all have reached `storage.transaction`,
-       * then releases them together. Every write must return 200. */
       async function together<T>(write: (u: Account, i: number) => Promise<Response>): Promise<T[]> {
         const responses = await barrier.overlap(...accounts.map((u, i) => () => write(u, i)));
         return Promise.all(responses.map((response, i) => ok<T>(accounts[i]!, response)));
@@ -154,7 +146,6 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           .filter(u => u.running !== null)
           .map(u => [u.user.id, u.running!])
           .sort((x, y) => x[0]! - y[0]!);
-      /** Storage and HTTP show each account exactly the rows it wrote and none of the other accounts' rows. */
       async function verify() {
         const owned = (pick: (u: Account) => number) => accounts.reduce((sum, u) => sum + pick(u), 0);
         assert.equal(
@@ -217,8 +208,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
             );
             assert.deepEqual(sorted(items.map(item => item.id)), sorted(u[kind]), `${u.name}: listed ${kind}`);
           }
-          // GET /api/app/timer settles the timer in a write transaction. It must find nothing to
-          // change, because the stored revision is already current.
+          // GET /api/app/timer settles in a write transaction; it must find nothing to change.
           const timer = await read<TimerState>(u, '/api/app/timer');
           assert.equal(timer.revision, u.revision, `${u.name}: timer revision`);
           assert.equal(timer.running_entry?.id ?? null, u.running, `${u.name}: timer running entry`);
@@ -259,17 +249,14 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       });
 
       await t.test("a timer start stops only its own user's timer and bumps only its own user's revision", async () => {
-        // In each round a user either starts a timer or adds a finished entry. Every user starts at
-        // least once while another user's timer is running. Users make different numbers of timer
-        // changes, so a revision bumped for the wrong user cannot add up by chance.
+        // Users make different numbers of timer changes, so a revision bumped for the wrong user cannot add up by chance.
         const rounds = [
           ['start', 'start', 'finish'],
           ['start', 'start', 'start'],
           ['start', 'finish', 'finish'],
         ] as const;
         for (const [r, round] of rounds.entries()) {
-          // Users start at different minutes, and the gap between them grows each round, so a timer
-          // stopped at another user's start would end up with the wrong duration.
+          // The gaps grow each round, so a timer stopped at another user's start would get the wrong duration.
           const minute = (i: number) => 180 + r * 60 + i * (r + 1) * 5;
           const previous = accounts.map(u => ({ id: u.running, since: u.runningSince }));
           const created = await together<HttpEntry>((u, i) =>
@@ -294,7 +281,6 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
             u.running = entry.id;
             u.runningSince = minute(i);
             u.revision++;
-            // The replaced timer stopped where its owner's new one started.
             const replaced = previous[i]!;
             if (replaced.id !== null)
               assert.equal(
@@ -339,7 +325,6 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       await t.test(
         "overlapping entry and project updates and deletes keep each owner's project and task totals",
         async () => {
-          // Each user gets the same layout. Durations scale with k, so totals differ between users.
           const own = accounts.map((u, i) => ({
             k: i + 1,
             project: [...u.projects][0]!,
@@ -363,7 +348,6 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
             u.projects.add(extras[i]!.id);
             u.projects.add(timerProjects[i]!.id);
           }
-          // Moving the running timer onto a project changes the timer, so each owner's revision goes up once.
           const moved = await together<HttpEntry>((u, i) =>
             send(u, 'PUT', `${ws(u)}/time_entries/${u.running}`, { project_id: own[i]!.timerProject }),
           );
@@ -395,7 +379,6 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
               u.live.add(created[i]!.id);
             }
           }
-          /** Compares HTTP totals with known values and with the owner's entries in storage. */
           async function totals(project: number, task: number) {
             for (const [i, u] of accounts.entries()) {
               const mine = own[i]!,
@@ -433,7 +416,6 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           }
           await totals(60, 30);
 
-          // Five writes per user. Rotating them means that in every round each user runs a different write.
           const writes: Array<(u: Account, mine: (typeof own)[number]) => Promise<Response>> = [
             (u, mine) => send(u, 'PUT', `${ws(u)}/time_entries/${mine.entries[0]}`, { duration: 25 * mine.k * 60 }),
             (u, mine) => send(u, 'DELETE', `${ws(u)}/time_entries/${mine.entries[1]}`),
@@ -454,7 +436,6 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
               u.deleted.add(mine.entries[3]!);
             }
             u.projects.delete(mine.extra);
-            // Renaming the running timer's project changed the owner's timer once more.
             u.revision++;
           }
           // 25k (lengthened) plus 30k (moved onto the task) minutes; the deleted 20k entry no longer counts.
@@ -486,10 +467,8 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       await t.test(
         "each user's timer stream carries only that user's states while both users change their timers at once",
         async t => {
-          // Each app delivers only the commits made through it to its own streams, and nothing passes
-          // timer states between apps. So A and B both stream and write through one app, as they would
-          // against one server. On the server engines its pool holds two connections, so the writes the
-          // barrier releases run side by side; on SQLite they queue on the write lock.
+          // Apps deliver only their own commits, so A and B stream and write through one app. Its pool has two
+          // connections on server engines; SQLite queues on the write lock.
           const streamConfig = fixture.config.backend === 'sqlite' ? fixture.config : { ...fixture.config, poolMax: 2 };
           const storage = createStorage(await openConnection<PhysicalDatabase>(streamConfig));
           const server = await serveInvariant(
@@ -520,7 +499,6 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
             project.set(u, created.id);
             u.projects.add(created.id);
           }
-          /** What an account owns in storage: entry ids and descriptions, and each project's names. */
           interface Owned {
             entries: Set<number>;
             descriptions: Set<string>;
@@ -549,7 +527,6 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
             }
             return owned;
           }
-          // Collected before and after the writes, so each project keeps the name it had before the rename.
           const owned = new Map([
             [a, await collect(a)],
             [b, await collect(b)],
@@ -566,9 +543,6 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
             opened.set(u, u.revision);
           }
 
-          // Every change below changes its user's timer once. Pomodoro entries start at the server's
-          // clock, later than every `at()` time, so neither user starts or stops an entry after their
-          // Pomodoro start. `onProject` holds the running entry each user put on their stream project.
           const onProject = new Map<Account, number>();
           const change = {
             start: (minute: number) => async (u: Account) => {
@@ -619,7 +593,6 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
               assert.equal(renamed.name, `${u.name}-stream renamed`);
             },
           };
-          // The users make a different change in every round.
           const rounds = [
             [change.start(1440), change.stop(1440)],
             [change.rename, change.start(1500)],
@@ -695,8 +668,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
                 );
               }
             }
-            // Each user's changes ran one after another, and a write answers only after its state was
-            // published, so the stream holds every revision of the user's timer since it opened.
+            // Writes answer only after their state was published, so the stream holds every revision since it opened.
             assert.deepEqual(
               states.map(s => s.revision),
               Array.from({ length: u.revision - opened.get(u)! + 1 }, (_, i) => opened.get(u)! + i),

@@ -1,7 +1,4 @@
-/**
- * The catalog operations as a request reaches them: each raw body is parsed by the same command
- * parser the routes use, then handed to the domain. Domain tests keep their bodies.
- */
+/** Raw bodies go through the routes' command parsers. */
 import * as parse from '../../src/commands/catalogs.ts';
 import * as domain from '../../src/domain/catalogs.ts';
 import type { CatalogContext, CatalogTimerEffects } from '../../src/domain/catalogs.ts';

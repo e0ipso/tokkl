@@ -80,7 +80,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       };
       const loginLimiter = new FailureLimiter(limits, 'password', 10, PASSWORD_WINDOW_MS),
         setupLimiter = new FailureLimiter(limits, 'setup-code', 10, PASSWORD_WINDOW_MS);
-      /** Whether an attempt is refused now. When it is not, the check passes and records nothing. */
+      /** When not refused, the check passes and records nothing. */
       const blocked = async (limiter: Limiter, keys: Keys) => (await limiter.attempt(keys, async () => true)).refused;
       const fail = (keys: Keys) => loginLimiter.attempt(keys, async () => false);
       const setup = { code: 'setup-code' as string | null };
@@ -381,9 +381,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           const account = accountCounters(member.email, 'elsewhere')[1]!;
           for (let n = 0; n < 49; n++) await fail([account]);
           await login(member.email);
-          // A limit of one is reached by any failure left on the account counter.
           assert.equal(await blocked(loginLimiter, [{ key: account.key, limit: 1 }]), false);
-          // A successful form login cleared account counters while ten failures still charge the address.
           for (let n = 0; n < 90; n++) await fail(addressCounter('192.0.2.1'));
           assert.equal(await blocked(loginLimiter, addressCounter('192.0.2.1')), true);
           await loginLimiter.reset(addressCounter('192.0.2.1'));

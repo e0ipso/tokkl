@@ -18,7 +18,6 @@ const logger = createLogger();
 import { disposableBackend } from './support/disposableBackend.ts';
 import { until } from '../helpers.ts';
 
-/** Collects everything written through console while the test runs. */
 function captureConsole(t: TestContext): () => string {
   const lines: string[] = [];
   for (const method of ['log', 'info', 'warn', 'error', 'debug'] as const) {
@@ -32,8 +31,7 @@ function captureConsole(t: TestContext): () => string {
 test('a server bus that cannot reach its database rejects within the connect timeout and holds no socket', async t => {
   const dir = mkdtempSync(join(tmpdir(), 'tokkl-bus-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
-  // Accepts TCP and never answers, so only the connect timeout can end the attempt. Reading keeps
-  // the socket flowing so the client's close is observed.
+  // Accepts TCP and never answers, so only the connect timeout ends the attempt.
   const sockets = new Set<Socket>();
   const server = createServer(socket => {
     socket.resume();
@@ -76,8 +74,7 @@ test('a server bus that cannot reach its database rejects within the connect tim
   await local.close();
 });
 
-/** Speaks just enough of the protocol to accept a login and one LISTEN, then goes silent. It never
- * closes its side, so a graceful client end waits for a reply that never comes. */
+/** Accepts a login and one LISTEN, then goes silent without closing, so a graceful end waits forever. */
 async function silentPeer(t: TestContext) {
   const message = (type: string, body: Buffer) => {
     const head = Buffer.alloc(5);
@@ -142,7 +139,6 @@ test(
     assert.ok(config.backend === 'postgres');
     const admin = new pg.Client({ ...postgresOptions(config, false), application_name: 'tokkl-test-admin' });
     admin.on('error', () => {});
-    // Clients go before the database does.
     t.after(async () => {
       await Promise.allSettled([admin.end(), ...buses.map(bus => bus.close())]);
       await fixture.cleanup();

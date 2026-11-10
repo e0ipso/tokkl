@@ -20,14 +20,12 @@ async function send(ctx: TestContext, path: string, body: unknown, key?: string)
   return { status: response.status, body: text ? JSON.parse(text) : null };
 }
 
-/** Entries made, those a later stop sent to the trash included. */
 const entryCount = async (ctx: TestContext) =>
   (await listTimeEntries(ctx.db, ctx.user.id)).length + (await listDeletedEntries(ctx.db, ctx.user.id)).length;
 const listed = async (ctx: TestContext, path: string) => ((await ctx.json('GET', path)).body as unknown[]).length;
-/** A timer reply without the instant it was read at, so two reads of one revision compare equal. */
+/** So two reads of one revision compare equal. */
 const timeless = (state: TimerState) => ({ ...state, server_time: null });
 
-/** One create that takes a key: where it goes, a body, another body, and how many records it made. */
 interface Create {
   name: string;
   prepare?: (ctx: TestContext) => Promise<void>;
@@ -35,7 +33,6 @@ interface Create {
   body: (ctx: TestContext) => Promise<unknown>;
   other: (ctx: TestContext) => Promise<unknown>;
   count: (ctx: TestContext) => Promise<number>;
-  /** The part of the reply a repeat must give back unchanged. */
   result: (body: any) => unknown;
 }
 

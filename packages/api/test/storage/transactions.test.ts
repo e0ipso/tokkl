@@ -52,7 +52,6 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
             events.push('after');
             assert.equal(await runner.readSnapshot(r => r.settings.get('before')), 'yes');
           });
-          // Only the runner opens transactions; the context it hands out cannot start another.
           assert.equal('transaction' in ctx, false);
           await assert.rejects(
             ctx.savepoint(async sp => {
@@ -115,7 +114,6 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           });
         });
         assert.deepEqual(events.slice(-2), ['replacement accepted', 'last']);
-        // A read at commit runs after every hook, those registered after it included.
         let seen: string | undefined;
         await runner.transaction(async ctx => {
           ctx.readAtCommit(async () => {
@@ -129,7 +127,6 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         });
         assert.equal(seen, 'yes');
         assert.deepEqual(events.slice(-2), ['late', 'read']);
-        // It may only read: work it registers fails the transaction.
         await assert.rejects(
           runner.transaction(async ctx => {
             await ctx.settings.put('read-writes', 'no');
@@ -168,7 +165,6 @@ test('sqlite: a conflicted attempt reruns twice, after jittered waits that doubl
     assert.equal(attempts, 3);
     // Half of a 10 ms ceiling plus no share, then half of 20 ms plus half the rest.
     assert.deepEqual(waits(), [5, 15]);
-    // A conflict that is not retryable fails at once; a third retryable one fails without a wait.
     await assert.rejects(
       runner.transaction(async () => {
         throw new StorageConflict('unique');

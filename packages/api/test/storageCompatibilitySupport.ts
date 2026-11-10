@@ -10,7 +10,7 @@ interface Observation {
   body: unknown;
 }
 
-/** IDs may differ by engine, while their JSON number type and nullable relationships may not. */
+/** IDs may differ by engine; their JSON number type and nullable relationships may not. */
 function normalize(value: unknown, key = ''): unknown {
   if (value === null) return null;
   if (Array.isArray(value)) return value.map(item => normalize(item, key.endsWith('_ids') ? 'id' : ''));
@@ -35,7 +35,6 @@ function normalize(value: unknown, key = ''): unknown {
   return value;
 }
 
-/** Records HTTP only; fixtures contain no driver rows or database-specific values. */
 export function reference(ctx: TestContext) {
   const observations: Observation[] = [];
   const capture = async (

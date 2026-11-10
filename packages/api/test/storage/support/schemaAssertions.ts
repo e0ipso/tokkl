@@ -41,7 +41,6 @@ export async function seed(db: TestDb, backend: Backend): Promise<void> {
     await insert(db, backend, table, row);
   }
 }
-/** Every table of the current schema with its columns, those later migrations added included. */
 export const currentTables: Record<string, Record<string, Column>> = Object.fromEntries(
   Object.entries({ ...baselineTables, ...rateLimitTables, ...idempotencyTables }).map(([table, columns]) => [
     table,
@@ -201,7 +200,6 @@ export async function assertDefaultsAndForeignKeys(db: TestDb, backend: Backend)
         );
     }
   }
-  // Populate every optional FK, then exercise all detach and cascade paths with actual rows.
   await sql`update projects set client_id=1`.execute(db);
   await sql`update time_entries set project_id=1, task_id=1`.execute(db);
   await sql`update pause_chains set project_id=1, task_id=1`.execute(db);

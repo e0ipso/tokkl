@@ -23,8 +23,7 @@ test('a regular user gets 403 from every admin route', async () => {
   assert.equal((await admin.json('GET', '/api/app/admin/users')).body[1].role, 'user');
 });
 
-// The web app shows the admin area from GET /api/v9/me. role and time_resolution_minutes are
-// Tokkl-only fields; the Toggl fields keep their names, and the other user-shaped responses stay Toggl-only.
+// role and time_resolution_minutes are Tokkl-only; the Toggl fields keep their names.
 test('GET /api/v9/me carries the instance role and time resolution next to the unchanged Toggl fields', async () => {
   const admin = await setup();
   const bob = await addUser(admin, { email: 'bob@example.com', role: 'user' });
@@ -63,7 +62,6 @@ test('GET /api/v9/me carries the instance role and time resolution next to the u
   const related = await bob.json('GET', '/api/v9/me?with_related_data=true');
   assert.equal(related.body.role, 'user');
 
-  // A role change shows on the next read.
   assert.equal((await admin.json('PATCH', `/api/app/admin/users/${bob.user.id}`, { role: 'admin' })).status, 200);
   assert.equal((await bob.json('GET', '/api/v9/me')).body.role, 'admin');
 
@@ -156,7 +154,6 @@ test('the last active admin cannot be demoted or disabled, by themselves or anyo
   assert.equal((await admin.json('PATCH', path, { role: 'user' })).status, 400);
   assert.equal((await admin.json('PATCH', path, { disabled: true })).status, 400);
 
-  // With a second active admin, either one can step down.
   assert.equal((await admin.json('PATCH', `/api/app/admin/users/${carol.user.id}`, { disabled: false })).status, 200);
   assert.equal((await admin.json('PATCH', path, { role: 'user' })).status, 200);
   assert.equal((await carol.json('PATCH', `/api/app/admin/users/${carol.user.id}`, { role: 'user' })).status, 400);
@@ -207,7 +204,6 @@ test('a disabled user loses session, API token, Basic password and form login ac
   assert.equal(refused.status, 403);
   assert.equal(await refused.json(), 'Incorrect email or password');
   assert.equal(refused.headers.get('set-cookie'), null);
-  // The admin's own session is untouched.
   assert.equal(
     (await admin.request('GET', '/api/v9/me', undefined, { authorization: '', cookie: adminCookie })).status,
     200,
@@ -222,7 +218,6 @@ test('a disabled user loses session, API token, Basic password and form login ac
     (await bob.request('GET', '/api/v9/me', undefined, { authorization: basicPassword('bob@example.com') })).status,
     200,
   );
-  // Sessions deleted by the disable stay gone.
   assert.equal((await bob.request('GET', '/api/v9/me', undefined, { authorization: '', cookie })).status, 403);
 });
 
@@ -230,7 +225,6 @@ test('a disabled account with the right password is charged as a failed attempt'
   const admin = await setup();
   const bob = await addUser(admin, { email: 'bob@example.com', role: 'user' });
   assert.equal((await admin.json('PATCH', `/api/app/admin/users/${bob.user.id}`, { disabled: true })).status, 200);
-  // Ten failures for one account from one address fill its tightest counter.
   for (let i = 0; i < 10; i++) assert.equal((await login(bob, 'bob@example.com')).status, 403);
   assert.equal((await login(bob, 'bob@example.com')).status, 429);
   assert.equal(

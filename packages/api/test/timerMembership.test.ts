@@ -1,7 +1,6 @@
 /**
- * A user who left the workspace of its running entry, paused chain or Pomodoro session may not stop
- * or change that entry through any timer path. Each refusal is the v9 403 and rolls the whole action
- * back.
+ * A user who left the entry's workspace may not stop or change it through any timer path; each refusal is the
+ * v9 403 and rolls the action back.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -13,14 +12,10 @@ import { addUser, setup, type TestContext, timerState as state } from './helpers
 const NO_ACCESS = 'User does not have access to this resource.';
 
 interface LeftContext extends TestContext {
-  /** Another workspace the user is still a member of. */
   other: number;
 }
 
-/**
- * A user on a 1-minute resolution who is also a member of another account's workspace. `begin`
- * runs while the user is still a member of its own workspace; then that membership ends.
- */
+/** `begin` runs while the user is still a member of its own workspace; then that membership ends. */
 async function leaving(begin: (ctx: LeftContext) => Promise<void>): Promise<LeftContext> {
   const ctx = await setup();
   assert.equal((await ctx.json('PUT', '/api/app/admin/settings', { time_resolution_minutes: 1 })).status, 200);
@@ -35,7 +30,6 @@ async function leaving(begin: (ctx: LeftContext) => Promise<void>): Promise<Left
 const entries = async (ctx: TestContext) =>
   (await listTimeEntries(ctx.db, ctx.user.id)).map(row => serializeTimeEntry(row));
 
-/** Sends the request and asserts the 403, and that neither the timer nor any entry changed. */
 async function assertRefused(ctx: TestContext, method: string, path: string, body?: unknown): Promise<void> {
   const before = { timer: await state(ctx), entries: await entries(ctx) };
   const reply = await ctx.json(method, path, body);

@@ -6,7 +6,6 @@ import assert from 'node:assert/strict';
 import type { FixtureDatabase } from './fixtures/database.ts';
 import { addUser, CSRF, sessionCookie, setup, type TestContext } from './helpers.ts';
 
-/** Gives the account a client, a project with a task, a tag and a tagged entry in its own workspace. */
 async function seed(ctx: TestContext): Promise<void> {
   const ws = `/api/v9/workspaces/${ctx.wid}`;
   const created = async (path: string, body: Record<string, unknown>) => {
@@ -28,7 +27,6 @@ async function seed(ctx: TestContext): Promise<void> {
   });
 }
 
-/** Rows per table that belong to `userId`'s workspaces or to the account itself. */
 async function owned(db: FixtureDatabase, userId: number, wid: number): Promise<Record<string, number>> {
   const storage = storageFor(db);
   const entries = (await storage.entries.list(userId)).filter(row => row.workspaceId === wid);
@@ -118,7 +116,6 @@ test('nobody deletes themselves or the last active admin', async () => {
   assert.equal(self.body, 'You cannot delete your own account');
   assert.equal((await admin.json('GET', '/api/app/admin/users')).body.length, 2);
 
-  // An admin may delete another admin while one active admin remains.
   assert.equal((await remove(admin, second)).status, 200);
 });
 

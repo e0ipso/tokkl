@@ -36,7 +36,6 @@ import type { Backend } from '../../src/storage/config.ts';
 import { createLogger } from '../../src/lib/logger.ts';
 import { recordLogs } from '../helpers.ts';
 
-/** The body `runner` streams for `userId`'s export. */
 async function streamedExport(runner: ReportRunner, userId: number, assembly: ExportAssemblyJob): Promise<string> {
   const chunks: string[] = [];
   await runExport(runner, userId, assembly, async chunk => {
@@ -103,7 +102,6 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
         { kind: 'export-csv', range: {}, filename: 'tokkl.csv' },
       ] as ExportAssemblyJob[])
         assert.equal(await streamedExport(runner, user.id, assembly), await exportBody(operations, user.id, assembly));
-      // Every job so far ran in the two workers the runner started: the reports' first, then the downloads'.
       assert.equal(workers.started.length, 2);
       const worker = workers.started[0]!;
       assert.ok(worker instanceof Worker);
@@ -115,7 +113,6 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
       );
       await t.test('crash rejects current work and starts a fresh worker', async crash => {
         // Hold delivery so the one-row report cannot finish before termination.
-        // The runner still assigns the job to this real worker and handles its exit.
         const delivery = crash.mock.method(worker, 'postMessage', () => {});
         const failed = assert.rejects(runReport(runner, user.id, wid, job), /Report worker stopped/);
         assert.equal(delivery.mock.callCount(), 1);
@@ -141,7 +138,6 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
         await a;
         assert.deepEqual(await b, expected);
       });
-      // Actual CPU formatting over a real history, with timer domain operations during that phase.
       const history = Array.from({ length: 18000 }, (_, i) => ({
         user_id: user.id,
         workspace_id: wid,
@@ -167,8 +163,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
       const heavyWorkers = trackedWorkers();
       const heavy = createReportRunner(fixture.config, operations, { startWorker: heavyWorkers.startWorker });
       t.after(() => heavy.close());
-      // The detailed CSV streams its header, then one piece per formatted batch: the second piece
-      // means the worker is formatting, and more batches follow.
+      // The second piece means the worker is formatting, and more batches follow.
       let formatted!: () => void;
       const formatting = new Promise<void>(resolve => {
         formatted = resolve;
@@ -274,7 +269,6 @@ test('memory SQLite stays inline; reader startup never creates or migrates a fil
   };
   const body = await streamedExport(runner, user.id, assembly);
   assert.equal(body, await exportBody(operations, user.id, assembly));
-  // The export reads the account in its own snapshot; no credential reaches the output.
   assert.equal(body.includes(user.apiToken), false);
   await c.db.deleteFrom('workspace_users').where('user_id', '=', user.id).execute();
   await assert.rejects(runReport(runner, user.id, user.defaultWorkspaceId, job), error => {
@@ -305,7 +299,6 @@ test('memory SQLite stays inline; reader startup never creates or migrates a fil
   await assert.rejects(runReport(unmigrated, user.id, user.defaultWorkspaceId, job), /Report failed/);
   await unmigrated.close();
   assert.deepEqual(readFileSync(empty), before);
-  // The job's failure names the job, not the SQL error's message.
   const failed = lines.find(line => line.msg === 'Report failed');
   assert.equal(failed?.jobKind, 'app-report');
   assert.equal(typeof failed?.jobId, 'number');

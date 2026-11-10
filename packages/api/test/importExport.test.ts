@@ -490,7 +490,6 @@ test('a two-user CSV previews both users, needs a selection and imports only the
   assert.equal((await rowCounts(ctx)).projects, empty.projects! + 1);
 });
 
-/** Row counts of every table a JSON restore writes, so a preview can be checked to write nothing. */
 const rowCounts = catalogCounts;
 
 async function restoreJson(ctx: TestContext, file: unknown, options: { dryRun?: boolean } = {}): Promise<any> {
@@ -499,7 +498,6 @@ async function restoreJson(ctx: TestContext, file: unknown, options: { dryRun?: 
   return res.json();
 }
 
-/** A whole-second instant `hours` before now, as the API returns it. */
 function hoursAgo(hours: number): string {
   return `${new Date(Math.floor(Date.now() / 1000) * 1000 - hours * 3_600_000).toISOString().slice(0, 19)}+00:00`;
 }
@@ -709,7 +707,6 @@ test('JSON restore rejects zone-free, impossible and non-string entry times per 
     [['Valid', '2026-10-01T10:00:00+00:00', '2026-10-01T11:00:00+00:00']],
   );
 
-  // A null or missing stop is a running entry, not an error.
   for (const running of [{ stop: null }, {}]) {
     const other = await setup();
     const result = await restoreJson(other, {
@@ -723,7 +720,6 @@ test('JSON restore rejects zone-free, impossible and non-string entry times per 
     assert.equal(current.stop, null);
   }
 
-  // A file written by the exporter still restores completely, running entry included.
   const source = await setup();
   await source.json('POST', `/api/v9/workspaces/${source.wid}/time_entries`, {
     start: hoursAgo(3),

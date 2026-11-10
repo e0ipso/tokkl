@@ -165,7 +165,6 @@ test('retiring an account detaches its pending initial build from a reused ident
   await reader.cancel();
   assert.equal(builds, 2);
 });
-/** An app that opens a stream for the user id in the path, with the API's error replies. */
 async function streamServer(
   t: TestContext,
   streams: TimerStreams,
@@ -252,7 +251,7 @@ test('streams still opening count toward the process-wide cap', { timeout: 10000
   assert.equal(checked.includes(3), false);
 });
 
-/** A stream response whose socket takes writes only while `accepting`, like a client that stops reading. */
+/** The socket takes writes only while `accepting`, like a client that stops reading. */
 class SlowResponse extends EventEmitter implements EventStreamResponse {
   destroyed = false;
   headersSent = false;
@@ -273,7 +272,6 @@ class SlowResponse extends EventEmitter implements EventStreamResponse {
   end(): void {
     this.ended = true;
   }
-  /** The client reads again: the buffer empties and the socket asks for more. */
   drain(): void {
     this.writableLength = 0;
     this.accepting = true;

@@ -4,11 +4,7 @@ import type { PhysicalDatabase } from '../../../src/storage/physical.ts';
 
 const isRaw = (node: OperationNode): node is RawNode => node.kind === 'RawNode';
 
-/**
- * The connection with a Kysely plugin that awaits `after` once each raw statement in `statements`
- * has run, before its caller sees the result. Migrations run their DDL as raw statements, so a test
- * can pause or stop one between two statements without a hook in the migrator.
- */
+/** Awaits `after` once each listed raw statement ran, so a test can pause a migration between DDL statements. */
 export function afterStatements(
   connection: StorageConnection<PhysicalDatabase>,
   statements: readonly string[],

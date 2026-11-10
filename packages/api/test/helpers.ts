@@ -29,7 +29,6 @@ export interface TestContext {
 
 export const PASSWORD = 'correct horse battery';
 
-/** Waits until `condition` holds, checking every 20 ms, and fails after `ms`. */
 export async function until(condition: () => boolean | Promise<boolean>, what = 'the condition', ms = 10_000) {
   const deadline = performance.now() + ms;
   while (!(await condition())) {
@@ -38,7 +37,6 @@ export async function until(condition: () => boolean | Promise<boolean>, what = 
   }
 }
 
-/** A request without the API token, as a logged-out browser sends it. */
 export const anonymous = (
   ctx: TestContext,
   method: string,
@@ -47,11 +45,9 @@ export const anonymous = (
   headers: Record<string, string> = {},
 ) => ctx.request(method, path, body, { authorization: '', ...headers });
 
-/** A password login from a logged-out browser. */
 export const login = (ctx: TestContext, email: string, password = PASSWORD) =>
   anonymous(ctx, 'POST', '/api/app/login', { email, password }, CSRF);
 
-/** Records the JSON lines loggers write to the console until the test ends. */
 export function recordLogs(t: NodeTestContext): Array<Record<string, unknown>> {
   const lines: Array<Record<string, unknown>> = [];
   const keep = (line: unknown) => void lines.push(JSON.parse(String(line)));
@@ -59,10 +55,9 @@ export function recordLogs(t: NodeTestContext): Array<Record<string, unknown>> {
   t.mock.method(console, 'error', keep);
   return lines;
 }
-/** The header the web client sends on every request; session-starting and cookie-authenticated writes need it. */
+/** Session-starting and cookie-authenticated writes need it. */
 export const CSRF = { 'x-tokkl-csrf': '1' };
 
-/** The signed-in user's timer state, read over HTTP. */
 export const timerState = async (ctx: TestContext) => (await ctx.json<TimerState>('GET', '/api/app/timer')).body;
 
 export interface TestServer {
@@ -77,7 +72,6 @@ after(() => {
   }
 });
 
-/** Serves `app` on a random local port for the rest of the test file. */
 export function testServer(app: Express): TestServer {
   const server = app.listen(0, '127.0.0.1');
   // Bulk SQLite fixture writes can keep timers from firing before the next pooled request.
@@ -117,14 +111,10 @@ export async function setup(options: { timezone?: string; sqlite?: boolean } = {
   return serve(db, user);
 }
 
-/** The app serving each database, so every user of one database talks to the same app and its limiters. */
+/** So every user of one database talks to the same app and its limiters. */
 const apps = new WeakMap<FixtureDatabase, TestServer>();
 
-/**
- * Adds another account to the database behind `ctx`, with its own workspace that it owns, and
- * returns a context signed in as that account on the same app. The password is PASSWORD. It writes
- * the account the way an accepted invite does, without the invite round trip.
- */
+/** Written the way an accepted invite writes it, with its own workspace. The password is PASSWORD. */
 export async function addUser(
   ctx: TestContext,
   options: { email: string; role: UserRole; fullname?: string; timezone?: string },
@@ -141,10 +131,7 @@ export async function addUser(
   return serve(db, user);
 }
 
-/**
- * Signs `ctx.user` in through `/api/app/login` with PASSWORD and returns the `tokkl_session=...`
- * pair to send as a cookie. Pass `authorization: ''` with it, or the API token still signs the request in.
- */
+/** Pass `authorization: ''` with it, or the API token still signs the request in. */
 export async function sessionCookie(ctx: TestContext): Promise<string> {
   const response = await ctx.request(
     'POST',
@@ -156,7 +143,6 @@ export async function sessionCookie(ctx: TestContext): Promise<string> {
   return response.headers.get('set-cookie')!.split(';')[0]!;
 }
 
-/** Serves `db` (reusing its app if it has one) and signs every request in as `user` with its API token. */
 function serve(db: FixtureDatabase, user: User): TestContext {
   let app = apps.get(db);
   if (!app) {
@@ -185,12 +171,7 @@ function serve(db: FixtureDatabase, user: User): TestContext {
   return { db, user, wid: user.defaultWorkspaceId, request, json };
 }
 
-/**
- * Copies the context's database into a file in a temporary directory and serves a second app over
- * the copy, signed in as the same user. The copy holds the same rows, so both apps must answer the
- * same requests identically. Report jobs on the copy run in the report worker, which needs a file;
- * jobs on an in-memory database run inline. The directory is removed when the test file ends.
- */
+/** Both apps must answer identically. Report jobs on the file run in the worker; in-memory ones run inline. */
 export async function fileBackedCopy(ctx: TestContext): Promise<TestContext & { path: string }> {
   const dir = mkdtempSync(join(tmpdir(), 'tokkl-test-'));
   const path = join(dir, 'tokkl.db');
@@ -206,10 +187,7 @@ export function iso(value: string): string {
   return new Date(value).toISOString();
 }
 
-/**
- * Runs `during` once, after the next password check has passed and before the request goes on,
- * as if another request committed while scrypt ran. Requests signed in by API token run no check.
- */
+/** As if another request committed while scrypt ran. API-token requests run no check. */
 export function duringPasswordCheck(t: NodeTestContext, during: () => Promise<unknown>): void {
   const attempt = FailureLimiter.prototype.attempt;
   let pending = true;
@@ -229,7 +207,6 @@ export function duringPasswordCheck(t: NodeTestContext, during: () => Promise<un
   );
 }
 
-/** Serves `ctx.db` from a new app whose timer streams use `limits`, for the rest of the test file. */
 export function replaceFixtureApp(
   ctx: TestContext,
   limits: Partial<import('../src/services/timerStreams.ts').TimerStreamLimits>,
@@ -250,16 +227,11 @@ export function replaceFixtureApp(
   };
 }
 
-/** A second app/storage instance for report isolation; SQLite additionally exercises file-copy workers. */
 export async function independentReportServer(ctx: TestContext): Promise<TestContext> {
   if (ctx.db.backend === 'sqlite') return fileBackedCopy(ctx);
   return serve(await reopenDatabase(ctx.db), ctx.user);
 }
 
-/**
- * What GET /api/app/status names next to `setup_required`: the API version, the capabilities and
- * the Pomodoro limits.
- */
 export const SERVER_API = {
   api_version: 1,
   capabilities: [

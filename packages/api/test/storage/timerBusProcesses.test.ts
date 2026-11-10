@@ -12,11 +12,10 @@ import { databaseUrl, openTimerStream, startApi, type ApiProcess } from './suppo
 import { disposableBackend } from './support/disposableBackend.ts';
 import { until } from '../helpers.ts';
 
-/** The delivery budget for the fast path; the keep-alive is 25 s, so anything under this came from the bus. */
+/** The keep-alive is 25 s, so a delivery under this came from the bus. */
 const FAST_MS = 5000;
 /** One keep-alive tick plus slack for the rebuild. */
 const TICK_DEADLINE_MS = 60000;
-/** Long enough for a stray delivery or rebuild to show up. */
 const SETTLE_MS = 300;
 
 type TimerStream = Awaited<ReturnType<typeof openTimerStream>>;
@@ -39,7 +38,6 @@ test(
     const admin = new pg.Client({ ...options, application_name: 'tokkl-test-admin' });
     const observer = new pg.Client({ ...options, application_name: 'tokkl-test-observer' });
     for (const client of [admin, observer]) client.on('error', () => {});
-    // Processes and clients go before the database does.
     t.after(async () => {
       for (const proc of processes) if (proc.child.exitCode === null) proc.child.kill('SIGTERM');
       await Promise.allSettled([...streams.map(stream => stream.close()), admin.end(), observer.end()]);
@@ -63,7 +61,6 @@ test(
           [TIMER_BUS_APPLICATION],
         )
       ).rows.map(row => row.pid);
-    /** Every payload sent on the bus channel, as the database delivers it. */
     const payloads: string[] = [];
     observer.on('notification', message => {
       if (message.channel === TIMER_BUS_CHANNEL) payloads.push(message.payload!);
@@ -96,7 +93,6 @@ test(
       return JSON.parse(text) as T;
     };
 
-    // Process A completes setup and sign-in before B exists.
     const a = await startApi(databaseUrl(config), dirs[0]!);
     processes.push(a);
     assert.equal((await listeners()).length, 1, 'A listens on the bus by the time it reports listening');
@@ -135,7 +131,6 @@ test(
     assert.equal(accepted.status, 200);
     const bob = await cookieMe(accepted.headers.get('set-cookie')!.split(';')[0]!);
 
-    // Process B starts with its own data directory on the same database.
     const [aListener] = await listeners();
     const b = await startApi(databaseUrl(config), dirs[1]!);
     processes.push(b);
@@ -154,7 +149,6 @@ test(
     const timerAt = (proc: ApiProcess, as = token) => call<TimerState>(proc, as, 'GET', '/api/app/timer');
     const entries = `/api/v9/workspaces/${wid}/time_entries`;
 
-    /** Commits `write` through A and checks B's stream, B's revision and the bus traffic. */
     async function delivered(label: string, write: () => Promise<unknown>): Promise<TimerState> {
       const seenB = onB.states.length,
         seenA = onA.states.length,

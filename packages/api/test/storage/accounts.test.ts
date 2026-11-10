@@ -308,7 +308,6 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       });
       await t.test('last active admin race revalidates under the instance guard', async () => {
         const secondAdmin = await add('second-admin@example.test', 'admin');
-        // Each actor remains active until its own protected mutation.
         const outcomes = await Promise.allSettled([
           operations.setAccess(secondAdmin.id, secondAdmin.id, { disabled: true }),
           competitor.setAccess(admin.id, admin.id, { role: 'user' }),
@@ -318,7 +317,6 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         assert.ok(
           rejected?.status === 'rejected' && error(400, 'At least one active admin must remain')(rejected.reason),
         );
-        // Restore original actor and remove the extra admin without weakening the invariant.
         const remaining = (await runner.readSnapshot(ctx => ctx.users.list())).find(
           u => u.role === 'admin' && u.disabledAt === null,
         )!;
@@ -591,7 +589,6 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
             await ctx.workspaces.addMember({ workspaceId: ws.id, userId: target.id, role: 'owner' });
             return ws;
           });
-          // Physical fixtures cover ownership cascades without depending on catalog/entry implementations.
           for (const [id, userId, workspaceId] of [
             [10001, target.id, privateWs.id],
             [10002, target.id, target.defaultWorkspaceId],

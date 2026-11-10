@@ -17,8 +17,7 @@ import { testConfig } from '../helpers.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 import { gate, readTimerStream, serveInvariant } from './support/invariantHttp.ts';
 
-/** Links every bus it hands out. A send reaches every receiver, the sender's included, on a later
- * turn of the event loop, the way a database notification would. */
+/** A send reaches every receiver, the sender's included, on a later turn, as a database notification would. */
 function signalHub() {
   const receivers: Array<(signal: TimerSignal) => void> = [],
     pending = new Set<Promise<void>>();
@@ -62,7 +61,6 @@ function signalHub() {
     },
   };
 }
-/** Counts snapshot reads and can hold the next one, before it reads or after it has read. */
 function readGate(storage: Storage) {
   let reads = 0,
     next: { when: 'before' | 'after'; entered: ReturnType<typeof gate>; release: ReturnType<typeof gate> } | undefined;
@@ -294,7 +292,6 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       }
       assert.equal(await revision(u), before + 1);
       await onA.until(() => onA.states.some(s => s.revision === before + 1));
-      // One structured line on stderr, naming the failure.
       assert.deepEqual(
         logged.mock.calls.map(call => (JSON.parse(String(call.arguments[0])) as { msg: string }).msg),
         ['Timer bus send failed'],
@@ -314,7 +311,6 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       await ok(await send(0, doomed, 'PUT', `${entries(doomed)}/${started.id}`, { description: 'doomed private 2' }));
       const delivered = await revision(doomed);
       await onBDoomed.until(() => onBDoomed.states.some(s => s.revision === delivered));
-      // B reads the next revision, then waits while the account is deleted and its id handed out again.
       const held = remote.hold('after');
       await ok(await send(0, doomed, 'PUT', `${entries(doomed)}/${started.id}`, { description: 'doomed private 3' }));
       await held.entered.promise;
@@ -382,7 +378,6 @@ test('a refresh that started before the account was forgotten delivers nothing',
   release.resolve();
   await refreshing;
   assert.deepEqual(delivered, []);
-  // The next account behind the same id starts from nothing.
   streams = true;
   await publish.refresh(7, 4);
   assert.deepEqual(delivered, [4]);
@@ -409,7 +404,6 @@ test('a process drops deliveries for an incarnation of the id other than the one
   );
   publish.claim(7, 'first');
   await publish.publish(7, state(5), 'first');
-  // Another process deleted the account and a new one got the id. Its stream opens here.
   publish.claim(7, 'second');
   assert.deepEqual(forgotten, [7], "the first account's streams and cached state go");
   await publish.publish(7, state(6), 'first');

@@ -476,7 +476,6 @@ test('twelve parallel wrong passwords across login, Basic auth and password chan
     }
     if (kind === 'basic')
       return ctx.request('GET', '/api/v9/me', undefined, { authorization: basic('me@example.com', 'wrong') });
-    // Token-authenticated, so only the current_password check counts.
     return ctx.request('PUT', '/api/v9/me', { current_password: 'wrong', password: 'new password 1' });
   };
   const requests = Array.from({ length: 12 }, (_, i) => kinds[i % kinds.length]!);
@@ -531,14 +530,12 @@ test('wrong API tokens are not counted as password failures', async () => {
   assert.equal(login.status, 200);
 });
 
-/** A limiter over a fresh database. A plain key gets `limit`. */
 async function newLimiter(limit: number, windowMs = 15 * 60 * 1000) {
   return new FailureLimiter(storageFor(await openDatabase()).rateLimits, 'password', limit, windowMs);
 }
 /** The check's result, or null when the attempt was refused unchecked. */
-/** Whether an attempt is refused now. When it is not, the check passes and records nothing. */
+/** When not refused, the check passes and records nothing. */
 const blocked = async (limiter: FailureLimiter, keys: Keys) => (await limiter.attempt(keys, async () => true)).refused;
-/** The Retry-After of a refused attempt. */
 const waitFor = async (limiter: FailureLimiter, keys: Keys) => {
   const result = await limiter.attempt(keys, async () => true);
   assert.ok(result.refused, 'refused');
@@ -621,7 +618,7 @@ test('normalizeEmail and passwordCounters key accounts by trimmed, ASCII-lowerca
   assert.notEqual(left!.key, right!.key);
 });
 
-/** An app behind a trusted proxy, so each request can pick its client address. */
+/** Behind a trusted proxy, so each request can pick its client address. */
 async function multiUserApp(count: number, names = Array.from({ length: count }, (_, i) => `user${i}@example.com`)) {
   const db = await openDatabase();
   const owner = await createFirstAdmin(db, { email: names[0]!, password: PASSWORD, fullname: '', timezone: 'UTC' });
@@ -637,7 +634,7 @@ async function multiUserApp(count: number, names = Array.from({ length: count },
         body: JSON.stringify({ email, password }),
       })
     ).status;
-  /** A password change signed in with `user`'s API token, so only current_password is checked. */
+  /** Signed in by API token, so only current_password is checked. */
   const changePassword = async (user: User, current: string, address = '10.0.0.1') =>
     (
       await app.request('/api/v9/me', {
@@ -668,7 +665,6 @@ test('accounts share failure counters only when the database matches their email
   assert.equal(await login('ä@example.com', PASSWORD), 429);
   assert.equal(await login('Ä@example.com', PASSWORD), 200, 'failures against the other account are not counted');
 
-  // ASCII case is folded by both, so these are one account.
   const ascii = await multiUserApp(1, ['a@example.com']);
   for (let i = 0; i < 10; i++) assert.equal(await ascii.login(' A@EXAMPLE.COM', 'wrong'), 403);
   assert.equal(await ascii.login('a@example.com', PASSWORD), 429);
@@ -676,15 +672,13 @@ test('accounts share failure counters only when the database matches their email
 
 test('failures against one account from many addresses are refused after 50', async () => {
   const { login } = await multiUserApp(1);
-  // Five per address, so no address comes near its own limits. All 50 fit under every limit, so
-  // they run in parallel.
+  // Five per address, so no address nears its own limits and all 50 can run in parallel.
   const spread = (email: string, subnet: number) =>
     Promise.all(
       Array.from({ length: 50 }, async (_, i) => await login(email, 'wrong', `10.${subnet}.${Math.floor(i / 5)}.1`)),
     );
   assert.deepEqual(await spread('user0@example.com', 1), Array(50).fill(403));
   assert.equal(await login('user0@example.com', PASSWORD, '10.9.9.9'), 429);
-  // Unknown emails are counted the same way.
   assert.deepEqual(await spread(' Ghost@Example.com', 2), Array(50).fill(403));
   assert.equal(await login('ghost@example.com', 'wrong', '10.9.9.9'), 429);
 });
@@ -707,7 +701,6 @@ test("wrong current passwords in a password change count against the caller's ac
   assert.equal(await login(caller.email, PASSWORD), 429);
   assert.equal(await login(other.email, PASSWORD), 200, 'another account at the same address is not');
 
-  // Forty more from other addresses, five each, reach the account's limit of 50.
   const spread = await Promise.all(
     Array.from({ length: 40 }, async (_, i) => await changePassword(caller, 'wrong', `10.1.${Math.floor(i / 5)}.1`)),
   );
@@ -746,7 +739,6 @@ test('setup codes have their own per-address limit of ten', async () => {
     });
   const account = { email: 'owner@example.com', password: 'long enough' };
 
-  // Password failures from the address do not use up its setup allowance.
   const logins = await Promise.all(
     Array.from({ length: 20 }, (_, i) => post('/api/app/login', { email: `x${i}@example.com`, password: 'wrong' })),
   );
@@ -841,11 +833,9 @@ test('the tt_session cookie and X-Timetrack-CSRF header from before the rename s
     'old cookie and new header',
   );
 
-  // A stale old cookie next to a live new one does not block the request.
   const both = `tt_session=not-a-session; tokkl_session=${token}`;
   assert.equal((await call('GET', '/api/v9/me', { cookie: both })).status, 200);
 
-  // Changing the password through the old cookie keeps that session and ends the others.
   const other = (await signIn()).headers
     .getSetCookie()
     .find(cookie => cookie.startsWith('tokkl_session='))!
@@ -932,7 +922,6 @@ test('FailureLimiter refuses at once with one second when running checks hold ev
 test('a login gets 429 with Retry-After: 1 at once while other instances hold every slot', async () => {
   const { app, users, storage } = await multiUserApp(1);
   const [owner] = users as [User];
-  // Ten checks running elsewhere hold the account+address counter, stored under its hashed namespaced key.
   const [pair] = accountCounters(owner.email, '10.0.0.1');
   const counter = { keyHash: sha256(`password:${pair!.key}`), limit: pair!.limit };
   for (let i = 0; i < ACCOUNT_ADDRESS_LIMIT; i++) {
@@ -1001,7 +990,6 @@ test('login, Basic auth and password-change 429s carry Retry-After, and waiting 
 test('a 429 from the address counter alone carries Retry-After for that counter', async t => {
   t.mock.timers.enable({ apis: ['Date'], now: 1_000_000 });
   const { app, login } = await multiUserApp(1);
-  // One hundred failures across accounts fill only the address counter.
   await Promise.all(
     Array.from({ length: 100 }, async (_, i) => await login(`nobody${Math.floor(i / 5)}@example.com`, 'wrong')),
   );
@@ -1018,13 +1006,11 @@ test('a 429 from the address counter alone carries Retry-After for that counter'
 test('with two full counters, waiting the advertised Retry-After lets the next login through', async t => {
   t.mock.timers.enable({ apis: ['Date'], now: 1_000_000 });
   const { app, login } = await multiUserApp(1);
-  // Nine failures each for ten unknown accounts start the address counter without filling any account counter.
   const early = await Promise.all(
     Array.from({ length: 90 }, async (_, i) => await login(`nobody${i % 10}@example.com`, 'wrong')),
   );
   assert.deepEqual(new Set(early), new Set([403]));
   t.mock.timers.tick(60_000);
-  // A minute later, ten failures for user0 fill its account+address counter and the address counter.
   const late = await Promise.all(Array.from({ length: 10 }, async () => await login('user0@example.com', 'wrong')));
   assert.deepEqual(new Set(late), new Set([403]));
   const send = () =>

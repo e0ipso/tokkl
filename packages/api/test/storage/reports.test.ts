@@ -101,7 +101,6 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
         });
         return { user, ws, p, task, tags };
       });
-      // The retained legacy envelopes include this controlled fixture audit timestamp.
       await connection.db.updateTable('time_entries').set({ updated_at: '2026-10-30T12:01:39.000Z' }).execute();
       const filters: ReportFilter[] = [
         range,
@@ -222,7 +221,6 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as Backend[]) {
       assert.equal(new Set(projections.map(p => p.id)).size, 1205);
       assert.equal(count, 2 * Math.ceil(1205 / REPORT_BATCH_SIZE));
       assert.equal(formatReportEntries(projections, seeded.user, seeded.ws, range).length, 1205);
-      // Golden answers past a read batch: tied starts page in id order and every row counts.
       const history: ReportFilter = { ...range, description: 'history' };
       const answer = (job: AnyReportJob) =>
         answerJob(operations, { userId: seeded.user.id, workspaceId: seeded.ws.id, job });

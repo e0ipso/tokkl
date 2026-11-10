@@ -5,14 +5,13 @@ import { listTimeEntries, serializeTimeEntry } from './fixtures/domain.ts';
 import { removeWorkspaceMember } from './fixtures/physical.ts';
 import { setup, type TestContext, timerState as state } from './helpers.ts';
 
-/** A user on an instance with a 1-minute resolution, so starts and stops keep their minute. */
+/** 1-minute resolution, so starts and stops keep their minute. */
 async function timerSetup(): Promise<TestContext> {
   const ctx = await setup();
   assert.equal((await ctx.json('PUT', '/api/app/admin/settings', { time_resolution_minutes: 1 })).status, 200);
   return ctx;
 }
 
-/** The user's live entries, oldest first, as the v9 API shows them. */
 async function stored(ctx: TestContext) {
   return (await listTimeEntries(ctx.db, ctx.user.id)).reverse().map(row => {
     const { start, stop, description, workspace_id } = serializeTimeEntry(row);
@@ -53,7 +52,6 @@ test('start and stop answer the committed timer state with a new revision', asyn
     },
   ]);
 
-  // Without a time, start and stop use now.
   const now = await ctx.json<TimerState>('POST', '/api/app/timer/start', { revision: stopped.body.revision });
   assert.equal(now.status, 200);
   const startedAt = Date.parse(now.body.running_entry!.start);
@@ -142,7 +140,6 @@ test('pause checks a revision when one is sent, and pauses without one as before
   const paused = await ctx.json<TimerState>('POST', '/api/app/timer/pause', { revision: started.body.revision });
   assert.equal(paused.status, 200);
   assert.equal(paused.body.pause?.paused, true);
-  // A body without a revision, or no body at all, pauses whatever runs.
   for (const body of [{}, { revision: null }, undefined]) {
     const resumed = await ctx.json<TimerState>('POST', '/api/app/timer/resume', {
       revision: (await state(ctx)).revision,
