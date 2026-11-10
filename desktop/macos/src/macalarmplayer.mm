@@ -18,8 +18,7 @@ QString tr(const char *text)
     return QCoreApplication::translate("Tokkl::MacAlarmPlayer", text);
 }
 
-// The sound playing file, or nil, with the reason logged and in failure,
-// when NSSound cannot open the file or the sound does not start.
+// nil, with the reason logged and in failure, when the sound cannot start.
 NSSound *startSound(const QString &file, bool loops, QString *failure)
 {
     NSSound *sound = [[NSSound alloc] initWithContentsOfFile:file.toNSString() byReference:YES];

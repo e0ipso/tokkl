@@ -20,15 +20,12 @@ StatusMenu::StatusMenu(TimerController &timer, PomodoroSession &session, Pomodor
     , m_alarm(alarm)
     , m_menu(std::make_unique<QMenu>())
 {
-    // The projects have no stream: each opening asks the core to check
-    // them, so a project renamed or deleted elsewhere does not stay listed.
+    // The projects have no stream, so each opening checks them again.
     connect(m_menu.get(), &QMenu::aboutToShow, &m_timer, &TimerController::refreshProjects);
 
     m_stateAction = m_menu->addAction(QString());
     m_stateAction->setEnabled(false);
 
-    // The session's message, such as a pomodoro too short to save, or why
-    // the alarm was silent.
     m_messageAction = m_menu->addAction(QString());
     m_messageAction->setEnabled(false);
 
@@ -75,7 +72,7 @@ StatusMenu::StatusMenu(TimerController &timer, PomodoroSession &session, Pomodor
 
     m_openAction = m_menu->addAction(tr("Open Tokkl"));
     connect(m_openAction, &QAction::triggered, this, [this] {
-        // The configured base URL only: it never holds credentials.
+        // The configured base URL never holds credentials.
         if (m_timer.connection()->webUrl().isValid()) {
             Q_EMIT openRequested(m_timer.connection()->webUrl());
         }
@@ -91,7 +88,6 @@ StatusMenu::StatusMenu(TimerController &timer, PomodoroSession &session, Pomodor
     m_quitAction->setMenuRole(QAction::QuitRole);
     connect(m_quitAction, &QAction::triggered, this, &StatusMenu::quitRequested);
 
-    // Stable names, so automation finds each item whatever its text.
     m_projectMenu->setObjectName(QStringLiteral("project"));
     const std::pair<QAction *, QString> named[] = {
         {m_stateAction, QStringLiteral("state")},
@@ -142,8 +138,7 @@ QMenu *StatusMenu::menu() const
     return m_menu.get();
 }
 
-// Another instance, account or secret: close, so no choice made for the
-// previous context can be triggered.
+// Closes, so no choice made for the previous account can be triggered.
 void StatusMenu::onGenerationChanged()
 {
     m_menu->hide();
@@ -218,8 +213,7 @@ void StatusMenu::rebuildProjects(const MenuActionStates &actions)
 
 void StatusMenu::fillProjectMenu(const ProjectChoices &choices)
 {
-    // Later, not now: this may run inside the triggered signal of one of
-    // these actions.
+    // Deleted later: this may run inside one of these actions' triggered().
     const QList<QAction *> old = m_projectMenu->actions();
     for (QAction *action : old) {
         m_projectMenu->removeAction(action);
@@ -231,7 +225,6 @@ void StatusMenu::fillProjectMenu(const ProjectChoices &choices)
     for (const ProjectChoices::Row &row : choices.rows) {
         switch (row.kind) {
         case ProjectChoices::Row::Kind::Archived: {
-            // Shown and checked, never offered for new work.
             QAction *archivedAction = m_projectMenu->addAction(StatusWords::projectLabel(ProjectLabelParts::of(row.project)));
             archivedAction->setCheckable(true);
             archivedAction->setChecked(row.checked);
@@ -239,8 +232,6 @@ void StatusMenu::fillProjectMenu(const ProjectChoices &choices)
             break;
         }
         case ProjectChoices::Row::Kind::Incomplete: {
-            // The projects read are fewer than the workspace has: say so and
-            // point to the web app.
             QAction *cut = m_projectMenu->addAction(tr("Project list cut short. Use Open Tokkl for the others."));
             cut->setEnabled(false);
             break;
@@ -260,7 +251,7 @@ QAction *StatusMenu::addProjectChoice(const QString &label, const QVariant &proj
     action->setEnabled(enabled);
     connect(action, &QAction::triggered, this, [this, projectId] {
         m_timer.chooseProject(projectId);
-        // The action checked itself; a refused choice must not leave it so.
+        // The action checked itself; a refused choice must not stay checked.
         m_projectItems.reset();
         refresh();
     });

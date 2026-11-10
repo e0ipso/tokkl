@@ -1,8 +1,3 @@
-// The menu bar app without its platform layer: the item's text, image and click,
-// the menu, the settings window and the client name, driven through the
-// core's fake transport, store and clock, a fake menu bar item and a fake
-// login item.
-
 #include "alarmplayer.h"
 #include "connection.h"
 #include "connectionsetup.h"
@@ -98,13 +93,11 @@ public:
         ++menuPopUps;
     }
 
-    // A primary click.
     void click()
     {
         Q_EMIT activated();
     }
 
-    // Reduce Motion turned on or off in the system settings.
     void setReduceMotion(bool on)
     {
         reduce = on;
@@ -116,15 +109,12 @@ public:
     QString accessibleName;
     QMenu *menu = nullptr;
     StatusImage image;
-    // The indicator in the image.
     ProjectIndicator indicator;
     bool reduce = false;
-    // How often the app opened the menu itself.
     int menuPopUps = 0;
 };
 
-// The core's fake store, with writes that can wait until the test finishes
-// them, as a Keychain write waits while macOS asks the user for access.
+// Writes can wait for the test to finish them, like a Keychain access prompt.
 class HeldCredentialStore : public FakeCredentialStore
 {
 public:
@@ -139,8 +129,7 @@ public:
         held.append(Held{key, secret, context, done});
     }
 
-    // Finishes the oldest held write with the status; its callback runs
-    // later, from the event loop.
+    // The callback runs later, from the event loop.
     void finish(CredentialResult::Status status)
     {
         const Held write = held.takeFirst();
@@ -186,7 +175,6 @@ public:
     QList<bool> calls;
 };
 
-// Records what the app asked it to play.
 class FakeAlarmPlayer : public AlarmPlayer
 {
     Q_OBJECT
@@ -208,7 +196,6 @@ public:
     {
         previews.append(file);
     }
-    // As NSSound refusing the last sound.
     void fail(const QString &reason)
     {
         reportFailure(reason);
@@ -221,13 +208,11 @@ public:
     int stops = 0;
 };
 
-// The four WAVs the bundle ships, from the core's sounds directory.
 QString soundFile(const QString &id)
 {
     return QStringLiteral(TOKKL_SOUNDS_DIR "/pomodoro-") + id + QStringLiteral(".wav");
 }
 
-// The running entry that started at startedAt.
 QByteArray entryBody(std::optional<qint64> project = std::nullopt, bool billable = false)
 {
     const QDateTime begin = QDateTime::fromString(startedAt, Qt::ISODate);
@@ -244,8 +229,6 @@ QByteArray entryBody(std::optional<qint64> project = std::nullopt, bool billable
         .toJson(QJsonDocument::Compact);
 }
 
-// A running entry with everything a resume copies: description, project,
-// task, tags and billable flag.
 QByteArray chainEntryBody(qint64 id, const QDateTime &begin)
 {
     return QJsonDocument(QJsonObject{
@@ -270,7 +253,6 @@ QByteArray projectsBody()
         R"({"id":12,"workspace_id":7,"client_id":4,"client_name":"Acme","name":"Beta","color":"#c7af14","active":true,"billable":false}])");
 }
 
-// GET /api/app/time_entries/latest: a stopped entry on the project.
 QByteArray latestBody(qint64 project)
 {
     return QStringLiteral(
@@ -285,8 +267,6 @@ QJsonObject jsonBody(const HttpRequest &request)
     return QJsonDocument::fromJson(request.body).object();
 }
 
-// The server's pause chain of the chainEntryBody entry, with the seconds its
-// stopped entries stored, and the running clone unless paused.
 QJsonObject pauseObject(bool paused, qint64 seconds, std::optional<qint64> clone = std::nullopt)
 {
     return QJsonObject{
@@ -303,7 +283,6 @@ QJsonObject pauseObject(bool paused, qint64 seconds, std::optional<qint64> clone
     };
 }
 
-// A pomodoro the server dropped as too short to keep.
 QJsonObject discardedJson(const QDateTime &start)
 {
     return QJsonObject{{QStringLiteral("entry_id"), 41}, {QStringLiteral("start"), iso(start)}, {QStringLiteral("stop"), iso(start)}};
@@ -314,7 +293,6 @@ QByteArray revisionBody(qint64 revision)
     return "{\"revision\":" + QByteArray::number(revision) + "}";
 }
 
-// The images match the resource files at 1x and 2x, each 16 points square.
 void compareWithResources(const QList<QImage> &images, const QStringList &files)
 {
     QCOMPARE(images.size(), files.size());
@@ -328,11 +306,6 @@ void compareWithResources(const QList<QImage> &images, const QStringList &files)
 }
 }
 
-// A friend of StatusMenu and SettingsWindow, so it reaches their actions and
-// fields directly.
-// The item of the menu, or the field of the settings window, with the object
-// name the app gives it. A missing one fails the test where it is used.
-// The app's part of type T: one of its children, or of its timer stack's.
 template<typename T>
 T *appPart(const MenuBarApp &app)
 {
@@ -343,7 +316,6 @@ T *appPart(const MenuBarApp &app)
     return found;
 }
 
-// The settings windows on screen or hidden, as top-level widgets.
 QList<SettingsWindow *> settingsWindows()
 {
     QList<SettingsWindow *> windows;
@@ -356,7 +328,6 @@ QList<SettingsWindow *> settingsWindows()
     return windows;
 }
 
-// The settings window that is not one of earlier.
 SettingsWindow *newSettingsWindow(const QList<SettingsWindow *> &earlier)
 {
     const QList<SettingsWindow *> windows = settingsWindows();
@@ -437,8 +408,6 @@ class MenuBarAppTest : public QObject
     }
 
     struct Fixture {
-        // The settings live in settingsFile, or in a file of the fixture's
-        // own when it is empty. The server is a current one.
         explicit Fixture(const QString &settingsFile = QString())
             : settings(settingsFile.isEmpty() ? dir.filePath(QStringLiteral("tokkl.ini")) : settingsFile, QSettings::IniFormat)
         {
@@ -453,12 +422,8 @@ class MenuBarAppTest : public QObject
         FakeStatusItem item;
         FakeLoginItem login;
         FakeAlarmPlayer player;
-        // The settings windows of earlier fixtures, so this one's is told
-        // apart.
         const QList<SettingsWindow *> earlierWindows = settingsWindows();
-        // The sounds the bundle would hold in Contents/Resources/sounds.
         MenuBarApp app{&transport, &store, item, login, player, settings, clock, QStringLiteral(TOKKL_SOUNDS_DIR)};
-        // The app's settings window, a top-level widget of its own.
         SettingsWindow *settingsWindow = newSettingsWindow(earlierWindows);
 
         QList<qsizetype> find(const QByteArray &method, const QByteArray &suffix) const
@@ -491,9 +456,7 @@ class MenuBarAppTest : public QObject
             transport.respond(index, FakeTransport::answer(status, body));
         }
 
-        // The timer state at the next revision, built now: the running entry
-        // as JSON ("null" for none), the pause chain, the session and a
-        // pomodoro the change discarded. server_time is the fake clock's.
+        // server_time is the fake clock's.
         QByteArray state(const QByteArray &running = "null",
                          const QJsonValue &pause = QJsonValue::Null,
                          const QJsonValue &pomodoro = QJsonValue::Null,
@@ -510,15 +473,12 @@ class MenuBarAppTest : public QObject
                 .toJson(QJsonDocument::Compact);
         }
 
-        // The state with a session in the phase. Its open pomodoro is the
-        // running entry.
         QByteArray sessionState(const Phase &phase, const QJsonValue &discarded = QJsonValue::Null)
         {
             const QDateTime pomodoroStart = phase.pomodoroStart.isValid() ? phase.pomodoroStart : phase.start;
             return state(chainEntryBody(41, pomodoroStart), QJsonValue::Null, pomodoroJson(phase, 41), discarded);
         }
 
-        // A state from the event stream, as another device's change sends it.
         bool push(const QByteArray &body)
         {
             FakeStream *stream = transport.lastStream();
@@ -529,9 +489,7 @@ class MenuBarAppTest : public QObject
             return true;
         }
 
-        // Saved settings for token sign-in, the token in the store, then the
-        // answers to /me, the timer state, the projects and the Pomodoro
-        // lengths. running is the running entry as JSON, "null" for none.
+        // running is the running entry as JSON, "null" for none.
         bool connect(const QByteArray &running,
                      std::optional<qint64> recentProject = std::nullopt,
                      const QJsonValue &pause = QJsonValue::Null,
@@ -562,13 +520,11 @@ class MenuBarAppTest : public QObject
             });
         }
 
-        // The body of the last request that ends with the suffix.
         QJsonObject lastBody(const QByteArray &method, const QByteArray &suffix) const
         {
             return jsonBody(transport.requests.at(last(method, suffix)));
         }
 
-        // Moves the clock one tick per second.
         void advance(int seconds)
         {
             for (int i = 0; i < seconds; ++i) {
@@ -576,7 +532,6 @@ class MenuBarAppTest : public QObject
             }
         }
 
-        // Pomodoro mode on or off through the menu.
         bool setPomodoroMode(bool on)
         {
             QAction *mode = part<QAction>(appPart<StatusMenu>(app), "pomodoroMode");
@@ -586,8 +541,6 @@ class MenuBarAppTest : public QObject
             return appPart<PomodoroSession>(app)->pomodoroMode() == on && mode->isChecked() == on;
         }
 
-        // Start session from the menu, then the server's answer: a session in
-        // its first work phase, started now.
         bool startSession()
         {
             const qsizetype before = transport.requests.size();
@@ -609,7 +562,6 @@ private Q_SLOTS:
         QCOMPARE(MenuBarApp::clientName(), QStringLiteral("tokkl-macos"));
     }
 
-    // The app's own transport names it in the User-Agent of every request.
     void transportUserAgent()
     {
         QTcpServer server;
@@ -645,7 +597,6 @@ private Q_SLOTS:
         QCOMPARE(shown.size(), 1);
         QVERIFY(f.settingsWindow->isVisible());
         QVERIFY(f.transport.requests.isEmpty());
-        // Nothing to start or stop yet.
         f.item.click();
         QVERIFY(f.transport.requests.isEmpty());
         QVERIFY(!part<QAction>(appPart<StatusMenu>(f.app), "startStop")->isEnabled());
@@ -673,8 +624,6 @@ private Q_SLOTS:
         QVERIFY(StatusWords::actionName(QStringLiteral("unknown"), session).isEmpty());
     }
 
-    // The English words are the ones every panel shows, as the core's
-    // shared fixture, statuspresentation.json, lists them.
     void wordsFollowTheSharedFixture()
     {
         QFile file(QStringLiteral(TOKKL_STATUS_FIXTURE));
@@ -729,9 +678,6 @@ private Q_SLOTS:
         QVERIFY(part<QAction>(appPart<StatusMenu>(f.app), "state")->text().startsWith(QStringLiteral("Running 0:02")));
     }
 
-    // A click on a running timer pauses it: the server answers with the
-    // paused chain, the title keeps the total still, and the words say
-    // paused.
     void clickPausesARunningTimer()
     {
         Fixture f;
@@ -746,7 +692,6 @@ private Q_SLOTS:
         QCOMPARE(pause.method, QByteArray("POST"));
         QCOMPARE(pause.url.path(), QStringLiteral("/api/app/timer/pause"));
         QCOMPARE(jsonBody(pause), (QJsonObject{{QStringLiteral("revision"), f.revision}}));
-        // The item shows the mutation in flight and ignores another click.
         QCOMPARE(f.item.title, QStringLiteral("0:10 …"));
         f.item.click();
         QCOMPARE(f.transport.requests.size(), before + 1);
@@ -755,7 +700,6 @@ private Q_SLOTS:
         QTRY_VERIFY(appPart<TimerController>(f.app)->isPaused());
         QVERIFY(!appPart<TimerController>(f.app)->isRunning());
         QTRY_COMPARE(f.item.title, QStringLiteral("0:10"));
-        // The total stands still while paused.
         f.advance(120);
         QCOMPARE(f.item.title, QStringLiteral("0:10"));
         QCOMPARE(f.item.accessibleName, QStringLiteral("Resume the Tokkl timer, Alpha"));
@@ -764,13 +708,11 @@ private Q_SLOTS:
         QVERIFY2(part<QAction>(menu, "state")->text().startsWith(QStringLiteral("Paused 0:10")), qPrintable(part<QAction>(menu, "state")->text()));
         QCOMPARE(part<QAction>(menu, "startStop")->text(), QStringLiteral("Stop Timer"));
         QVERIFY(part<QAction>(menu, "startStop")->isEnabled());
-        // The paused entry's project and billable flag, locked.
         QCOMPARE(part<QMenu>(menu, "project")->title(), QStringLiteral("Project: Alpha"));
         QVERIFY(!part<QMenu>(menu, "project")->menuAction()->isEnabled());
         QVERIFY(!projectAction(menu, QStringLiteral("Beta (Acme)"))->isEnabled());
         QVERIFY(part<QAction>(menu, "billable")->isChecked());
         QVERIFY(!part<QAction>(menu, "billable")->isEnabled());
-        // A still dot in the project colour. Only a running dot pulses.
         QCOMPARE(f.item.indicator.kind, ProjectIndicator::Kind::Filled);
         QVERIFY(f.item.indicator.round);
         QVERIFY(!f.item.indicator.pulsing);
@@ -778,10 +720,6 @@ private Q_SLOTS:
         QCOMPARE(f.item.indicator.label, QStringLiteral("Alpha"));
     }
 
-    // A chain paused on another device shows paused, and the next click
-    // resumes it against the revision shown: the server starts a new entry
-    // that copies the paused one, and the title counts on from the paused
-    // total.
     void clickResumesAPausedTimer()
     {
         Fixture f;
@@ -789,7 +727,6 @@ private Q_SLOTS:
         QVERIFY(appPart<TimerController>(f.app)->isPaused());
         QCOMPARE(f.item.title, QStringLiteral("0:10"));
         QCOMPARE(f.item.accessibleName, QStringLiteral("Resume the Tokkl timer, Alpha"));
-        // The two minutes paused do not count.
         f.advance(120);
         QCOMPARE(f.item.title, QStringLiteral("0:10"));
 
@@ -806,7 +743,6 @@ private Q_SLOTS:
         QTRY_COMPARE(f.item.title, QStringLiteral("0:10"));
         QCOMPARE(f.item.accessibleName, QStringLiteral("Pause the Tokkl timer, Alpha"));
         QCOMPARE(part<QAction>(appPart<StatusMenu>(f.app), "startStop")->text(), QStringLiteral("Stop Timer"));
-        // The dot pulses again.
         QVERIFY(f.item.indicator.round);
         QVERIFY(f.item.indicator.pulsing);
         f.advance(60);
@@ -814,8 +750,6 @@ private Q_SLOTS:
         QVERIFY(part<QAction>(appPart<StatusMenu>(f.app), "state")->text().startsWith(QStringLiteral("Running 0:11")));
     }
 
-    // A click on a stopped timer starts an entry on the selected project,
-    // named as the macOS app.
     void clickStartsAStoppedTimer()
     {
         Fixture f;
@@ -831,8 +765,6 @@ private Q_SLOTS:
         QCOMPARE(body.value(QStringLiteral("project_id")).toInteger(), 12);
     }
 
-    // Each opening of the menu checks the projects: one read of the catalog
-    // revision, and the list only when the revision moved.
     void openingTheMenuChecksTheProjects()
     {
         Fixture f;
@@ -860,8 +792,6 @@ private Q_SLOTS:
         QCOMPARE(f.transport.catalogRequests.size(), checks + 2);
     }
 
-    // The next start defaults to the last entry's project, a pick while
-    // stopped wins, and Billable follows the pick.
     void projectMenuWhileStopped()
     {
         Fixture f;
@@ -890,8 +820,6 @@ private Q_SLOTS:
         QCOMPARE(body.value(QStringLiteral("billable")).toBool(), false);
     }
 
-    // While an entry runs the project is locked and billable edits the
-    // entry in place.
     void projectMenuWhileRunning()
     {
         Fixture f;
@@ -922,7 +850,6 @@ private Q_SLOTS:
         QCOMPARE(jsonBody(update).size(), 2);
     }
 
-    // Stop Timer in the menu stops a running timer and ends the chain.
     void stopTimerStopsARunningTimer()
     {
         Fixture f;
@@ -937,7 +864,6 @@ private Q_SLOTS:
         QCOMPARE(stop.url.path(), QStringLiteral("/api/app/timer/stop"));
         QVERIFY(appPart<TimerController>(f.app)->isBusy());
 
-        // The reply is the state that shows the stop.
         f.respond(before, 200, f.state());
         QTRY_VERIFY(!appPart<TimerController>(f.app)->isRunning());
         QVERIFY(!appPart<TimerController>(f.app)->isPaused());
@@ -947,8 +873,6 @@ private Q_SLOTS:
         QCOMPARE(f.item.accessibleName, QStringLiteral("Start the Tokkl timer, No project"));
     }
 
-    // Stop Timer while paused discards the chain on the server, and the next
-    // click starts a new entry at 0:00.
     void stopTimerEndsAPausedChain()
     {
         Fixture f;
@@ -964,7 +888,6 @@ private Q_SLOTS:
         QCOMPARE(discard.method, QByteArray("POST"));
         QCOMPARE(discard.url.path(), QStringLiteral("/api/app/timer/discard"));
         QCOMPARE(discard.body, revisionBody(f.revision));
-        // Nothing more to send while the answer is on its way.
         QVERIFY(!part<QAction>(menu, "startStop")->isEnabled());
 
         f.respond(before, 200, f.state());
@@ -974,7 +897,6 @@ private Q_SLOTS:
         QTRY_VERIFY(part<QAction>(menu, "startStop")->isEnabled());
         QVERIFY(part<QAction>(menu, "state")->text().startsWith(QStringLiteral("Stopped 0:00")));
         QVERIFY2(f.item.accessibleName.startsWith(QStringLiteral("Start the Tokkl timer, ")), qPrintable(f.item.accessibleName));
-        // The paused dot gives way to the stopped square.
         QVERIFY(!f.item.indicator.round);
         QVERIFY(!f.item.indicator.pulsing);
 
@@ -987,8 +909,6 @@ private Q_SLOTS:
         QVERIFY(!body.contains(QStringLiteral("task_id")));
     }
 
-    // Stopping a paused chain discards it on the server. While the instance
-    // is rate limiting, Stop Timer is disabled and sends nothing.
     void stopTimerWhilePausedAndRateLimited()
     {
         Fixture f;
@@ -1009,9 +929,6 @@ private Q_SLOTS:
         QVERIFY(appPart<TimerController>(f.app)->isPaused());
     }
 
-    // While the instance is unreachable Stop Timer still tries. The discard
-    // fails, so the chain stays and the tooltip says why; nothing is sent
-    // again until a read shows what the server holds.
     void stopTimerWhilePausedAndUnreachable()
     {
         Fixture f;
@@ -1033,8 +950,6 @@ private Q_SLOTS:
         QVERIFY(!part<QAction>(menu, "startStop")->isEnabled());
     }
 
-    // A pause refused because another device moved the timer first shows the
-    // state that refused it and says so.
     void pauseRefusedForAnotherDevice()
     {
         Fixture f;
@@ -1050,8 +965,6 @@ private Q_SLOTS:
         QVERIFY(part<QAction>(appPart<StatusMenu>(f.app), "state")->toolTip().contains(QStringLiteral("The timer changed on another device first.")));
     }
 
-    // The running entry's project: a pulsing dot in its colour. Stop Timer
-    // leaves a still square.
     void indicatorRunningThenStopped()
     {
         Fixture f;
@@ -1073,7 +986,6 @@ private Q_SLOTS:
         QCOMPARE(f.item.indicator.label, StatusWords::projectText(*appPart<TimerController>(f.app)));
     }
 
-    // Stopped, the indicator shows the next start's project, still.
     void indicatorShowsTheNextStart()
     {
         Fixture f;
@@ -1089,8 +1001,6 @@ private Q_SLOTS:
         QCOMPARE(f.item.indicator.label, QStringLiteral("Alpha"));
     }
 
-    // No project is a dashed outline, and a project still being read leaves
-    // the slot empty; neither pulses.
     void indicatorWithoutAProject()
     {
         Fixture f;
@@ -1116,7 +1026,6 @@ private Q_SLOTS:
         QVERIFY(f.item.indicator.pulsing);
     }
 
-    // Reduce Motion stops the pulse at once and leaves the dot steady.
     void indicatorUnderReduceMotion()
     {
         Fixture f;
@@ -1132,8 +1041,6 @@ private Q_SLOTS:
         QVERIFY(f.item.indicator.pulsing);
     }
 
-    // The pulse runs from full opacity to 0.35 and back every 1.6 s. The ink
-    // is the menu bar's text colour and fills a shape without a colour.
     void indicatorDrawingRules()
     {
         QCOMPARE(ProjectIndicator::pulseOpacity(0), 1.0);
@@ -1152,9 +1059,6 @@ private Q_SLOTS:
         QCOMPARE(indicator.fillColor(true), QColor(0x06, 0xaa, 0xf5));
     }
 
-    // The image before the time holds the clock logo from the app's
-    // iconset, then the project indicator. Both keep their places in every
-    // state, so the time never moves.
     void imageShowsTheLogoBeforeTheIndicator()
     {
         Fixture f;
@@ -1168,7 +1072,6 @@ private Q_SLOTS:
         QCOMPARE(running.size, QSize(34, 16));
         QVERIFY(running.logoRect.right() < running.indicatorRect.left());
 
-        // The 16 point app icon at 1x and 2x, the files npm run icons renders.
         const QStringList files{QStringLiteral("icon_16x16.png"), QStringLiteral("icon_16x16@2x.png")};
         QCOMPARE(running.logo.size(), files.size());
         for (qsizetype i = 0; i < files.size(); ++i) {
@@ -1213,7 +1116,6 @@ private Q_SLOTS:
         QVERIFY(window.save());
         QTRY_COMPARE(saved.count(), 1);
         QVERIFY(f.item.image.monochromeLogo);
-        // The outline logo, at 1x and 2x, in place of the full colour one.
         const QStringList files{QStringLiteral("mono_16x16.png"), QStringLiteral("mono_16x16@2x.png")};
         QCOMPARE(f.item.image.logo.size(), files.size());
         for (qsizetype i = 0; i < files.size(); ++i) {
@@ -1239,8 +1141,6 @@ private Q_SLOTS:
         QCOMPARE(relaunched.item.image.logo, before.logo);
     }
 
-    // Pomodoro mode is a checkable menu item, locked while a session is
-    // active and while a timer runs.
     void pomodoroModeItemAndItsLock()
     {
         Fixture f;
@@ -1274,10 +1174,6 @@ private Q_SLOTS:
         QCOMPARE(locked->text(), QStringLiteral("Pomodoro mode (locked while running)"));
     }
 
-    // The menu in Pomodoro mode: Start session while idle, then Next phase
-    // and End session. Start Timer and Stop Timer are for Timer mode, and
-    // Project and Billable stay enabled during a session. A pomodoro too
-    // short to save is reported under the state line.
     void menuInPomodoroMode()
     {
         Fixture f;
@@ -1300,15 +1196,13 @@ private Q_SLOTS:
         QVERIFY(!part<QAction>(menu, "endSession")->isVisible());
         QVERIFY(part<QAction>(menu, "state")->text().startsWith(QStringLiteral("Stopped 0:00")));
 
-        // Start session sends the chosen project and billable flag; the
-        // server takes the account's lengths.
+        // The server takes the account's lengths.
         const qsizetype before = f.transport.requests.size();
         part<QAction>(menu, "startSession")->trigger();
         QCOMPARE(f.last("POST", "/app/pomodoro"), before);
         const QJsonObject start = f.lastBody("POST", "/app/pomodoro");
         QCOMPARE(start.value(QStringLiteral("project_id")).toInteger(), 12);
         QCOMPARE(start.value(QStringLiteral("created_with")).toString(), QStringLiteral("tokkl-macos"));
-        // Another start waits for the answer.
         QVERIFY(!part<QAction>(menu, "startSession")->isEnabled());
         const QDateTime begin = f.clock.now();
         f.respond(before, 200, f.sessionState(work(begin)));
@@ -1320,12 +1214,10 @@ private Q_SLOTS:
         QVERIFY(part<QAction>(menu, "endSession")->isVisible());
         QCOMPARE(part<QAction>(menu, "endSession")->text(), QStringLiteral("End session"));
         QCOMPARE(part<QAction>(menu, "state")->text(), QStringLiteral("Work · 1:00 left · Pomodoro 1 of 2"));
-        // The open pomodoro is the session's: Project and Billable are locked.
         QVERIFY(!part<QMenu>(menu, "project")->menuAction()->isEnabled());
         QVERIFY(!projectAction(menu, QStringLiteral("Alpha"))->isEnabled());
         QVERIFY(!part<QAction>(menu, "billable")->isEnabled());
 
-        // Next phase sends the revision shown.
         f.advance(60);
         part<QAction>(menu, "nextPhase")->trigger();
         QCOMPARE(f.lastBody("POST", "/app/pomodoro/next"), (QJsonObject{{QStringLiteral("revision"), f.revision}}));
@@ -1334,8 +1226,6 @@ private Q_SLOTS:
         QCOMPARE(part<QAction>(menu, "nextPhase")->text(), QStringLiteral("Next phase: Work"));
         QCOMPARE(part<QAction>(menu, "state")->text(), QStringLiteral("Short rest · 1:00 left · Pomodoro 1 of 2"));
 
-        // End session ends it on the server. A pomodoro too short to save
-        // is dropped and told.
         part<QAction>(menu, "endSession")->trigger();
         QCOMPARE(f.lastBody("POST", "/app/pomodoro/end"), (QJsonObject{{QStringLiteral("revision"), f.revision}}));
         f.respond(f.last("POST", "/app/pomodoro/end"), 200, f.state(QByteArrayLiteral("null"), QJsonValue::Null, QJsonValue::Null, discardedJson(f.clock.now())));
@@ -1349,10 +1239,6 @@ private Q_SLOTS:
         QVERIFY(part<QAction>(menu, "pomodoroMode")->isEnabled());
     }
 
-    // A session started on another device shows in Timer mode: the state
-    // line, the title and the tooltip say so, Next phase and End session are
-    // there, the timer toggle is gone and the mode is locked. Ending it
-    // elsewhere brings the toggle back.
     void sessionStartedElsewhereShowsInTimerMode()
     {
         Fixture f;
@@ -1377,14 +1263,11 @@ private Q_SLOTS:
         QVERIFY(part<QAction>(menu, "nextPhase")->isVisible());
         QCOMPARE(part<QAction>(menu, "nextPhase")->text(), QStringLiteral("Next phase: Short rest"));
         QVERIFY(part<QAction>(menu, "endSession")->isVisible());
-        // The mode is locked while the session runs, wherever it began.
         QVERIFY(!part<QAction>(menu, "pomodoroMode")->isChecked());
         QVERIFY(!part<QAction>(menu, "pomodoroMode")->isEnabled());
         QCOMPARE(part<QAction>(menu, "pomodoroMode")->text(), QStringLiteral("Pomodoro mode (locked while running)"));
         QVERIFY(!f.setPomodoroMode(true));
 
-        // The click opens the menu before the planned end and confirms Next
-        // phase after it; it starts no timer.
         f.item.click();
         QCOMPARE(f.item.menuPopUps, 1);
         QVERIFY(f.find("POST", "/app/timer/start").isEmpty());
@@ -1409,7 +1292,6 @@ private Q_SLOTS:
         QCOMPARE(f.item.title, QStringLiteral("0:00"));
     }
 
-    // A session read at start, in Pomodoro mode, hides Start session too.
     void sessionStartedElsewhereInPomodoroMode()
     {
         Fixture f;
@@ -1424,8 +1306,6 @@ private Q_SLOTS:
         QVERIFY(!part<QAction>(menu, "pomodoroMode")->isEnabled());
     }
 
-    // Start session is disabled until a state has been read, and while an
-    // action waits for its answer.
     void startSessionWaitsForAState()
     {
         Fixture f;
@@ -1437,8 +1317,6 @@ private Q_SLOTS:
         QVERIFY(part<QAction>(menu, "startSession")->isEnabled());
     }
 
-    // A refused action leaves its message under the state line; the next
-    // action clears it.
     void sessionActionFailureShowsItsMessage()
     {
         Fixture f;
@@ -1456,8 +1334,6 @@ private Q_SLOTS:
         QTRY_VERIFY(part<QAction>(menu, "startSession")->isEnabled());
     }
 
-    // The session keeps counting from the last state held when the instance
-    // cannot be reached, and the words and the title say it is offline.
     void sessionWhileOffline()
     {
         Fixture f;
@@ -1473,10 +1349,8 @@ private Q_SLOTS:
         QCOMPARE(f.item.title, QStringLiteral("0:30 !"));
         QCOMPARE(f.item.toolTip, QStringLiteral("Work · 0:30 left · Pomodoro 1 of 2 · Offline, showing the last known state"));
         QCOMPARE(part<QAction>(menu, "state")->text(), f.item.toolTip);
-        // The name for a screen reader stays short.
         QCOMPARE(f.item.accessibleName, QStringLiteral("Work · 0:30 left · Pomodoro 1 of 2"));
 
-        // Next phase still tries; when the request fails the menu says why.
         part<QAction>(menu, "nextPhase")->trigger();
         const qsizetype next = f.last("POST", "/app/pomodoro/next");
         QVERIFY(next > poll);
@@ -1486,9 +1360,6 @@ private Q_SLOTS:
         QCOMPARE(part<QAction>(menu, "message")->text(), appPart<PomodoroSession>(f.app)->message());
     }
 
-    // During a session the title counts the phase down, then the overtime up,
-    // and the tooltip and the accessible name name the phase. Without a
-    // session the timer's words get the mode.
     void titleCountsTheSessionDownThenOvertime()
     {
         Fixture f;
@@ -1513,8 +1384,6 @@ private Q_SLOTS:
         QCOMPARE(part<QAction>(appPart<StatusMenu>(f.app), "state")->text(), f.item.toolTip);
     }
 
-    // A primary click in Pomodoro mode starts a session, opens the menu in
-    // mid-phase and confirms Next phase while the alarm rings.
     void clickInPomodoroMode()
     {
         Fixture f;
@@ -1522,8 +1391,6 @@ private Q_SLOTS:
         QVERIFY(f.setPomodoroMode(true));
         PomodoroSession &session = *appPart<PomodoroSession>(f.app);
 
-        // The session starts once the server answers. A click while the
-        // request is on its way does nothing.
         const qsizetype before = f.transport.requests.size();
         f.item.click();
         QCOMPARE(f.transport.requests.size(), before + 1);
@@ -1535,13 +1402,11 @@ private Q_SLOTS:
         QVERIFY(session.isActive());
         QCOMPARE(session.phase(), QStringLiteral("work"));
 
-        // Mid-phase the click opens the menu and changes nothing.
         f.item.click();
         QCOMPARE(f.item.menuPopUps, 1);
         QCOMPARE(f.transport.requests.size(), before + 1);
         QCOMPARE(session.phase(), QStringLiteral("work"));
 
-        // Ringing, it confirms Next phase.
         f.advance(61);
         QVERIFY(session.isRinging());
         const QDateTime begin = f.clock.now().addSecs(-61);
@@ -1554,8 +1419,6 @@ private Q_SLOTS:
         QCOMPARE(f.item.menuPopUps, 1);
     }
 
-    // A timer running from another device keeps the timer's click, words and
-    // menu in Pomodoro mode; only the hourglass shows the mode.
     void clickInPomodoroModeLeavesARunningTimerToTheTimer()
     {
         Fixture f;
@@ -1577,8 +1440,6 @@ private Q_SLOTS:
         QCOMPARE(f.item.menuPopUps, 0);
     }
 
-    // The wake hook reaches the session as well as the timer: after a sleep
-    // past the planned end the title shows the overtime before the next tick.
     void wakeUpdatesTheSession()
     {
         Fixture f;
@@ -1600,8 +1461,6 @@ private Q_SLOTS:
         QCOMPARE(f.item.title, QStringLiteral("+0:31"));
     }
 
-    // When the late tick reports the wake first, the wake notification that
-    // follows reads nothing more.
     void lateTickBeforeTheWakeNoticeReadsOnce()
     {
         Fixture f;
@@ -1614,9 +1473,6 @@ private Q_SLOTS:
         QCOMPARE(f.find("GET", "/app/timer").size(), before + 1);
     }
 
-    // The alarm: the sound chosen for the transition loops from the moment
-    // the phase rings until Next phase, and the choice in settings wins
-    // over the catalogue's default. Nothing plays before the planned end.
     void alarmLoopsWhileRingingAndStopsOnNextPhase()
     {
         Fixture f;
@@ -1630,7 +1486,6 @@ private Q_SLOTS:
         QVERIFY(appPart<PomodoroSession>(f.app)->isRinging());
         QCOMPARE(appPart<PomodoroSession>(f.app)->ringingTransition(), QStringLiteral("workToShortRest"));
         QCOMPARE(f.player.looping, soundFile(QStringLiteral("work-to-short-rest")));
-        // Ticks past the end change nothing: the same file keeps looping.
         f.advance(5);
         QCOMPARE(f.player.loops.size(), 1);
 
@@ -1641,18 +1496,14 @@ private Q_SLOTS:
         QVERIFY(f.player.looping.isEmpty());
         QCOMPARE(f.player.stops, 1);
 
-        // The short rest ends with the sound chosen for it.
         f.settings.setValue(MenuBarApp::soundKey(TransitionKind::ShortRestToWork), QStringLiteral("long-rest-to-work"));
         f.advance(60);
         QCOMPARE(f.player.looping, soundFile(QStringLiteral("long-rest-to-work")));
-        // The other device ends the session, which stops it too.
         QVERIFY(f.push(f.state()));
         QVERIFY(f.player.looping.isEmpty());
         QCOMPARE(f.player.stops, 2);
     }
 
-    // The mode is kept in the app's settings, so a relaunch comes back in
-    // Pomodoro mode.
     void pomodoroModeSurvivesRelaunch()
     {
         Fixture f;
@@ -1666,9 +1517,6 @@ private Q_SLOTS:
         QVERIFY(appPart<PomodoroPreferences>(relaunched.app));
     }
 
-    // In Pomodoro mode the hourglass follows the indicator, with the gap
-    // between the logo and the indicator: the colour glyph, or with the
-    // monochrome logo the outline glyph the menu bar tints the same way.
     void imageShowsTheHourglassInPomodoroMode()
     {
         Fixture f;
@@ -1720,8 +1568,6 @@ private Q_SLOTS:
         QVERIFY(f.settingsWindow->isVisible());
     }
 
-    // Save keeps the address, method and email in the settings and the token
-    // in the store only; the connection picks them up.
     void settingsSaveToken()
     {
         Fixture f;
@@ -1751,8 +1597,6 @@ private Q_SLOTS:
         QCOMPARE(f.transport.requests.at(f.last("GET", "/me")).url.path(), QStringLiteral("/tokkl/api/v9/me"));
     }
 
-    // Save waits for the store: the settings change, saved() comes and the
-    // window closes only once the store has kept the secret.
     void settingsCloseOnceTheStoreKeepsTheSecret()
     {
         Fixture f;
@@ -1787,8 +1631,6 @@ private Q_SLOTS:
         QVERIFY(f.item.image.monochromeLogo);
     }
 
-    // A failed write keeps the window open with the typed secret and the
-    // store's error, and changes no setting. Save works again afterwards.
     void settingsStayOpenWhenTheStoreFails()
     {
         Fixture f;
@@ -1823,8 +1665,6 @@ private Q_SLOTS:
         QCOMPARE(f.settings.value(ConnectionSettings::instanceUrlKey).toString(), instance);
     }
 
-    // A settings file that cannot be written keeps the window open and says
-    // so: saved() does not come, and no setting changes, not even in memory.
     void settingsStayOpenWhenTheFileCannotBeWritten()
     {
         Fixture f;
@@ -1852,14 +1692,11 @@ private Q_SLOTS:
         QVERIFY(appPart<Connection>(f.app)->instanceUrl().isEmpty());
         QVERIFY(!f.item.image.monochromeLogo);
 
-        // Opening the window again forgets the failure, and once the file
-        // can be written a save works.
         window.close();
         f.app.showSettings();
         QVERIFY(!part<QLabel>(window, "saveError")->isVisibleTo(&window));
         QVERIFY(QDir(f.settings.fileName()).removeRecursively());
         part<QLineEdit>(window, "url")->setText(instance);
-        // The Keychain kept the secret the first time.
         QTRY_COMPARE(part<QLineEdit>(window, "secret")->text(), token);
         part<QPushButton>(window, "save")->click();
         QTRY_COMPARE(saved.count(), 1);
@@ -1906,7 +1743,6 @@ private Q_SLOTS:
         QCOMPARE(window.findChild<ConnectionSetup *>()->testResult(), ConnectionSetup::Failed);
         QVERIFY(part<QLabel>(window, "testResult")->text().contains(QStringLiteral("refused")));
 
-        // Nothing is kept before Save.
         QVERIFY(f.store.secrets.isEmpty());
         QSignalSpy saved(&window, &SettingsWindow::saved);
         QVERIFY(window.save());
@@ -1916,8 +1752,6 @@ private Q_SLOTS:
         QCOMPARE(f.store.secrets.size(), 1);
     }
 
-    // A secret typed and not saved is gone when the window opens again; the
-    // stored one comes back.
     void settingsReopenDropsUnsavedSecret()
     {
         Fixture f;
@@ -1932,8 +1766,6 @@ private Q_SLOTS:
         QTRY_COMPARE(part<QLineEdit>(window, "secret")->text(), token);
     }
 
-    // Opening the window reads the lengths again, and the spin boxes take
-    // the server's values inside the shared ranges.
     void pomodoroSettingsLoadTheLengths()
     {
         Fixture f;
@@ -1965,8 +1797,6 @@ private Q_SLOTS:
         QVERIFY(!part<QLabel>(window, "lengthsNote")->isVisibleTo(&window));
     }
 
-    // Save posts the lengths that changed, and only those, next to the
-    // Keychain write, and the window closes once both are done.
     void pomodoroSettingsSavePostsTheChangedLengths()
     {
         Fixture f;
@@ -1987,7 +1817,6 @@ private Q_SLOTS:
         QVERIFY(post >= before);
         QCOMPARE(jsonBody(f.transport.requests.at(post)),
                  (QJsonObject{{QStringLiteral("pomodoro_focus_interval_in_minutes"), 30}, {QStringLiteral("pomodoro_long_break_every"), 3}}));
-        // The Keychain has the secret; the window waits for the server.
         QTRY_COMPARE(saved.count(), 1);
         QVERIFY(window.isVisible());
         QVERIFY(!part<QPushButton>(window, "save")->isEnabled());
@@ -1999,8 +1828,6 @@ private Q_SLOTS:
         QCOMPARE(appPart<PomodoroPreferences>(f.app)->workMinutes(), 30);
         QVERIFY(part<QPushButton>(window, "save")->isEnabled());
 
-        // Nothing changed: Save posts no lengths and closes once the
-        // Keychain has the secret.
         f.app.showSettings();
         f.respond(f.last("GET", "/me/preferences"), 200, preferencesBody());
         QTRY_COMPARE(part<QLineEdit>(window, "secret")->text(), token);
@@ -2011,8 +1838,6 @@ private Q_SLOTS:
         QVERIFY(f.transport.requests.size() >= again);
     }
 
-    // Lengths read again while the window is open fill only the fields the
-    // user left alone, and Save posts the edit against what was read.
     void pomodoroSettingsKeepEditedLengthsThroughARead()
     {
         Fixture f;
@@ -2040,7 +1865,6 @@ private Q_SLOTS:
         QVERIFY(post >= before);
         QCOMPARE(jsonBody(f.transport.requests.at(post)), (QJsonObject{{QStringLiteral("pomodoro_focus_interval_in_minutes"), 30}}));
 
-        // Opening the window again shows what the server holds.
         f.respond(post, 200, QByteArrayLiteral(
             R"({"pomodoro_focus_interval_in_minutes":30,"pomodoro_break_interval_in_minutes":8,)"
             R"("pomodoro_long_break_interval_in_minutes":1,"pomodoro_long_break_every":2})"));
@@ -2051,8 +1875,6 @@ private Q_SLOTS:
         QCOMPARE(lengthBox(window, PomodoroField::WorkMinutes)->value(), 30);
     }
 
-    // Lengths edited while the window moves to another account are not
-    // posted: they would change the account the save leaves.
     void pomodoroSettingsPostNoLengthsWhenTheAccountChanges()
     {
         Fixture f;
@@ -2066,7 +1888,6 @@ private Q_SLOTS:
         lengthBox(window, PomodoroField::WorkMinutes)->setValue(30);
         const QString other = QStringLiteral("https://b.example.test");
         part<QLineEdit>(window, "url")->setText(other);
-        // The secret shown belonged to the account before.
         QTRY_VERIFY(part<QLineEdit>(window, "secret")->text().isEmpty());
         QTest::keyClicks(part<QLineEdit>(window, "secret"), QStringLiteral("tok-b"));
         QSignalSpy saved(&window, &SettingsWindow::saved);
@@ -2078,8 +1899,6 @@ private Q_SLOTS:
         QCOMPARE(appPart<Connection>(f.app)->instanceUrl(), other);
     }
 
-    // A 400 that names a key shows next to its field, the window stays
-    // open and Save works again.
     void pomodoroSettingsShowARefusedLengthNextToItsField()
     {
         Fixture f;
@@ -2103,10 +1922,8 @@ private Q_SLOTS:
         QVERIFY(!part<QLabel>(window, "pomodoroError")->isVisibleTo(&window));
         QVERIFY(window.isVisible());
         QVERIFY(part<QPushButton>(window, "save")->isEnabled());
-        // The typed value stays for another try.
         QCOMPARE(lengthBox(window, PomodoroField::LongRestMinutes)->value(), 45);
 
-        // A failure that names no field is the general error.
         part<QPushButton>(window, "save")->click();
         f.respond(f.last("POST", "/me/preferences"), 400, QByteArrayLiteral(R"("Preferences are too large")"));
         QTRY_VERIFY(part<QLabel>(window, "pomodoroError")->isVisibleTo(&window));
@@ -2115,8 +1932,6 @@ private Q_SLOTS:
         QVERIFY(window.isVisible());
     }
 
-    // Without a validated account the lengths show as last read, cannot be
-    // edited, and a note says why.
     void pomodoroSettingsAreReadOnlyWithoutAnAccount()
     {
         Fixture f;
@@ -2136,9 +1951,6 @@ private Q_SLOTS:
         QVERIFY(!part<QLabel>(window, "pomodoroError")->isVisibleTo(&window));
     }
 
-    // The sound choices list the catalogue, default to the sound named
-    // after the transition, are kept by Save next to the other settings and
-    // come back on the next launch.
     void pomodoroSoundChoiceIsStoredAndReadBack()
     {
         const QList<PomodoroSound> sounds = pomodoroSounds();
@@ -2164,7 +1976,6 @@ private Q_SLOTS:
         part<QPushButton>(window, "save")->click();
         QTRY_COMPARE(saved.count(), 1);
         QCOMPARE(f.settings.value(MenuBarApp::soundKey(TransitionKind::WorkToShortRest)).toString(), QStringLiteral("long-rest-to-work"));
-        // The untouched choices are kept as they showed.
         QCOMPARE(f.settings.value(MenuBarApp::soundKey(TransitionKind::ShortRestToWork)).toString(), QStringLiteral("short-rest-to-work"));
         QCOMPARE(appPart<SoundChoices>(f.app)->chosen(TransitionKind::WorkToShortRest), QStringLiteral("long-rest-to-work"));
         QCOMPARE(appPart<SoundChoices>(f.app)->chosen(TransitionKind::ShortRestToWork), QStringLiteral("short-rest-to-work"));
@@ -2175,8 +1986,6 @@ private Q_SLOTS:
         QCOMPARE(soundBox(*relaunched.settingsWindow, TransitionKind::LongRestToWork)->currentIndex(), 3);
     }
 
-    // Preview plays the sound selected next to it once, through the player,
-    // without saving.
     void previewPlaysTheSelectedSound()
     {
         Fixture f;
@@ -2192,8 +2001,6 @@ private Q_SLOTS:
         QVERIFY(!f.settings.contains(MenuBarApp::soundKey(TransitionKind::LongRestToWork)));
     }
 
-    // A sound that did not play says why under the sounds and in the
-    // menu, until the next one starts.
     void aSilentAlarmSaysWhy()
     {
         Fixture f;
@@ -2216,9 +2023,6 @@ private Q_SLOTS:
         QVERIFY(!part<QAction>(menu, "message")->isVisible());
     }
 
-    // Each sound selector has its label as buddy and a name for its
-    // transition, and each Preview button a name of its own. Long rest
-    // every reads 1 pomodoro, 2 pomodoros and so on.
     void pomodoroControlsAreNamed()
     {
         Fixture f;
@@ -2252,8 +2056,7 @@ private Q_SLOTS:
         QCOMPARE(every->text(), QStringLiteral("2 pomodoros"));
         QCOMPARE(lengthBox(window, PomodoroField::WorkMinutes)->suffix(), QStringLiteral(" min"));
 
-        // Typing a count keeps working with the words around it. The boxes
-        // stay read-only until the lengths are read, which this test skips.
+        // The boxes stay read-only until the lengths are read, which this test skips.
         every->setReadOnly(false);
         QLineEdit *edit = every->findChild<QLineEdit *>();
         QVERIFY(edit);
@@ -2279,13 +2082,11 @@ private Q_SLOTS:
         QCOMPARE(f.login.calls, (QList<bool>{true, false}));
         QVERIFY(!part<QCheckBox>(window, "login")->isChecked());
 
-        // A refused registration leaves the toggle as the system has it.
         f.login.failure = QStringLiteral("Tokkl could not be added to the login items.");
         part<QCheckBox>(window, "login")->click();
         QVERIFY(!part<QCheckBox>(window, "login")->isChecked());
         QCOMPARE(part<QLabel>(window, "loginNote")->text(), f.login.failure);
 
-        // Waiting for approval counts as on, with a pointer to System Settings.
         f.login.failure.clear();
         f.login.current = LoginItem::State::RequiresApproval;
         window.close();

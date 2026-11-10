@@ -7,10 +7,8 @@
 namespace Tokkl
 {
 
-// The alarm through AppKit's NSSound: one sound for the loop, whose loops
-// property keeps it going until stop(), and one for the preview. A file
-// NSSound cannot open, or a sound that does not start, plays nothing; it is
-// logged and reported to the AlarmOutput failure handler.
+// One NSSound for the loop and one for the preview. A sound that cannot start
+// is reported to the AlarmOutput failure handler.
 class MacAlarmPlayer : public AlarmPlayer
 {
     Q_OBJECT
