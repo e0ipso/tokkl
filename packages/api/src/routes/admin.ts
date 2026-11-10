@@ -3,6 +3,7 @@ import type { Deps } from './context.ts';
 import { createRouter } from '../http/router.ts';
 import { jsonRead } from './context.ts';
 import { readJson } from '../http/request.ts';
+import { invalidInput } from '../lib/errors.ts';
 import { parseId, togglTime } from '../lib/values.ts';
 import {
   parseAccessChange,
@@ -11,7 +12,7 @@ import {
   parseSettingChanges,
 } from '../commands/accounts.ts';
 import { serializeAccount, serializeInvite, serializeSettings } from '../presenters/toggl.ts';
-export function adminRoutes(deps: Pick<Deps, 'auth' | 'readFor' | 'accountsFor'>): Router {
+export function adminRoutes(deps: Pick<Deps, 'auth' | 'readFor' | 'accountsFor' | 'mail'>): Router {
   const api = createRouter();
   api.use(deps.auth.requireAuth, deps.auth.requireAdmin);
   api.get(
@@ -54,12 +55,23 @@ export function adminRoutes(deps: Pick<Deps, 'auth' | 'readFor' | 'accountsFor'>
   });
   api.get(
     '/settings',
-    jsonRead(deps, async (_req, _res, queries) => serializeSettings(await queries.instanceSettings()), true),
-  );
-  api.put('/settings', async (req, res) =>
-    res.json(
-      serializeSettings(await deps.accountsFor(res.locals.auth).updateSettings(parseSettingChanges(readJson(req)))),
+    jsonRead(
+      deps,
+      async (_req, _res, queries) => ({
+        ...serializeSettings(await queries.instanceSettings()),
+        mail_configured: deps.mail,
+      }),
+      true,
     ),
   );
+  api.put('/settings', async (req, res) => {
+    const changes = parseSettingChanges(readJson(req));
+    if (changes.signupEnabled === true && !deps.mail.configured)
+      throw invalidInput(`Sign-up needs ${deps.mail.missing.join(' and ')}`);
+    return res.json({
+      ...serializeSettings(await deps.accountsFor(res.locals.auth).updateSettings(changes)),
+      mail_configured: deps.mail,
+    });
+  });
   return api;
 }

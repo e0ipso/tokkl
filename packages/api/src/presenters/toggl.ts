@@ -157,17 +157,20 @@ export function serializeInvite(invite: AccountToken): Invite {
     // Only invites are listed here, and every invite row carries a role.
     role: invite.role!,
     note: invite.note,
+    email: invite.email,
+    source: invite.email === null ? 'admin' : 'signup',
     created_by: invite.createdBy,
     created_at: stamp(invite.createdAt),
     expires_at: stamp(invite.expiresAt),
   };
 }
 
-export function serializeSettings(settings: InstanceSettings): InstanceSettingsDto {
+export function serializeSettings(settings: InstanceSettings): Omit<InstanceSettingsDto, 'mail_configured'> {
   return {
     session_days: settings.sessionDays,
     invite_days: settings.inviteDays,
     time_resolution_minutes: settings.timeResolutionMinutes,
+    signup_enabled: settings.signupEnabled,
   };
 }
 

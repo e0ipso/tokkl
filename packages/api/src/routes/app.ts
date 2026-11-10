@@ -25,7 +25,7 @@ export function appRoutes(deps: AppRouteDeps): Router {
   // Clients pick routes from the API version and capabilities, never from a 404.
   app.get('/status', async (_req, res) => {
     const status: AppStatus = {
-      setup_required: await sessions.setupRequired(),
+      ...(await sessions.status()),
       ...presentServerApi(),
       pomodoro_limits: presentPomodoroLimits(),
     };

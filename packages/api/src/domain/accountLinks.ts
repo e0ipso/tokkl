@@ -16,6 +16,7 @@ import {
 } from './accountGuards.ts';
 import { getInstanceSettings } from './instanceSettings.ts';
 import { isActiveUser } from './credentials.ts';
+import { normalizeEmail } from './accountValues.ts';
 
 export const INVITE_NOT_FOUND = 'This invite link is not valid. Ask your admin for a new one.';
 export const RESET_NOT_FOUND = 'This password reset link is not valid. Ask your admin for a new one.';
@@ -35,6 +36,37 @@ export async function findResetUser(
 
 export function createInviteOperations<R extends AccountRepositories>(runner: AccountRunner<R>) {
   return {
+    async createSignupInvite(email: string, deploymentSessionDays: number) {
+      const normalized = normalizeEmail(email);
+      return runner.transaction(async ctx => {
+        await ctx.lockInstanceAdministration();
+        if (await ctx.users.findByEmail(normalized)) return { existing: true as const };
+        await ctx.tokens.revokeUnusedSignupInvites(normalized);
+        const token = generateSessionToken();
+        const at = now(),
+          settings = await getInstanceSettings(ctx, deploymentSessionDays);
+        const invite = await ctx.tokens.create({
+          tokenHash: sha256(token),
+          kind: 'invite',
+          role: 'user',
+          note: null,
+          email: normalized,
+          userId: null,
+          createdBy: null,
+          createdAt: at,
+          expiresAt: new Date(Date.parse(at) + settings.inviteDays * 86400000).toISOString(),
+          usedAt: null,
+        });
+        return { existing: false as const, token, invite };
+      });
+    },
+    /** Internal compensation when sending the signup email fails. */
+    async deleteSignupInvite(id: Id): Promise<void> {
+      await runner.transaction(async ctx => {
+        await ctx.lockInstanceAdministration();
+        await ctx.tokens.revokeInvite(id);
+      });
+    },
     async createInvite(actorId: Id, request: InviteRequest, deploymentSessionDays: number) {
       const token = generateSessionToken();
       return runner.transaction(async ctx => {
@@ -61,16 +93,16 @@ export function createInviteOperations<R extends AccountRepositories>(runner: Ac
       // Answer the public link error before the slow password hash, then check again under guards.
       const usable = await runner.readSnapshot(ctx => ctx.tokens.findUsable(sha256(token), 'invite', now()));
       if (!usable?.role) throw notFound(INVITE_NOT_FOUND);
-      const record = await accountRecord(account, usable.role);
+      const record = await accountRecord({ ...account, email: usable.email ?? account.email }, usable.role);
       return emailConflict(
         () =>
           runner.transaction(async ctx => {
             await ctx.lockInstanceAdministration();
             const invite = await ctx.tokens.findUsable(sha256(token), 'invite', now());
             if (!invite?.role) throw notFound(INVITE_NOT_FOUND);
-            if (await ctx.users.findByEmail(record.email))
-              throw invalidInput('An account with this email already exists');
-            const user = await ctx.users.createAccount({ ...record, role: invite.role });
+            const email = invite.email ?? record.email;
+            if (await ctx.users.findByEmail(email)) throw invalidInput('An account with this email already exists');
+            const user = await ctx.users.createAccount({ ...record, email, role: invite.role });
             if (!(await ctx.tokens.consume(invite.id, now(), user.id))) throw notFound(INVITE_NOT_FOUND);
             return user;
           }),

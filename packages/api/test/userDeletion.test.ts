@@ -172,6 +172,11 @@ test("a deleted admin's pending invites stop working; their used invites and set
     session_days: 30,
     invite_days: 4,
     time_resolution_minutes: 5,
+    signup_enabled: false,
+    mail_configured: {
+      configured: false,
+      missing: ['TOKKL_SMTP_HOST', 'TOKKL_SMTP_FROM', 'TOKKL_PUBLIC_URL'],
+    },
   });
   assert.equal((await settingRows(admin.db)).find(row => row.key === 'invite_days')!.updated_by, null);
 });

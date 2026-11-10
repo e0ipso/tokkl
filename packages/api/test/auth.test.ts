@@ -117,14 +117,22 @@ test('first-run setup needs the setup code and only works once', async () => {
       body: JSON.stringify(body),
     });
 
-  assert.deepEqual(await (await app.request('/api/app/status')).json(), { setup_required: true, ...SERVER_API });
+  assert.deepEqual(await (await app.request('/api/app/status')).json(), {
+    setup_required: true,
+    signup_enabled: false,
+    ...SERVER_API,
+  });
   const account = { email: 'owner@example.com', password: 'long enough', fullname: 'Owner', timezone: 'Europe/Madrid' };
   assert.equal((await post({ ...account, setup_code: 'WRONG' })).status, 403);
   const ok = await post({ ...account, setup_code: 'ABCD-EFGH-JKLM' });
   assert.equal(ok.status, 200);
   assert.match(ok.headers.get('set-cookie') ?? '', /tokkl_session=/);
   assert.equal((await post({ ...account, setup_code: 'ABCD-EFGH-JKLM' })).status, 403);
-  assert.deepEqual(await (await app.request('/api/app/status')).json(), { setup_required: false, ...SERVER_API });
+  assert.deepEqual(await (await app.request('/api/app/status')).json(), {
+    setup_required: false,
+    signup_enabled: false,
+    ...SERVER_API,
+  });
 });
 
 test('setup stores the canonical timezone, refuses invalid and offset ones, and defaults to UTC', async () => {
@@ -206,7 +214,11 @@ test('setup without the CSRF header is refused before the code check and charges
   assert.equal(refused.headers.get('set-cookie'), null);
   // More than the setup code allowance: if any of these were charged, the setup below would get 429.
   for (let i = 0; i <= SETUP_CODE_LIMIT; i++) assert.equal((await post('WRONG')).status, 403);
-  assert.deepEqual(await (await app.request('/api/app/status')).json(), { setup_required: true, ...SERVER_API });
+  assert.deepEqual(await (await app.request('/api/app/status')).json(), {
+    setup_required: true,
+    signup_enabled: false,
+    ...SERVER_API,
+  });
 
   const wrong = await post('WRONG', CSRF);
   assert.equal(wrong.status, 403);
@@ -214,7 +226,11 @@ test('setup without the CSRF header is refused before the code check and charges
   const ok = await post('ABCD-EFGH-JKLM', { 'x-timetrack-csrf': '1' });
   assert.equal(ok.status, 200);
   assert.match(ok.headers.get('set-cookie') ?? '', /tokkl_session=/);
-  assert.deepEqual(await (await app.request('/api/app/status')).json(), { setup_required: false, ...SERVER_API });
+  assert.deepEqual(await (await app.request('/api/app/status')).json(), {
+    setup_required: false,
+    signup_enabled: false,
+    ...SERVER_API,
+  });
 });
 
 test('reset_token issues a new token and invalidates the old one', async () => {
@@ -406,7 +422,11 @@ test('setup rejects new passwords longer than MAX_PASSWORD_LENGTH', async () => 
   const tooLong = await post('x'.repeat(MAX_PASSWORD_LENGTH + 1));
   assert.equal(tooLong.status, 400);
   assert.equal(await tooLong.json(), `Password must be at most ${MAX_PASSWORD_LENGTH} characters`);
-  assert.deepEqual(await (await app.request('/api/app/status')).json(), { setup_required: true, ...SERVER_API });
+  assert.deepEqual(await (await app.request('/api/app/status')).json(), {
+    setup_required: true,
+    signup_enabled: false,
+    ...SERVER_API,
+  });
 
   const longest = 'y'.repeat(MAX_PASSWORD_LENGTH);
   assert.equal((await post(longest)).status, 200);

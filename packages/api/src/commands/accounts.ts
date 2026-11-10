@@ -20,7 +20,7 @@ import { isCurrencyCode, isRoundingMinutes, isRoundingMode, ROUNDING_MINUTES } f
 import { invalidInput } from '../lib/errors.ts';
 import { optionalBool, optionalId, optionalRate, optionalString, type JsonBody } from '../lib/values.ts';
 import type { AccountChanges } from '../domain/ports.ts';
-import type { JsonObject, UserRole } from '../domain/model.ts';
+import type { InstanceSettings, JsonObject, UserRole } from '../domain/model.ts';
 
 const MAX_INVITE_NOTE_LENGTH = 255;
 
@@ -115,20 +115,23 @@ export function parsePreferenceChanges(body: JsonBody): PreferenceChanges {
 /** Unknown keys and values outside a rule are a 400 naming the field. */
 export function parseSettingChanges(body: JsonBody): SettingChanges {
   const changes: SettingChanges = {};
-  for (const [name, value] of Object.entries(body)) {
-    // An unknown name is client text, so it never becomes the field.
-    if (!Object.hasOwn(SETTING_NAMES, name))
-      throw invalidInput(`Unknown setting: ${name}`, { code: 'unknown_setting' });
-    const key = SETTING_NAMES[name as keyof typeof SETTING_NAMES];
+  const addSetting = <K extends keyof InstanceSettings>(name: string, key: K, value: unknown) => {
     if (!validSetting(key, value))
       throw invalidInput(`Invalid ${name}: expected ${settingExpectation(key)}`, {
         code: 'invalid_setting',
         field: name,
       });
     changes[key] = value;
+  };
+  for (const [name, value] of Object.entries(body)) {
+    // An unknown name is client text, so it never becomes the field.
+    if (!Object.hasOwn(SETTING_NAMES, name))
+      throw invalidInput(`Unknown setting: ${name}`, { code: 'unknown_setting' });
+    const key = SETTING_NAMES[name as keyof typeof SETTING_NAMES];
+    addSetting(name, key, value);
   }
   if (!Object.keys(changes).length)
-    throw invalidInput('Expected session_days or invite_days or time_resolution_minutes');
+    throw invalidInput('Expected session_days or invite_days or time_resolution_minutes or signup_enabled');
   return changes;
 }
 

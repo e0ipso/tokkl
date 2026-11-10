@@ -35,7 +35,7 @@ const SETTING_FIELDS = [
   hint: MessageKey;
 }>;
 
-type SettingsKey = keyof InstanceSettings;
+type SettingsKey = (typeof SETTING_FIELDS)[number]['key'];
 type SettingsDraft = Record<SettingsKey, string>;
 
 function toDraft(settings: InstanceSettings): SettingsDraft {

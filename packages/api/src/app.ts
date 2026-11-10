@@ -53,6 +53,7 @@ export function createHttpApp(
       loginLimiter,
       setupLimiter: new FailureLimiter(rateLimits, 'setup-code', SETUP_CODE_LIMIT, PASSWORD_WINDOW_MS),
       sessionDays: config.sessionDays,
+      mailConfigured: config.mail.configured,
       setup,
     }),
   };
