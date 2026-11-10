@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { test } from 'node:test';
 import { sql } from 'kysely';
 import { openConnection } from '../../src/storage/connections.ts';
@@ -10,6 +11,24 @@ import { assertSchema, assertDefaultsAndForeignKeys, insert, rows } from './supp
 import { assertInvariants } from './support/invariants.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 import { IDLE_TIMER_FINGERPRINT } from '../../src/domain/timerFingerprint.ts';
+import { createAccountRepositories } from '../../src/storage/repositories/accounts.ts';
+
+test('shipped migrations retain their checksums', () => {
+  const hashes = {
+    sqlite: '8dbdb4af3ef136372e25a206614cb9128b34a77a7feeb51a9aab382696c1d80c',
+    postgres: 'a28cd72accc541184e41aea2bf37afce25d610b85aacbfc451466cf8ce598122',
+    mysql: '184e5230b4dd9f287d59dc6df9afb347bcc1002f57ed7cc6bf8ba2e186d64c2e',
+    mariadb: 'f9f5fd1e27276dd3fe2665b65180314244994a785091463257c234063fb975ca',
+  };
+  for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
+    assert.equal(
+      createHash('sha256')
+        .update(JSON.stringify(migrations(backend).slice(0, 8)))
+        .digest('hex'),
+      hashes[backend],
+    );
+  }
+});
 
 for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
   test(`${backend}: fresh schema, current restart and version validation`, async () => {
@@ -180,6 +199,55 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       }
     } finally {
       await fixture.cleanup();
+    }
+  });
+}
+
+for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
+  test(`${backend}: token email upgrade preserves existing links and migration history`, async () => {
+    const available = migrations(backend);
+    assert.equal(available.at(-1)?.name, 'account_token_email');
+    // Cover both earlier supported schemas.
+    for (const previous of [5, 8]) {
+      const fixture = await disposableBackend(backend);
+      let connection = await openConnection<PhysicalDatabase>(fixture.config);
+      const at = '2026-10-01T00:00:00.000Z';
+      try {
+        await runMigrations(connection, available.slice(0, previous));
+        for (const kind of ['invite', 'password_reset'])
+          await insert(connection.db, backend, 'account_tokens', {
+            token_hash: kind,
+            kind,
+            role: kind === 'invite' ? 'user' : null,
+            created_at: at,
+            expires_at: '2026-11-01T00:00:00.000Z',
+          });
+        const ledger = await connection.db.selectFrom('storage_migrations').selectAll().orderBy('version').execute();
+        await connection.close();
+        connection = await initializeDatabase(fixture.config);
+        assert.deepEqual(
+          (await connection.db.selectFrom('storage_migrations').selectAll().orderBy('version').execute()).slice(
+            0,
+            previous,
+          ),
+          ledger,
+        );
+        const { tokens } = createAccountRepositories(connection.db, backend);
+        for (const kind of ['invite', 'password_reset'] as const) {
+          const token = await tokens.findUsable(kind, kind, at);
+          assert.ok(token);
+          assert.equal(token.email, null);
+        }
+        assert.equal((await tokens.listPendingInvites(at))[0]!.email, null);
+        await assertSchema(connection.db, backend);
+        await assertCurrent(connection);
+        await connection.close();
+        connection = await initializeDatabase(fixture.config);
+        await assertCurrent(connection);
+      } finally {
+        await connection.close();
+        await fixture.cleanup();
+      }
     }
   });
 }

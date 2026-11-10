@@ -5,6 +5,20 @@ import { parseStorageConfig, type StorageConfig } from './storage/config.ts';
 import { isLogLevel, LOG_LEVELS, type LogLevel } from './lib/logger.ts';
 import { ConfigurationError } from './lib/configurationError.ts';
 
+export interface SmtpConfig {
+  host: string;
+  port: number;
+  user?: string;
+  password?: string;
+  from: string;
+  tls: 'starttls' | 'tls' | 'none';
+}
+
+export interface MailConfiguration {
+  configured: boolean;
+  missing: string[];
+}
+
 export interface Config {
   port: number;
   host: string;
@@ -19,6 +33,9 @@ export interface Config {
   setupCode: string | undefined;
   /** Defaults to info. */
   logLevel: LogLevel;
+  publicUrl: string | undefined;
+  smtp: SmtpConfig | undefined;
+  mail: MailConfiguration;
 }
 
 interface LoadedConfig {
@@ -31,6 +48,12 @@ interface LoadedConfig {
 const LEGACY_DATABASE_FILE = 'timetrack.sqlite';
 
 export { ConfigurationError };
+
+/** Keep partial sender configuration visible even when there is no SMTP host. */
+export function mailConfigured(env: NodeJS.ProcessEnv): MailConfiguration {
+  const missing = ['TOKKL_SMTP_HOST', 'TOKKL_SMTP_FROM', 'TOKKL_PUBLIC_URL'].filter(name => !env[name]?.trim());
+  return { configured: missing.length === 0, missing };
+}
 
 function isAddressOrRange(entry: string): boolean {
   const [address = '', prefix, ...rest] = entry.split('/');
@@ -82,6 +105,40 @@ function hostSetting(value: string | undefined): string {
   return trimmed;
 }
 
+function publicUrl(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed) return undefined;
+  try {
+    const url = new URL(trimmed);
+    if (/^https?:\/\/[^/?#\\\s]+\/?$/i.test(trimmed) && !url.username && !url.password) return url.origin;
+  } catch {
+    // URL errors include the input, so replace them with a configuration-only diagnostic.
+  }
+  throw new ConfigurationError(
+    'Invalid TOKKL_PUBLIC_URL: use an absolute http or https origin with no credentials, path, query or fragment.',
+  );
+}
+
+function smtpConfig(env: NodeJS.ProcessEnv): SmtpConfig | undefined {
+  const host = env.TOKKL_SMTP_HOST?.trim();
+  if (!host) return undefined;
+  const tls = env.TOKKL_SMTP_TLS?.trim() || 'starttls';
+  if (tls !== 'starttls' && tls !== 'tls' && tls !== 'none')
+    throw new ConfigurationError('Invalid TOKKL_SMTP_TLS: use starttls, tls or none.');
+  const smtp: SmtpConfig = {
+    host,
+    from: env.TOKKL_SMTP_FROM?.trim() ?? '',
+    port: integerSetting('TOKKL_SMTP_PORT', env.TOKKL_SMTP_PORT, 587, 1, 65535),
+    tls,
+  };
+  // Transport code can read credentials, but JSON and ordinary diagnostic inspection omit them.
+  Object.defineProperties(smtp, {
+    user: { value: env.TOKKL_SMTP_USER || undefined },
+    password: { value: env.TOKKL_SMTP_PASSWORD || undefined },
+  });
+  return smtp;
+}
+
 /** Old data needs an explicit storage selection. */
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): LoadedConfig {
   const legacyNames: string[] = [];
@@ -115,6 +172,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): LoadedConfig {
     sessionDays: integerSetting('TOKKL_SESSION_DAYS', setting('SESSION_DAYS'), 30, 1, 365),
     setupCode: setting('SETUP_CODE') || undefined,
     logLevel: logLevel(env.TOKKL_LOG_LEVEL),
+    publicUrl: publicUrl(env.TOKKL_PUBLIC_URL),
+    smtp: smtpConfig(env),
+    mail: mailConfigured(env),
   };
 
   const notices: string[] = [];

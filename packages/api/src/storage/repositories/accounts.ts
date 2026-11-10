@@ -25,7 +25,7 @@ export function createAccountRepositories(db: Kysely<PhysicalDatabase>, backend:
           if (key) {
             try {
               const value: unknown = JSON.parse(row.value);
-              if (typeof value === 'number') values[key] = value;
+              if (typeof value === 'number' || typeof value === 'boolean') Object.assign(values, { [key]: value });
             } catch {
               /* Domain applies defaults. */
             }

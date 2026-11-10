@@ -14,7 +14,8 @@ const range = (min: number, max: number): SettingRule => ({
   valid: value => value >= min && value <= max,
   expected: `an integer from ${min} to ${max}`,
 });
-const SETTING_RULES: Readonly<Record<keyof InstanceSettings, SettingRule>> = {
+type NumericSetting = Exclude<keyof InstanceSettings, 'signupEnabled'>;
+const SETTING_RULES: Readonly<Record<NumericSetting, SettingRule>> = {
   sessionDays: range(1, 365),
   inviteDays: range(1, 90),
   timeResolutionMinutes: { valid: isTimeResolution, expected: `one of ${TIME_RESOLUTIONS.join(', ')}` },
@@ -25,12 +26,12 @@ export const SETTING_NAMES = {
   time_resolution_minutes: 'timeResolutionMinutes',
 } as const satisfies Record<string, keyof InstanceSettings>;
 
-export function validSetting(key: keyof InstanceSettings, value: unknown): value is number {
+export function validSetting(key: NumericSetting, value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && SETTING_RULES[key].valid(value);
 }
 
 /** For the 400 message. */
-export const settingExpectation = (key: keyof InstanceSettings) => SETTING_RULES[key].expected;
+export const settingExpectation = (key: NumericSetting) => SETTING_RULES[key].expected;
 
 export function timeResolutionOf(stored: Partial<InstanceSettings>): number {
   return validSetting('timeResolutionMinutes', stored.timeResolutionMinutes)
@@ -48,5 +49,6 @@ export async function getInstanceSettings(
     sessionDays: validSetting('sessionDays', stored.sessionDays) ? stored.sessionDays : deploymentSessionDays,
     inviteDays: validSetting('inviteDays', stored.inviteDays) ? stored.inviteDays : DEFAULT_INVITE_DAYS,
     timeResolutionMinutes: timeResolutionOf(stored),
+    signupEnabled: false,
   };
 }

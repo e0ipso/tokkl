@@ -3,6 +3,7 @@ import { openConnection, type StorageConnection } from './connections.ts';
 import { runMigrations, sqlitePreflight, type Migration } from './migrationRunner.ts';
 import type { PhysicalDatabase } from './physical.ts';
 import {
+  accountTokenEmailDDL,
   baselineDDL,
   catalogRevisionDDL,
   idempotencyDDL,
@@ -35,6 +36,7 @@ export function migrations(backend: Backend): readonly Migration[] {
     { version: 6, name: 'timer_session_entry', statements: timerSessionEntryDDL(backend) },
     { version: 7, name: 'idempotency_keys', statements: idempotencyDDL(backend) },
     { version: 8, name: 'catalog_revision', statements: catalogRevisionDDL(backend) },
+    { version: 9, name: 'account_token_email', statements: accountTokenEmailDDL(backend) },
   ];
 }
 

@@ -118,6 +118,8 @@ export interface TokensRepository {
   /** Compare-and-set: false for already used, expired or revoked tokens. */
   consume(id: Id, now: UtcInstant, userId?: Id): Promise<boolean>;
   revokeInvite(id: Id): Promise<boolean>;
+  /** The key uses normalizeEmail; used links and non-invite tokens are kept. */
+  revokeUnusedSignupInvites(emailKey: string): Promise<void>;
   revokeInvitesCreatedBy(userId: Id): Promise<void>;
   revokeUnusedPasswordResets(userId: Id): Promise<void>;
   /** Deletes up to a batch of used or expired links, skipping rows other writes hold; returns the count. */

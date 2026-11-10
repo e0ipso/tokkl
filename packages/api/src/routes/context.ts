@@ -4,9 +4,14 @@ import type { AuthMiddleware } from '../auth/middleware.ts';
 import type { SessionHandlers } from '../auth/sessions.ts';
 import type { ApplicationServices } from '../services/application.ts';
 import type { FailureLimiter } from '../auth/rateLimit.ts';
+import type { MailConfiguration } from '../config.ts';
+import type { Mailer } from '../mail.ts';
 
 /** Each router `Pick`s what it uses, so none sees storage, configuration or how operations publish. */
 export interface Deps extends ApplicationServices {
+  mailer: Mailer | undefined;
+  mail: MailConfiguration;
+  publicUrl: string | undefined;
   /** Charged per account+address, account and address; unknown invite tokens hit the address counter. */
   loginLimiter: FailureLimiter;
   auth: AuthMiddleware;

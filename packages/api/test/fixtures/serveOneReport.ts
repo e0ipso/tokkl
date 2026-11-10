@@ -31,6 +31,9 @@ const config: Config = {
   trustProxy: false,
   sessionDays: 30,
   setupCode: undefined,
+  publicUrl: undefined,
+  smtp: undefined,
+  mail: { configured: false, missing: ['TOKKL_SMTP_HOST', 'TOKKL_SMTP_FROM', 'TOKKL_PUBLIC_URL'] },
   // The parent test reads this process's stdout line by line.
   logLevel: 'warn',
 };

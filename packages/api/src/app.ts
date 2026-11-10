@@ -1,5 +1,6 @@
 import express, { type Express } from 'express';
 import type { Config } from './config.ts';
+import type { Mailer } from './mail.ts';
 import type { Storage } from './domain/ports.ts';
 import { standaloneRateLimits } from './storage/index.ts';
 import { createSessionAccountOperations, type ApplicationServices } from './services/application.ts';
@@ -20,11 +21,12 @@ import { appReportRoutes, reportsV3Routes } from './routes/reports.ts';
 import { timerRoutes } from './routes/timer.ts';
 import { togglV9Routes } from './routes/toggl/index.ts';
 
-interface HttpAppOptions {
+export interface HttpAppOptions {
   storage: Storage;
   config: Config;
   setup: SetupState;
   logger: Logger;
+  mailer?: Mailer;
 }
 
 export interface HttpApp {
@@ -35,13 +37,16 @@ export interface HttpApp {
 
 export function createHttpApp(
   services: ApplicationServices,
-  { storage, config, setup, logger }: HttpAppOptions,
+  { storage, config, setup, logger, mailer }: HttpAppOptions,
 ): HttpApp {
   const app = express();
   const rateLimits = standaloneRateLimits(storage);
   const loginLimiter = new FailureLimiter(rateLimits, 'password', ADDRESS_LIMIT, PASSWORD_WINDOW_MS);
   const deps: Deps = {
     ...services,
+    mailer,
+    mail: config.mail,
+    publicUrl: config.publicUrl,
     loginLimiter,
     auth: createAuthMiddleware(storage, loginLimiter),
     sessions: createSessionHandlers(storage, createSessionAccountOperations(storage, services), {

@@ -54,6 +54,7 @@ export function accountToken(row: Selectable<AccountTokensRow>): AccountToken {
     kind: row.kind,
     role: row.role === null ? null : role(row.role),
     note: row.note,
+    email: row.email,
     userId: row.user_id === null ? null : entityId(row.user_id),
     createdBy: row.created_by === null ? null : entityId(row.created_by),
     createdAt: utcInstant(row.created_at),
@@ -65,6 +66,7 @@ export const settingKeys = {
   sessionDays: 'session_days',
   inviteDays: 'invite_days',
   timeResolutionMinutes: 'time_resolution_minutes',
+  signupEnabled: 'signup_enabled',
 } as const;
 
 export async function generatedId(query: { executeTakeFirstOrThrow(): Promise<{ insertId?: bigint }> }) {
