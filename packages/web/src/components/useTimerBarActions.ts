@@ -121,9 +121,8 @@ export function useTimerBarActions({
       toast.error(error);
       return;
     }
-    // The server keeps no entry that rounds to zero at the time resolution: it goes to the trash.
-    // The reply is the timer state, so the bar works that out from the start it showed, which the
-    // revision vouches for, and the stop it sent.
+    // An entry that rounds to zero goes to the trash. The reply is only the timer state, so the bar
+    // works that out from the start it showed (the revision vouches for it) and the stop it sent.
     if (snappedSeconds(new Date(current.start), stoppedAt, settings) === 0) {
       const { id } = current;
       toast.show(t('timer.tooShort'), {
