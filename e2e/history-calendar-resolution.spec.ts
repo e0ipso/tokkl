@@ -3,26 +3,21 @@ import { expect, test } from './admin-tests-helpers.ts';
 import { login } from './helpers.ts';
 import { dragBy, openCalendar, savedTimes, scrollCalendarTo, todayBlock } from './history-calendar-tests-helpers.ts';
 
-// The time resolution belongs to the whole server, so these scenarios run in the instance project
-// and the `instance` fixture puts the settings back after each one. The calendar drags in steps of
-// the smallest multiple of the resolution that is at least 15 minutes, and a dropped boundary lands
-// on the resolution grid, so the server stores the span the drag showed.
+// Instance project: the `instance` fixture restores settings. Drags step in multiples of the resolution and
+// drop on its grid, so the server stores what the drag showed.
 
 const MINUTE = 60_000;
 // 09:00 on Wednesday 2026-06-17 in Madrid (CEST, UTC+2), the account's zone.
 const NINE = Date.parse('2026-06-17T07:00:00Z');
 
-/** `minutes` after 09:00 the way the web app sends it. */
 function sent(minutes: number): string {
   return new Date(NINE + minutes * MINUTE).toISOString();
 }
 
-/** `minutes` after 09:00 the way the API returns it. */
 function at(minutes: number): string {
   return sent(minutes).replace('.000Z', '+00:00');
 }
 
-// A block from 09:00 to `end`, and the next entry on the grid at `next`, in minutes after 09:00.
 // The drag travels a little past the gap, less than half a step, and rounds to whole steps.
 const RESIZES = [
   { resolution: 5, step: 15, end: 15, next: 30, travel: 20, joined: ['09:00 – 09:30', '09:30 – 10:30'] },
@@ -53,7 +48,6 @@ for (const { resolution, step, end, next, travel, joined } of RESIZES) {
   });
 }
 
-/** The body of the next PUT the page sends for entry `id`. */
 async function sentUpdate(page: Page, id: number): Promise<{ start?: string; stop?: string }> {
   const request = await page.waitForRequest(
     request => request.method() === 'PUT' && new URL(request.url()).pathname.endsWith(`/time_entries/${id}`),
@@ -75,15 +69,13 @@ test('at a 12-minute resolution a moved or resized entry with an off-grid start 
   await openCalendar(page);
   await scrollCalendarTo(page, 8);
 
-  // Two 24-minute steps take 09:07 to 09:55, and the start drops on the nearest grid point, 10:00.
-  // At this resolution the entry stores as 09:12 to 09:48, so it moves as those 36 minutes.
+  // Two 24-minute steps take 09:07 to 09:55, dropping on 10:00; the entry stores as 09:12-09:48 and moves as that.
   const move = sentUpdate(page, moved.id);
   await dragBy(page, todayBlock(page, 'Moved'), 48 / 60);
   expect(await move).toEqual({ start: sent(60), stop: sent(96) });
   await expect.poll(() => savedTimes(page, moved.id)).toEqual({ start: at(60), stop: at(96) });
 
-  // One step takes the 11:50 stop to 12:14, which drops on 12:12. Only the stop is sent; the server
-  // moves the 11:07 start to its nearest grid point, 11:12.
+  // One step takes the 11:50 stop to 12:14, dropping on 12:12; the server moves the 11:07 start to 11:12.
   const resize = sentUpdate(page, resized.id);
   await dragBy(page, todayBlock(page, 'Resized').locator('.calendar-resize'), 24 / 60);
   expect(await resize).toEqual({ stop: sent(192) });

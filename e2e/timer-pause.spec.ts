@@ -15,10 +15,7 @@ import {
   type Metadata,
 } from './timer-tests-helpers.ts';
 
-// Pause stops the running entry and Resume starts a clone of it, both on the server. The clock adds
-// up the chain of stopped entries and the running clone until Stop. Stopped entries snap to the
-// time resolution, so the expected totals come from the stored entries, not from the time the test
-// waited.
+// Stopped entries snap to the resolution, so expected totals come from the stored entries, not the time waited.
 
 const CSRF = { 'X-Tokkl-CSRF': '1' };
 const PAUSE = /\/api\/app\/timer\/pause$/;
@@ -34,16 +31,12 @@ function clockText(total: number): string {
   return `${Math.floor(total / 3600)}:${pad(Math.floor((total % 3600) / 60))}:${pad(total % 60)}`;
 }
 
-/** Seconds the stopped entries store, which is the paused total. */
 async function storedTotal(api: TimerApi): Promise<number> {
   const stopped = (await api.entries()).filter(entry => entry.stop !== null);
   return stopped.reduce((sum, entry) => sum + (instant(entry.stop) - instant(entry.start)) / 1000, 0);
 }
 
-/**
- * A running entry with every field Resume copies, seeded as another device would start it ten
- * minutes ago. A timer paused seconds after it started rounds to zero and goes to the trash.
- */
+/** Seeded ten minutes ago: a timer paused seconds after it started rounds to zero and goes to the trash. */
 async function seedRunning(page: Page, api: TimerApi): Promise<{ running: EntryView; metadata: Metadata }> {
   const project = await api.createProject('Pause project');
   const task = await api.createTask(project, 'Pause task');
@@ -65,7 +58,6 @@ interface Chain {
   clone_entry_id: number | null;
 }
 
-/** The pause chain the server holds for the signed-in user. */
 async function chainOf(page: Page): Promise<Chain | null> {
   return ((await (await page.request.get('/api/app/timer')).json()) as { pause: Chain | null }).pause;
 }
@@ -107,8 +99,7 @@ test('Pause freezes the chain total, Resume clones the entry across cycles, and 
     await expect(ui.pausedLabel).toBeVisible();
     await expect(ui.announcer).toHaveText('Timer paused');
     await expect.poll(() => api.current()).toBeNull();
-    // Each clone is paused seconds after it started, so it rounds to zero and goes to the trash,
-    // and only the seed adds to the total.
+    // Each clone is paused seconds after it started, so it rounds to zero; only the seed adds to the total.
     const stopped = await api.entries();
     const trashed = await api.trash();
     expect(stopped).toHaveLength(1);
@@ -120,7 +111,6 @@ test('Pause freezes the chain total, Resume clones the entry across cycles, and 
     await expect(ui.pausedClock).toHaveAccessibleName(`${clockText(total)} elapsed, paused`);
     await page.waitForTimeout(1_500);
     await expect(ui.pausedClock).toHaveText(clockText(total));
-    // The bar keeps showing what Resume will start.
     await expect(ui.timer.getByLabel('Description')).toHaveValue(metadata.description);
 
     await ui.resume.click();
@@ -130,12 +120,10 @@ test('Pause freezes the chain total, Resume clones the entry across cycles, and 
     await expect(ui.announcer).toHaveText('Timer resumed');
     await expect(ui.pausedLabel).toHaveCount(0);
     await expect(ui.timer.getByText('Running', { exact: true })).toBeVisible();
-    // The clock continues from the paused total.
     await expect.poll(() => runningSeconds(ui.runningClock)).toBeGreaterThanOrEqual(total + 1);
     expect(await runningSeconds(ui.runningClock)).toBeLessThan(total + 60);
   }
 
-  // Stop while paused clears the chain and writes nothing: the entries are already stopped.
   await ui.pause.click();
   await expect(ui.resume).toBeVisible();
   const writes: string[] = [];
@@ -156,13 +144,11 @@ test('Pause freezes the chain total, Resume clones the entry across cycles, and 
   expect(writes).toEqual([]);
   expect(discards).toBe(1);
 
-  // The next start shows its own time from 0:00.
   await ui.timer.getByLabel('Description').fill('After the chain');
   await ui.start.click();
   const fresh = await nextRunning(api, null);
   await expect(ui.runningClock).toHaveText(/^0:00:0\d$/);
 
-  // Stop while a clone runs stops it and ends the chain too.
   await ui.pause.click();
   await expect(ui.resume).toBeVisible();
   await ui.resume.click();
@@ -202,7 +188,6 @@ test('a reload while paused shows the chain from the server, and Resume after it
   expect(metadataOf(clone)).toEqual(metadataOf(metadata));
   await expect.poll(() => runningSeconds(ui.runningClock)).toBeGreaterThanOrEqual(total + 1);
 
-  // A reload while the clone runs keeps the total as well.
   await page.reload();
   await expect(ui.pause).toBeVisible();
   expect(await runningSeconds(ui.runningClock)).toBeGreaterThanOrEqual(total);
@@ -221,7 +206,6 @@ test('Stop does nothing while Pause or Resume is in flight, and the press is not
       ended.push(request.url());
   });
 
-  // Hold Pause's request on its way to the server. The bar locks, and the S shortcut is ignored.
   const pause = await holdRequest(page, PAUSE);
   await ui.pause.click();
   await pause.sent;
@@ -234,7 +218,6 @@ test('Stop does nothing while Pause or Resume is in flight, and the press is not
   expect(await chainOf(page)).toMatchObject({ paused: true, clone_entry_id: null });
   expect(await api.current()).toBeNull();
 
-  // The same for Resume: the clone starts and keeps running.
   const resume = await holdRequest(page, RESUME);
   await ui.resume.click();
   await resume.sent;
@@ -249,7 +232,6 @@ test('Stop does nothing while Pause or Resume is in flight, and the press is not
   expect(await chainOf(page)).toMatchObject({ paused: false, clone_entry_id: clone.id });
   expect(ended).toEqual([]);
 
-  // The shortcut works again once nothing is in flight.
   await page.keyboard.press('s');
   await expect(ui.start).toBeVisible();
   expect(ended).toHaveLength(1);
@@ -290,7 +272,6 @@ test('a pause on one device shows on another with the same total, and Resume the
   await expect.poll(() => runningSeconds(here.runningClock)).toBeGreaterThanOrEqual(total + 1);
   expect(await runningSeconds(here.runningClock)).toBeLessThan(total + 60);
 
-  // Stop while paused on one device ends the chain on the other.
   await here.pause.click();
   await expect(there.resume).toBeVisible({ timeout: 2_000 });
   await there.stop.click();
@@ -312,7 +293,6 @@ test('a timer started on another client ends a paused chain, and so does stoppin
   await expect(ui.resume).toBeVisible();
   await expect.poll(() => api.current()).toBeNull();
 
-  // Another device starts a timer: the bar shows it with its own time, not the paused total.
   const remote = await api.startTimer({ description: 'Started elsewhere', start: new Date().toISOString() });
   await expect(ui.timer.getByLabel('Description')).toHaveValue('Started elsewhere');
   await expect(ui.pausedLabel).toHaveCount(0);
@@ -320,7 +300,6 @@ test('a timer started on another client ends a paused chain, and so does stoppin
   expect(await runningSeconds(ui.runningClock)).toBeLessThan(30);
   expect(await chainOf(page)).toBeNull();
 
-  // A new chain from the remote entry; then another device stops its clone.
   await ui.pause.click();
   await expect(ui.resume).toBeVisible();
   await ui.resume.click();

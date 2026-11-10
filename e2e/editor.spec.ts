@@ -21,7 +21,6 @@ test('editing only the description keeps the stored start and stop', async ({ pa
   await page.getByRole('button', { name: 'Edit' }).click();
   const editor = page.getByRole('dialog', { name: 'Edit entry' });
   await editor.getByLabel('Description').fill('Seconds still matter');
-  // Tabbing through the duration field must not change anything either.
   await editor.getByLabel('Duration').focus();
   await editor.getByLabel('Duration').blur();
   await editor.getByRole('button', { name: 'Save' }).click();
@@ -33,7 +32,6 @@ test('editing only the description keeps the stored start and stop', async ({ pa
   expect(saved.stop).toBe(created.stop);
 });
 
-// Overnight entries split at a clock time before their start, on the night the clocks change.
 const OVERNIGHT_SPLITS = [
   // 22:00 CEST to 6:00 CET, split at 3:00 CET.
   {
@@ -93,7 +91,6 @@ test('a no-time entry switches to timed and back from the editor, moving between
   page,
   data,
 }) => {
-  // Madrid, Monday 15 June: the entry's day is today.
   const { id } = await data.createNoTimeEntry({ description: 'Admin chores', day: '2026-06-15', duration: 5400 });
   await page.clock.setFixedTime(new Date('2026-06-15T10:00:00Z'));
   await login(page);
@@ -108,7 +105,6 @@ test('a no-time entry switches to timed and back from the editor, moving between
   await noTimes.uncheck();
   await expect(editor.getByLabel('Duration')).toHaveValue('');
   await expect(editor.getByLabel('Start', { exact: true })).toHaveValue('');
-  // A timed entry needs both ends.
   await editor.getByRole('button', { name: 'Save' }).click();
   await expect(editor.getByText('Check the start and end times')).toBeVisible();
   await editor.getByLabel('Start', { exact: true }).fill('9:00');
@@ -124,7 +120,6 @@ test('a no-time entry switches to timed and back from the editor, moving between
   await expect(todayBlock(page, 'Admin chores')).toHaveCSS('height', `${1.5 * 48}px`);
   expect(await savedTimes(page, id)).toEqual({ start: '2026-06-15T07:00:00+00:00', stop: '2026-06-15T08:30:00+00:00' });
 
-  // Back to no times: the day stays, and the duration the fields showed is kept, then changed.
   await todayBlock(page, 'Admin chores').click();
   await expect(noTimes).not.toBeChecked();
   await noTimes.check();

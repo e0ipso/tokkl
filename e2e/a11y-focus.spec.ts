@@ -2,10 +2,7 @@ import type { Locator, Page } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
 import { contrast, login } from './helpers.ts';
 
-// Keyboard focus shows a 2px ring on the timer description, the "Project" button of an
-// entry without a project, and the reports description search, with 3:1 contrast in both themes.
-
-/** Presses Tab until the target has focus, so :focus-visible comes from real keyboard use. */
+/** So :focus-visible comes from real keyboard use. */
 async function tabTo(page: Page, target: Locator, limit = 60) {
   for (let i = 0; i < limit; i++) {
     await page.keyboard.press('Tab');
@@ -21,7 +18,6 @@ interface Ring {
   behind: string;
 }
 
-/** The outline of an element and the first opaque background behind it. */
 function ringOf(target: Locator): Promise<Ring> {
   return target.evaluate(el => {
     const style = getComputedStyle(el);

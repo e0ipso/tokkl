@@ -14,19 +14,16 @@ export const EMAIL = 'e2e@example.com';
 export const PASSWORD = 'e2e password';
 export const SETUP_CODE = 'E2E-SETUP-CODE';
 
-/** What the login form needs for one account. */
 export interface Account {
   email: string;
   password: string;
   fullname: string;
 }
 
-/** The setup account: the first admin of each e2e server. Specs in the instance project sign in as it. */
+/** The first admin of each e2e server. Specs in the instance project sign in as it. */
 export const ADMIN_ACCOUNT: Account = { email: EMAIL, password: PASSWORD, fullname: 'E2E User' };
 
-// Worker accounts are `worker-<run id>-<workerIndex>@e2e.example`. Global setup picks the run id
-// and deletes worker accounts left by earlier runs, such as a killed run on a reused
-// TOKKL_E2E_DATA_DIR, so a new run never invites an address that already has an account.
+// Global setup deletes worker accounts left by earlier runs, so a run never invites an existing address.
 const WORKER_EMAIL = /^worker-[^@]*@e2e\.example$/;
 
 /** Global setup sets this before any worker starts; workers inherit it. */
@@ -38,14 +35,10 @@ function workerEmail(workerIndex: number): string {
   return `worker-${runId}-${workerIndex}@e2e.example`;
 }
 
-// Each Playwright worker is its own process, and the worker-scoped `account` fixture sets this
-// before any of the worker's tests run.
+// Each Playwright worker is its own process; the worker-scoped `account` fixture sets this first.
 let workerAccount: Account = ADMIN_ACCOUNT;
 
-/**
- * The account this worker's scenarios sign in as: its own invited user in the parallel project, or
- * the setup admin in the instance project. `login` and the API helpers that log in by password use it.
- */
+/** Its own invited user in the parallel project, or the setup admin in the instance project. */
 export function currentAccount(): Account {
   return workerAccount;
 }
@@ -58,17 +51,15 @@ export interface InstanceSettings {
 
 export interface NewUser {
   role?: 'admin' | 'user';
-  /** Defaults to a unique address, so leftovers from a failed run never collide. */
+  /** A unique address, so leftovers from a failed run never collide. */
   email?: string;
   fullname?: string;
-  /** IANA zone of the account; defaults to Europe/Madrid, like the worker accounts. */
   timezone?: string;
 }
 
 // Cookie-authenticated writes must carry this header (packages/api/src/auth/middleware.ts).
 const CSRF = { 'X-Tokkl-CSRF': '1' };
 
-// Preferences that scenarios change, set back to the defaults a new account gets.
 const BASELINE_PREFERENCES = {
   manualMode: false,
   collapseTimeEntries: true,
@@ -110,10 +101,8 @@ async function json<T>(response: Promise<APIResponse>): Promise<T> {
 }
 
 /**
- * Talks to the test server with its own session, separate from the page's, so a scenario still
- * logs in through the UI. Every scenario starts and ends with an empty account. The `data` fixture
- * signs in as the worker's account; `users.create()` adds other accounts. In the instance project
- * the server also goes back to holding only the setup admin before and after each scenario.
+ * Its own session, separate from the page's, so a scenario still logs in through the UI. Each scenario starts
+ * and ends with an empty account; the instance project also resets the server to the setup admin.
  */
 export class TestData {
   private readonly api: APIRequestContext;
@@ -140,10 +129,6 @@ export class TestData {
     return new TestData(api, baseURL, me, account);
   }
 
-  /**
-   * Signs in as the setup admin, creating it first on a server that has no account yet. Global
-   * setup does that before any worker starts (e2e/global-setup.ts).
-   */
   static async open(baseURL: string): Promise<TestData> {
     const api = await request.newContext({ baseURL });
     const status = await json<{ setup_required: boolean }>(api.get('/api/app/status'));
@@ -160,7 +145,6 @@ export class TestData {
     return TestData.signedIn(api, baseURL, ADMIN_ACCOUNT);
   }
 
-  /** Signs in as an account that already exists, such as a worker's own user. */
   static async login(baseURL: string, account: Account): Promise<TestData> {
     const api = await request.newContext({ baseURL });
     try {
@@ -174,10 +158,7 @@ export class TestData {
     }
   }
 
-  /**
-   * Creates another account the way a person joins: this account, which must be an admin, creates
-   * an invite and the new account accepts it. The new account owns a fresh workspace.
-   */
+  /** This account, an admin, creates an invite and the new account accepts it, with a fresh workspace. */
   async inviteUser(options: NewUser = {}): Promise<TestData> {
     const { url } = await json<{ url: string }>(
       this.api.post('/api/app/admin/invites', {
@@ -202,17 +183,14 @@ export class TestData {
     }
   }
 
-  /** Tokkl's own fields on this account's GET /api/v9/me: its instance role and the time resolution. */
   async me(): Promise<{ role: 'admin' | 'user'; time_resolution_minutes: number }> {
     return json(this.api.get('/api/v9/me'));
   }
 
-  /** Every account on the server, as an admin sees them. */
   async listUsers(): Promise<Array<{ id: number; email: string; role: 'admin' | 'user'; disabled_at: string | null }>> {
     return json(this.api.get('/api/app/admin/users'));
   }
 
-  /** The instance settings, as an admin sees them. */
   async instanceSettings(): Promise<InstanceSettings> {
     return json(this.api.get('/api/app/admin/settings'));
   }
@@ -221,17 +199,14 @@ export class TestData {
     await ok(await this.api.put('/api/app/admin/settings', { headers: CSRF, data: settings }));
   }
 
-  /** Creates an invite as an admin, through the API, and returns its id. The link is not kept. */
   async createInvite(invite: { role: 'admin' | 'user'; note?: string }): Promise<number> {
     return (await json<{ id: number }>(this.api.post('/api/app/admin/invites', { headers: CSRF, data: invite }))).id;
   }
 
-  /** Deletes another account and its workspace, as an admin. */
   async deleteUser(user: { id: number; email: string }): Promise<void> {
     await ok(await this.api.delete(`/api/app/admin/users/${user.id}`, { headers: CSRF, data: { email: user.email } }));
   }
 
-  /** Deletes these accounts, as an admin, skipping any a scenario has already deleted. */
   async deleteUsers(users: ReadonlyArray<{ userId: number; account: Account }>): Promise<void> {
     const remaining = new Set((await this.listUsers()).map(user => user.id));
     for (const user of users) {
@@ -239,29 +214,24 @@ export class TestData {
     }
   }
 
-  /** Deletes every worker account, as an admin. Only global setup calls it, before any worker starts. */
+  /** Only global setup calls it, before any worker starts. */
   async deleteWorkerAccounts(): Promise<void> {
     for (const user of await this.listUsers()) {
       if (WORKER_EMAIL.test(user.email)) await this.deleteUser(user);
     }
   }
 
-  /** Pending invites, as an admin sees them. */
   async inviteList(): Promise<Array<{ id: number; role: 'admin' | 'user'; note: string | null }>> {
     return json(this.api.get('/api/app/admin/invites'));
   }
 
-  /** Revokes every invite nobody has accepted yet, as an admin. */
   async revokeInvites(): Promise<void> {
     for (const invite of await this.inviteList()) {
       await ok(await this.api.delete(`/api/app/admin/invites/${invite.id}`, { headers: CSRF }));
     }
   }
 
-  /**
-   * Deletes every other account and revokes every pending invite, as an admin, so the server again
-   * holds only this account. Password reset links of the deleted accounts go with them.
-   */
+  /** Password reset links of the deleted accounts go with them. */
   async resetInstance(): Promise<void> {
     for (const user of await this.listUsers()) {
       if (user.id !== this.userId) await this.deleteUser(user);
@@ -269,21 +239,15 @@ export class TestData {
     await this.revokeInvites();
   }
 
-  /** Entries of this account, newest first. */
   async entries(): Promise<Array<{ id: number; description: string }>> {
     return json(this.api.get('/api/v9/me/time_entries?start_date=1970-01-01&end_date=2100-01-01'));
   }
 
-  /** Projects in this account's workspace, archived ones included. */
   async projects(): Promise<Array<{ id: number; name: string }>> {
     return json(this.api.get(`/api/v9/workspaces/${this.workspaceId}/projects?active=both`));
   }
 
-  /**
-   * Seeds a zero-length entry at `at`, a whole minute, like one stored before the API refused spans
-   * that round to zero. Live writes no longer store one, so it goes through the Toggl CSV import,
-   * which keeps the file's times. The CSV holds wall-clock times in the account zone, Europe/Madrid.
-   */
+  /** Live writes refuse zero-length spans, so this goes through the Toggl CSV import, in Europe/Madrid wall time. */
   async createZeroLengthEntry(description: string, at: string): Promise<void> {
     const { day, time } = madridWallClock(new Date(at));
     const csv = `Description,Start date,Start time,End date,End time\n${description},${day},${time}:00,${day},${time}:00\n`;
@@ -305,7 +269,6 @@ export class TestData {
     );
   }
 
-  /** Seeds a no-time entry on `day` (YYYY-MM-DD in the account zone) that lasts `duration` seconds. */
   async createNoTimeEntry(entry: { description: string; day: string; duration: number }): Promise<{ id: number }> {
     return json(
       this.api.post(`/api/v9/workspaces/${this.workspaceId}/time_entries`, {
@@ -329,7 +292,7 @@ export class TestData {
     return json(this.api.post(`/api/v9/workspaces/${this.workspaceId}/projects`, { headers: CSRF, data: project }));
   }
 
-  /** Saves preferences; the fixture puts every key in BASELINE_PREFERENCES back after the test. */
+  /** The fixture puts every key in BASELINE_PREFERENCES back after the test. */
   async savePreferences(preferences: {
     timeofday_format?: string;
     favorites?: Favorite[];
@@ -338,10 +301,7 @@ export class TestData {
     await ok(await this.api.post('/api/v9/me/preferences', { headers: CSRF, data: preferences }));
   }
 
-  /**
-   * Deletes every entry (running or not), the trash, a paused chain, projects, clients and tags,
-   * and resets preferences. It touches only this account and its own workspace, so other accounts keep theirs.
-   */
+  /** Touches only this account and its own workspace. */
   async reset(): Promise<void> {
     const ws = `/api/v9/workspaces/${this.workspaceId}`;
     for (const entry of await this.entries())
@@ -370,9 +330,8 @@ export class TestData {
 }
 
 /**
- * Sends every open page to a plain page of its own server. The app reads the timer again as soon as
- * its event stream ends, so a page left on the app sees the request fail once the server or its
- * account is gone. Call it before a fixture ends the sessions or stops the server.
+ * The app rereads the timer when its stream ends, so a page left on the app would see a failed request.
+ * Call it before a fixture ends sessions or stops the server.
  */
 export async function leavePages(context: BrowserContext): Promise<void> {
   await Promise.all(
@@ -385,11 +344,7 @@ export async function leavePages(context: BrowserContext): Promise<void> {
   );
 }
 
-/**
- * Extra accounts for one scenario, invited by the signed-in admin: the worker's user, or the setup
- * admin in the instance project. When the scenario ends their sessions are closed and the accounts
- * deleted, so parallel workers never touch each other's accounts.
- */
+/** Their sessions are closed and the accounts deleted when the scenario ends, so workers never collide. */
 export class ExtraUsers {
   private readonly admin: TestData;
   private readonly created: TestData[] = [];
@@ -415,19 +370,14 @@ export class ExtraUsers {
 }
 
 interface WorkerFixtures {
-  /**
-   * True in the instance project, whose specs need the whole server: they sign in as the setup
-   * admin, see every account, and may change instance settings. Set per project in
-   * playwright.config.ts.
-   */
+  /** The instance project's specs sign in as the setup admin and may change instance settings. */
   instanceWide: boolean;
   account: Account;
 }
 
 export const test = base.extend<{ data: TestData; users: ExtraUsers; runtimeErrors: RuntimeErrors }, WorkerFixtures>({
   instanceWide: [false, { scope: 'worker', option: true }],
-  // One admin account per worker, invited by the setup admin and deleted when the worker stops.
-  // A worker that restarts after a failure gets a new workerIndex, so a new account.
+  // A worker restarted after a failure gets a new workerIndex, so a new account.
   account: [
     async ({ instanceWide }, use, workerInfo) => {
       if (instanceWide) {
@@ -456,9 +406,7 @@ export const test = base.extend<{ data: TestData; users: ExtraUsers; runtimeErro
     },
     { scope: 'worker', auto: true },
   ],
-  // Automatic, so every scenario starts and ends with an empty account. In the instance project it
-  // also deletes the other accounts and pending invites, so a scenario that creates them without
-  // the users fixture, and fails before cleaning up, still leaves the setup admin alone.
+  // Automatic. In the instance project it also deletes other accounts and pending invites left by a failure.
   data: [
     async ({ baseURL, account, instanceWide }, use) => {
       const data = instanceWide ? await TestData.open(baseURL!) : await TestData.login(baseURL!, account);
@@ -488,8 +436,7 @@ export const test = base.extend<{ data: TestData; users: ExtraUsers; runtimeErro
       await users.dispose();
     }
   },
-  // Fails any scenario that hits an uncaught error, a console error or a failed request; see
-  // e2e/runtime-errors.ts for the logged-out 403 rule and runtimeErrors.allowResponse.
+  // Fails on an uncaught error, console error or failed request; see e2e/runtime-errors.ts.
   runtimeErrors: [
     async ({ page }, use, testInfo) => {
       const errors = new RuntimeErrors(page);

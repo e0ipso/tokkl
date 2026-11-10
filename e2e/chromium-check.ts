@@ -1,10 +1,7 @@
 import { chromium } from '@playwright/test';
 import { existsSync } from 'node:fs';
 
-// Fails the run once, before any scenario, when Chromium cannot start. Without this every test
-// reports its own launch error. It never downloads a browser; installing one is an explicit step.
-// Global setup for `npm run screenshots` (scripts/screenshots.config.ts), and the first step of
-// e2e/global-setup.ts.
+// Fails the run once, before any scenario, when Chromium cannot start; it never downloads a browser.
 export default async function checkChromium(): Promise<void> {
   const override = process.env.CHROMIUM_PATH;
   if (override && !existsSync(override)) {

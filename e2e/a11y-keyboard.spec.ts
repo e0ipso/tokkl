@@ -3,11 +3,6 @@ import { expect, test } from './fixtures.ts';
 import { contrast, login } from './helpers.ts';
 import { EntityApi } from './entity-tests-helpers.ts';
 
-// The colour radiogroup, the date range presets and the project picker each take one Tab
-// stop, and arrows, Home and End move through their options. Each scenario drives its widget with
-// the keyboard only.
-
-/** Presses Tab until focus lands inside the target, and returns how many presses it took. */
 async function tabInto(page: Page, target: Locator, limit = 30): Promise<number> {
   for (let i = 1; i <= limit; i++) {
     await page.keyboard.press('Tab');
@@ -16,7 +11,6 @@ async function tabInto(page: Page, target: Locator, limit = 30): Promise<number>
   throw new Error(`Tab did not reach the target within ${limit} presses`);
 }
 
-/** Options or radios in the group that Tab can reach. */
 function tabStops(group: Locator): Promise<number> {
   return group.evaluate(
     el =>
@@ -54,7 +48,6 @@ test('the colour field is one Tab stop and arrows check swatches without opening
     nodes.findIndex(node => node.getAttribute('aria-checked') === 'true'),
   );
   expect(startIndex).toBeGreaterThanOrEqual(0);
-  // Every swatch has its own colour name, and only the checked one draws a check mark.
   const names = await radios.evaluateAll(nodes =>
     nodes.map(node => (node.getAttribute('aria-label') ?? node.textContent ?? '').trim()),
   );
@@ -64,11 +57,9 @@ test('the colour field is one Tab stop and arrows check swatches without opening
     names.map((_, index) => index === startIndex),
   );
 
-  // Tab lands on the checked radio.
   await tabInto(page, group);
   await expect(radios.nth(startIndex)).toBeFocused();
 
-  // Home checks the first swatch; ArrowRight and ArrowDown move on and check.
   await page.keyboard.press('Home');
   await expect(radios.nth(0)).toBeFocused();
   await expect(radios.nth(0)).toHaveAttribute('aria-checked', 'true');
@@ -84,8 +75,7 @@ test('the colour field is one Tab stop and arrows check swatches without opening
   await expect(radios.nth(0)).toHaveAttribute('aria-checked', 'true');
   expect(await tabStops(group)).toBe(1);
 
-  // ArrowLeft from the first radio wraps to Custom, which takes focus but stays unchecked and
-  // leaves the native picker closed. ArrowRight wraps back to the first swatch.
+  // ArrowLeft from the first radio wraps to Custom, which takes focus but stays unchecked with the picker closed.
   await page.keyboard.press('ArrowLeft');
   await expect(custom).toBeFocused();
   await expect(custom).toHaveAttribute('aria-checked', 'false');
@@ -96,13 +86,11 @@ test('the colour field is one Tab stop and arrows check swatches without opening
   await expect(custom).toBeFocused();
   expect(await pickerCalls()).toBe(0);
 
-  // Tab leaves the group in one press, and Shift+Tab comes back to the checked radio.
   await page.keyboard.press('Tab');
   expect(await group.evaluate(el => el.contains(document.activeElement))).toBe(false);
   await page.keyboard.press('Shift+Tab');
   await expect(radios.nth(0)).toBeFocused();
 
-  // Space on Custom opens the native picker.
   await page.keyboard.press('End');
   await page.keyboard.press('Space');
   expect(await pickerCalls()).toBe(1);
@@ -120,7 +108,6 @@ test('the colour field is one Tab stop and arrows check swatches without opening
   ).toBe(chosen);
 });
 
-// Each swatch picks the check colour that reads best on it, at 3:1 or more.
 test('every colour swatch draws its check mark at 3:1 or more against the swatch', async ({ page }) => {
   await login(page);
   await (await EntityApi.open(page)).createProject({ name: 'Palette' });
@@ -164,11 +151,9 @@ test('the date range presets are one Tab stop that arrows walk without choosing'
     nodes.findIndex(node => node.getAttribute('aria-selected') === 'true'),
   );
 
-  // Opening focuses the selected preset, the only Tab stop in the list.
   await expect(options.nth(selectedIndex)).toBeFocused();
   expect(await tabStops(list)).toBe(1);
 
-  // Arrows, Home and End move focus and wrap; the selection stays until Enter.
   await page.keyboard.press('Home');
   await expect(options.nth(0)).toBeFocused();
   await page.keyboard.press('ArrowUp');
@@ -182,13 +167,11 @@ test('the date range presets are one Tab stop that arrows walk without choosing'
   await expect(list.getByRole('option', { selected: true })).toHaveText(selectedName);
   expect(await tabStops(list)).toBe(1);
 
-  // Tab leaves the list for the custom range in one press.
   await page.keyboard.press('Tab');
   await expect(page.getByLabel('From', { exact: true })).toBeFocused();
   await page.keyboard.press('Shift+Tab');
   await expect(options.nth(count - 2)).toBeFocused();
 
-  // Enter chooses the focused preset, closes the list and returns focus to the range button.
   const target = (await options.nth(count - 2).textContent())?.trim() ?? '';
   await page.keyboard.press('Enter');
   await expect(list).toBeHidden();
@@ -207,7 +190,6 @@ test('the project picker search is a combobox whose arrows move aria-activedesce
   await api.createProject({ name: 'Gamma' });
   await page.reload();
 
-  // '@' in the empty description opens the picker.
   const timer = page.getByRole('region', { name: 'Timer' });
   const description = timer.getByLabel('Description');
   await tabInto(page, description);
@@ -219,7 +201,6 @@ test('the project picker search is a combobox whose arrows move aria-activedesce
   await expect(combobox).not.toHaveAttribute('aria-activedescendant');
 
   const options = list.getByRole('option');
-  // No project, Alpha, Planning, Beta, Gamma.
   await expect(options).toHaveCount(5);
   expect(await tabStops(list)).toBe(0);
   const activeName = async () => {
@@ -243,7 +224,6 @@ test('the project picker search is a combobox whose arrows move aria-activedesce
   expect(await activeName()).toBe('No project');
   await expect(combobox).toBeFocused();
 
-  // Typing clears the active option; Enter then picks the active task.
   await page.keyboard.type('a');
   await expect(combobox).not.toHaveAttribute('aria-activedescendant');
   await page.keyboard.press('ArrowDown');
@@ -255,7 +235,6 @@ test('the project picker search is a combobox whose arrows move aria-activedesce
   await expect(timer.getByRole('button', { name: 'Project' })).toContainText('Alpha: Planning');
 });
 
-/** The outline, bar and background a picker option renders with. */
 function optionLook(option: Locator) {
   return option.evaluate(el => {
     const style = getComputedStyle(el);
@@ -268,8 +247,6 @@ function optionLook(option: Locator) {
   });
 }
 
-// The option the arrows make active shows a 2px primary outline on the row, at 3:1 against
-// the row in both themes, and looks different from the selected option's tint and left bar.
 for (const scheme of ['light', 'dark'] as const) {
   test(`the arrowed-to project picker option shows a visible indicator in the ${scheme} theme`, async ({ page }) => {
     await page.emulateMedia({ colorScheme: scheme });
@@ -294,7 +271,6 @@ for (const scheme of ['light', 'dark'] as const) {
     const selected = await optionLook(none);
     expect(active.outline).toBe('2px solid');
     expect(contrast(active.outlineColor, active.background)).toBeGreaterThanOrEqual(3);
-    // The selected row keeps its tint and bar and has no outline; the active row has no bar.
     expect(selected.outline).not.toBe('2px solid');
     expect(selected.background).not.toBe(active.background);
     expect(selected.boxShadow).not.toBe('none');
@@ -302,8 +278,6 @@ for (const scheme of ['light', 'dark'] as const) {
   });
 }
 
-// A modal dialog keeps Tab inside itself and makes the page behind inert; closing it wakes the
-// page and puts focus back on the button that opened it.
 test('a modal dialog contains Tab and makes the page behind inert', async ({ page }) => {
   await login(page);
   const api = await EntityApi.open(page);
@@ -318,7 +292,6 @@ test('a modal dialog contains Tab and makes the page behind inert', async ({ pag
   await expect.poll(() => insideInert(page.locator('main'))).toBe(true);
   expect(await insideInert(edit)).toBe(true);
   expect(await insideInert(editor)).toBe(false);
-  // Toasts stay live: their messages are announced and their buttons sit above the backdrop.
   expect(await insideInert(page.locator('.toasts'))).toBe(false);
 
   const close = editor.getByRole('button', { name: 'Close', exact: true });

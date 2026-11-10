@@ -4,21 +4,17 @@ import { login } from './helpers.ts';
 import { TimerApi, madridWallClock } from './timer-tests-helpers.ts';
 import { accountTime } from './transfer-tests-helpers.ts';
 
-// Manual mode persists per user (docs/PRD.md M1), an end before the start rolls to the next
-// account-local day (M3), and each saved entry's stored stop becomes the next start (M5). The e2e
-// account lives in Europe/Madrid.
+// Manual mode persists per user (docs/PRD.md M1), an end before the start rolls to the next day (M3), and
+// each stored stop becomes the next start (M5). The account lives in Europe/Madrid.
 
 interface Step {
   end: string;
-  /** Duration preview before saving. */
   duration: string;
-  /** Date and start fields after saving: the saved stop on its own local day. */
+  /** The saved stop on its own local day. */
   next: { date: string; start: string };
-  /** Saved instants. */
   saved: [string, string];
 }
 
-/** Adds one entry per step, each continuing from the previous stop, then checks the saved range. */
 async function addSequence(page: Page, api: TimerApi, first: { date: string; start: string }, steps: Step[]) {
   const timer = page.getByRole('region', { name: 'Timer' });
   await timer.getByLabel('Date').fill(first.date);
@@ -41,7 +37,6 @@ async function addSequence(page: Page, api: TimerApi, first: { date: string; sta
   }
 }
 
-/** After a reload, the saved entries still chain: each starts exactly where the previous one stopped. */
 async function expectChained(page: Page, api: TimerApi, prefix: string, count: number) {
   await page.reload();
   await expect(page.getByRole('region', { name: 'Timer' }).getByLabel('Date')).toBeVisible();
@@ -63,11 +58,9 @@ test('manual mode survives reload and a 24-hour overnight sequence chains on the
 
   await page.reload();
   await expect(timer.getByLabel('Date')).toBeVisible();
-  // The mode buttons expose which mode is on, not only through the fill.
   await expect(timer.getByRole('button', { name: 'Manual mode' })).toHaveAttribute('aria-pressed', 'true');
   await expect(timer.getByRole('button', { name: 'Timer mode' })).toHaveAttribute('aria-pressed', 'false');
   await expect(timer.getByRole('button', { name: 'Start timer' })).toHaveCount(0);
-  // The two mode buttons form a labelled group, each at least 24px each way.
   const modes = timer.getByRole('group', { name: 'Entry mode' }).getByRole('button');
   await expect(modes).toHaveCount(2);
   expect(await modes.evaluateAll(buttons => buttons.map(button => button.getAttribute('aria-label')))).toEqual([
@@ -203,8 +196,7 @@ test('a no-time manual entry lists with its duration, no time range and no overl
   page,
   data,
 }) => {
-  // A past day inside the list's window, so midnight never moves it. The timed entry sits inside
-  // the no-time entry's stored span, which would overlap if that span counted.
+  // A past day inside the list's window, so midnight never moves it. The timed entry sits inside the no-time span.
   const day = madridWallClock(new Date(Date.now() - 3 * 86_400_000)).day;
   await data.createEntry({
     description: 'Timed neighbour',

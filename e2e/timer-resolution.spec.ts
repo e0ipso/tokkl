@@ -2,9 +2,7 @@ import { expect, test } from './admin-tests-helpers.ts';
 import { login, loginAs } from './helpers.ts';
 import { TimerApi, instant, madridWallClock } from './timer-tests-helpers.ts';
 
-// The time resolution belongs to the whole server, so these scenarios run in the instance project.
-// The `instance` fixture puts the settings back after each one. Before saving, the web app shows
-// the duration the server will store; a running timer keeps real seconds until it stops.
+// Instance project: the `instance` fixture restores settings. A running timer keeps real seconds until it stops.
 
 const MINUTE = 60_000;
 
@@ -47,8 +45,7 @@ test('at a 15-minute resolution the timer bar previews and announces snapped dur
     Date.parse('2025-11-12T08:15:00Z'),
   ]);
 
-  // A duration typed into the idle timer saves an entry that ends now. Each end goes to its nearest
-  // quarter hour, so 20 minutes store as 15 or 30 depending on the time of day.
+  // Each end goes to its nearest quarter hour, so 20 minutes store as 15 or 30 depending on the time of day.
   await timer.getByRole('button', { name: 'Timer mode' }).click();
   await timer.getByLabel('Description').fill('Typed duration');
   await timer.getByLabel('Duration').fill('20m');
@@ -64,8 +61,7 @@ test('at a 15-minute resolution the timer bar previews and announces snapped dur
   const typed = (await api.entries()).find(entry => entry.description === 'Typed duration')!;
   expect([15 * MINUTE, 30 * MINUTE]).toContain(instant(typed.stop) - instant(typed.start));
 
-  // The running timer and the tab title tick real seconds, not 0:15:00. Stopped seconds later, it
-  // rounds to zero and goes to the trash.
+  // Stopped seconds later, it rounds to zero and goes to the trash.
   await timer.getByLabel('Description').fill('Ticking');
   await timer.getByRole('button', { name: 'Start timer' }).click();
   await expect(timer.getByRole('button', { name: /elapsed, edit start time$/ })).toHaveText(/^0:00:0[2-9]$/);
@@ -102,13 +98,11 @@ test('at a 15-minute resolution the entry editor previews snapped durations and 
   let editor = await openEditor();
   const duration = editor.getByLabel('Duration');
   await expect(duration).toHaveValue('1:00:00');
-  // A typed duration shows the length the server will store and moves the end by what was typed:
-  // an end at 20 minutes is nearer 15 than 30.
+  // An end at 20 minutes is nearer 15 than 30.
   await duration.fill('20m');
   await duration.blur();
   await expect(duration).toHaveValue('0:15:00');
   await expect(editor.getByLabel('End')).toHaveValue(clock(20));
-  // An end eight minutes past the hour moves to quarter past.
   await editor.getByLabel('End').fill(clock(68));
   await editor.getByLabel('End').blur();
   await expect(duration).toHaveValue('1:15:00');
@@ -147,8 +141,7 @@ test('at a 15-minute resolution the entry editor previews snapped durations and 
 
 test('across a half-hour clock change the stored start stays on the local hour grid', async ({ page, data, users }) => {
   await data.saveInstanceSettings({ time_resolution_minutes: 60 });
-  // Lord Howe Island springs forward from 02:00 (UTC+10:30) to 02:30 (UTC+11) on 2026-10-04, so
-  // local 02:30 is off the hour grid and the grid point nearest 01:50 is 03:00. 03:40 goes to 04:00.
+  // Lord Howe springs forward 02:00 to 02:30 on 2026-10-04, so the grid point nearest 01:50 is 03:00.
   const user = await users.create({ timezone: 'Australia/Lord_Howe' });
   await loginAs(page, user.account);
   const api = await TimerApi.open(page);
@@ -176,8 +169,7 @@ test('an entry saved under a finer resolution splits into halves that fill its s
 }) => {
   const day = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
   const start = Date.parse(`${day}T08:05:00Z`);
-  // Stored at the default 5-minute resolution, then the server moves to 15: the entry now snaps to
-  // 08:00-09:00, and each half carries its own snapped start and stop so they add up to that hour.
+  // The server then moves to 15: the entry snaps to 08:00-09:00, and the halves add up to that hour.
   await data.createEntry({ description: 'Older grid', start: `${day}T08:05:00Z`, stop: `${day}T09:05:00Z` });
   await data.saveInstanceSettings({ time_resolution_minutes: 15 });
   await login(page);
@@ -208,9 +200,7 @@ test('across a half-hour clock change the entry editor splits on the local hour 
   users,
 }) => {
   await data.saveInstanceSettings({ time_resolution_minutes: 60 });
-  // On Lord Howe Island 01:00 (UTC+10:30) to 03:30 (UTC+11) on 2026-10-04 is two hours. The stop
-  // ties between local 03:00 and 04:00 and goes to 04:00, so the entry stores two and a half hours.
-  // Cut at 03:00, the halves last an hour and a half and an hour, and meet there.
+  // On Lord Howe, 01:00 to 03:30 on 2026-10-04 is two hours; the stop ties and goes to 04:00, so it stores 2.5 h.
   const user = await users.create({ timezone: 'Australia/Lord_Howe' });
   const { id } = await user.createEntry({
     description: 'Island shift',

@@ -19,7 +19,7 @@ test('Toggl CSV preview and cancel write nothing; import saves account-time entr
   const csv = transferFixture('toggl-detailed.csv', { RECENT_DATE: recent });
   await login(page);
 
-  // Load the timer list and projects first, so seeing the import later proves the cache refreshed.
+  // Load these first, so seeing the import later proves the cache refreshed.
   await expect(page.locator('.entry-line')).toHaveCount(0);
   await page.getByRole('link', { name: 'Projects' }).click();
   await expect(page.getByRole('cell', { name: 'Website' })).toHaveCount(0);
@@ -28,7 +28,6 @@ test('Toggl CSV preview and cancel write nothing; import saves account-time entr
   const summary = page.locator('.import-summary').first();
   const importButton = page.getByRole('button', { name: /^Import \d+ entr/ });
 
-  // Preview, then cancel: the summary describes the file and nothing is written.
   await chooseCsv(page, csv);
   await expect(summary).toContainText('5 rows in the file');
   await expect(summary).toContainText('5 entries to import');
@@ -42,7 +41,6 @@ test('Toggl CSV preview and cancel write nothing; import saves account-time entr
   await expect(importButton).toHaveCount(0);
   await expectEmptyAccount(page, data.workspaceId);
 
-  // Preview again and import.
   await chooseCsv(page, csv);
   await expect(summary).toContainText('5 entries to import');
   await importButton.click();
@@ -131,7 +129,6 @@ test('Toggl CSV preview and cancel write nothing; import saves account-time entr
   const design = account.tasks.find(t => t.name === 'Design')!;
   expect(account.entries.filter(e => e.task_id === design.id).every(e => e.project_id === website.id)).toBe(true);
 
-  // The app shows the imported data without a reload.
   await page.getByRole('link', { name: 'Projects' }).click();
   const websiteRow = page.getByRole('row').filter({ has: page.getByRole('cell', { name: 'Website', exact: true }) });
   await expect(websiteRow).toContainText('Acme');
@@ -146,7 +143,6 @@ test('Toggl CSV preview and cancel write nothing; import saves account-time entr
   await expect(row.locator('.tag-chip')).toHaveText('ops');
   await expect(row.getByRole('button', { name: 'Billable' })).toHaveAttribute('aria-pressed', 'true');
 
-  // The same file again finds every row already here.
   await openSettings(page);
   await chooseCsv(page, csv);
   await expect(summary).toContainText('0 entries to import');
@@ -184,7 +180,6 @@ test('Toggl CSV rows with problems show their reasons and the valid rows still i
     'Row 4: Invalid start date or time',
     'Row 5: Invalid end time or duration',
     'Row 6: Stop time must be after start time',
-    // A duration over the 999-hour limit, and one in a unit that does not exist.
     'Row 7: Invalid end time or duration',
     'Row 8: Invalid end time or duration',
   ];
@@ -207,7 +202,6 @@ test('Toggl CSV rows with problems show their reasons and the valid rows still i
   ]);
   expect(account.projects.map(p => p.name)).toEqual(['Internal']);
 
-  // A file without the Toggl columns is refused as a whole, with the reason in a toast.
   runtimeErrors.allowResponse({
     status: 400,
     method: 'POST',
@@ -224,7 +218,6 @@ test('Toggl CSV rows with problems show their reasons and the valid rows still i
   expect((await readAccount(page, data.workspaceId)).entries).toHaveLength(2);
 });
 
-// A team export lists its Toggl users, needs a choice, and imports only the chosen rows.
 // User "Alice <alice@example.com>" with no Email and User "Alice" with that Email are two users.
 test('a Toggl CSV from several users imports only the users picked in the preview', async ({ page, data }) => {
   await login(page);
@@ -237,14 +230,12 @@ test('a Toggl CSV from several users imports only the users picked in the previe
   const aliceByName = picker.getByRole('checkbox', { name: 'Alice <alice@example.com> · 1 row', exact: true });
   const aliceByEmail = picker.getByRole('checkbox', { name: 'Alice alice@example.com · 1 row', exact: true });
 
-  // Before anyone is picked the preview counts every row, and the import waits for a choice.
   await chooseCsv(page, transferFixture('toggl-team.csv'));
   await expect(picker.getByRole('checkbox')).toHaveCount(3);
   for (const box of [sam, aliceByName, aliceByEmail]) await expect(box).not.toBeChecked();
   await expect(summary).toContainText('4 entries to import');
   await expect(page.getByRole('button', { name: 'Import 4 entries' })).toBeDisabled();
 
-  // Each pick previews again, so the counts describe only the chosen users' rows.
   await sam.check();
   await expect(summary).toContainText('2 entries to import');
   await expect(summary).toContainText('2 rows from other Toggl users, skipped');
@@ -265,8 +256,7 @@ test('a Toggl CSV from several users imports only the users picked in the previe
   ]);
 });
 
-// The exported file blanks the time cells of a no-time entry and keeps its date and duration. The
-// target account is in New York, so the entry must land on the file's date there, not shift with the zone.
+// The target account is in New York, so the entry must land on the file's date there.
 test('a no-time entry round-trips through the CSV export into another account, and a second import adds nothing', async ({
   page,
   data,
@@ -277,7 +267,6 @@ test('a no-time entry round-trips through the CSV export into another account, a
   await login(page);
   const text = await (await page.request.get('/api/app/export.csv')).text();
   const rows = parseCsv(text);
-  // Start date, Start time, End date, End time and Duration.
   const cells = (description: string) => rows.find(row => row[5] === description)!.slice(7, 12);
   expect(cells('Admin chores')).toEqual(['2026-06-15', '', '2026-06-15', '', '1:30:00']);
   expect(cells('Standup')).toEqual(['2026-06-15', '09:00:00', '2026-06-15', '10:00:00', '1:00:00']);

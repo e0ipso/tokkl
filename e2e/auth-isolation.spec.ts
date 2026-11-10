@@ -2,10 +2,6 @@ import type { Page } from '@playwright/test';
 import { expect, test, type TestData } from './fixtures.ts';
 import { login, loginAs } from './helpers.ts';
 
-// Two accounts on one server and one browser. User A (the setup admin) leaves data,
-// settings and a theme behind; after A logs out, user B logs in on the same browser context and
-// must find none of it, and A's workspace stays closed to B's session by URL and by API.
-
 const CSRF = { 'X-Tokkl-CSRF': '1' };
 const A_ENTRY = 'A private: acquisition shortlist';
 const A_PROJECT = 'A private: Project Falcon';
@@ -56,7 +52,6 @@ test("after A logs out, B logs in on the same browser and sees none of A's data,
   await data.savePreferences({ timeofday_format: 'h:mm A', theme: 'dark' });
   await seed(b, B_PROJECT, B_ENTRY);
 
-  // A's session shows A's data in A's theme.
   await login(page);
   const firstEntry = page.locator('.entry-line').first().getByLabel('Description');
   await expect(firstEntry).toHaveValue(A_ENTRY);
@@ -97,7 +92,6 @@ test("B cannot open A's data by URL or by API request with B's session", async (
   const a = await seed(data, A_PROJECT, A_ENTRY);
   const aWorkspace = `/api/v9/workspaces/${data.workspaceId}`;
 
-  // A's detailed report, filtered on A's project, lists A's entry for A...
   const day = new Date(Date.now() - 3 * 3_600_000).toLocaleDateString('en-CA', { timeZone: 'Europe/Madrid' });
   const reportUrl = `/reports?from=${day}&to=${day}&tab=detailed&projects=${a.projectId}`;
   await login(page);
@@ -106,14 +100,12 @@ test("B cannot open A's data by URL or by API request with B's session", async (
   await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Log out' }).click();
   await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible();
 
-  // ...and the same link finds nothing of A's once B is signed in.
   await loginAs(page, b.account);
   await page.goto(reportUrl);
   await expect(page.getByRole('heading', { name: 'Reports' })).toBeVisible();
   await page.waitForLoadState('networkidle');
   await expectAbsent(page, A_ENTRY, A_PROJECT);
 
-  // Opening A's project in the address bar gets the API's refusal, not the project.
   const projectPath = `${aWorkspace}/projects/${a.projectId}`;
   runtimeErrors.allowResponse({
     status: 403,
@@ -125,7 +117,6 @@ test("B cannot open A's data by URL or by API request with B's session", async (
   expect(opened?.status()).toBe(403);
   await expectAbsent(page, A_PROJECT);
 
-  // Direct requests with the browser's session (B's cookie) are refused for reads and writes.
   const reads = ['', '/projects', `/projects/${a.projectId}`, '/clients', '/tags', '/users'];
   for (const path of reads) {
     const response = await page.request.get(`${aWorkspace}${path}`);
@@ -143,13 +134,11 @@ test("B cannot open A's data by URL or by API request with B's session", async (
   ];
   for (const write of writes) expect((await write).status()).toBe(403);
 
-  // B's own lists never include A's rows.
   const own = (await (
     await page.request.get('/api/v9/me/time_entries?start_date=1970-01-01&end_date=2100-01-01')
   ).json()) as Array<{ id: number }>;
   expect(own.map(entry => entry.id)).not.toContain(a.entryId);
 
-  // A's data is untouched.
   expect((await data.entries()).map(entry => entry.description)).toEqual([A_ENTRY]);
   expect((await data.projects()).map(project => project.name)).toEqual([A_PROJECT]);
 });

@@ -3,16 +3,13 @@ import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
 import { expectBrowserTimeZone, openCalendar, px, todayBlock } from './history-calendar-tests-helpers.ts';
 
-// The account is in Europe/Madrid (e2e/fixtures.ts) and the browser in Tokyo, seven hours ahead,
-// so midnight, "today" and the Monday week start fall at different instants for the two.
+// The browser is in Tokyo, seven hours ahead of the account's Madrid, so midnight and week start differ.
 test.use({ timezoneId: 'Asia/Tokyo' });
 
-/** The entry list's group for one day, found by its heading ("Today", "Sat, 13 Jun", ...). */
 function dayGroup(page: Page, heading: string) {
   return page.locator('.day-group').filter({ has: page.getByRole('heading', { name: heading, exact: true }) });
 }
 
-/** Descriptions in a day group, in display order. */
 async function descriptions(page: Page, heading: string): Promise<string[]> {
   return dayGroup(page, heading)
     .getByLabel('Description')
@@ -41,7 +38,6 @@ test('day, today and week totals and attribution follow the account time zone in
   page,
   data,
 }) => {
-  // Madrid times (CEST); Tokyo is seven hours ahead.
   await data.createEntry({
     description: 'Saturday block',
     start: '2026-06-13T08:00:00Z',
@@ -64,7 +60,6 @@ test('day, today and week totals and attribution follow the account time zone in
   await login(page);
   await expectBrowserTimeZone(page, 'Asia/Tokyo');
 
-  // Entries count on the Madrid day they start: today is Monday, so the week so far is Monday only.
   await expect(summaryTotal(page, 'Today')).toHaveText('2:15:00');
   await expect(summaryTotal(page, 'This week')).toHaveText('2:15:00');
   await expect.poll(() => descriptions(page, 'Today')).toEqual(['Monday evening', 'Monday work']);
@@ -75,8 +70,7 @@ test('day, today and week totals and attribution follow the account time zone in
   await expect(dayGroup(page, 'Sat, 13 Jun').locator('.day-total')).toHaveText('2:00:00');
   await expect(page.locator('.day-group')).toHaveCount(3);
 
-  // The calendar week is Madrid's Monday to Sunday; the entry across midnight shows its first
-  // 55 minutes on Monday but counts toward Sunday, where it starts.
+  // The entry across midnight shows its first 55 minutes on Monday but counts toward Sunday, where it starts.
   await openCalendar(page);
   await expect(page.locator('.calendar-range')).toHaveText('15 Jun to 21 Jun');
   await expect(page.locator('.calendar-day-head').first()).toContainText('Today');
@@ -92,7 +86,6 @@ test('day, today and week totals and attribution follow the account time zone in
   await expect(calendarDayTotal(page, 'Sat, 13 Jun')).toHaveText('2:00:00');
   await expect(page.locator('.calendar-toolbar strong')).toHaveText('3:20:00');
 
-  // Reports group by the Madrid day each entry starts on.
   await page.goto('/reports?from=2026-06-15&to=2026-06-15');
   await expect(reportTotal(page, 'Total time')).toHaveText('2:15:00');
   await expect(reportTotal(page, 'Entries')).toHaveText('2');
@@ -133,7 +126,6 @@ for (const first of [null, '2026-06-15T07:00:00Z', '2026-06-01T22:00:00Z']) {
 }
 
 test('Show more days reaches an entry older than 90 days', async ({ page, data }) => {
-  // Today is Monday 2026-06-15 in Madrid; the old entry is 100 days earlier.
   await data.createEntry({ description: 'Recent entry', start: '2026-06-15T07:00:00Z', stop: '2026-06-15T08:00:00Z' });
   await data.createEntry({ description: 'Old entry', start: '2026-03-07T09:00:00Z', stop: '2026-03-07T10:30:00Z' });
   await page.clock.setFixedTime(new Date('2026-06-15T10:00:00Z'));
@@ -143,8 +135,7 @@ test('Show more days reaches an entry older than 90 days', async ({ page, data }
 
   const more = page.getByRole('button', { name: 'Show 14 more days' });
   const old = page.locator('input[value="Old entry"]');
-  // Each click widens the list by 14 days. Six clicks show 98 days (from 2026-03-10); the seventh
-  // shows 112 days (from 2026-02-24), which includes 2026-03-07.
+  // Each click widens the list by 14 days; the seventh shows 112 days, which includes 2026-03-07.
   const requested: string[] = [];
   for (let days = 28; days <= 112; days += 14) {
     const from = new Date(Date.UTC(2026, 5, 15) - (days - 1) * 86_400_000).toISOString().slice(0, 10);

@@ -3,7 +3,6 @@ import { fileURLToPath } from 'node:url';
 import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
 
-/** The icon pack's web root, whose files keep their paths when served. */
 const ICON_PACK = fileURLToPath(new URL('../docs/brand/icon-pack/web/public/', import.meta.url));
 
 interface ManifestIcon {
@@ -13,10 +12,8 @@ interface ManifestIcon {
   purpose?: string;
 }
 
-// Every served icon is sized for its use and stays under this budget.
 const MAX_ICON_BYTES = 100 * 1024;
-// The maskable icons go up to 1024 px and load only when the app is installed, so maskable manifest
-// icons get a larger budget.
+// Maskable icons go up to 1024 px and load only when installed, so they get a larger budget.
 const MAX_MASKABLE_ICON_BYTES = 128 * 1024;
 
 interface Manifest {
@@ -30,7 +27,6 @@ interface Manifest {
   icons?: ManifestIcon[];
 }
 
-/** Decodes an image in the page and reports its size and its lowest alpha value (255 means opaque). */
 async function decodeImage(page: Page, src: string) {
   return page.evaluate(async url => {
     const image = new Image();
@@ -48,8 +44,6 @@ async function decodeImage(page: Page, src: string) {
   }, src);
 }
 
-// Checks the manifest and icons the built app ships (dist/web, served by the real server). It
-// does not cover installing the app on a phone.
 test('the built app links a local manifest whose icons are real images of the declared size', async ({ page }) => {
   await page.goto('/');
   const origin = new URL(page.url()).origin;
@@ -69,8 +63,7 @@ test('the built app links a local manifest whose icons are real images of the de
   expect(typeof manifest.start_url).toBe('string');
   const startUrl = new URL(manifest.start_url as string, manifestUrl);
   expect(startUrl.origin).toBe(origin);
-  // The app's identity and scope are the site root, so an install survives a changed start URL and
-  // every route opens inside the app window. The id resolves against the start URL's origin.
+  // Identity and scope are the site root, so an install survives a changed start URL. The id resolves against its origin.
   expect(typeof manifest.id).toBe('string');
   expect(new URL(manifest.id as string, startUrl.origin).href).toBe(`${origin}/`);
   expect(typeof manifest.scope).toBe('string');
@@ -78,11 +71,9 @@ test('the built app links a local manifest whose icons are real images of the de
   expect(scope.href).toBe(`${origin}/`);
   expect(startUrl.href.startsWith(scope.href)).toBe(true);
 
-  // An installed app opens in the icon pack's background colour.
   expect([manifest.theme_color, manifest.background_color]).toEqual(['#291329', '#291329']);
 
-  // The icon pack's artwork is raster, so the manifest lists only PNG sizes: the general-purpose
-  // icons, then the maskable ones. The pack's 1024 px general-purpose icon is too large to serve.
+  // The artwork is raster, so the manifest lists only PNG sizes; the pack's 1024 px general icon is too large to serve.
   expect(manifest.icons?.map(icon => [icon.src, icon.sizes, icon.type, icon.purpose ?? 'any'])).toEqual([
     ['/icons/icon-192.png', '192x192', 'image/png', 'any'],
     ['/icons/icon-512.png', '512x512', 'image/png', 'any'],
@@ -117,7 +108,6 @@ test('the built app links a local manifest whose icons are real images of the de
   }
 });
 
-/** The sizes an ICO file holds, read from the 16-byte entries after its 6-byte header. */
 function icoSizes(bytes: Buffer) {
   expect([bytes.readUInt16LE(0), bytes.readUInt16LE(2)], 'ICO header').toEqual([0, 1]);
   return Array.from({ length: bytes.readUInt16LE(4) }, (_, index) => {
@@ -128,8 +118,7 @@ function icoSizes(bytes: Buffer) {
   });
 }
 
-// The favicons and Apple touch icons in index.html point at real images of their declared sizes,
-// not the app shell. The Apple touch icons are opaque, because iOS paints transparent corners black.
+// The Apple touch icons are opaque, because iOS paints transparent corners black.
 test('the favicon and apple-touch-icon links resolve to images of their declared sizes', async ({ page }) => {
   await page.goto('/');
   const origin = new URL(page.url()).origin;
@@ -168,10 +157,7 @@ test('the favicon and apple-touch-icon links resolve to images of their declared
   }
 });
 
-// The Apple touch icons ship byte for byte from the icon pack, including the 180 px touch icon
-// under /icons/ that index.html does not link. The pack's 1024 px
-// general-purpose icon and the previous root icons are not served, so the server answers them with
-// the HTML app shell.
+// Retired and oversized icons are not served, so the server answers them with the HTML app shell.
 test('the served touch icons are the icon pack files, and retired icons are not served', async ({ page }) => {
   const copied = [
     'apple-touch-icon.png',

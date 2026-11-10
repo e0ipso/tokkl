@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, type Page } from '@playwright/test';
 
-/** The account timezone e2e/fixtures.ts gives the test account; CSV times are read in it. */
+/** CSV times are read in it. */
 export const ACCOUNT_TIME_ZONE = 'Europe/Madrid';
 
 export interface UploadFile {
@@ -10,10 +10,7 @@ export interface UploadFile {
   buffer: Buffer;
 }
 
-/**
- * Reads a file from e2e/fixtures-data/transfer. `{{KEY}}` placeholders are replaced, so a fixture
- * can hold a row dated near today that the timer page lists.
- */
+/** `{{KEY}}` placeholders are replaced, so a fixture can hold a row dated near today. */
 export function transferFixture(name: string, replacements: Record<string, string> = {}): UploadFile {
   let text = readFileSync(new URL(`./fixtures-data/transfer/${name}`, import.meta.url), 'utf8');
   for (const [key, value] of Object.entries(replacements)) text = text.replaceAll(`{{${key}}}`, value);
@@ -21,13 +18,12 @@ export function transferFixture(name: string, replacements: Record<string, strin
   return { name, mimeType, buffer: Buffer.from(text) };
 }
 
-/** Yesterday's date (YYYY-MM-DD) in the account timezone; the timer page lists the last 14 days. */
+/** In the account timezone; the timer page lists the last 14 days. */
 export function recentDate(): string {
   const yesterday = new Date(Date.now() - 24 * 3600 * 1000);
   return new Intl.DateTimeFormat('en-CA', { timeZone: ACCOUNT_TIME_ZONE }).format(yesterday);
 }
 
-/** The instant of a wall-clock time in the account timezone, as the API serialises it. */
 export function accountTime(date: string, time: string): string {
   // Try both offsets the account timezone uses and keep the one that maps back to the wall clock.
   for (const offset of ['+01:00', '+02:00']) {
@@ -103,7 +99,6 @@ export interface Account {
   tasks: Task[];
 }
 
-/** Everything the test account holds, read through the page's own session. */
 export async function readAccount(page: Page, workspaceId: number): Promise<Account> {
   const get = async <T>(path: string): Promise<T> => {
     const response = await page.request.get(path);
@@ -122,7 +117,6 @@ export async function readAccount(page: Page, workspaceId: number): Promise<Acco
   };
 }
 
-/** Asserts that the account holds no entries, projects, clients, tags or tasks. */
 export async function expectEmptyAccount(page: Page, workspaceId: number): Promise<void> {
   const account = await readAccount(page, workspaceId);
   expect({
@@ -134,7 +128,7 @@ export async function expectEmptyAccount(page: Page, workspaceId: number): Promi
   }).toEqual({ entries: 0, projects: 0, clients: 0, tags: 0, tasks: 0 });
 }
 
-/** Opens Settings through the app's own navigation, so cached queries survive. */
+/** Through the app's own navigation, so cached queries survive. */
 export async function openSettings(page: Page): Promise<void> {
   await page.getByRole('link', { name: 'Settings' }).click();
   await expect(page.getByRole('heading', { name: 'Data' })).toBeVisible();

@@ -25,7 +25,6 @@ const tab = (page: Page, name: string) => page.getByRole('tablist', { name: 'Rep
 /** The CSV writes "(none)" where the page writes "Without project", "Without client" and so on. */
 const csvTitle = (title: string) => (title.startsWith('Without ') ? '(none)' : title);
 
-/** Waits for the next POST to an app CSV route and returns its JSON body. */
 async function csvRequest(page: Page, kind: 'detailed' | 'summary'): Promise<Record<string, unknown>> {
   const request: Request = await page.waitForRequest(
     candidate => candidate.method() === 'POST' && new URL(candidate.url()).pathname === `/api/app/report/${kind}.csv`,
@@ -34,13 +33,11 @@ async function csvRequest(page: Page, kind: 'detailed' | 'summary'): Promise<Rec
 }
 
 test('filtered, rounded CSV downloads over more than a year match the displayed reports', async ({ page, api }) => {
-  // The workspace rounds every entry up to 15 minutes; the report and its CSVs must agree.
   await api.setWorkspace({ rounding: 1, rounding_minutes: 15 });
   const acme = await api.client('ACME');
   const alpha = await api.project({ name: 'Alpha', client_id: acme });
   const beta = await api.project({ name: 'Beta' });
-  // Kept: 5 min, 10 min, 25 min and 2 h 40 min, on the default 5-minute time resolution, rounded up
-  // to 15 min, 15 min, 30 min and 2 h 45 min.
+  // On the default 5-minute resolution, rounded up to 15 min, 15 min, 30 min and 2 h 45 min.
   await api.entry({
     description: 'Kickoff',
     project_id: alpha,
@@ -63,7 +60,6 @@ test('filtered, rounded CSV downloads over more than a year match the displayed 
     start: '2026-01-20T10:00:00Z',
     stop: '2026-01-20T12:40:00Z',
   });
-  // Dropped: tagged "invoiced", on project Beta, or before the range.
   await api.entry({
     description: 'Year end',
     project_id: alpha,
@@ -94,7 +90,6 @@ test('filtered, rounded CSV downloads over more than a year match the displayed 
   for (const title of ['ACME', 'Without client']) {
     await breakdown.getByRole('button', { name: `Show project breakdown for ${title}` }).click();
   }
-  // Group rows, each followed by its sub-group rows: [title, duration, share].
   const readShownRows = async () => {
     const shown = await cellTexts(breakdown.locator('tbody tr'));
     const rowsOnScreen: string[][] = [];
@@ -131,7 +126,6 @@ test('filtered, rounded CSV downloads over more than a year match the displayed 
 
   await tab(page, 'Detailed').click();
   const rows = page.locator('tr.entry-row');
-  /** Displayed rows as [date, description, project, client, tags, duration], CSV spelling. */
   const displayed = async () =>
     (await cellTexts(rows)).map(cells => [
       cells[0]!,
@@ -141,7 +135,6 @@ test('filtered, rounded CSV downloads over more than a year match the displayed 
       cells[4]!,
       cells[6]!,
     ]);
-  /** CSV rows in the same shape: Start date, Description, Project, Client, Tags, Duration. */
   const exported = (csv: string[][]) =>
     csv.slice(1).map(row => [row[7]!, row[5]!, row[3]!, row[2]!, row[12]!, row[11]!]);
 
@@ -175,7 +168,6 @@ test('filtered, rounded CSV downloads over more than a year match the displayed 
   ]);
   expect(hms(detailed.rows.slice(1).reduce((sum, row) => sum + toSeconds(row[11]!), 0))).toBe('3:45:00');
 
-  // The detailed CSV follows the sort on screen.
   await page.getByRole('columnheader', { name: 'Duration' }).getByRole('button').click();
   await expect(rows.first()).toContainText('Wrap up');
   await page.getByRole('columnheader', { name: 'Duration' }).getByRole('button').click();
@@ -227,7 +219,6 @@ test('the detailed CSV leaves the time cells of a no-time entry blank and keeps 
 
   const detailed = await downloadCsv(page, 'CSV (detailed)');
   expect(detailed.rows[0]).toEqual(DETAILED_HEADER);
-  // Start date, Start time, End date, End time and Duration, by description.
   const cells = Object.fromEntries(detailed.rows.slice(1).map(row => [row[5]!, row.slice(7, 12)]));
   expect(cells).toEqual({
     'Admin chores': ['2026-06-15', '', '2026-06-15', '', '1:30:00'],

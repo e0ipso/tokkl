@@ -1,15 +1,14 @@
 import type { Page } from '@playwright/test';
 import { basic, createAccount, expect, logInThroughForm, test } from './auth-tests-helpers.ts';
 
-// API token reveal, copy and reset through account settings. Each scenario runs its own
-// disposable server, so the shared e2e account keeps its token.
+// Each scenario runs its own disposable server, so the shared e2e account keeps its token.
 
 async function openTokenCard(page: Page) {
   await page.getByRole('link', { name: 'Settings' }).click();
   return page.locator('#api-token');
 }
 
-/** GET /api/v9/me from the page with only a Basic token, no cookie, so the runtime guard sees it. */
+/** Only a Basic token, no cookie, so the runtime guard sees it. */
 async function meStatusWithToken(page: Page, token: string): Promise<number> {
   const authorization = basic(token, 'api_token');
   return page.evaluate(
@@ -33,7 +32,6 @@ test('the API token starts hidden, can be shown, and copies to the clipboard', a
   await card.getByRole('button', { name: 'Hide' }).click();
   await expect(card.getByLabel('API token, hidden')).toHaveText('•'.repeat(32));
 
-  // Copy works while the token is hidden.
   await card.getByRole('button', { name: 'Copy' }).click();
   await expect(page.getByRole('status')).toContainText('API token copied');
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(apiToken);
@@ -73,7 +71,6 @@ test('a refused Clipboard API write falls back to the textarea, then to the copy
   await expect(page.getByRole('status')).toContainText('API token copied');
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(apiToken);
 
-  // When the textarea copy fails too, the toast says what to do instead of showing the browser error.
   await page.evaluate(() => {
     document.execCommand = () => false;
   });
@@ -121,7 +118,6 @@ test('resetting the token asks first; confirming swaps tokens and keeps the brow
   expect(await meStatusWithToken(page, oldToken)).toBe(403);
   expect(await meStatusWithToken(page, newToken)).toBe(200);
 
-  // The browser session does not depend on the token.
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
   const me = await page.request.get(`${server.baseURL}/api/v9/me`);

@@ -6,7 +6,7 @@ import { currentAccount, expect, test as base } from './fixtures.ts';
 // Cookie-authenticated writes must carry this header (packages/api/src/auth/middleware.ts).
 const CSRF = { 'X-Tokkl-CSRF': '1' };
 
-/** Account and workspace settings the report specs change. The shared reset fixture leaves them alone. */
+/** The shared reset fixture leaves them alone. */
 interface ReportSettings {
   beginning_of_week: number;
   rounding: number;
@@ -29,7 +29,6 @@ async function ok(response: APIResponse): Promise<APIResponse> {
   return response;
 }
 
-/** Seeds report data and changes report settings through the API, with its own session. */
 export class ReportApi {
   private readonly api: APIRequestContext;
   readonly workspaceId: number;
@@ -113,12 +112,11 @@ export class ReportApi {
     return (await ok(await this.api.get(`/api/v9/me/time_entries/${id}`))).json();
   }
 
-  /** Restores a JSON export into this account, as Settings does, and returns what it could not import. */
   async importJson(document: unknown): Promise<{ errors: unknown[] }> {
     return this.send('post', '/api/app/import/json', document);
   }
 
-  /** Posts without failing on an error status, for compatibility endpoints that refuse a request. */
+  /** Does not fail on an error status, for compatibility endpoints that refuse a request. */
   async rawPost(path: string, data: unknown): Promise<APIResponse> {
     return this.api.post(path, { headers: CSRF, data });
   }
@@ -129,7 +127,7 @@ export class ReportApi {
   }
 }
 
-/** The shared fixtures plus `api`, which puts the report settings back after every scenario. */
+/** `api` puts the report settings back after every scenario. */
 export const test = base.extend<{ api: ReportApi }>({
   api: async ({ baseURL }, use) => {
     const api = await ReportApi.open(baseURL!);
@@ -145,7 +143,6 @@ export const test = base.extend<{ api: ReportApi }>({
 
 export { expect };
 
-/** "H:MM:SS" as the default "improved" duration format shows it. */
 export function hms(seconds: number): string {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
@@ -158,7 +155,7 @@ export function toSeconds(text: string): number {
   return h * 3600 + m * 60 + s;
 }
 
-/** RFC 4180 rows: quoted fields may hold commas, doubled quotes and line breaks. */
+/** Quoted fields may hold commas, doubled quotes and line breaks. */
 export function parseCsv(text: string): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
@@ -197,7 +194,6 @@ export function parseCsv(text: string): string[][] {
   return rows;
 }
 
-/** Clicks an export button and returns the downloaded file's name and parsed rows. */
 export async function downloadCsv(page: Page, button: string): Promise<{ filename: string; rows: string[][] }> {
   const download = page.waitForEvent('download');
   await page.getByRole('group', { name: 'Export' }).getByRole('button', { name: button }).click();
@@ -205,11 +201,7 @@ export async function downloadCsv(page: Page, button: string): Promise<{ filenam
   return { filename: file.suggestedFilename(), rows: parseCsv(await readFile(await file.path(), 'utf8')) };
 }
 
-/**
- * Rendered, trimmed text of every cell in each row (innerText skips icon titles). It waits for
- * the first row, so a table that is still loading is not read as empty. The read itself is one
- * shot: when more rows may still arrive, poll it with `expect.poll(() => cellTexts(rows))`.
- */
+/** innerText skips icon titles. Waits for the first row, then reads once; poll it when more rows may arrive. */
 export async function cellTexts(rows: ReturnType<Page['locator']>): Promise<string[][]> {
   await expect(rows.first()).toBeAttached();
   return rows.evaluateAll(elements =>
@@ -217,12 +209,11 @@ export async function cellTexts(rows: ReturnType<Page['locator']>): Promise<stri
   );
 }
 
-/** An instant as the API takes it, without milliseconds. */
 export function iso(ms: number): string {
   return new Date(ms).toISOString().replace('.000Z', 'Z');
 }
 
-/** Formats money the way the page does, with the browser's locale. */
+/** With the browser's locale, as the page does. */
 export function money(page: Page, cents: number, currency: string): Promise<string> {
   return page.evaluate(
     ([value, code]) =>
@@ -231,17 +222,13 @@ export function money(page: Page, cents: number, currency: string): Promise<stri
   );
 }
 
-/** A Summary report and the Amount figures it shows, as cents and currency. */
 export interface AmountReport {
   name: string;
   path: string;
   amounts: Array<[cents: number, currency: string]>;
 }
 
-/**
- * Seeds three Summary reports with wide Amount figures: the README screenshots' last 30 days, one
- * euro figure with six digits before the decimal point, and six-digit figures in two currencies.
- */
+/** The README screenshots' last 30 days, a six-digit euro figure, and six-digit figures in two currencies. */
 export async function seedWideAmounts(api: ReportApi): Promise<AmountReport[]> {
   // The screenshot data ends with a timer running since July, which the README's figure leaves out.
   const demo = screenshotExport();
@@ -282,11 +269,7 @@ export async function seedWideAmounts(api: ReportApi): Promise<AmountReport[]> {
   ];
 }
 
-/**
- * Opens the report and checks that each Amount figure is on one line and inside its tile, and that
- * the tile is inside the viewport. Several currencies may wrap between figures, so each figure is
- * measured on its own, from the line boxes of its text.
- */
+/** Each figure is measured on its own, from its text's line boxes, since currencies may wrap between figures. */
 export async function expectWholeAmounts(page: Page, report: AmountReport): Promise<void> {
   await page.goto(report.path);
   const tile = page.locator('.report-totals > div', { hasText: 'Amount' });

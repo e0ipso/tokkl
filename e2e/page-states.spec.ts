@@ -4,18 +4,9 @@ import { login } from './helpers.ts';
 import { EntityApi } from './entity-tests-helpers.ts';
 import { ACCOUNT_TIME_ZONE, accountTime, recentDate } from './transfer-tests-helpers.ts';
 
-// Content that has not arrived is an aria-busy region with a status label, and a failed
-// load is an alert that says what failed and offers "Try again". Report tabs and project
-// tasks use the same states. Empty lists say what to do next, and the empty entry list
-// can start a timer or switch to manual mode.
-
-/** Retries of a 5xx answer: TanStack Query tries three times, waiting 1 s and then 2 s. */
+/** TanStack Query tries three times, waiting 1 s and then 2 s. */
 const AFTER_RETRIES = { timeout: 10_000 };
 
-/**
- * Answers every request to `path` with 503 "Server unavailable" until the returned function is
- * called. Other methods and paths go through untouched.
- */
 async function failRequests(page: Page, method: 'GET' | 'POST', path: RegExp): Promise<() => void> {
   let failing = true;
   await page.route(
@@ -76,7 +67,6 @@ interface FailedLoad {
   name: string;
   method: 'GET' | 'POST';
   path: RegExp;
-  /** Runs after login: seeds what the view needs, opens it and says where the alert and the recovered content appear. */
   open: (page: Page) => Promise<{ scope: Locator; recovered: Locator }>;
   message: string;
 }
@@ -216,7 +206,6 @@ test('the entry list stays on screen and is marked busy while it refetches', asy
 });
 
 test('the entry list keeps its rows and is marked busy while Show more days loads', async ({ page }) => {
-  // The wider range used to replace the whole list with "Loading entries…".
   const day = recentDate();
   // 20 days ago in the account timezone: outside the first 14 days, inside the next 14.
   const older = new Intl.DateTimeFormat('en-CA', { timeZone: ACCOUNT_TIME_ZONE }).format(
@@ -279,11 +268,9 @@ test('the empty entry list offers Manual mode and Start timer', async ({ page })
   await empty.getByRole('button', { name: 'Manual mode' }).click();
   await expect(timer.getByLabel('Date')).toBeVisible();
   await expect(timer.getByRole('button', { name: 'Manual mode' })).toHaveAttribute('aria-pressed', 'true');
-  // Already in manual mode, the empty state points at the fields instead of the switch.
   await expect(empty.getByRole('button', { name: 'Manual mode' })).toHaveCount(0);
   await expect(empty).toContainText('or fill in the times above to log time you already worked.');
 
-  // Start timer leaves manual mode and starts the clock.
   await empty.getByRole('button', { name: 'Start timer' }).click();
   await expect(timer.getByRole('button', { name: 'Stop timer' })).toBeVisible();
   await expect(timer.getByLabel('Date')).toHaveCount(0);

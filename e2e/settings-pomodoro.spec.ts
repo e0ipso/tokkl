@@ -5,9 +5,7 @@ import { loginAs } from './helpers.ts';
 import { PHONE, expectFits, expectNoPageOverflow, tap } from './mobile-tests-helpers.ts';
 import { permissionRequests, stubNotifications, type NotificationSetup } from './notification-tests-helpers.ts';
 
-// The Pomodoro session defaults group of the Preferences card on /settings edits the four lengths a
-// new session starts with, and the card asks for permission to show notifications. Every scenario
-// signs in as an account of its own.
+// Every scenario signs in as an account of its own.
 
 const CSRF = { 'X-Tokkl-CSRF': '1' };
 const PREFERENCES_PATH = /^\/api\/v9\/me\/preferences$/;
@@ -19,7 +17,6 @@ const DEFAULTS = {
   pomodoro_long_break_every: 4,
 };
 
-/** The group's controls, found by the labels a user reads. */
 function group(page: Page) {
   const card = page.getByRole('form', { name: 'Preferences' });
   const pomodoro = card.getByRole('group', { name: 'Pomodoro session defaults' });
@@ -32,12 +29,10 @@ function group(page: Page) {
     longBreak: pomodoro.getByRole('spinbutton', { name: 'Long rest', exact: true }),
     every: pomodoro.getByRole('spinbutton', { name: 'Long rest every', exact: true }),
     allowNotifications: card.getByRole('button', { name: 'Allow notifications' }),
-    // The line under the button, which takes its place once the browser answers.
     notificationStatus: card.getByText(/^(Shows a notification|Notifications (are|need)|This browser can't)/),
   };
 }
 
-/** The four stored Pomodoro lengths, read from the API. */
 async function stored(page: Page): Promise<typeof DEFAULTS> {
   const response = await page.request.get('/api/v9/me/preferences');
   expect(response.ok()).toBe(true);
@@ -45,13 +40,11 @@ async function stored(page: Page): Promise<typeof DEFAULTS> {
   return Object.fromEntries(Object.keys(DEFAULTS).map(key => [key, prefs[key]])) as typeof DEFAULTS;
 }
 
-/** Changes the stored preferences the way another device would. */
 async function saveFromAnotherDevice(page: Page, changes: Partial<typeof DEFAULTS>): Promise<void> {
   const response = await page.request.post('/api/v9/me/preferences', { headers: CSRF, data: changes });
   expect(response.ok()).toBe(true);
 }
 
-/** Signs in as a new account and opens Settings. */
 async function openSettings(page: Page, users: ExtraUsers) {
   const user = await users.create();
   await loginAs(page, user.account);
@@ -136,7 +129,6 @@ test('a value the server refuses shows its message on the field it names, and no
   await expect(form.every).not.toHaveAttribute('aria-invalid', 'true');
   expect(await stored(page)).toEqual(DEFAULTS);
 
-  // Fixing the value clears the error, and the next save keeps everything typed.
   await form.work.fill('180');
   await expect(form.work).not.toHaveAttribute('aria-invalid', 'true');
   await form.save.click();
@@ -195,7 +187,7 @@ test('a refetch keeps an unsaved Pomodoro value and its focus, and updates the u
   await form.work.fill('40');
   await saveFromAnotherDevice(page, { pomodoro_break_interval_in_minutes: 9, pomodoro_long_break_every: 6 });
   await page.clock.fastForward(61_000);
-  // Window focus refetches stale queries, at most once a second (packages/web/src/main.tsx).
+  // Window focus refetches stale queries, at most once a second.
   await expect(async () => {
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
     await expect(form.shortBreak).toHaveValue('9', { timeout: 1500 });
@@ -218,7 +210,6 @@ test('a refetch keeps an unsaved Pomodoro value and its focus, and updates the u
   });
 });
 
-// The user types the old value back while the save is still on its way.
 test('a value typed while a save is pending stays after the response, and Save sends it', async ({ page, users }) => {
   const form = await openSettings(page, users);
   const sent: unknown[] = [];
@@ -250,8 +241,6 @@ test('a value typed while a save is pending stays after the response, and Save s
   await expect.poll(() => stored(page)).toEqual({ ...DEFAULTS, pomodoro_long_break_interval_in_minutes: 30 });
 });
 
-// When the pending save fails, the stored values have not changed. A value typed back to the stored
-// one is no longer an edit, while a value typed to match the pending save stays one.
 test('after a failed save, only a value typed back to the stored one stops being an edit', async ({
   page,
   users,
@@ -290,7 +279,6 @@ test('after a failed save, only a value typed back to the stored one stops being
   await expect(form.longBreak).toHaveValue('20');
   expect(await stored(page)).toEqual(DEFAULTS);
 
-  // Another device's change reaches the field that is no longer edited, not the one that is.
   await saveFromAnotherDevice(page, {
     pomodoro_focus_interval_in_minutes: 35,
     pomodoro_long_break_interval_in_minutes: 45,
@@ -319,7 +307,6 @@ test('Allow notifications asks for permission only when clicked, saves nothing a
   });
   await form.allowNotifications.click();
   await expect(form.allowNotifications).toHaveCount(0);
-  // Focus stays in the group, on the line that replaced the button.
   await expect(form.notificationStatus).toHaveText(/^Notifications are allowed\./);
   await expect(form.notificationStatus).toBeFocused();
   expect(await permissionRequests(page)).toBe(1);
@@ -337,7 +324,6 @@ for (const [name, answer] of [
     await expect.poll(() => permissionRequests(page)).toBe(1);
     await expect(form.allowNotifications).toBeVisible();
     await expect(form.notificationStatus).toHaveText(/phase ends while Tokkl is in a background tab/);
-    // The runtimeErrors fixture fails the test on any page error or console error.
   });
 }
 
@@ -384,7 +370,6 @@ test.describe('on a phone', () => {
       await expectFits(control);
     }
 
-    // The longest message the group shows still wraps inside the screen.
     await form.work.fill('181');
     await form.every.fill('2.5');
     await tap(form.save);

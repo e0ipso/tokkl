@@ -2,21 +2,16 @@ import type { Page, Route } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
 
-// Canaries for the runtimeErrors fixture. Each one provokes a failure, checks that verify() rejects
-// with it, then empties the list so the fixture's own verify() at teardown passes. Only these
-// canaries may empty the list; other scenarios declare expected responses with allowResponse.
+// Canaries for the runtimeErrors fixture: each provokes a failure, checks verify() rejects it, then empties the list.
 
 test('an error hidden by ErrorBoundary fails the scenario', async ({ page, runtimeErrors }, testInfo) => {
   await login(page);
-  // Every reply is decoded, so a malformed one fails its request instead of a render. An account
-  // time zone is decoded as text, and the server only stores canonical zone names: one the browser
-  // does not know makes date formatting throw while rendering.
+  // An unknown zone from /me makes date formatting throw while rendering.
   await page.route(/\/api\/v9\/me$/, async route => {
     const response = await route.fetch();
     await route.fulfill({ response, json: { ...(await response.json()), timezone: 'Nowhere/Never' } });
   });
   await page.reload();
-  // The error page is an alert with the page's h1 and a way back.
   const alert = page
     .getByRole('alert')
     .filter({ has: page.getByRole('heading', { level: 1, name: 'Something broke on this page' }) });
@@ -67,10 +62,9 @@ test('a failed request fails the scenario even with a rule for another one', asy
   runtimeErrors.issues.splice(0);
 });
 
-/** Marks the canary's own request, so the app's requests to the same path (it polls /api/app/status) pass. */
+/** So the app's requests to the same path (it polls /api/app/status) pass. */
 const CANARY_HEADER = 'x-guard-canary';
 
-/** Sends a request from the page that `page.route` fails with `error`, and waits until it has failed. */
 async function failFromPage(page: Page, method: 'GET' | 'POST', path: string, error: 'aborted' | 'connectionrefused') {
   const isCanary = (request: { method(): string; headers(): Record<string, string> }) =>
     request.method() === method && CANARY_HEADER in request.headers();

@@ -49,10 +49,7 @@ async function body<T>(response: APIResponse): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-/**
- * Reads and seeds data through the page's own session, so call it after logging in through the
- * UI. Requests sent with page.request do not reach the page's response listeners.
- */
+/** Uses the page's own session, so call it after logging in through the UI; page.request misses its listeners. */
 export class EntityApi {
   private readonly page: Page;
   readonly workspaceId: number;
@@ -75,7 +72,6 @@ export class EntityApi {
     return body(await this.page.request.post(this.ws('/clients'), { headers: CSRF, data: { name } }));
   }
 
-  /** Archives the client and its projects. */
   async archiveClient(id: number): Promise<void> {
     await body(await this.page.request.post(this.ws(`/clients/${id}/archive`), { headers: CSRF }));
   }
@@ -89,7 +85,7 @@ export class EntityApi {
     return body(await this.page.request.post(this.ws('/projects'), { headers: CSRF, data: project }));
   }
 
-  /** Archives the project. Its tasks stay, and the API still lets them be deleted. */
+  /** Its tasks stay, and the API still lets them be deleted. */
   async archiveProject(id: number): Promise<Project> {
     return body(await this.page.request.put(this.ws(`/projects/${id}`), { headers: CSRF, data: { active: false } }));
   }
@@ -117,7 +113,6 @@ export class EntityApi {
     return body(await this.page.request.get(`/api/v9/me/time_entries/${id}`));
   }
 
-  /** Live entries only; deleted ones are in `trash()`. */
   async entries(): Promise<Entry[]> {
     return body(await this.page.request.get('/api/v9/me/time_entries?start_date=1970-01-01&end_date=2100-01-01'));
   }
@@ -151,17 +146,15 @@ export class EntityApi {
   }
 }
 
-/** Yesterday's UTC date, so seeded entries show in the timer list without crossing midnight in Europe/Madrid. */
+/** Yesterday in UTC, so seeded entries show in the timer list without crossing midnight in Europe/Madrid. */
 export function yesterday(): string {
   return new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
 }
 
-/** The timer list row for the entry with this description. */
 export function entryRow(page: Page, description: string): Locator {
   return page.locator('.entry-line', { has: page.locator(`input[value="${description}"]`) });
 }
 
-/** Counts the page's requests that match `method` and `path`, for "saved once" checks. */
 export function countRequests(page: Page, method: string, path: RegExp): () => number {
   let count = 0;
   page.on('request', request => {
@@ -170,18 +163,15 @@ export function countRequests(page: Page, method: string, path: RegExp): () => n
   return () => count;
 }
 
-/** Opens a row's menu on a manage page and picks an item. */
 export async function rowAction(page: Page, name: string, action: string): Promise<void> {
   await page.getByRole('button', { name: `More actions for ${name}`, exact: true }).click();
   await page.getByRole('menuitem', { name: action }).click();
 }
 
-/** The "More actions" button of the row named `name`. */
 export function rowMenu(page: Page, name: string): Locator {
   return page.getByRole('button', { name: `More actions for ${name}`, exact: true });
 }
 
-/** Opens the row menu of `name` and picks `action`, by keyboard only. */
 export async function rowActionByKeyboard(page: Page, name: string, action: string): Promise<void> {
   await rowMenu(page, name).focus();
   await page.keyboard.press('Enter');
@@ -189,7 +179,6 @@ export async function rowActionByKeyboard(page: Page, name: string, action: stri
   await page.keyboard.press('Enter');
 }
 
-/** Names of the projects the timer's project picker offers, then closes it. */
 export async function timerPickerProjects(page: Page): Promise<string[]> {
   const timer = page.getByRole('region', { name: 'Timer' });
   await timer.getByRole('button', { name: 'Project' }).click();
@@ -201,10 +190,7 @@ export async function timerPickerProjects(page: Page): Promise<string[]> {
   return names.map(name => name.trim());
 }
 
-/**
- * Marks the loaded document. With `expectSameDocument` after in-app navigation, it proves the app
- * kept its query cache, so a refreshed view came from invalidation and not from a full reload.
- */
+/** With `expectSameDocument` it proves the app kept its query cache, so a refresh came from invalidation. */
 export async function markDocument(page: Page): Promise<void> {
   await page.evaluate(() => {
     (window as unknown as { entityTestsMark?: boolean }).entityTestsMark = true;

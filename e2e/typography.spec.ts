@@ -3,19 +3,13 @@ import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
 import { PHONE } from './mobile-tests-helpers.ts';
 
-// The Anybody variable font ships with the app, is preloaded once, loads under the CSP
-// (font-src 'self') and sets headings, the running clock and totals.
-// The wordmark is the owner's artwork as an image named "Tokkl", not text set in a font.
 // The root font size is 93.75%, so 1rem is 15px.
 
 const FONT = '/fonts/anybody-wdth-wght.woff2';
 
 const fontFamily = (target: Locator) => target.evaluate(el => getComputedStyle(el).fontFamily);
 
-/**
- * The brand is the wordmark alone. A small extra image could slip past the visual baselines'
- * threshold, so every `.brand` on the page must hold exactly one img, the one named Tokkl.
- */
+/** A small extra image could slip past the visual baselines' threshold. */
 async function expectWordmarkAlone(page: Page) {
   const brands = page.locator('.brand');
   await expect(brands).not.toHaveCount(0);
@@ -89,7 +83,6 @@ test('the preloaded font is fetched once, loads under the CSP and sets the displ
   await expect(wordmark).toBeVisible();
   await expect(wordmark).toHaveJSProperty('tagName', 'IMG');
   await expect(wordmark).toHaveAttribute('src', /^\/brand\/wordmark-\d+\.png$/);
-  // Loaded and decoded, not a broken image with only its alt text showing.
   expect(
     await wordmark.evaluate(async (img: HTMLImageElement) => {
       await img.decode();
@@ -100,7 +93,6 @@ test('the preloaded font is fetched once, loads under the CSP and sets the displ
   await expectWordmarkAlone(page);
 });
 
-// The test above checks the sidebar's md brand; the login page shows lg and the phone header sm.
 test('the brand is the wordmark alone on the login page and in the phone header', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible();
@@ -113,11 +105,7 @@ test('the brand is the wordmark alone on the login page and in the phone header'
   await expectWordmarkAlone(page);
 });
 
-/**
- * Checks that the wordmark at this size is drawn `width` CSS pixels wide and as tall as the
- * served file's own proportions give, within the 1px the height attribute rounds to. A stale
- * height in Brand.tsx would squash or stretch the art. Returns the file the browser picked.
- */
+/** Within the 1px the height attribute rounds to; a stale height in Brand.tsx would distort the art. */
 async function expectWordmarkProportions(page: Page, size: 'sm' | 'md' | 'lg', width: number) {
   const img = page.locator(`.brand-${size} img`);
   await expect(img).toBeVisible();

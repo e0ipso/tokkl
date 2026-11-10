@@ -16,15 +16,10 @@ import {
 } from './auth-tests-helpers.ts';
 import { PHONE, expectFits, expectNoPageOverflow } from './mobile-tests-helpers.ts';
 
-// An admin's invite link opens /invite/:token, where a logged-out person creates their
-// account and lands on the timer. The page fits a phone and every control shows its focus ring.
-
 test.use(PHONE);
 
-/** The one 404 body for unknown, used, expired and revoked invite tokens. */
 const INVITE_NOT_VALID = 'This invite link is not valid. Ask your admin for a new one.';
 
-/** Presses Tab until the target has focus, so :focus-visible comes from keyboard use. */
 async function tabTo(page: Page, target: Locator): Promise<void> {
   for (let i = 0; i < 10; i++) {
     if (await target.evaluate(el => el === document.activeElement)) return;
@@ -81,7 +76,6 @@ test('an invited person creates an account in the browser and lands on the timer
     timezone: 'Europe/Madrid',
   });
 
-  // The link is spent: opening it again shows the error instead of the form.
   runtimeErrors.allowResponse({
     status: 404,
     method: 'GET',
@@ -114,8 +108,6 @@ test('a bad invite link says so and offers the login page', async ({ page, runti
   await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible();
 });
 
-// Each invited account is a second, separate account: its own private workspace, the role
-// the invite named, no access to the admin's data. Pending invites are listed and can be revoked.
 test('an invite adds a separate account in its own workspace, and a revoked link stops working', async ({
   servers,
 }) => {
@@ -149,7 +141,6 @@ test('an invite adds a separate account in its own workspace, and a revoked link
       { email: invited.email, role: 'user' },
     ]);
 
-    // Only the unused admin invite is pending; revoking it kills its link with the usual 404.
     const pending = (await (await api.get('/api/app/admin/invites')).json()) as Array<{ id: number; role: string }>;
     expect(pending.map(({ role }) => role)).toEqual(['admin']);
     expect((await api.delete(`/api/app/admin/invites/${pending[0]!.id}`)).status()).toBe(200);
@@ -169,8 +160,7 @@ test('an invite adds a separate account in its own workspace, and a revoked link
   }
 });
 
-// Wrong tokens charge the per-address counter that password checks share, so a hundred
-// misses lock this address out of invite links and the login form alike.
+// Wrong tokens share the per-address counter with password checks, so misses lock invites and logins alike.
 test('a hundred wrong invite tokens lock this address out of invites and logins', async ({
   page,
   runtimeErrors,
@@ -192,7 +182,6 @@ test('a hundred wrong invite tokens lock this address out of invites and logins'
     const blocked = await anonymous.get('/api/app/invites/guess-100');
     expect(blocked.status()).toBe(429);
     expect(retryAfter(blocked)).toBeGreaterThan(LIMIT_WINDOW_SECONDS - 60);
-    // The real link is refused too, before any lookup.
     expect((await anonymous.get(inviteApiPath(invite))).status()).toBe(429);
     const login = await anonymous.post('/api/app/login', {
       headers: CSRF,
@@ -204,7 +193,6 @@ test('a hundred wrong invite tokens lock this address out of invites and logins'
     await anonymous.dispose();
   }
 
-  // The browser shares the address, so the invite page cannot load the invite either.
   await page.goto(`${server.baseURL}${invite}`);
   await expect(page.getByRole('alert')).toContainText('Too many failed attempts');
   await expect(page.getByLabel('Password')).toHaveCount(0);

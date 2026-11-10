@@ -2,8 +2,7 @@ import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
 import { expectSnapped, instant, madridWallClock, metadataOf, nextRunning, TimerApi } from './timer-tests-helpers.ts';
 
-// A running entry is edited in place (docs/PRD.md T6): same ID, still running, every field kept.
-// A timer forgotten past the 999-hour cap still stops, at the cap.
+// docs/PRD.md T6. A timer forgotten past the 999-hour cap still stops, at the cap.
 
 test('editing a running entry keeps its ID, leaves it running and survives reload', async ({ page }) => {
   await login(page);
@@ -36,7 +35,6 @@ test('editing a running entry keeps its ID, leaves it running and survives reloa
   await timer.getByRole('button', { name: 'Billable' }).click();
   await expect.poll(async () => (await api.current())?.billable).toBe(true);
 
-  // Move the start two hours back through the editor; typed times are whole minutes.
   const start = new Date(Math.floor((Date.now() - 2 * 3_600_000) / 60_000) * 60_000);
   const wall = madridWallClock(start);
   await timer.getByRole('button', { name: /^\d+:\d\d:\d\d elapsed, edit start time$/ }).click();
@@ -89,8 +87,7 @@ test('closing a picker focuses the description without opening its suggestions',
   await description.blur();
   await expect(suggestions).toHaveCount(0);
 
-  // Records whether the list shows at any point, so a list that opens and then closes again on a
-  // stale blur timeout fails as well as one that stays open.
+  // Records whether the list shows at any point, so one that opens and closes on a stale blur fails too.
   const watchSuggestions = () =>
     page.evaluate(() => {
       const flag = window as Window & { suggestionsShown?: boolean };
@@ -120,8 +117,7 @@ test('closing a picker focuses the description without opening its suggestions',
   await expect(suggestions).toHaveCount(0);
   expect(await suggestionsShown()).toBe(false);
 
-  // Typing after a picker closed opens the list again. Retyping the last letter leaves the
-  // description as it was, so the blur below has nothing to save.
+  // Retyping the last letter leaves the description as it was, so the blur below has nothing to save.
   await page.keyboard.press('End');
   await page.keyboard.press('Backspace');
   await expect(suggestions.getByRole('option')).toHaveCount(1);
@@ -130,7 +126,6 @@ test('closing a picker focuses the description without opening its suggestions',
   await page.keyboard.press('Escape');
   await expect(suggestions).toHaveCount(0);
 
-  // Focusing the field by hand still offers the matching entry.
   await description.blur();
   await description.click();
   await expect(suggestions.getByRole('option')).toHaveCount(1);
@@ -156,7 +151,6 @@ test('the clock keeps ticking and a refetch keeps what is being typed into the r
   await expect.poll(() => clock.textContent(), { timeout: 5_000 }).not.toBe(before);
   await expect(description).toBeFocused();
 
-  // Another device tags the entry. The pushed timer state brings that in without wiping the typing.
   const remote = await page.request.put(`/api/v9/workspaces/${api.workspaceId}/time_entries/${running.id}`, {
     headers: { 'X-Tokkl-CSRF': '1' },
     data: { tags: ['remote'] },
@@ -166,8 +160,7 @@ test('the clock keeps ticking and a refetch keeps what is being typed into the r
   await expect(description).toHaveValue('Focus block');
   await expect(description).toBeFocused();
 
-  // So does a focus refetch of the timer state, which carries the running entry. A state is fresh
-  // for a second (`staleTime` in useTimerState), so the focus waits that out.
+  // A state is fresh for a second (`staleTime`), so the focus waits that out.
   await page.waitForTimeout(1_100);
   const refetched = page.waitForResponse(
     response => new URL(response.url()).pathname === '/api/app/timer' && response.ok(),

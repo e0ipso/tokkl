@@ -11,7 +11,7 @@ export function browserBackend(env: Record<string, string | undefined>): Backend
   return backend as Backend;
 }
 
-/** Only called with configuration returned by the disposable provisioner. Never logs credentials. */
+/** Only for configuration from the disposable provisioner. Never logs credentials. */
 export function disposableDatabaseUrl(config: StorageConfig): string {
   if (config.backend === 'sqlite') return `sqlite://${config.filename}`;
   const url = new URL(`${config.backend}://127.0.0.1`);

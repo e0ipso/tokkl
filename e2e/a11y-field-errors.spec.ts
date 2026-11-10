@@ -3,11 +3,6 @@ import { expect, test } from './fixtures.ts';
 import { contrast, login } from './helpers.ts';
 import { EntityApi } from './entity-tests-helpers.ts';
 
-// Form validation errors appear under the field instead of in a toast. The field gets
-// aria-invalid, a danger border and aria-describedby pointing at a role=alert message, and submit
-// moves focus to the first invalid field.
-
-/** The first opaque background at or behind an element. */
 function backgroundOf(target: Locator): Promise<string> {
   return target.evaluate(el => {
     for (let node: Element | null = el; node; node = node.parentElement) {
@@ -18,7 +13,6 @@ function backgroundOf(target: Locator): Promise<string> {
   });
 }
 
-/** Checks the field is marked invalid and linked to an inline alert with exactly `message`. */
 async function expectFieldError(page: Page, field: Locator, message: string) {
   await expect(field).toHaveAttribute('aria-invalid', 'true');
   const id = await field.getAttribute('aria-describedby');
@@ -69,7 +63,6 @@ for (const scheme of ['light', 'dark'] as const) {
     await expect(alert).toHaveCSS('color', danger);
     expect(contrast(danger, await backgroundOf(alert))).toBeGreaterThanOrEqual(4.5);
 
-    // Typing clears the error; a readable start with an unreadable end marks the end instead.
     await start.fill('9:00');
     await expectValid(start);
     await expect(alert).toHaveCount(0);
@@ -111,7 +104,6 @@ test('the entry editor shows time, duration and split errors on their fields', a
   await split.fill('23:59');
   await editor.getByRole('button', { name: 'Split' }).click();
   await expectFieldError(page, split, 'The split time must fall inside the entry');
-  // The save errors are still there: the split check leaves other fields alone.
   await expectFieldError(page, duration, 'Check the duration');
 });
 
@@ -147,7 +139,6 @@ test('the timer bar refuses an unreadable duration instead of starting a timer',
   const timer = page.getByRole('region', { name: 'Timer' });
   const duration = timer.getByLabel('Duration');
 
-  // Over 999 hours is as unreadable as text that is no duration at all; Enter and the button agree.
   for (const [text, submit] of [
     ['1000h', 'enter'],
     ['forever', 'click'],
@@ -160,7 +151,6 @@ test('the timer bar refuses an unreadable duration instead of starting a timer',
     await expect(duration).toHaveValue(text);
     await expect(duration).toBeFocused();
   }
-  // Enter in the description checks the duration too, and moves focus to it.
   await timer.getByLabel('Description').fill('Not started');
   await timer.getByLabel('Description').press('Enter');
   await expectFieldError(page, duration, 'Check the duration');
@@ -168,7 +158,6 @@ test('the timer bar refuses an unreadable duration instead of starting a timer',
   await expect(timer.getByRole('button', { name: 'Stop timer' })).toHaveCount(0);
   expect(await api.entries()).toEqual([]);
 
-  // A readable duration saves a stopped entry and clears the field and its error.
   await duration.fill('20m');
   await expectValid(duration);
   await duration.press('Enter');
@@ -177,7 +166,6 @@ test('the timer bar refuses an unreadable duration instead of starting a timer',
   const saved = await api.entries();
   expect(saved.map(entry => [entry.description, entry.duration])).toEqual([['Not started', 1200]]);
 
-  // An empty duration still starts a running timer.
   await timer.getByLabel('Description').fill('Running');
   await timer.getByRole('button', { name: 'Start timer' }).click();
   await expect(timer.getByRole('button', { name: 'Stop timer' })).toBeVisible();
@@ -206,7 +194,6 @@ test('the project editor marks every invalid field and focuses the first', async
   await expectFieldError(page, estimate, 'Estimated hours must be a number of 0 or more');
   await expect(name).toBeFocused();
 
-  // Fixing the name moves focus to the next field to fix on the next submit.
   await name.fill('Apollo');
   await editor.getByRole('button', { name: 'Create project' }).click();
   await expectValid(name);
