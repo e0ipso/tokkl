@@ -1,7 +1,3 @@
-// ServiceSettings on its own, with no bus: what Configure checks, where the
-// secret and the settings go, and which call wins when the store answers
-// late. timerservicetest covers it through org.tokkl.Timer1.
-
 #include "connection.h"
 #include "fakes.h"
 #include "servicesettings.h"
@@ -28,7 +24,6 @@ struct Fixture {
     QSettings settings{dir.filePath(QStringLiteral("tokkl-timerd.conf")), QSettings::IniFormat};
     ServiceSettings service{&settings, &connection, &store};
 
-    // Runs configure() and waits for its outcome.
     ServiceSettings::Outcome configure(const QString &url, const QString &mode, const QString &email, const QString &secret)
     {
         std::optional<ServiceSettings::Outcome> outcome;
@@ -90,7 +85,6 @@ private Q_SLOTS:
         QCOMPARE(outcome.kind, Kind::Saved);
         QVERIFY(outcome.message.isEmpty());
         const QString base = parseInstanceUrl(instanceA).base.toString();
-        // A token loses its surrounding whitespace.
         QCOMPARE(f.store.secrets.value(credentialKey(parseInstanceUrl(instanceA), AuthMode::Token, QString())), QStringLiteral("tok-1"));
         QCOMPARE(f.saved(QStringLiteral("instanceUrl")), base);
         QCOMPARE(f.saved(QStringLiteral("authMode")), QStringLiteral("token"));
@@ -117,7 +111,6 @@ private Q_SLOTS:
         f.service.configure(instanceA, QStringLiteral("token"), QString(), QStringLiteral("   "), [&answered](const ServiceSettings::Outcome &outcome) {
             answered = outcome.kind == Kind::Saved;
         });
-        // At once, without a store write.
         QVERIFY(answered);
         QCOMPARE(f.store.writes, 0);
         QCOMPARE(f.saved(QStringLiteral("instanceUrl")), parseInstanceUrl(instanceA).base.toString());
@@ -183,7 +176,6 @@ private Q_SLOTS:
         store.finish(0);
         QCOMPARE(connection.instanceUrl(), expected);
         QCOMPARE(settings.value(QStringLiteral("instanceUrl")).toString(), expected);
-        // The first call's settings were never applied, and it says so.
         QCOMPARE(outcomes, (QList<Kind>{Kind::Saved, Kind::Superseded}));
     }
 

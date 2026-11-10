@@ -4,10 +4,8 @@
 
 namespace Tokkl
 {
-// The user's keyring through QtKeychain, which uses the Secret Service
-// (libsecret, as GNOME Keyring provides it) on GNOME. Secrets go under the
-// service name "tokkl"; there is no plaintext fallback. A missing Secret
-// Service reads as an unavailable keyring.
+// QtKeychain over the Secret Service. No plaintext fallback: a missing
+// Secret Service reads as an unavailable keyring.
 class KeychainCredentialStore : public QtKeychainStore
 {
     Q_OBJECT
@@ -15,7 +13,6 @@ class KeychainCredentialStore : public QtKeychainStore
 public:
     explicit KeychainCredentialStore(QObject *parent = nullptr);
 
-    // Names the keyring.
     QString message(const CredentialResult &result) const override;
 
     static const QString service;

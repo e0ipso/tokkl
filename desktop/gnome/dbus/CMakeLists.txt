@@ -1,6 +1,5 @@
-# The D-Bus activation file, the systemd user unit and the interface
-# description. The first call to org.tokkl.Timer1 makes the bus start the
-# unit (or run tokkl-timerd directly on a bus without systemd).
+# The first call to org.tokkl.Timer1 starts the systemd unit, or runs
+# tokkl-timerd directly on a bus without systemd.
 
 set(TOKKL_SYSTEMD_USER_UNIT_DIR "lib/systemd/user"
     CACHE PATH "systemd user unit directory, relative to the install prefix")

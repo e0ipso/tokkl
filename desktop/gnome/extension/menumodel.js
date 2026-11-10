@@ -1,6 +1,4 @@
-// What the panel button and its menu show for the service's state, with no
-// GNOME Shell in it: indicator.js reads the properties, calls these and puts
-// the result on screen.
+// Panel and menu text for the service's state, with no GNOME Shell imports.
 
 import {
     chosenProjectLabel,
@@ -13,44 +11,7 @@ import {
     sessionLine,
 } from './timer1.js';
 
-/**
- * @typedef {object} ActionState one action of the Actions property
- * @property {boolean} visible
- * @property {boolean} enabled
- * @property {string} [label]
- */
-
-/**
- * @typedef {object} ServiceState the org.tokkl.Timer1 properties the menu
- *     reads; status is null when nothing owns the bus name
- * @property {string|null} status
- * @property {Array<{id: number, name: string, clientName?: string}>} projects
- * @property {boolean} [projectsIncomplete]
- * @property {number} chosenProject
- * @property {{name?: string, client?: string, archived?: boolean, missing?: boolean, kind?: string}} chosenProjectLabel
- *     the ChosenProjectLabel property
- * @property {boolean} billable
- * @property {boolean} running
- * @property {boolean} paused
- * @property {boolean} pomodoroMode
- * @property {boolean} modeLocked
- * @property {boolean} sessionActive
- * @property {boolean} canStartSession
- * @property {string} upcomingPhase
- * @property {string} sessionMessage
- * @property {string} [alarmError] the AlarmError property: why the last
- *     alarm sound did not play; empty or missing when it played, or from a
- *     service older than the property
- * @property {Record<string, ActionState>|null} [actions] the Actions property,
- *     missing or null without a service the extension can use
- * @property {string} [actionError] the extension's own word on a method call
- *     that failed, or the service's on a request it saw refused; empty or
- *     missing when there is none
- */
-
-// The menu without a service the extension can use, as when nothing owns
-// the bus name or the service is older than the extension supports: Start
-// and the switches show, and nothing can be chosen.
+// Without a usable service, Start and the switches show and nothing can be chosen.
 const OFFLINE_ACTIONS = {
     run: { visible: true, enabled: false, label: 'start' },
     startSession: { visible: false, enabled: false, label: 'startSession' },
@@ -61,21 +22,8 @@ const OFFLINE_ACTIONS = {
     mode: { visible: true, enabled: false, label: 'pomodoroMode' },
 };
 
-/**
- * Each menu item's text, whether it shows and whether it can be chosen.
- *
- * Which items show and can be chosen is the service's to say: the Actions
- * property carries the shared core's rules, the ones the KDE and macOS
- * menus follow, with GNOME's policy (writes also wait for Status "ready").
- * This turns each
- * action's label into words. Start, or Stop while an entry runs or a chain
- * is paused, never pauses: Stop ends the chain. Without a service the
- * extension can use nothing can be chosen.
- *
- * @param {ServiceState} state
- * @param {{detail: string}} words describeStatus() of the state
- * @param {(text: string) => string} _ gettext
- */
+// The Actions property carries the core's rules plus GNOME's policy that
+// writes wait for Status "ready". This only turns each label into words.
 export function describeMenu(state, words, _) {
     const actions = state.status !== null && state.actions ? state.actions : OFFLINE_ACTIONS;
     const chosen = chosenProjectLabel(state.chosenProjectLabel, _);
@@ -86,9 +34,8 @@ export function describeMenu(state, words, _) {
     // Translators: %s is the project's name, or No project.
     else if (actions.project.label === 'projectPaused')
         projectText = fill(_('Project: %s (locked while paused)'), chosen);
-    // A call that failed outranks the service's message: it is newer, and
-    // the service may not have seen the call at all. A sound that did not
-    // play comes last.
+    // A failed call outranks the service's message: it is newer, and the service
+    // may never have seen it. A sound that did not play comes last.
     const message = state.actionError || state.sessionMessage || state.alarmError || '';
     // A refused request's words are often ErrorString's too; they show once.
     const detailShown = words.detail.length > 0 && words.detail !== message;
@@ -117,19 +64,8 @@ export function describeMenu(state, words, _) {
     };
 }
 
-/**
- * The project submenu: No project, then one item per project, the chosen
- * one checked. When ProjectsIncomplete says the list is cut short, a note
- * that cannot be chosen comes before the projects, as in the KDE and macOS
- * menus, so a long list does not bury it.
- *
- * @param {Array<{id: number, name: string, clientName?: string}>} projects
- * @param {number} chosenProject
- * @param {(project: {name: string, clientName?: string}) => string} label
- * @param {(text: string) => string} _ gettext
- * @param {boolean} [incomplete] the ProjectsIncomplete property
- * @returns {Array<{id: number, label: string, checked: boolean, note?: boolean}>}
- */
+// The cut-short note goes before the projects, as in the KDE and macOS menus,
+// so a long list does not bury it.
 export function projectChoices(projects, chosenProject, label, _, incomplete = false) {
     const choices = [{ id: 0, label: _('No project'), checked: chosenProject === 0 }];
     if (incomplete) {
@@ -146,26 +82,9 @@ export function projectChoices(projects, chosenProject, label, _, incomplete = f
     return choices;
 }
 
-// How the button's time ends for each mark of a Presentation, keyed as the
-// core keys them (statusMarkKeys() in desktop/core/src/statuspresentation.h).
+// Keyed as statusMarkKeys() in desktop/core/src/statuspresentation.h.
 export const MARKS = { none: '', pending: '…', alert: '!', unconfigured: '!' };
 
-/**
- * @typedef {object} Presentation the Presentation property: which parts
- *     the button's accessible name (summary) and the menu's status line
- *     (menuLine) show, in order, and how the button's time ends (mark)
- * @property {string[]} summary
- * @property {string[]} menuLine
- * @property {string} mark
- */
-
-/**
- * The Presentation without a service the extension can use: the
- * connection's words alone on the status line, and the time marked.
- *
- * @param {{detail: string}} words describeStatus()
- * @returns {Presentation}
- */
 function offlinePresentation(words) {
     return {
         summary: ['activity', 'project', 'connection', ...(words.detail ? ['detail'] : [])],
@@ -174,26 +93,14 @@ function offlinePresentation(words) {
     };
 }
 
-// The time the button shows: the phase's countdown during a session,
-// otherwise the chain total.
 function shownTime(time, nowSeconds) {
     if (time.session) return countdown(time.session.plannedEnd, nowSeconds).text;
     const running = time.running ? elapsedSeconds(time.startTime, nowSeconds) : 0;
     return formatElapsed(time.chainSeconds + running);
 }
 
-/**
- * The words of each part a Presentation names, keyed as the core keys them
- * (statusPartKeys() in desktop/core/src/statuspresentation.h). The session's
- * message has a menu item of its own, so its part has no words here.
- *
- * @param {object} time as describeTime() takes it
- * @param {{text: string, detail: string}} words describeStatus()
- * @param {string} indicatorLabel the project indicator's accessible name
- * @param {number} nowSeconds the current Unix time in seconds
- * @param {(text: string) => string} _ gettext
- * @returns {Record<string, string>}
- */
+// Keyed as statusPartKeys() in desktop/core/src/statuspresentation.h. The
+// session message has its own menu item, so its part stays empty here.
 export function partTexts(time, words, indicatorLabel, nowSeconds, _) {
     let activity = '';
     if (!time.session) {
@@ -215,37 +122,11 @@ export function partTexts(time, words, indicatorLabel, nowSeconds, _) {
     };
 }
 
-/**
- * The time on the button, the menu's status line and the button's
- * accessible name. During a session they show the phase's countdown instead
- * of the timer. Elapsed time is the chain total: what the chain's paused
- * entries stored plus the running entry's own time, frozen while paused.
- * Which parts the line and the name show, and how the time ends, is the
- * service's Presentation, or offlinePresentation() without one.
- *
- * @param {object} time
- * @param {string|null} time.status the Status property, null when nothing
- *     owns the bus name
- * @param {boolean} time.running
- * @param {boolean} time.paused
- * @param {number} time.startTime the LocalStartTime property: the start on
- *     this machine's clock
- * @param {number} time.chainSeconds the ChainSeconds property
- * @param {boolean} time.pomodoroMode
- * @param {{phase: string, plannedEnd: number, pomodoroNumber: number, longRestEvery: number}|null} time.session
- *     the session's properties while one is active
- * @param {Presentation|null} [time.presentation] the Presentation property,
- *     null without a service the extension can use
- * @param {{text: string, detail: string, mark: string}} words describeStatus()
- * @param {string} indicatorLabel the project indicator's accessible name
- * @param {number} nowSeconds the current Unix time in seconds
- * @param {(text: string) => string} _ gettext
- * @returns {{button: string, status: string, accessibleName: string}}
- */
+// Elapsed time is the chain total, frozen while paused. During a session the
+// phase countdown replaces it.
 export function describeTime(time, words, indicatorLabel, nowSeconds, _) {
     const presentation = time.presentation ?? offlinePresentation(words);
     const texts = partTexts(time, words, indicatorLabel, nowSeconds, _);
-    // The parts' words, those with any, joined by " · ".
     const render = parts =>
         parts
             .map(part => texts[part] ?? '')

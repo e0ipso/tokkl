@@ -1,6 +1,3 @@
-// Tests for projectindicator.js, what the top bar's project indicator shows:
-//   node --test 'desktop/gnome/extension/**/*.test.js'
-
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
@@ -135,7 +132,6 @@ test('the shape is five eighths of the slot, centred, with the KDE corners', () 
     assert.deepEqual(shapeGeometry(16, 16, true, 1), { x: 3, y: 3, size: 10, radius: 5, line: 1, dash: 2 });
     assert.deepEqual(shapeGeometry(16, 16, false, 1), { x: 3, y: 3, size: 10, radius: 2, line: 1, dash: 2 });
     assert.deepEqual(shapeGeometry(32, 32, false, 2), { x: 6, y: 6, size: 20, radius: 3, line: 2, dash: 4 });
-    // A slot taller than wide keeps a square shape.
     assert.deepEqual(shapeGeometry(16, 24, false, 1), { x: 3, y: 7, size: 10, radius: 2, line: 1, dash: 2 });
 });
 

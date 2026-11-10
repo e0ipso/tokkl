@@ -1,11 +1,5 @@
-// tokkl-timerd: the Tokkl timer and Pomodoro session of the shared desktop
-// core as org.tokkl.Timer1 on the session bus, for the GNOME Shell
-// extension, with the alarm played here on the sound server. D-Bus
-// activation or its systemd user unit starts it.
-//
-// main() is the daemon's composition root: it builds every object the
-// service serves, the timer's through the core's TimerStack, and wires
-// them, and TimerService only maps them onto the bus.
+// tokkl-timerd serves org.tokkl.Timer1 for the GNOME Shell extension and
+// plays the alarm. main() builds and wires everything TimerService serves.
 
 #include "clock.h"
 #include "keychaincredentialstore.h"
@@ -33,12 +27,10 @@
 
 namespace
 {
-// The program's own messages. The two that end it before the event loop
-// runs go straight to stderr instead, where D-Bus activation and the
-// activation test read them; Qt may send category output to the journal.
+// Fatal startup errors go straight to stderr, where D-Bus activation and
+// the activation test read them; Qt may send category output to the journal.
 Q_LOGGING_CATEGORY(lcTimerd, "tokkl.timerd", QtInfoMsg)
 
-// The write end of the pipe the signal handler wakes the event loop with.
 int signalPipe = -1;
 
 void onTerminate(int)
@@ -48,9 +40,8 @@ void onTerminate(int)
     [[maybe_unused]] const ssize_t written = ::write(signalPipe, &byte, 1);
 }
 
-// Quits the event loop on SIGTERM, which systemd sends on logout, and on
-// SIGINT, so the service leaves the bus and stops the alarm streams before
-// it exits.
+// SIGTERM (systemd on logout) and SIGINT quit the loop, so the service
+// leaves the bus and stops the alarm streams.
 bool quitOnTerminate(QCoreApplication &app)
 {
     int fds[2];
@@ -79,8 +70,7 @@ int main(int argc, char **argv)
     QCoreApplication app(argc, argv);
     QCoreApplication::setApplicationName(QStringLiteral("tokkl-timerd"));
     QCoreApplication::setApplicationVersion(QStringLiteral(TOKKL_VERSION_STRING));
-    // The core's messages and the service's own reach the extension as they
-    // are, so they are translated here, in the session's locale.
+    // Messages reach the extension as they are, so translate them here.
     const QStringList localeDirs = Tokkl::systemLocaleDirs();
     Tokkl::installTranslations(Tokkl::coreCatalog, localeDirs);
     Tokkl::installTranslations(QStringLiteral("tokkl_timerd_qt"), localeDirs);
@@ -96,19 +86,15 @@ int main(int argc, char **argv)
 
     Tokkl::NetworkTransport transport(Tokkl::TimerService::clientName());
     Tokkl::KeychainCredentialStore store;
-    // The address, sign-in method and email (never the secret), the
-    // Pomodoro mode and the sound choices live in this file.
+    // Never holds the secret.
     QSettings settings(QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) + QStringLiteral("/tokkl/tokkl-timerd.conf"),
                        QSettings::IniFormat);
     Tokkl::SystemClock clock;
     Tokkl::SettingsPomodoroStore pomodoroStore(&settings);
-    // The connection, the timer and the Pomodoro session, which are the
-    // server's, read through one state client.
     Tokkl::TimerStack stack(&transport, &store, pomodoroStore, clock, Tokkl::TimerService::clientName());
     Tokkl::TimerController *timer = stack.timer();
     Tokkl::SoundChoices sounds(&settings, &Tokkl::TimerService::soundKey);
     Tokkl::ServiceSettings connectionSettings(&settings, stack.connection(), &store);
-    // The Pomodoro alarm, from the bundled sounds the package installs.
     Tokkl::PulseAlarmBackend alarmBackend(QCoreApplication::applicationName());
     QObject::connect(&alarmBackend, &Tokkl::PulseAlarmBackend::errorOccurred, &app, [](const QString &message) {
         qCWarning(lcTimerd).noquote() << "no sound:" << message;

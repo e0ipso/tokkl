@@ -1,15 +1,7 @@
 #pragma once
 
-// The timer and the Pomodoro session of the shared core on D-Bus, as
-// org.tokkl.Timer1 (described in dbus/org.tokkl.Timer1.xml). The service
-// maps the core's properties onto the interface and forwards the methods;
-// the rules stay in the core. It builds none of the objects it serves.
-// main.cpp, the daemon's composition root, has the core's TimerStack build
-// the connection, the state client, the timer, the session and the
-// preferences client. It makes the settings file that keeps the per-device
-// state, the sound choices, the ServiceSettings that Configure saves through
-// and the PomodoroAlarm on the stack's session itself, then hands them all
-// over.
+// Serves the core's timer and Pomodoro session as org.tokkl.Timer1
+// (dbus/org.tokkl.Timer1.xml). The rules stay in the core.
 
 #include <QDBusConnection>
 #include <QDBusContext>
@@ -35,10 +27,8 @@ class TimerService : public QObject, protected QDBusContext
 {
     Q_OBJECT
 
-    // The org.tokkl.Timer1 properties, read by the generated adaptor. They
-    // have no NOTIFY: the service sends their changes to the bus as
-    // PropertiesChanged, once per turn of the event loop. Every Q_PROPERTY
-    // here is published.
+    // Every Q_PROPERTY here is published. No NOTIFY: changes go out as
+    // PropertiesChanged, batched per event-loop turn.
     Q_PROPERTY(bool Running READ running)
     Q_PROPERTY(qint64 StartTime READ startTime)
     Q_PROPERTY(qint64 LocalStartTime READ localStartTime)
@@ -82,27 +72,19 @@ public:
     static const QString serviceName;
     static const QString objectPath;
     static const QString interfaceName;
-    // The errors of a Configure call whose secret the credential store
-    // refused, and of one a later call replaced before it applied.
     static const QString credentialStoreError;
     static const QString supersededError;
-    // The InterfaceVersion this service publishes. Raise it by one in a
-    // release that adds members to org.tokkl.Timer1. 2 is the first
-    // released version; 1 only existed in development builds.
+    // Raise by one in each release that adds members to org.tokkl.Timer1.
     static constexpr uint version = 2;
-    // The settings key of a transition's sound: "Sounds/workToShortRest" and
-    // so on.
+    // "Sounds/workToShortRest" and so on.
     static QString soundKey(TransitionKind kind);
 
-    // The client name the service gives the core: the created_with value of
-    // the entries it starts. The caller's transport should send it as its
-    // User-Agent product too.
+    // The created_with value of started entries; also the transport's
+    // User-Agent product.
     static QString clientName();
 
-    // What the service serves, none of it owned and none of it null. The
-    // session must be built on the timer, and the alarm, which
-    // PreviewSound plays on and AlarmError follows, on the same session and
-    // sound choices.
+    // Not owned, none null. The session must wrap the timer, and the alarm
+    // must use the same session and sound choices.
     struct Parts {
         TimerController *timer = nullptr;
         PomodoroSession *session = nullptr;
@@ -115,16 +97,13 @@ public:
     explicit TimerService(const Parts &parts, QObject *parent = nullptr);
     ~TimerService() override;
 
-    // Exports the interface on the bus and takes the service name. False when
-    // the bus refuses either, for example because another instance owns the
-    // name.
+    // False when the bus refuses the object or the name (another instance
+    // owns it).
     bool registerOn(QDBusConnection bus);
 
     bool running() const;
-    // The server's start, which StartTime has always published.
     qint64 startTime() const;
-    // The start on this machine's clock, corrected by the state client's
-    // server offset, so elapsed time matches the other apps.
+    // Corrected by the state client's server clock offset.
     qint64 localStartTime() const;
     bool paused() const;
     qint64 chainSeconds() const;
@@ -151,30 +130,22 @@ public:
     bool ringing() const;
     QString ringingTransition() const;
     QString sessionMessage() const;
-    // MenuActionStates with the GNOME policy, as the menu reads them.
     QMap<QString, QVariantMap> actions() const;
-    // StatusPresentation with the GNOME policy, as the button's words read
-    // it.
     QVariantMap presentation() const;
     QMap<QString, int> pomodoroLengths() const;
     bool pomodoroLengthsEditable() const;
     QMap<QString, QString> pomodoroLengthErrors() const;
-    // PomodoroPreferences::limits(), keyed as PomodoroLengths.
     QMap<QString, QMap<QString, int>> pomodoroLengthLimits() const;
     QMap<QString, QString> sounds() const;
     QList<QVariantMap> soundCatalogue() const;
-    // PomodoroAlarm::failure().
     QString alarmError() const;
     uint interfaceVersion() const;
 
 public Q_SLOTS:
-    // The org.tokkl.Timer1 methods, called by the generated adaptor.
     bool Start();
     bool Stop();
     bool Pause();
     bool Resume();
-    // Start, Stop, Pause and Resume, returning the request's id, or 0 when
-    // nothing was sent. RequestFinished follows the server's answer.
     qulonglong RequestStart();
     qulonglong RequestStop();
     qulonglong RequestPause();
@@ -194,33 +165,25 @@ public Q_SLOTS:
     bool PreviewSound(const QString &soundId);
 
 Q_SIGNALS:
-    // The org.tokkl.Timer1 signal, relayed by the generated adaptor.
     void RequestFinished(qulonglong request, bool ok, const QString &error);
 
 private:
-    // The id of a request that sent, or 0. The service follows one at a
-    // time, as the timer sends one write at a time.
+    // One request is followed at a time, as the timer sends one write at a
+    // time.
     qulonglong follow(bool sent);
     void onWriteFinished(bool ok, const QString &message);
 
-    // Every org.tokkl.Timer1 property: the Q_PROPERTYs of this class.
     static const QList<QMetaProperty> &publication();
-    // Has the properties read again whenever one of sender's signals fires.
     template<typename Sender, typename... Signals>
     void watch(Sender *sender, Signals... signals)
     {
         (connect(sender, signals, this, &TimerService::markChanged), ...);
     }
-    // Every property's value, as the adaptor reads it.
     QVariantMap read() const;
-    // Something a property reads may have changed: publishes the changes
-    // when the event loop next runs.
     void markChanged();
-    // Sends PropertiesChanged now for the properties whose value differs
-    // from what the bus last saw, if anything was marked.
     void publishChanges();
-    // A method's answer, sent after what the method changed: D-Bus clients
-    // read their cached properties when the answer arrives.
+    // Publish before replying: clients read their cached properties when
+    // the reply arrives.
     template<typename T>
     T answer(T value)
     {
@@ -236,12 +199,9 @@ private:
     PomodoroAlarm *m_alarm;
     QDBusConnection m_bus;
     bool m_registered = false;
-    // The property values the bus last saw.
     QVariantMap m_published;
-    // Something changed since the last publish.
     bool m_dirty = false;
     qulonglong m_lastRequest = 0;
-    // The request whose write runs; 0 for none.
     qulonglong m_request = 0;
     bool m_publishQueued = false;
 };

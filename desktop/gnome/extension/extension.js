@@ -1,7 +1,5 @@
-// Tokkl for the GNOME top bar: a panel button for the timer of tokkl-timerd.
-// The service on the session bus (org.tokkl.Timer1) holds the timer, the
-// connection and the credentials. This extension shows its state and calls
-// its methods; it keeps no timer state of its own.
+// The service on the session bus holds the timer, connection and credentials.
+// The extension keeps no timer state of its own.
 
 import Gio from 'gi://Gio';
 
@@ -17,7 +15,6 @@ export default class TokklExtension extends Extension {
         this._indicator = new TokklIndicator(this.dir.get_child('tokkl.png'), () => this.openPreferences());
         const settings = this.getSettings();
         const indicator = this._indicator;
-        // The monochrome pictures follow the top bar's text colour.
         const updateIcons = () => {
             const monochrome = settings.get_boolean('monochrome-icon');
             indicator.setLogo(this.dir.get_child(monochrome ? 'tokkl-symbolic.symbolic.png' : 'tokkl.png'));

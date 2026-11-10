@@ -1,8 +1,5 @@
-// Helpers that drive the installed extension inside a running GNOME Shell,
-// shared by shell-check.js (against mock-timer.js) and realservice-check.js
-// (against a real tokkl-timerd). GNOME Shell's Eval method reads the panel
-// and sends pointer and key events; the probe extension that shell-test.sh
-// installs turns on the unsafe mode Eval needs.
+// Drives the extension in a running GNOME Shell through its Eval method. The
+// probe extension shell-test.sh installs turns on the unsafe mode Eval needs.
 
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
@@ -24,7 +21,7 @@ export function call(name, path, iface, method, params, replyType) {
     return reply ? reply.recursiveUnpack() : [];
 }
 
-// Runs code in GNOME Shell's shellDBus.js module, where Main is in scope.
+// Runs in Shell's shellDBus.js module, where Main is in scope.
 export function shell(code) {
     const [ok, result] = call(
         'org.gnome.Shell',
@@ -62,8 +59,6 @@ export async function waitFor(what, check, timeoutMs = 15_000) {
     throw new Error(`timed out waiting for ${what}; last: ${JSON.stringify(last)}`);
 }
 
-// Waits until GNOME Shell has enabled the extension, and fails on the error
-// it reports instead.
 export function waitForEnabled(uuid) {
     return waitFor('the extension state', () => {
         const info = shell(`(() => {
@@ -75,8 +70,6 @@ export function waitForEnabled(uuid) {
     });
 }
 
-// Runs the steps in order, printing TAP-like lines; returns the number that
-// failed.
 export function steps() {
     let failures = 0;
     return {
@@ -95,13 +88,11 @@ export function steps() {
     };
 }
 
-// The panel button of the extension with this UUID, and ways to read and
-// operate it.
 export function panelButton(uuid) {
     const button = `Main.panel.statusArea[${JSON.stringify(uuid)}]`;
 
-    // A virtual pointer over the panel button. The seat adds the device and
-    // the first motion asynchronously, so clicks wait until it is there.
+    // The seat adds the device and its first motion asynchronously, so clicks
+    // wait until it is there.
     const pointerCode = `
         const {Clutter, GLib} = imports.gi;
         const button = ${button};
@@ -119,7 +110,6 @@ export function panelButton(uuid) {
         menuOpen: () => shell(`${button}.menu.isOpen`),
         sensitive: item => shell(`${button}.${item}.sensitive`),
 
-        // What the project indicator shows, and the state of its actors.
         indicator: () =>
             shell(`(() => {
             const indicator = ${button}._projectIndicator;
@@ -142,16 +132,13 @@ export function panelButton(uuid) {
             });
         },
 
-        // Presses and releases a pointer button over the panel button.
         click: number =>
             shell(`(() => {${pointerCode}
             pointer.notify_button(GLib.get_monotonic_time(), ${number}, Clutter.ButtonState.PRESSED);
             pointer.notify_button(GLib.get_monotonic_time(), ${number}, Clutter.ButtonState.RELEASED);
         })()`),
 
-        // Presses and releases a key while the panel button has the keyboard
-        // focus, as after Ctrl+Alt+Tab: the stage, not a window, takes the
-        // keys.
+        // As after Ctrl+Alt+Tab, the stage, not a window, takes the keys.
         press: keyval =>
             shell(`(() => {
             const {Clutter, GLib} = imports.gi;
@@ -167,8 +154,7 @@ export function panelButton(uuid) {
     };
 }
 
-// The WCAG 2 contrast ratio of two colours with red, green and blue from 0
-// to 255.
+// WCAG 2 contrast ratio; channels are 0 to 255.
 export function contrastRatio(a, b) {
     const luminance = ({ red, green, blue }) => {
         const linear = channel => {

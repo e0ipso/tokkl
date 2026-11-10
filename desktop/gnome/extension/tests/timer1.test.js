@@ -1,6 +1,3 @@
-// Tests for timer1.js, the extension's part that needs no GNOME Shell:
-//   node --test 'desktop/gnome/extension/**/*.test.js'
-
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
@@ -33,8 +30,7 @@ import {
 const identity = text => text;
 
 test('the extension reads the service description by its file name', () => {
-    // pack-extension.sh copies this file into the extension, and the proxy
-    // reads it there; the tests and the Shell harness read it here.
+    // pack-extension.sh copies this file into the extension; tests read it here.
     const service = readFileSync(new URL(`../../dbus/${TIMER1_XML_FILE}`, import.meta.url), 'utf8');
     assert.match(service, /<interface name="org\.tokkl\.Timer1">/);
 });
@@ -42,7 +38,6 @@ test('the extension reads the service description by its file name', () => {
 test('elapsed time counts from StartTime and is 0 when stopped', () => {
     assert.equal(elapsedSeconds(0, 1_700_000_000), 0);
     assert.equal(elapsedSeconds(1_700_000_000, 1_700_000_065.9), 65);
-    // A start slightly ahead of the local clock shows 0, not a negative time.
     assert.equal(elapsedSeconds(1_700_000_010, 1_700_000_000), 0);
 });
 
@@ -70,8 +65,6 @@ test('every Status value has words and a mark', () => {
     assert.match(describeStatus('unconfigured', '', identity).detail, /settings/);
 });
 
-// The words for the kind in ChosenProjectLabel, as the KDE and macOS menus
-// word the same parts. The service decides the kind.
 test('project labels name the client, an archived project and the missing project', () => {
     const named = (name, client = '', archived = false) => ({ name, client, archived, missing: false, kind: 'named' });
     const empty = (kind, missing = false) => ({ name: '', client: '', archived: false, missing, kind });
@@ -84,9 +77,7 @@ test('project labels name the client, an archived project and the missing projec
     assert.equal(chosenProjectLabel(named('Legacy', 'Acme', true), identity), 'Legacy (Acme) (archived)');
     assert.equal(chosenProjectLabel(empty('unavailable', true), identity), 'Unavailable project');
     assert.equal(chosenProjectLabel(empty('unknown'), identity), 'Unknown project');
-    // A kind from a later service reads as a project still being read.
     assert.equal(chosenProjectLabel({ ...named('Later'), kind: 'grouped' }, identity), 'Unknown project');
-    // While the service is gone the property is empty.
     assert.equal(chosenProjectLabel({}, identity), 'No project');
 });
 
@@ -95,7 +86,6 @@ test('the countdown rounds the time left up and the overtime down', () => {
     assert.deepEqual(countdown(end, end - 1500), { text: '25:00', overtime: false });
     assert.deepEqual(countdown(end, end - 1499.2), { text: '25:00', overtime: false });
     assert.deepEqual(countdown(end, end - 0.001), { text: '0:01', overtime: false });
-    // The planned end itself is the first instant of overtime.
     assert.deepEqual(countdown(end, end), { text: '+0:00', overtime: true });
     assert.deepEqual(countdown(end, end + 0.999), { text: '+0:00', overtime: true });
     assert.deepEqual(countdown(end, end + 61.5), { text: '+1:01', overtime: true });
@@ -175,7 +165,6 @@ test('a service below the floor is not used, and the menu asks for an update', (
     assert.equal(describeStatus(null, '', identity, 0).text, 'Timer service not running');
 });
 
-// A stand-in for the Gio.DBusProxy: an owner and cached properties.
 function fakeProxy(owner, properties) {
     return {
         g_name_owner: owner,
@@ -198,7 +187,6 @@ test('the panel button and the preferences read nothing of a service below the f
         );
     }
 
-    // A service that is gone is not outdated: it is not running.
     const gone = fakeProxy(null, { InterfaceVersion: 1, Status: 'ready' });
     assert.equal(serviceRunning(gone), false);
     assert.equal(serviceOutdated(gone), false);
@@ -207,9 +195,7 @@ test('the panel button and the preferences read nothing of a service below the f
     assert.equal(interfaceVersion(gone), 0);
 });
 
-// The menu's opening asks the service to check the projects, once, and
-// only a running service the extension supports: a call to one that is gone
-// would start it.
+// A call to a stopped service would start it.
 test('opening the menu asks the service to check the projects', () => {
     const checks = [];
     const withMethod = proxy => {
@@ -219,7 +205,6 @@ test('opening the menu asks the service to check the projects', () => {
     const current = withMethod(fakeProxy(':1.7', { InterfaceVersion: 2 }));
     assert.equal(refreshProjectsOnOpen(true, current), true);
     assert.equal(checks.length, 1);
-    // Closing sends nothing.
     assert.equal(refreshProjectsOnOpen(false, current), false);
     assert.equal(checks.length, 1);
 
@@ -232,7 +217,6 @@ test('opening the menu asks the service to check the projects', () => {
     }
     assert.equal(checks.length, 1);
 
-    // A failed check only logs.
     const warn = console.warn;
     const warnings = [];
     console.warn = message => warnings.push(message);
@@ -244,7 +228,6 @@ test('opening the menu asks the service to check the projects', () => {
     assert.deepEqual(warnings, ['Tokkl: RefreshProjects failed: No reply']);
 });
 
-// The panel button and the preferences window stop at the same floor.
 test('the extension reads the service only through the shared gate', () => {
     for (const name of ['indicator.js', 'prefs.js']) {
         const source = readFileSync(new URL(`../${name}`, import.meta.url), 'utf8');
@@ -259,8 +242,6 @@ test('the extension reads the service only through the shared gate', () => {
     );
 });
 
-// The core's placeholder limits are the only ones: the preferences wait for
-// the service's PomodoroLengthLimits.
 test('the preferences keep no length range of their own', () => {
     const prefs = readFileSync(new URL('../prefs.js', import.meta.url), 'utf8');
     assert.doesNotMatch(prefs, /\b999\b/);

@@ -1,16 +1,5 @@
-// A stand-in for tokkl-timerd in the extension check: it owns
-// org.tokkl.Timer1 on the session bus with the interface description from
-// desktop/gnome/dbus, keeps a timer in memory with no server behind it, and
-// records every method call but RefreshProjects, which it counts apart: the
-// extension sends one each time its menu opens. A second interface,
-// org.tokkl.Timer1Mock, lets the check read the calls and that count,
-// change properties, start a session as
-// another device would, have the server refuse the next request, act as a
-// service older than the extension supports (InterfaceVersion 1), and stop
-// the mock. Configure
-// with an address that contains "replaced" fails as a call a later one
-// replaced.
-//
+// Stand-in for tokkl-timerd: owns org.tokkl.Timer1 with an in-memory timer and
+// records calls. org.tokkl.Timer1Mock lets the check read and steer it.
 //   gjs -m mock-timer.js /path/to/org.tokkl.Timer1.xml
 
 import Gio from 'gi://Gio';
@@ -99,7 +88,6 @@ const state = {
     PomodoroLengths: { work: 25, shortRest: 5, longRest: 15, longRestEvery: 4 },
     PomodoroLengthsEditable: true,
     PomodoroLengthErrors: {},
-    // The core's ranges and defaults.
     PomodoroLengthLimits: {
         work: { min: 1, max: 180, default: 25 },
         shortRest: { min: 1, max: 60, default: 5 },
@@ -137,19 +125,15 @@ const state = {
     InterfaceVersion: 2,
 };
 
-// The lengths on the Tokkl server behind the service. RefreshPreferences
-// reads them into PomodoroLengths, which starts with the defaults.
 const accountLengths = { work: 50, shortRest: 10, longRest: 20, longRestEvery: 3 };
 
 const calls = [];
-// The RefreshProjects calls, which are not in calls.
+// The menu sends one on every opening, so they are counted apart from calls.
 let projectChecks = 0;
 let timer = null;
 let lastRequest = 0;
-// The server's words for the next request it refuses, or null.
 let refusal = null;
-// InterfaceVersion is 0 and the Request methods answer UnknownMethod, as
-// before they existed.
+// InterfaceVersion 0, and the Request methods answer UnknownMethod.
 let olderService = false;
 
 function variant(name) {
@@ -209,9 +193,8 @@ function variant(name) {
     return new GLib.Variant(types[name], state[name]);
 }
 
-// The menu actions as the service publishes them from the core's rules with
-// the GNOME policy: writes wait for Status ready, and a session locks
-// Project and Billable, as the open pomodoro is the session's.
+// Mirrors the core's rules with the GNOME policy: writes wait for Status
+// ready, and a session locks Project and Billable.
 function actionsOf() {
     const ready = state.Status === 'ready';
     const held = state.Running || state.Paused;
@@ -232,8 +215,6 @@ function actionsOf() {
     };
 }
 
-// The parts of the button's words as the service publishes them from the
-// core's rules with the GNOME policy.
 function presentationOf() {
     const status = state.Status;
     const detail =
@@ -257,13 +238,9 @@ function set(values) {
         state[name] = value;
         timer.emit_property_changed(name, variant(name));
     }
-    // As the service does: the mode cannot change while an entry runs, a
-    // chain is paused or a session is active, and a session can start in
-    // Pomodoro mode when nothing runs and the account is ready.
     const derived = {};
-    // This machine's clock is the server's here, so the local start is the
-    // server's start whenever that changes. A check sets LocalStartTime on
-    // its own to stand for a skewed clock.
+    // The mock's clock is the server's. A check sets LocalStartTime on its own to
+    // stand for a skewed clock.
     if ('StartTime' in values && state.LocalStartTime !== state.StartTime) derived.LocalStartTime = state.StartTime;
     const locked = state.Running || state.Paused || state.SessionActive;
     if (state.ModeLocked !== locked) derived.ModeLocked = locked;
@@ -284,9 +261,6 @@ function set(values) {
 
 const now = () => Math.floor(Date.now() / 1000);
 
-// Starts a phase of the session now with the account's lengths, and names
-// the phase after it: a long rest after every LongRestEvery work phases,
-// otherwise a short rest, and work after every rest.
 function startPhase(kind, pomodoroNumber) {
     const start = now();
     let next = 'work';
@@ -302,9 +276,6 @@ function startPhase(kind, pomodoroNumber) {
     });
 }
 
-// As the service does: a pause stores the stopped entry's seconds in the
-// chain, a resume starts its clone, and Stop ends the chain. The timer does
-// nothing while a session is active, whichever device started it.
 class Timer1 {
     Start() {
         calls.push(['Start']);
@@ -345,9 +316,7 @@ class Timer1 {
         return true;
     }
 
-    // As the service does: a request does what the plain method does, and
-    // RequestFinished follows the answer. The mock's server answers at once,
-    // on the next turn of the loop. Only the request is recorded.
+    // The mock server answers on the next loop turn. Only the request is recorded.
     _request(name, action) {
         calls.push([name]);
         if (olderService) throw new GLib.Error(Gio.DBusError, Gio.DBusError.UNKNOWN_METHOD, `No such method "${name}"`);
@@ -414,9 +383,7 @@ class Timer1 {
         calls.push(['Configure', instanceUrl, authMode, email, secret]);
         if (!instanceUrl.startsWith('https://'))
             throw new GLib.Error(Gio.DBusError, Gio.DBusError.INVALID_ARGS, 'Enter an https:// URL.');
-        // As the service answers a call that a later one replaced while the
-        // keyring saved its secret. GJS sends a thrown error whose name has a
-        // dot under that name.
+        // GJS sends a thrown error whose name contains a dot under that name.
         if (instanceUrl.includes('replaced')) {
             const error = new Error('A later connection change replaced these settings.');
             error.name = 'org.tokkl.Timer1.Error.Superseded';
@@ -431,9 +398,8 @@ class Timer1 {
         return true;
     }
 
-    // The panel's left-click, decided as the service decides it. The mock
-    // has no clock, so the check sets Ringing itself. Only Activate is
-    // recorded: the methods it runs are the service's own doing.
+    // The mock has no clock, so the check sets Ringing. Only Activate is
+    // recorded, not the methods it runs.
     Activate() {
         const before = calls.length;
         let action = 'handled';
@@ -451,8 +417,7 @@ class Timer1 {
         return action;
     }
 
-    // The phase details come first, so a session is never active without
-    // them.
+    // The phase details come first, so a session is never active without them.
     StartSession() {
         calls.push(['StartSession']);
         if (!state.CanStartSession) return false;
@@ -487,8 +452,6 @@ class Timer1 {
         return true;
     }
 
-    // As the service does: a save clears the errors, sends nothing when no
-    // length differs, and the server keeps what it accepts.
     SetPomodoroLengths(work, shortRest, longRest, longRestEvery) {
         calls.push(['SetPomodoroLengths', work, shortRest, longRest, longRestEvery]);
         if (!state.PomodoroLengthsEditable) return false;
@@ -505,8 +468,6 @@ class Timer1 {
         set({ PomodoroLengths: { ...accountLengths } });
     }
 
-    // The mock's projects change only through Set, so there is nothing to
-    // read again.
     RefreshProjects() {
         projectChecks += 1;
     }
@@ -539,8 +500,6 @@ const loop = new GLib.MainLoop(null, false);
 const mock = Gio.DBusExportedObject.wrapJSObject(mockXml, {
     Calls: () => JSON.stringify(calls),
     ProjectChecks: () => projectChecks,
-    // A session another device started: no call of this device's is
-    // recorded, and the mode stays as it is.
     StartForeignSession: () => {
         set({ SessionMessage: '', LongRestEvery: state.PomodoroLengths.longRestEvery });
         startPhase('work', 1);
