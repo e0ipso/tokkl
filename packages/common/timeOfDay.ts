@@ -5,13 +5,8 @@ function matchTimeOfDay(raw: string): RegExpExecArray | null {
 }
 
 /**
- * Parses a typed clock time into minutes after midnight.
- *
- * Accepted: "9", "930", "0930", "9:30", "9.30", "9:30:15" (seconds dropped), "9a", "9pm", "12am".
- * Without a suffix, 24-hour input is taken literally. For 12-hour users, AM or PM for 1-11 is guessed
- * like Toggl does: with `after` (an end time), the first of the two that follows `after`, wrapping past
- * midnight; otherwise whichever is closer to `reference` (a start time, guessed against now).
- * Times are minutes after midnight. An explicit suffix is never second-guessed.
+ * Accepts "9", "930", "9:30", "9.30", "9:30:15", "9a", "9pm" and "12am". A suffix is never second-guessed.
+ * Without one, 12-hour users get Toggl's AM/PM guess: the first after `after`, else the nearest `reference`.
  */
 export function parseTimeOfDay(
   raw: string,
