@@ -1,4 +1,3 @@
-/** Reading one user's entries and taking the guards every entry write needs, in a fixed order. */
 import type { EntriesRepository, OperationContext, Repositories, SettingsRepository } from './ports.ts';
 import type { EntryDetails, Id, User } from './model.ts';
 import { StorageConflict } from './ports.ts';
@@ -20,10 +19,7 @@ export type EntryRepositories = Pick<
   | 'timers'
 >;
 export type EntryContext = OperationContext<EntryRepositories>;
-/**
- * Opens the write transactions entry and timer work runs in, with only the entry repositories in
- * reach. A `Storage` is one.
- */
+/** A `Storage` is one. */
 export interface EntryTransactions {
   transaction<T>(work: (context: EntryContext) => Promise<T>): Promise<T>;
 }
@@ -39,7 +35,7 @@ export async function getTimeEntry(
   return row;
 }
 
-/** The user's live entry `id` when it is in workspace `wid`, else the same 404 as a missing one. */
+/** Else the same 404 as a missing entry. */
 export async function getEntryIn(
   ctx: { entries: Pick<EntriesRepository, 'get'> },
   userId: Id,
@@ -51,8 +47,7 @@ export async function getEntryIn(
   return entry;
 }
 
-/** Discover workspace guards before the stable user parent. Recheck discovery under that
- * parent; an overtaken discovery restarts the transaction instead of taking a lower guard. */
+/** Rechecks workspace guards under the user lock; an overtaken discovery restarts the transaction. */
 export async function protectEntryOperation(
   ctx: EntryContext,
   userId: Id,
@@ -87,7 +82,6 @@ export async function protectEntryOperation(
   return user;
 }
 
-/** The instance's time resolution in minutes. */
 export async function entryResolution(ctx: { settings: Pick<SettingsRepository, 'read'> }): Promise<number> {
   return timeResolutionOf(await ctx.settings.read());
 }

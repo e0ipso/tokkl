@@ -1,8 +1,4 @@
-/**
- * The migration runner: applies a migration history to a database under a lock, records each step
- * in the `storage_migrations` ledger and refuses a ledger or schema that does not match the history.
- * `migrations.ts` holds the history and runs it at startup.
- */
+/** Applies the history under a lock, recording each step; refuses a ledger or schema that does not match. */
 import { createHash } from 'node:crypto';
 import { copyFileSync, existsSync, mkdtempSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -60,7 +56,7 @@ async function tableNames(db: Kysely<PhysicalDatabase>, backend: Backend): Promi
         : 'select table_name as name from information_schema.tables where table_schema=database() order by table_name';
   return (await sql.raw<{ name: string }>(query).execute(db)).rows.map(row => row.name);
 }
-/** A schema fingerprint excludes row data, sequences and MySQL's changing AUTO_INCREMENT counter. */
+/** Excludes row data, sequences and MySQL's changing AUTO_INCREMENT counter. */
 export async function schemaFingerprint(db: Kysely<PhysicalDatabase>, backend: Backend): Promise<string> {
   if (backend === 'sqlite')
     return digest(
@@ -125,10 +121,7 @@ async function history(
     throw new StorageMigrationError('inconsistent-schema');
   return rows.length;
 }
-/** Copy for inspection: even a read-only WAL open can create/change SHM beside the original.
- * WAL files are copied as well, so an uncheckpointed legacy schema cannot masquerade as empty.
- * An inconsistent snapshot fails closed. No original database/PRAGMA/sidecar is written.
- */
+/** Inspects a copy with its WAL files: even a read-only WAL open changes SHM. An inconsistent copy fails closed. */
 export async function sqlitePreflight(config: StorageConfig, available: readonly Migration[]): Promise<void> {
   if (config.backend !== 'sqlite' || config.filename === ':memory:' || !existsSync(config.filename)) return;
   const dir = mkdtempSync(join(tmpdir(), 'tokkl-preflight-'));
@@ -156,19 +149,13 @@ export async function sqlitePreflight(config: StorageConfig, available: readonly
 }
 /** How long a migrator waits for another one to finish before it gives up. */
 const MIGRATION_LOCK_WAIT_MS = 30_000;
-/** Pause between SQLite attempts to take the write lock. */
 const SQLITE_LOCK_POLL_MS = 20;
-/** SQLite's SQLITE_BUSY result code. */
 const SQLITE_BUSY = 5;
-/** The PostgreSQL advisory lock key pair the migrators share. */
 const MIGRATION_ADVISORY_LOCK = '783213, 1';
 
-/**
- * The migration lock as far as it was taken. A failure part way still restores what was changed:
- * SQLite's busy timeout, and the lock itself once `locked`.
- */
+/** A failure part way still restores SQLite's busy timeout, and the lock once `locked`. */
 interface MigrationLock {
-  /** The MySQL/MariaDB named lock, per database; empty for the other engines. */
+  /** Per database; empty for the other engines. */
   readonly name: string;
   locked: boolean;
   busyTimeout?: number;
@@ -179,10 +166,7 @@ async function migrationLockName(db: Kysely<PhysicalDatabase>, backend: Backend)
   return `tokkl-migrate-${digest((await sql`select database() as name`.execute(db)).rows).slice(0, 32)}`;
 }
 
-/**
- * SQLite and PostgreSQL migrate in one transaction under the lock. MySQL and MariaDB commit each
- * DDL statement, so only the named lock serializes them.
- */
+/** MySQL and MariaDB commit each DDL statement, so only the named lock serializes them there. */
 async function lockMigrations(db: Kysely<PhysicalDatabase>, backend: Backend, lock: MigrationLock): Promise<void> {
   if (backend === 'sqlite') {
     // Zero busy wait avoids blocking this process while another async owner needs to commit.
@@ -218,7 +202,6 @@ async function unlockMigrations(db: Kysely<PhysicalDatabase>, backend: Backend, 
   if (lock.locked && serverDDL(backend)) await sql`SELECT RELEASE_LOCK(${lock.name})`.execute(db);
 }
 
-/** Creates the ledger on first run and applies every migration past the recorded version. */
 async function applyPending(
   db: Kysely<PhysicalDatabase>,
   backend: Backend,
@@ -249,11 +232,7 @@ async function applyPending(
   }
 }
 
-/**
- * Brings the database up to `available`, which must number its migrations from 1. Refuses a reader,
- * an unsupported engine, and a ledger or schema that does not match `available`, including one with
- * versions past its end.
- */
+/** Migrations number from 1. Refuses a reader, an unknown engine, and a mismatched ledger or schema. */
 export async function runMigrations(
   connection: StorageConnection<PhysicalDatabase>,
   available: readonly Migration[],

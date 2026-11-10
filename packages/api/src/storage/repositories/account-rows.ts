@@ -1,4 +1,3 @@
-/** Row mappers and lookups the account repositories share. */
 import type { Kysely, Selectable } from 'kysely';
 import type { Repositories } from '../../domain/ports.ts';
 import type { AccountToken, MembershipRole, User, UserRole, Workspace } from '../../domain/model.ts';
@@ -68,8 +67,6 @@ export const settingKeys = {
   timeResolutionMinutes: 'time_resolution_minutes',
 } as const;
 
-/** Every query uses the operation's supplied checkout. Construct only inside the runner's factory. */
-/** The id MySQL and MariaDB report for an insert. */
 export async function generatedId(query: { executeTakeFirstOrThrow(): Promise<{ insertId?: bigint }> }) {
   return entityId((await query.executeTakeFirstOrThrow()).insertId);
 }

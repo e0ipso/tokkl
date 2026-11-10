@@ -1,7 +1,4 @@
-/**
- * An invalid deployment setting. Its message names the setting and holds no secret, so startup
- * prints it, unlike other startup errors, which can carry connection details.
- */
+/** Its message names the setting and holds no secret, so startup prints it, unlike other startup errors. */
 export class ConfigurationError extends Error {
   constructor(message: string) {
     super(message);

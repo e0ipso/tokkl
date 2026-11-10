@@ -71,7 +71,6 @@ export function createReportRepositories(
       ])
       .execute();
   type EntryRow = Awaited<ReturnType<typeof entryRows>>[number];
-  /** The ordered tags of a bounded set of entries. */
   const entryTags = async (ids: readonly number[]): Promise<Map<number, TagLabel[]>> => {
     const tags = new Map<number, TagLabel[]>();
     if (!ids.length) return tags;

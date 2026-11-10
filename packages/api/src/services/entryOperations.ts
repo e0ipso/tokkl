@@ -1,7 +1,4 @@
-/**
- * The time entry writes of one signed-in user. Each is one transaction on storage that checks the
- * credential around it, guards the user's timer, and publishes a changed timer after commit.
- */
+/** Each write checks the credential around its transaction, guards the user's timer and publishes after commit. */
 import type { EntryChanges, EntryPatchStep, EntrySplit, NewEntry } from '../domain/entryCommands.ts';
 import {
   createTimeEntry,
@@ -19,10 +16,8 @@ import type { IdempotencyClaim } from '../lib/idempotency.ts';
 import type { TimerPublication } from '../domain/timerSettlement.ts';
 import type { Id, User } from '../domain/model.ts';
 
-/** `storage` checks the user's credential around each transaction. */
 export function createEntryOperations(storage: EntryTransactions, user: User, publish: TimerPublication) {
   return {
-    /** `create` and `split` take an optional `Idempotency-Key` claim; see `domain/idempotency.ts`. */
     create: (wid: Id, entry: NewEntry, claim?: IdempotencyClaim) =>
       storage.transaction(ctx =>
         idempotent(ctx, user.id, claim, {

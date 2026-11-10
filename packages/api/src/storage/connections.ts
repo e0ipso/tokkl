@@ -24,19 +24,18 @@ export class StorageConnectionError extends Error {
     this.name = 'StorageConnectionError';
   }
 }
-/** Idle pooled connections close after this long. */
 const IDLE_TIMEOUT_MS = 10_000;
-/** Requests that may wait for each pooled MySQL connection before acquisition fails at once. */
+/** Waiters per pooled MySQL connection; past it acquisition fails at once. */
 const QUEUED_PER_CONNECTION = 20;
-/** pg type OIDs of timestamp and timestamptz, read as UTC instants. */
+/** Read as UTC instants. */
 const TIMESTAMP_OIDS = [1114, 1184];
-/** pg type OIDs of int8, numeric, date, json and jsonb, kept as text until mapping. */
+/** Kept as text until mapping. */
 const TEXT_OIDS = [20, 1700, 1082, 114, 3802];
 
 function ca(config: ServerConfig): { ca?: string } {
   return config.tls.mode === 'verify-full' && config.tls.caFile ? { ca: readFileSync(config.tls.caFile, 'utf8') } : {};
 }
-/** Internal driver options. Never pass the original URL to a driver or log this object. */
+/** Never pass the original URL to a driver or log this object. */
 export function postgresOptions(config: ServerConfig, readOnly: boolean): PoolConfig {
   return {
     host: config.host,
@@ -92,11 +91,7 @@ export function mysqlOptions(config: ServerConfig, readOnly: boolean): PoolOptio
 
 type CheckoutCallback = Parameters<MysqlPool['getConnection']>[0];
 
-/**
- * Node's TLS upgrade reads the existing socket's _host when SNI is absent. net.connect leaves it
- * unset for IPs; mysql2 then verifies against localhost. Keep the requested IP available without
- * sending an IP as an SNI hostname.
- */
+/** net.connect leaves _host unset for IPs, so mysql2's TLS would verify against localhost; this keeps the IP. */
 function ipHostSocket(config: ServerConfig): Pick<PoolOptions, 'stream'> {
   if (config.tls.mode !== 'verify-full' || !isIP(config.host)) return {};
   return {
@@ -108,10 +103,7 @@ function ipHostSocket(config: ServerConfig): Pick<PoolOptions, 'stream'> {
   };
 }
 
-/**
- * mysql2 omits SNI for IP addresses. Verify the configured identity on every checkout, including
- * resumed TLS sessions, before exposing it.
- */
+/** mysql2 omits SNI for IP addresses, so verify the identity on every checkout, resumed sessions included. */
 function tlsIdentityFailure(config: ServerConfig, raw: PoolConnection): Error | undefined {
   if (config.tls.mode !== 'verify-full') return undefined;
   const stream = (raw as unknown as { stream?: TLSSocket }).stream;
@@ -120,7 +112,7 @@ function tlsIdentityFailure(config: ServerConfig, raw: PoolConnection): Error | 
     : checkServerIdentity(config.host, stream.getPeerCertificate(true));
 }
 
-/** Kysely's view of a checkout. Every query carries the query timeout. */
+/** Every query carries the query timeout. */
 function kyselyConnection(raw: PoolConnection, queryTimeoutMs: number): MysqlPoolConnection {
   return {
     config: raw.config,
@@ -147,7 +139,6 @@ function kyselyConnection(raw: PoolConnection, queryTimeoutMs: number): MysqlPoo
   };
 }
 
-/** Sets the session time zone, and read-only mode for a reader. */
 async function initializeSession(raw: PoolConnection, queryTimeoutMs: number, readOnly: boolean): Promise<void> {
   const execute = (query: string) =>
     new Promise<void>((resolve, reject) => {
@@ -157,12 +148,12 @@ async function initializeSession(raw: PoolConnection, queryTimeoutMs: number, re
   if (readOnly) await execute('SET SESSION TRANSACTION READ ONLY');
 }
 
-/** MySQL and MariaDB share the protocol driver, but retain distinct backend configuration identity. */
+/** MySQL and MariaDB share the driver but keep distinct backend identity. */
 function mysqlPool(config: ServerConfig, readOnly: boolean): MysqlPool {
   const pool = mysql.createPool({ ...mysqlOptions(config, readOnly), ...ipHostSocket(config) });
   const connections = new WeakMap<object, MysqlPoolConnection>();
 
-  /** Checks a delivered checkout and, the first time it is seen, initializes it before exposing it. */
+  /** Initializes a checkout the first time it is seen. */
   function expose(raw: PoolConnection, callback: CheckoutCallback): void {
     const failure = tlsIdentityFailure(config, raw);
     if (failure) {
@@ -216,10 +207,7 @@ function mysqlPool(config: ServerConfig, readOnly: boolean): MysqlPool {
   };
 }
 
-/**
- * A checkout whose session is discarded, not returned to the pool, after a failed COMMIT or
- * ROLLBACK or a timeout, so no transaction state reaches another operation.
- */
+/** Discarded after a failed COMMIT/ROLLBACK or a timeout, so no transaction state reaches another operation. */
 function guardedPostgresClient(raw: pg.PoolClient): pg.PoolClient {
   let poisoned = false;
   return new Proxy(raw, {
@@ -264,7 +252,7 @@ function dialectFor(config: StorageConfig, readOnly: boolean): Dialect {
   return new MysqlDialect({ pool: mysqlPool(config, readOnly) });
 }
 
-/** Storage-internal only. Application code depends on Storage in domain/ports.ts, never this handle. */
+/** Storage-internal. Application code depends on `Storage` in domain/ports.ts. */
 export interface StorageConnection<Database> {
   readonly db: Kysely<Database>;
   readonly backend: StorageConfig['backend'];
@@ -274,7 +262,7 @@ export interface StorageConnection<Database> {
   close(): Promise<void>;
 }
 
-/** Opens and probes without running migrations or constructing repositories. No fallback path exists. */
+/** Opens and probes without migrating or building repositories. No fallback path. */
 export async function openConnection<Database = Record<string, never>>(
   config: StorageConfig,
   readOnly = false,
@@ -315,7 +303,7 @@ export async function openConnection<Database = Record<string, never>>(
   }
 }
 
-/** One network reader per worker. SQLite files are opened read-only; memory uses the caller inline. */
+/** One network reader per worker. SQLite files open read-only; memory runs inline on the caller. */
 export function openReadConnection<Database = Record<string, never>>(
   config: StorageConfig,
 ): Promise<StorageConnection<Database>> {

@@ -1,4 +1,3 @@
-/** Time entry bodies, as the Toggl v9 API and the importers send them, parsed into commands. */
 import { parseDateKey } from '@tokkl/common/time';
 import {
   MAX_CREATED_WITH_LENGTH,
@@ -32,7 +31,7 @@ function optionalStartDate(value: unknown): string | undefined {
   return value;
 }
 
-/** `start` and `start_date`, and `start` moved to that day when both were sent. */
+/** `start` is moved to `start_date` when both were sent. */
 function readStart(body: JsonBody): Pick<EntryTimes, 'start' | 'startOnDate' | 'startDate'> {
   const start = optionalInstant(body.start, 'start');
   const startDate = optionalStartDate(body.start_date);
@@ -41,10 +40,7 @@ function readStart(body: JsonBody): Pick<EntryTimes, 'start' | 'startOnDate' | '
   return { start, startOnDate, startDate };
 }
 
-/**
- * The times of an entry body. A new no-time entry without `start` ignores `stop`: its span comes
- * from `start_date` and `duration` alone.
- */
+/** A new no-time entry without `start` ignores `stop`: its span comes from `start_date` and `duration`. */
 function readTimes(body: JsonBody, newNoTime = false): EntryTimes {
   const times: EntryTimes = { ...readStart(body), duration: optionalDuration(body.duration) };
   if (!newNoTime || times.start) times.stop = optionalInstant(body.stop, 'stop');
@@ -71,7 +67,7 @@ function optionalTagNames(value: unknown): string[] | undefined {
 /** Toggl accepts `wid` as an older name of `workspace_id`. */
 const readWorkspaceId = (body: JsonBody) => optionalId(body.workspace_id ?? body.wid, 'workspace_id');
 
-/** The project, task, description, billable flag and tags. Entry bodies also take `pid` and `tid`. */
+/** Entry bodies also take `pid` and `tid`. */
 function readLabels(body: JsonBody, aliases: boolean): Omit<EntryFields, 'workspaceId'> {
   const project = aliases && body.project_id === undefined ? body.pid : body.project_id;
   const task = aliases && body.task_id === undefined ? body.tid : body.task_id;
@@ -85,17 +81,13 @@ function readLabels(body: JsonBody, aliases: boolean): Omit<EntryFields, 'worksp
   };
 }
 
-/**
- * The labels of an edit that leaves the times and the workspace alone, such as a running timer's.
- * Tags sent replace the entry's.
- */
+/** For edits that leave times and workspace alone, such as a running timer's. Sent tags replace the entry's. */
 export function parseLabelChanges(body: JsonBody): Omit<EntryFields, 'workspaceId'> {
   return readLabels(body, false);
 }
 
 const readCreatedWith = (body: JsonBody) => optionalString(body.created_with, 'created_with', MAX_CREATED_WITH_LENGTH);
 
-/** The entry fields of a body that carries other things too, such as a Pomodoro start. */
 export function parseEntryLabels(body: JsonBody): Omit<NewEntry, 'allDay' | 'times'> {
   return { ...readLabels(body, false), createdWith: readCreatedWith(body) };
 }
@@ -119,12 +111,11 @@ export function parseEntryChanges(body: JsonBody): EntryChanges {
   return { workspaceId, allDay, times, ...readLabels(body, true), tagAction: tagAction(body.tag_action) };
 }
 
-/** A split request: the instant `at` to cut at, and the second half's `created_with`. */
 export function parseEntrySplit(body: JsonBody): EntrySplit {
   return { at: parseInstant(body.at, 'at'), createdWith: readCreatedWith(body) };
 }
 
-/** The `stop` of a stop request; the body is optional. */
+/** The body is optional. */
 export function parseStopAt(body: JsonBody | undefined): Date | undefined {
   return body?.stop === undefined ? undefined : parseInstant(body.stop, 'stop');
 }
@@ -143,7 +134,6 @@ const PATCH_FIELDS: Readonly<Record<string, string>> = {
   '/tag_ids': 'tag_ids',
 };
 
-/** The update body one JSON Patch operation stands for. */
 function operationBody(op: string, path: string, value: unknown): JsonBody {
   // Own paths only: `constructor` or `__proto__` is no field.
   const field = Object.hasOwn(PATCH_FIELDS, path) ? PATCH_FIELDS[path] : undefined;
@@ -186,7 +176,6 @@ function patchStep(raw: unknown): EntryPatchStep {
   }
 }
 
-/** A bulk edit: a non-empty array of JSON Patch operations. */
 export function parseEntryPatch(operations: unknown[]): EntryPatchStep[] {
   if (operations.length === 0) throw invalidInput('Expected an array of patch operations');
   return operations.map(patchStep);

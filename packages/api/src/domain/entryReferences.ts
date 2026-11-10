@@ -1,11 +1,10 @@
-/** The project, task and tags an entry refers to: each must exist in the entry's workspace. */
 import type { EntryDetails, Id, ProjectRef } from './model.ts';
 import { invalidInput, notFound } from '../lib/errors.ts';
 import { resolveTagNames } from './catalogs.ts';
 import type { EntryContext, EntryRepositories } from './entryAccess.ts';
 import type { EntryFields, TagAction } from './entryCommands.ts';
 
-/** The lookups an entry write makes. An import wraps them in a cache. */
+/** An import wraps them in a cache. */
 export interface EntryReferences {
   project: EntryRepositories['projects']['getRef'];
   task: EntryRepositories['tasks']['getRef'];
@@ -22,7 +21,7 @@ export function entryReferences(ctx: EntryContext): EntryReferences {
   };
 }
 
-/** The sent tags as ids: `tagIds` must exist, `tagNames` are created when missing. */
+/** `tagIds` must exist; `tagNames` are created when missing. */
 export async function resolveTagIds(
   refs: EntryReferences,
   wid: Id,
@@ -55,10 +54,7 @@ interface ResolvedProject {
   projectChanged: boolean;
 }
 
-/**
- * The project and task after the sent changes. A task implies its project, and changing the
- * project alone clears the task.
- */
+/** A task implies its project, and changing the project alone clears the task. */
 export async function resolveProjectAndTask(
   refs: EntryReferences,
   wid: Id,

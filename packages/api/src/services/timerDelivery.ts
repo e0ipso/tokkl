@@ -1,7 +1,4 @@
-/**
- * Timer state from commit to client. Publishing returns at once, so a write's reply can reach its
- * client before the stream sends that state; revisions keep that harmless on every client.
- */
+/** Publishing returns at once, so a reply may beat its stream event; revisions make that harmless. */
 import type { TimerState } from '@tokkl/types';
 import type { AccountRepositories, AccountRunner } from '../domain/accountGuards.ts';
 import { credentialHolds, type Authentication } from '../domain/credentials.ts';
@@ -16,16 +13,13 @@ import type { Logger } from '../lib/logger.ts';
 import { presentTimerState } from '../presenters/timer.ts';
 import { TimerStreams, type StreamCredentialResult, type TimerStreamLimits } from './timerStreams.ts';
 
-/** Reads committed state for a signalled user. `rebuild` must only read: no settling, no commit. */
+/** `rebuild` must only read: no settling, no commit. */
 interface RemoteTimerSource {
   hasStreams(userId: Id): boolean;
   rebuild(userId: Id): Promise<{ state: TimerView; incarnation: string } | undefined>;
 }
 
-/**
- * Serializes deliveries per user and drops overtaken revisions. A failed delivery rejects the call
- * that queued it; later ones still run. Deliveries for another incarnation of the id are dropped.
- */
+/** Serializes per user, dropping overtaken revisions and other incarnations. A failed delivery rejects its caller. */
 export function createTimerPublication(
   deliver: (userId: Id, view: TimerView) => Promise<void>,
   forgotten: (userId: Id) => void = () => {},
@@ -71,13 +65,13 @@ export function createTimerPublication(
         if (current() && owns(id, incarnation) && behind(id, view.revision)) await send(id, view);
       }),
     forgetUser,
-    /** A stream opens for this incarnation; state held for another one (a deleted account) goes first. */
+    /** State held for another incarnation (a deleted account) goes first. */
     claim(id: Id, incarnation: string) {
       const known = incarnations.get(id);
       if (known !== undefined && known !== incarnation) forgetUser(id);
       incarnations.set(id, incarnation);
     },
-    /** Delivers the database's state when it is newer than what this process delivered. Never signals. */
+    /** Only when newer than what this process delivered. Never signals. */
     refresh(id: Id, hint: number): Promise<void> {
       if (!remote?.hasStreams(id) || !behind(id, hint)) return Promise.resolve();
       return enqueue(id, async current => {
@@ -93,16 +87,12 @@ export function createTimerPublication(
 interface TimerDeliveryOptions {
   storage: Storage;
   bus: TimerBus;
-  /** Where the state a stream opens with reads the time. */
   clock: Clock;
   logger: Logger;
   streamLimits: Readonly<TimerStreamLimits>;
 }
 
-/**
- * Local commits go to this process's streams in commit order and signal the bus; bus signals from
- * other processes refresh the streams from the database.
- */
+/** Local commits go to local streams in order and signal the bus; bus signals refresh from the database. */
 export function createTimerDelivery({ storage, bus, clock, logger, streamLimits }: TimerDeliveryOptions) {
   const timerStreams = new TimerStreams(
     async id => presentTimerState(await createTimerOperations(storage, { id }, publish, clock).getTimerState()),
@@ -126,7 +116,6 @@ export function createTimerDelivery({ storage, bus, clock, logger, streamLimits 
         }),
     },
   );
-  /** Started deliveries and refreshes, until each ends. */
   const running = new Set<Promise<void>>();
   const track = (work: Promise<void>) => {
     running.add(work);
@@ -150,24 +139,21 @@ export function createTimerDelivery({ storage, bus, clock, logger, streamLimits 
   bus.receive(signal => refreshLogged(signal.userId, signal.revision));
   return {
     timerStreams,
-    /** `publish` for local commits; `refresh`, `claim` and `forgetUser` act on the ordered queue. */
     push: { ...ordered, publish, refresh },
-    /** Waits until no delivery or refresh is running, those started while it waits included. */
+    /** Includes those started while it waits. */
     async settled(): Promise<void> {
       while (running.size) await Promise.allSettled([...running]);
     },
   };
 }
 
-/** One user's timer operations as clients see them: each answer and each refusal carries a `TimerState`. */
 export type PresentedTimerOperations = {
   [Name in keyof TimerOperations]: (...args: Parameters<TimerOperations[Name]>) => Promise<TimerState>;
 };
 
-/** Every timer operation answers a view. One that did not would fail to compile here. */
+/** One that did not would fail to compile here. */
 type ViewOperations = { [Name in keyof TimerOperations]: (...args: never[]) => Promise<TimerView> };
 
-/** Presents each committed view, or a refusal's view as a `StateConflict`, after the transaction. */
 export function presentTimerOperations(operations: TimerOperations): PresentedTimerOperations {
   const views: ViewOperations = operations;
   const wrapped = {} as Record<keyof TimerOperations, (...args: never[]) => Promise<TimerState>>;
@@ -183,10 +169,7 @@ export function presentTimerOperations(operations: TimerOperations): PresentedTi
   return wrapped as PresentedTimerOperations;
 }
 
-/**
- * The keep-alive check of one timer stream: the request's credential still holds, read together
- * with the user's timer revision. Storage failures fail closed and never reject the check.
- */
+/** Storage failures fail closed and never reject the check. */
 export function credentialCheck<R extends AccountRepositories>(
   runner: AccountRunner<R>,
   auth: Authentication,
@@ -207,7 +190,7 @@ export function credentialCheck<R extends AccountRepositories>(
   };
 }
 
-/** The key of the credential a stream check tests. Streams that share it share each check. */
+/** Streams that share it share each check. */
 export function credentialKey(auth: Authentication): string {
   const { user, credential } = auth;
   const presented = credential.kind === 'password' ? user.apiToken : credential.token;

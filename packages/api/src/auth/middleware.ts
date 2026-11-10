@@ -25,7 +25,6 @@ interface AuthLocals {
 }
 declare module 'express-serve-static-core' {
   interface Locals {
-    /** Set by `requireAuth` for every route behind it. */
     auth: Authentication;
   }
 }
@@ -52,7 +51,7 @@ export function passwordAttempt(limiter: FailureLimiter, email: string, address:
   const counters = passwordCounters(email, address);
   return { attempt: check => limiter.attempt(counters, check) };
 }
-/** Only callable through the shared password attempt policy, including unknown/disabled accounts. */
+/** Call only through the shared password attempt policy, unknown and disabled accounts included. */
 export async function authenticatePassword<R extends AccountRepositories>(
   runner: AccountRunner<R>,
   limiter: FailureLimiter,

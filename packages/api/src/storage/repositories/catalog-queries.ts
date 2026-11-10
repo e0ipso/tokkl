@@ -1,4 +1,3 @@
-/** Row mappers and queries the catalog repositories and the transfer reads share. */
 import { now } from '../../lib/clock.ts';
 import { type Kysely, type Selectable, type Insertable } from 'kysely';
 import type { Backend } from '../config.ts';
@@ -136,7 +135,7 @@ export function projectValues(input: Partial<ProjectInput>) {
     template: input.template === undefined ? undefined : Number(input.template),
   };
 }
-/** Inserts one catalog row and returns its id, on every backend. */
+/** On every backend. */
 export async function insertId(
   db: Kysely<PhysicalDatabase>,
   backend: Backend,

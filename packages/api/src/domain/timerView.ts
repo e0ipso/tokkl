@@ -1,7 +1,4 @@
-/**
- * The timer as one user sees it: the running entry, the pause chain and the Pomodoro session at one
- * revision. Presenters turn a view into the `TimerState` clients read; the domain never does.
- */
+/** Presenters turn a view into the `TimerState` clients read; the domain never does. */
 import {
   plannedEnd,
   transitionKind,
@@ -17,23 +14,19 @@ interface PomodoroView {
   phase: SessionPhase;
   plannedEnd: Date;
   transition: TransitionKind;
-  /** The phase the transition leads to. */
   upcoming: SessionPhase['kind'];
-  /** The Pomodoro's number: the current work phase counts itself. */
+  /** The current work phase counts itself. */
   number: number;
   entryId: Id;
-  /** The running entry's start. */
   entryStart: string;
 }
 
 export interface TimerView {
   revision: number;
-  /** The server clock the view was built at. */
   at: Date;
-  /** The owner, whose name the running entry shows. */
   user: User;
   running: EntryDetails | null;
-  /** The chain's tags that still exist, in the chain's order. */
+  /** Tags that still exist, in the chain's order. */
   pause: { chain: PauseChain; tags: TagLabel[] } | null;
   pomodoro: PomodoroView | null;
   discardedPomodoro: DiscardedPomodoro | null;
@@ -68,7 +61,7 @@ function pomodoroView(snapshot: TimerSnapshot): PomodoroView | null {
   };
 }
 
-/** The view of `snapshot`, or of the stored state when it is omitted. */
+/** Of the stored state when `snapshot` is omitted. */
 export async function buildTimerView(
   ctx: { timers: Pick<TimersRepository, 'read'>; tags: Pick<TagsRepository, 'findByIds'> },
   user: User,

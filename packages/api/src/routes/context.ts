@@ -5,31 +5,22 @@ import type { SessionHandlers } from '../auth/sessions.ts';
 import type { ApplicationServices } from '../services/application.ts';
 import type { FailureLimiter } from '../auth/rateLimit.ts';
 
-/**
- * What `createHttpApp` in `app.ts` builds once for the routers. Each router names the part it uses
- * with `Pick`, so none of them sees storage, configuration or how an operation publishes.
- */
+/** Each router `Pick`s what it uses, so none sees storage, configuration or how operations publish. */
 export interface Deps extends ApplicationServices {
-  /**
-   * Failed password attempts, shared by the login form, Basic auth and password change. Each check
-   * is charged to the account from its address, the account and the address (`passwordCounters`).
-   * Unknown invite tokens count against the same address counter (`addressCounter`).
-   */
+  /** Charged per account+address, account and address; unknown invite tokens hit the address counter. */
   loginLimiter: FailureLimiter;
-  /** Request authentication: Basic auth, API tokens and session cookies. */
   auth: AuthMiddleware;
-  /** Setup, sign-in, sign-out, invite and password reset handlers. */
   sessions: SessionHandlers;
 }
 
 declare module 'express-serve-static-core' {
   interface Locals {
-    /** Aborted when the client goes away or the server shuts down; set in `createHttpApp`. */
+    /** Aborted when the client goes away or the server shuts down. */
     workSignal: AbortSignal;
   }
 }
 
-/** Authenticate and collect a JSON response in one snapshot; send only after releasing it. */
+/** One snapshot; sends only after releasing it. */
 export function jsonRead(
   deps: Pick<Deps, 'readFor'>,
   work: (req: Request, res: Response, queries: ReadQueries) => unknown,

@@ -34,9 +34,6 @@ function presentRelated(related: RelatedData) {
   };
 }
 
-/**
- * The signed-in user: profile, preferences and everything across their workspaces.
- */
 export function meRoutes(deps: Pick<Deps, 'readFor' | 'accountsFor' | 'preferencesFor' | 'loginLimiter'>): Router {
   const api = createRouter();
   api.get(

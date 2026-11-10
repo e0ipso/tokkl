@@ -1,4 +1,4 @@
-/** Invite and password reset links: single-use tokens an admin hands out, stored as hashes. */
+/** Single-use tokens, stored as hashes. */
 import { now } from '../lib/clock.ts';
 import type { TokensRepository, UsersRepository } from './ports.ts';
 import type { Id, User } from './model.ts';
@@ -57,7 +57,7 @@ export function createInviteOperations<R extends AccountRepositories>(runner: Ac
       });
     },
     async acceptInvite(token: string, account: NewAccount): Promise<User> {
-      // Preserve the public link error before expensive password work, then check again under guards.
+      // Answer the public link error before the slow password hash, then check again under guards.
       const usable = await runner.readSnapshot(ctx => ctx.tokens.findUsable(sha256(token), 'invite', now()));
       if (!usable?.role) throw notFound(INVITE_NOT_FOUND);
       const record = await accountRecord(account, usable.role);
@@ -114,7 +114,7 @@ export function createPasswordResetOperations<R extends AccountRepositories>(
         return { token, reset };
       });
     },
-    /** `password` passed the length rules. The reset ends every session and the old API token. */
+    /** The reset ends every session and the old API token. */
     async resetPassword(token: string, password: string): Promise<User> {
       const hash = sha256(token);
       const candidate = await runner.readSnapshot(async ctx => {

@@ -4,13 +4,13 @@ import { memberWorkspace, noWorkspaceAccess } from '../domain/membership.ts';
 import { StorageConflict } from '../domain/ports.ts';
 import { RequestCancelled } from '../lib/errors.ts';
 
-/** Errors an import reports; the rest are counted in the totals only. */
+/** The rest are counted in the totals only. */
 export const MAX_IMPORT_ERRORS = 100;
 
 export interface ImportRunner<R extends EntryRepositories> {
   transaction<T>(work: (context: OperationContext<R>) => Promise<T>, options?: { dryRun?: boolean }): Promise<T>;
 }
-/** Catalog effects can touch every timer owner. Lock their complete set before the caller. */
+/** Catalog effects can touch every timer owner, so lock their complete set first. */
 export async function protectImport(ctx: OperationContext<EntryRepositories>, userId: number) {
   const observed = await ctx.users.get(userId);
   if (!observed) return protectEntryOperation(ctx, userId, [], true);
@@ -41,15 +41,11 @@ export async function protectImport(ctx: OperationContext<EntryRepositories>, us
   await memberWorkspace(ctx, userId, locked.defaultWorkspaceId);
   return locked;
 }
-/** Throws once the request that started the import has gone away. */
 export function checkCancelled(signal: AbortSignal | undefined): void {
   if (signal?.aborted) throw new RequestCancelled('Import cancelled');
 }
 
-/**
- * Checks the request before every hook has run and again just before COMMIT, so an import whose
- * request went away rolls back whole instead of committing what it wrote so far.
- */
+/** Checks before the hooks and again just before COMMIT, so a cancelled import rolls back whole. */
 export function cancelBeforeCommit(ctx: OperationContext<EntryRepositories>, signal: AbortSignal | undefined): void {
   if (!signal) return;
   checkCancelled(signal);

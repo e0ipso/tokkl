@@ -6,7 +6,7 @@ import { StorageConflict } from '../domain/ports.ts';
 import { classifyConflict, StorageTransactionError } from './errors.ts';
 import { beginSqliteTransaction } from './sqliteBridge.ts';
 
-/** Internal only: construct ALL repositories using this exact connection-bound db. */
+/** Internal: build every repository on this exact connection-bound db. */
 type RepositoryFactory<D, R extends object> = (db: Kysely<D>) => R;
 interface TransactionOptions {
   dryRun?: boolean;
@@ -16,23 +16,16 @@ interface TransactionRunner<R extends object> {
   readSnapshot<T>(work: (repositories: R) => Promise<T>): Promise<T>;
 }
 export interface TransactionRunnerOptions {
-  /**
-   * Hears each after-commit callback that threw. The write has committed by then, so the failure is
-   * only reported; a reporter that throws is ignored.
-   */
+  /** The write has committed, so a throwing after-commit callback is only reported; a throwing reporter is ignored. */
   afterCommitFailed?: (error: unknown) => void;
 }
 
-/** How many times a transaction runs when each attempt before the last hits a retryable conflict. */
+/** Attempts in all when each but the last hits a retryable conflict. */
 const MAX_ATTEMPTS = 3;
-/** The longest wait before the first rerun of a conflicted attempt. The second rerun's doubles it. */
+/** Ceiling of the first rerun's wait; the second doubles it. */
 const RETRY_BASE_DELAY_MS = 10;
 
-/**
- * Waits before rerunning after attempt `failed` (1-based): half the doubled ceiling plus a random
- * share of the other half, so two transactions that conflicted rerun apart instead of colliding
- * again at once. The first wait is 5 to 10 ms, the second 10 to 20 ms.
- */
+/** Half the doubled ceiling plus a random share, so conflicting transactions rerun apart: 5-10, then 10-20 ms. */
 function waitBeforeRetry(failed: number): Promise<void> {
   const ceiling = RETRY_BASE_DELAY_MS * 2 ** (failed - 1);
   const delay = ceiling / 2 + (Math.random() * ceiling) / 2;
@@ -40,11 +33,7 @@ function waitBeforeRetry(failed: number): Promise<void> {
 }
 
 type Hook = () => Promise<void>;
-/**
- * The most before-commit hooks one commit runs, those registered by hooks included, so hooks that
- * keep registering each other fail the transaction instead of looping. Every hook counts, so a
- * catalog write that touches more than this many running timers fails too.
- */
+/** Hooks registered by hooks count, so mutual registration fails instead of looping. */
 const MAX_BEFORE_COMMIT_HOOKS = 1000;
 /** Lock ranks: the instance guard, then workspaces, then users, each group in ascending id order. */
 const INSTANCE_RANK = '0';
@@ -79,11 +68,7 @@ function scoped<D>(db: Kysely<D>, isActive: () => boolean): Kysely<D> {
   });
 }
 
-/**
- * The guards one write transaction holds. Acquisitions are serialized and must follow the global
- * order (instance, ascending workspaces, ascending users) across all calls, so two transactions
- * can never wait on each other in a cycle.
- */
+/** Acquisitions follow the global order across all calls, so two transactions never wait in a cycle. */
 class LockOrder<D> {
   #held = new Set<string>();
   #lastRank = '';
@@ -120,8 +105,7 @@ class LockOrder<D> {
         const result = await sql`select id from ${sql.table(table)} where id = ${id} ${this.#forUpdate()}`.execute(
           this.#db,
         );
-        // Callers lock rows they read first. A row gone by now was deleted by a transaction this
-        // one waited for: run again, so discovery sees the deletion and refuses as it would have.
+        // A row gone by now was deleted by a transaction this one waited for: rerun so discovery sees the deletion.
         if (result.rows.length !== 1) throw new StorageConflict('serialization');
         this.#held.add(key);
         this.#lastRank = key;
@@ -144,10 +128,7 @@ class LockOrder<D> {
     });
   }
 
-  /**
-   * The held set before a savepoint, restored when it rolls back. The high-water rank is kept: InnoDB
-   * can retain locks taken after a savepoint, and PostgreSQL must take released rows again.
-   */
+  /** Keeps the high-water rank: InnoDB may keep locks after a savepoint; PostgreSQL retakes released rows. */
   savedHeld(): Set<string> {
     return new Set(this.#held);
   }
@@ -157,38 +138,25 @@ class LockOrder<D> {
   }
 }
 
-/** One attempt's mutable state: hooks, guards and the flags commit and rollback decisions read. */
 interface Attempt {
-  /**
-   * Hooks that run before COMMIT, keyed so each runs once however often it is registered:
-   * `touchTimer` settles each user's timer after an entry or timer write, and a catalog write's
-   * `invalidate` settles the running timers it affects.
-   */
+  /** Keyed, so each runs once however often it is registered. */
   before: Map<string, Hook>;
-  /**
-   * Reads that run after the last before-commit hook: a timer action builds its reply from the
-   * settled state (`action` in domain/timers.ts), and an import checks for cancellation once more
-   * (`cancelBeforeCommit`).
-   */
+  /** Run after the last before-commit hook, so they read the settled state. */
   reads: Hook[];
-  /** Timer publication and stream credential rechecks, run after COMMIT and release. */
+  /** Run after COMMIT and release. */
   after: Hook[];
   /** A savepoint could not roll back, so the transaction must not commit. */
   rollbackOnly: boolean;
-  /** A savepoint is open: bulk entry patches and import rows each run in one. */
+  /** Bulk entry patches and import rows each run in one. */
   savepointActive: boolean;
 }
 
-/** Runs the reads registered with `readAtCommit` once no before-commit hook is left. */
 async function readAtCommit(attempt: Attempt): Promise<void> {
   for (const read of attempt.reads.splice(0)) await read();
   if (attempt.before.size || attempt.reads.length) throw new Error('A read at commit registered more work');
 }
 
-/**
- * Runs before-commit hooks until none is left. A hook may register more, and they run too: a hook
- * that writes an entry touches its user's timer again, and that settlement has to follow the write.
- */
+/** A hook may register more: an entry write in a hook touches its user's timer again, which must follow it. */
 async function drainBeforeCommit(attempt: Attempt): Promise<void> {
   let drained = 0;
   while (attempt.before.size) {
@@ -199,10 +167,7 @@ async function drainBeforeCommit(attempt: Attempt): Promise<void> {
   }
 }
 
-/**
- * After-commit work runs once the connection is released, each callback after the one before. A
- * failure never fails the commit: it goes to `afterCommitFailed` and the next callback still runs.
- */
+/** Callbacks run in order after release; a failure goes to `afterCommitFailed` and the next still runs. */
 async function runAfterCommit(after: Hook[], options: TransactionRunnerOptions): Promise<void> {
   for (const callback of after) {
     try {
@@ -283,7 +248,6 @@ export function createTransactionRunner<D, R extends object>(
 ): TransactionRunner<R> {
   const backend = connection.backend;
 
-  /** One attempt on one checked-out connection. Reports whether it rolled back or reached COMMIT. */
   async function attemptOnce<T>(
     work: (context: OperationContext<R>) => Promise<T>,
     settings: TransactionOptions,

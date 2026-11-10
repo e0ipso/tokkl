@@ -1,7 +1,4 @@
-/**
- * The entry point of a report worker thread: it opens its own read-only reader for the storage
- * configuration in `workerData` and runs the jobs the runner posts, one at a time.
- */
+/** Opens its own read-only reader from `workerData` and runs posted jobs one at a time. */
 import { parentPort, workerData } from 'node:worker_threads';
 import type { StorageConfig } from './storage/config.ts';
 import { openReportReader } from './storage/repositories/report-reader.ts';
@@ -16,15 +13,11 @@ interface ReportRequest {
   id: number;
   work: ReportWork;
 }
-/** The parent took `bytes` of export `id`'s output. */
 interface Acknowledgement {
   ack: { id: number; bytes: number };
 }
 
-/**
- * The export output sent and not yet acknowledged. An export waits while more than
- * EXPORT_BYTES_AHEAD is out, and finishes only once all of it was taken.
- */
+/** An export waits while more than EXPORT_BYTES_AHEAD is out, and finishes only once all of it was taken. */
 class OutputCredit {
   readonly id: number;
   private ahead = 0;
@@ -36,7 +29,6 @@ class OutputCredit {
     this.ahead -= bytes;
     this.wake?.();
   }
-  /** Resolves once at most `limit` bytes are out. */
   async within(limit: number): Promise<void> {
     while (this.ahead > limit)
       await new Promise<void>(resolve => {

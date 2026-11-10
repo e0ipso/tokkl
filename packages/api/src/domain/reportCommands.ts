@@ -1,8 +1,3 @@
-/**
- * What a report asks for, already parsed by `commands/reports.ts`: the entries it covers and how
- * they are grouped and sorted. The report services build replies from these.
- */
-
 export type IdFilter = Array<number | null>;
 
 export interface ReportFilter {
@@ -17,7 +12,7 @@ export interface ReportFilter {
   userIds?: IdFilter;
   minDurationSeconds?: number;
   maxDurationSeconds?: number;
-  /** Negated filters: drop entries matching any of these. `null` means "without". */
+  /** Drops entries matching any. `null` means "without". */
   excludeProjectIds?: IdFilter;
   excludeClientIds?: IdFilter;
   excludeTagIds?: IdFilter;
@@ -29,10 +24,9 @@ export interface ReportFilter {
   roundingMinutes?: number;
 }
 
-/** What entries are grouped by. `none` keeps them in one group. */
+/** `none` keeps them in one group. */
 export type Dimension = 'project' | 'client' | 'tag' | 'description' | 'task' | 'none';
 
 export type OrderBy = 'date' | 'user' | 'duration' | 'description' | 'last_update';
-/** The orders the web app's detailed report offers. */
 export type DetailedOrderBy = Extract<OrderBy, 'date' | 'duration' | 'description'>;
 export type SortDirection = 'ASC' | 'DESC';

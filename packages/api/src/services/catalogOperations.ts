@@ -1,8 +1,4 @@
-/**
- * The catalog writes a signed-in member makes in a workspace: clients, projects, tasks and tags.
- * Each is one transaction that takes the workspace guard, checks membership, guards every timer
- * the write may change, and publishes the changed timers after commit.
- */
+/** Each write takes the workspace guard, checks membership, guards affected timers and publishes after commit. */
 import type {
   ClientChanges,
   ClientRestore,
@@ -43,7 +39,6 @@ import type { Id } from '../domain/model.ts';
 
 /** `storage` checks the member's credential around each transaction. */
 export function createCatalogOperations(storage: EntryTransactions, memberId: Id, publish: TimerPublication) {
-  /** Runs `work` under the workspace guard and the guards of every timer it may change. */
   function write<T>(wid: Id, work: (ctx: EntryContext, effects: CatalogTimerEffects) => Promise<T>) {
     return storage.transaction(async ctx => {
       await ctx.lockWorkspaces([wid]);
@@ -52,7 +47,7 @@ export function createCatalogOperations(storage: EntryTransactions, memberId: Id
       return work(ctx, createCatalogTimerEffects(ctx, publish));
     });
   }
-  /** A create under `write`, run once per idempotency key; a repeat reads the record back by id. */
+  /** A repeat reads the record back by id. */
   function create<T extends { id: Id }>(
     wid: Id,
     claim: IdempotencyClaim | undefined,
@@ -68,7 +63,6 @@ export function createCatalogOperations(storage: EntryTransactions, memberId: Id
     );
   }
   return {
-    /** Each create takes an optional `Idempotency-Key` claim; see `domain/idempotency.ts`. */
     createProject: (wid: Id, project: NewProject, claim?: IdempotencyClaim) =>
       create(
         wid,
@@ -78,7 +72,7 @@ export function createCatalogOperations(storage: EntryTransactions, memberId: Id
       ),
     updateProject: (wid: Id, id: Id, changes: ProjectChanges) =>
       write(wid, (ctx, effects) => updateProject(ctx, wid, id, changes, effects)),
-    /** `deleteEntries` deletes the project's entries too; otherwise they lose their project. */
+    /** Without `deleteEntries` the entries lose their project. */
     deleteProject: (wid: Id, id: Id, deleteEntries: boolean) =>
       write(wid, (ctx, effects) => deleteProject(ctx, wid, id, deleteEntries, effects)),
     createTask: (wid: Id, projectId: Id, task: NewTask, claim?: IdempotencyClaim) =>
@@ -101,7 +95,7 @@ export function createCatalogOperations(storage: EntryTransactions, memberId: Id
       ),
     updateClient: (wid: Id, id: Id, changes: ClientChanges) =>
       write(wid, (ctx, effects) => updateClient(ctx, wid, id, changes, effects)),
-    /** Archives a client and its projects; answers the ids of the projects it archived. */
+    /** Answers the ids of the projects it archived. */
     archiveClient: (wid: Id, id: Id) => write(wid, (ctx, effects) => setClientArchived(ctx, wid, id, true, effects)),
     restoreClient: (wid: Id, id: Id, restore: ClientRestore) =>
       write(wid, (ctx, effects) => restoreClient(ctx, wid, id, restore, effects)),

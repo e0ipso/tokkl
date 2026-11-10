@@ -21,7 +21,7 @@ function normalizeRow(row: Record<string, unknown>): Record<string, unknown> {
   return normalized;
 }
 
-/** Parameter-array and statement metadata bridge; no native SQLite addon is needed. */
+/** Needs no native SQLite addon. */
 function bridge(database: DatabaseSync): SqliteDatabase {
   // Savepoint names and variable IN lists must not create an unbounded native cache.
   const prepared = new BoundedCache<string, ReturnType<SqliteDatabase['prepare']>>(256);
@@ -79,7 +79,7 @@ class NodeSqliteDriver extends SqliteDriver {
   }
 }
 
-/** Internal dialect. A read connection never creates files, directories, or migrations. */
+/** A read connection never creates files, directories or migrations. */
 export class NodeSqliteDialect extends SqliteDialect {
   #open: () => Promise<SqliteDatabase>;
   #readOnly: boolean;
@@ -111,7 +111,7 @@ export class NodeSqliteDialect extends SqliteDialect {
   }
 }
 
-/** A sync busy wait would block the async owner that needs to commit on another handle. */
+/** A sync busy wait would block the async owner that must commit on another handle. */
 export async function beginSqliteTransaction(connection: DatabaseConnection, readOnly: boolean): Promise<void> {
   if (readOnly) {
     await connection.executeQuery(CompiledQuery.raw('BEGIN'));

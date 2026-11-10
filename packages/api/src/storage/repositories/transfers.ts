@@ -58,7 +58,6 @@ async function exportedMemberships(db: Db, userId: number): Projection<'membersh
   });
 }
 
-/** The ids of the user's workspaces, as a subquery each projection below filters by. */
 function memberScope(db: Db, userId: number) {
   return db.selectFrom('workspace_users').select('workspace_id').where('user_id', '=', userId);
 }
@@ -122,7 +121,7 @@ async function exportedTags(db: Db, scope: Scope): Projection<'tags'> {
   return rows.map(tag);
 }
 
-/** The caller owns the consistent snapshot; every projection uses this supplied handle. */
+/** The caller owns the consistent snapshot. */
 export function createTransferRepositories(db: Db, backend: Backend): Pick<Repositories, 'transfers'> {
   // One projection at a time, in this order, on the caller's connection.
   async function exportHead(userId: number) {

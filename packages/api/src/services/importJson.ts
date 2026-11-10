@@ -39,7 +39,7 @@ interface JsonImportResult {
   errors: Array<{ entity: string; id: unknown; message: string }>;
 }
 type Item = Record<string, unknown>;
-/** `signal` is the request's: once it aborts, the import stops and rolls back. */
+/** Once `signal` aborts, the import stops and rolls back. */
 export interface ImportOptions {
   dryRun: boolean;
   signal?: AbortSignal;
@@ -49,7 +49,6 @@ function list(value: unknown, field: string): Item[] {
   if (!Array.isArray(value)) throw invalidInput(`Invalid export file: "${field}" must be an array`);
   return value.filter((item): item is Item => typeof item === 'object' && item !== null);
 }
-/** What every restore step shares: the guarded operation, the target and the id maps built so far. */
 interface Restore {
   ctx: OperationContext<EntryRepositories>;
   userId: number;
@@ -57,11 +56,11 @@ interface Restore {
   wid: number;
   publish: TimerPublication;
   result: JsonImportResult;
-  /** File id to stored id, per entity, for the records restored or matched by name. */
+  /** File id to stored id, for records restored or matched by name. */
   ids: Record<'client' | 'project' | 'task' | 'tag', Map<number, number>>;
 }
 
-/** The stored id for a file reference, null for no reference, or a skip reason when it was not imported. */
+/** Null for no reference, or a skip reason when the referenced record was not imported. */
 function mapped(restore: Restore, entity: keyof Restore['ids'], value: unknown): number | null {
   if (value === undefined || value === null) return null;
   const id = restore.ids[entity].get(Number(value));
@@ -69,7 +68,7 @@ function mapped(restore: Restore, entity: keyof Restore['ids'], value: unknown):
   return id;
 }
 
-/** Runs one record in its own savepoint. A failure rolls the record back and is reported, not thrown. */
+/** A failure rolls the record back and is reported, not thrown. */
 async function unit(
   restore: Restore,
   entity: string,
@@ -162,7 +161,7 @@ async function restoreTag(restore: Restore, item: Item): Promise<void> {
   restore.ids.tag.set(Number(item.id), id!);
 }
 
-/** Entries keep their exact times. A no-time entry is anchored to its day in the exporter's zone. */
+/** A no-time entry is anchored to its day in the exporter's zone. */
 async function restoreEntry(restore: Restore, writer: ExactEntryImport, zone: string, item: Item): Promise<void> {
   const { ctx, userId, user } = restore;
   if (item.server_deleted_at) return;
@@ -211,13 +210,13 @@ async function restoreEntry(restore: Restore, writer: ExactEntryImport, zone: st
   restore.result.time_entries++;
 }
 
-/** The exporter's zone when the file names a valid one, else the importing user's. */
+/** Else the importing user's. */
 function exporterZone(file: Item, user: User): string {
   const exporter = typeof file.user === 'object' && file.user !== null ? (file.user as Item).timezone : undefined;
   return (typeof exporter === 'string' ? canonicalTimeZone(exporter) : null) ?? user.timezone;
 }
 
-/** `data` as a Tokkl JSON export, or a 400 when it names no format this server restores. */
+/** A 400 when it names no format this server restores. */
 function exportFile(data: unknown): Item {
   const format = typeof data === 'object' && data !== null ? (data as Item).format : undefined;
   if (format !== EXPORT_FORMAT && format !== LEGACY_EXPORT_FORMAT)
@@ -225,11 +224,7 @@ function exportFile(data: unknown): Item {
   return data as Item;
 }
 
-/**
- * Restores a Tokkl JSON export into the user's default workspace: catalogs first, matched by name,
- * then entries, skipping duplicates. Runs in the caller's transaction; the outer runner controls
- * the dry-run rollback and retries.
- */
+/** Catalogs first, matched by name, then entries, skipping duplicates. The caller owns dry-run rollback. */
 async function importJsonExport(
   ctx: OperationContext<EntryRepositories>,
   userId: number,
@@ -279,14 +274,13 @@ async function importJsonExport(
   cancelBeforeCommit(ctx, signal);
   return restore.result;
 }
-/** `userId`'s imports, publishing through the application's shared ordered publication callback. */
 export function createImportOperations<R extends EntryRepositories>(
   runner: ImportRunner<R>,
   userId: number,
   publish: TimerPublication,
 ) {
   return {
-    /** The file's format is checked before the transaction opens. */
+    /** The format is checked before the transaction opens. */
     async importJsonExport(data: unknown, options: ImportOptions) {
       const file = exportFile(data);
       checkCancelled(options.signal);
@@ -294,10 +288,7 @@ export function createImportOperations<R extends EntryRepositories>(
         dryRun: options.dryRun,
       });
     },
-    /**
-     * The file is parsed before the transaction opens. Not an async function on purpose: only the
-     * parse holds `text`, so the file's text is released before the transaction runs.
-     */
+    /** Not async on purpose: only the parse holds `text`, so the file's text is released before the transaction. */
     importTogglCsv(text: string, options: ImportOptions & { users?: string[] }) {
       return readTogglCsv(text).then(table => {
         checkCancelled(options.signal);

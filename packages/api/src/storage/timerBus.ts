@@ -5,14 +5,14 @@ import type { Logger } from '../lib/logger.ts';
 import type { TimerBus, TimerSignal } from '../domain/ports.ts';
 
 export type { TimerBus, TimerSignal };
-/** One process: local commits already deliver their own state, so nothing is sent or received. */
+/** Local commits already deliver their own state, so nothing is sent or received. */
 export function createLocalTimerBus(): TimerBus {
   return { send() {}, receive() {}, async close() {} };
 }
 
-/** Fixed lowercase identifier, so it is safe as a literal in LISTEN. */
+/** Fixed lowercase, so it is safe as a literal in LISTEN. */
 export const TIMER_BUS_CHANNEL = 'tokkl_timer_signal';
-/** Tells the listener connection apart from pool connections in pg_stat_activity. */
+/** Tells the listener apart from pool connections in pg_stat_activity. */
 export const TIMER_BUS_APPLICATION = 'tokkl-timer-bus';
 const FIRST_RETRY_MS = 100;
 const MAX_RETRY_MS = 5000;
@@ -24,7 +24,7 @@ class TimerBusStartError extends Error {
   }
 }
 
-/** Any role that can connect may NOTIFY on the channel, so anything but the exact shape is dropped. */
+/** Any role that can connect may NOTIFY, so anything but the exact shape is dropped. */
 function parseSignal(payload: string | undefined): TimerSignal | undefined {
   let value: unknown;
   try {
@@ -41,13 +41,12 @@ function parseSignal(payload: string | undefined): TimerSignal | undefined {
   return { userId: userId as number, revision: revision as number };
 }
 
-/** PostgreSQL carries signals between processes. The other engines run one process's local bus. */
+/** Only PostgreSQL carries signals between processes. */
 export function startTimerBus(config: StorageConfig, logger: Logger): Promise<TimerBus> {
   return config.backend === 'postgres' ? startPostgresTimerBus(config, logger) : Promise.resolve(createLocalTimerBus());
 }
 
-/** A graceful end waits for the server. Past the limit the socket is destroyed, so a silent peer
- * cannot keep the process alive. */
+/** Past the limit the socket is destroyed, so a silent peer cannot keep the process alive. */
 function endQuietly(client: pg.Client, limitMs?: number): Promise<void> {
   const ended = client.end().catch(() => {});
   if (limitMs === undefined) return ended;
@@ -62,13 +61,12 @@ function endQuietly(client: pg.Client, limitMs?: number): Promise<void> {
   return Promise.race([ended, expired]).finally(() => clearTimeout(timer));
 }
 
-/** What a listener connection reports: each valid signal, and its own loss. */
 interface ListenerEvents {
   signal(signal: TimerSignal): void;
   lost(client: pg.Client): void;
 }
 
-/** Connects one fresh client and LISTENs, within the connect timeout. A pg.Client never reconnects. */
+/** A pg.Client never reconnects. */
 async function connectListener(
   options: pg.ClientConfig,
   timeoutMs: number,
@@ -110,10 +108,7 @@ async function connectListener(
   }
 }
 
-/**
- * Keeps one live LISTEN connection. When it drops, a new one connects with exponential backoff;
- * signals sent in between are dropped.
- */
+/** Reconnects with exponential backoff; signals sent in between are dropped. */
 class PostgresTimerBus implements TimerBus {
   private readonly options: pg.ClientConfig;
   private readonly connectTimeoutMs: number;
@@ -138,7 +133,7 @@ class PostgresTimerBus implements TimerBus {
     this.logger = logger;
   }
 
-  /** The first connection is not retried: if it fails, startup fails. */
+  /** If the first connection fails, startup fails. */
   async start(): Promise<void> {
     this.current = await this.connect();
   }
@@ -174,7 +169,7 @@ class PostgresTimerBus implements TimerBus {
     return connectListener(this.options, this.connectTimeoutMs, this.events);
   }
 
-  /** Only the live client may start a reconnect; late events from a replaced one are ignored. */
+  /** Late events from a replaced client are ignored. */
   private lost(client: pg.Client): void {
     if (client !== this.current) return;
     this.current = undefined;

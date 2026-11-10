@@ -9,10 +9,7 @@ import type { TimeEntryPresentation } from '../../presenters/toggl.ts';
 import type { EntryFilter } from '../../domain/ports.ts';
 import type { User, Workspace } from '../../domain/model.ts';
 
-/**
- * The URL's workspace when the caller is a member of it, 403 otherwise. Write routes check this
- * before they read the body, and the write checks membership again under its locks.
- */
+/** Write routes check this before reading the body; the write rechecks under its locks. */
 export function authorizedWorkspace(deps: Pick<Deps, 'readFor'>, req: Request, res: Response): Promise<Workspace> {
   return deps.readFor(res.locals.auth, queries => queries.workspace(res.locals.auth.user.id, parseId(req.params.wid)));
 }
@@ -22,7 +19,7 @@ export function entryPresentation(req: Request, res: Response): TimeEntryPresent
   return { meta: queryFlag(req, 'meta'), user: res.locals.auth.user };
 }
 
-/** A date filter: an RFC 3339 instant, or a `YYYY-MM-DD` day that starts at the user's midnight. */
+/** A `YYYY-MM-DD` day starts at the user's midnight. */
 function boundary(value: string, field: string, user: User): string {
   const parsed = parseDateOrInstant(value, field);
   return (
@@ -30,7 +27,7 @@ function boundary(value: string, field: string, user: User): string {
   ).toISOString();
 }
 
-/** `since`, `before` and `start_date`/`end_date`; with none of them, the last nine days. */
+/** Without any, the last nine days. */
 export function timeEntryFilter(req: Request, user: User): EntryFilter {
   const filter: EntryFilter = {};
   const since = changedSince(req),

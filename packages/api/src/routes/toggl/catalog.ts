@@ -35,7 +35,7 @@ const PROJECT_PAGES = { defaultPerPage: 151, maxPerPage: 200 };
 const TASK_PAGES = { defaultPerPage: 50, maxPerPage: 200 };
 const TAG_PAGES = { defaultPerPage: 200, maxPerPage: 200 };
 
-/** Toggl's `active`: `true`, `false`, or anything else for both. */
+/** `true`, `false`, or anything else for both. */
 function projectFilter(req: Request): ProjectFilter {
   const active = query(req, 'active'),
     billable = query(req, 'billable');
@@ -48,7 +48,7 @@ function projectFilter(req: Request): ProjectFilter {
   };
 }
 
-/** The workspace task list's filter and order. `active` is `true`, `false`, `both` or absent. */
+/** `active` is `true`, `false`, `both` or absent. */
 function taskSearch(req: Request): TaskSearch {
   const active = query(req, 'active');
   const pid = query(req, 'pid');
@@ -247,7 +247,6 @@ function tagRoutes(deps: CatalogRouteDeps, api: Router): void {
   });
 }
 
-/** Projects, tasks, clients and tags of a workspace. */
 export function catalogRoutes(deps: CatalogRouteDeps): Router {
   const api = createRouter();
   projectRoutes(deps, api);

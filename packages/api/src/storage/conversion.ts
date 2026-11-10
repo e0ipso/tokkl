@@ -16,7 +16,7 @@ export function entityId(value: unknown): number {
   if (number <= 0) throw new Error('Invalid storage ID');
   return number;
 }
-/** Finite amounts retain JS number range. IDs, durations and counts use safeInteger. */
+/** IDs, durations and counts use safeInteger. */
 export function finiteNumber(value: unknown): number {
   if (typeof value !== 'number' && !(typeof value === 'string' && /^-?\d+(?:\.\d+)?(?:e[+-]?\d+)?$/i.test(value))) {
     throw new Error('Invalid storage number');
@@ -62,7 +62,7 @@ const instantDates = new BoundedCache<string, boolean>(128);
 function validInstantDate(day: string): boolean {
   return instantDates.get(day) ?? instantDates.set(day, parseDateKey(day) !== null);
 }
-/** Native timestamps must be configured in UTC; text timestamps must explicitly carry their zone. */
+/** Native timestamps must be UTC; text timestamps must carry their zone. */
 export function utcInstant(value: unknown): UtcInstant {
   if (value instanceof Date && Number.isFinite(value.getTime())) return value.toISOString();
   if (typeof value !== 'string') throw new Error('Invalid storage instant');
@@ -83,7 +83,7 @@ export function utcInstant(value: unknown): UtcInstant {
   return date.toISOString();
 }
 
-/** For native SQL timestamp text only, on sessions explicitly configured to UTC by the factory. */
+/** Only for native timestamp text on sessions the factory set to UTC. */
 export function utcSqlInstant(value: unknown): UtcInstant {
   if (typeof value !== 'string') throw new Error('Invalid storage instant');
   const match = /^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?)(Z|[+-]\d{2}(?::\d{2})?)?$/.exec(value);

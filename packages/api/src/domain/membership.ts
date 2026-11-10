@@ -5,10 +5,10 @@ import { forbidden } from '../lib/errors.ts';
 const NO_WORKSPACE_ACCESS = 'User does not have access to this resource.';
 const NOT_WORKSPACE_OWNER = 'Only the workspace owner can change its settings.';
 
-/** The one refusal for a workspace the caller may not use; a missing workspace looks the same. */
+/** A missing workspace looks the same. */
 export const noWorkspaceAccess = () => forbidden(NO_WORKSPACE_ACCESS);
 
-/** The workspace when `userId` is a member of it; 403 otherwise. A stored default is no exception. */
+/** A stored default is no exception. */
 export async function memberWorkspace(
   ctx: { workspaces: Pick<WorkspacesRepository, 'forMember'> },
   userId: Id,
@@ -19,7 +19,7 @@ export async function memberWorkspace(
   return workspace;
 }
 
-/** The workspace when `userId` owns it. A member gets its own 403; anyone else the usual one. */
+/** A member gets its own 403; anyone else the usual one. */
 export async function ownedWorkspace(
   ctx: { workspaces: Pick<WorkspacesRepository, 'forMember' | 'getRole'> },
   userId: Id,

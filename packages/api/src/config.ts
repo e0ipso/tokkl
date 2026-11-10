@@ -11,29 +11,23 @@ export interface Config {
   dataDir: string;
   storage: StorageConfig;
   webRoot: string;
-  /**
-   * Which reverse proxies may set X-Forwarded-For / X-Forwarded-Proto: `false` for none, a hop
-   * count, or proxy IP addresses and CIDR ranges. Passed to Express's `trust proxy` setting as is.
-   */
+  /** `false` for none, a hop count, or proxy IPs and CIDR ranges. Passed to Express's `trust proxy` as is. */
   trustProxy: false | number | readonly string[];
-  /**
-   * Session lifetime used until an admin stores `session_days` in the instance settings. Read the
-   * effective value through the account domain settings operation.
-   */
+  /** Used until an admin stores `session_days`. */
   sessionDays: number;
-  /** Optional fixed setup code; a random one is generated and logged otherwise. */
+  /** A random one is generated and logged otherwise. */
   setupCode: string | undefined;
-  /** The least severe log level written, from TOKKL_LOG_LEVEL. Defaults to info. */
+  /** Defaults to info. */
   logLevel: LogLevel;
 }
 
 interface LoadedConfig {
   config: Config;
-  /** Lines to log at startup about deprecated settings or files still in use. */
+  /** Deprecated settings or files still in use. */
   notices: string[];
 }
 
-/** Its presence requires explicit database selection before startup. */
+/** Its presence requires an explicit database selection. */
 const LEGACY_DATABASE_FILE = 'timetrack.sqlite';
 
 export { ConfigurationError };
@@ -70,7 +64,7 @@ function logLevel(value: string | undefined): LogLevel {
   throw new ConfigurationError(`Invalid TOKKL_LOG_LEVEL: use one of ${LOG_LEVELS.join(', ')}.`);
 }
 
-/** A whole number from `min` to `max`. Unset or blank means `fallback`; anything else is refused. */
+/** Unset or blank means `fallback`; anything else outside the range is refused. */
 function integerSetting(name: string, value: string | undefined, fallback: number, min: number, max: number): number {
   const trimmed = (value ?? '').trim();
   if (trimmed === '') return fallback;
@@ -88,7 +82,7 @@ function hostSetting(value: string | undefined): string {
   return trimmed;
 }
 
-/** Reads validated storage selection and unrelated deployment settings. Old data needs explicit selection. */
+/** Old data needs an explicit storage selection. */
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): LoadedConfig {
   const legacyNames: string[] = [];
   const setting = (name: string): string | undefined => {

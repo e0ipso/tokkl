@@ -1,25 +1,20 @@
-/** A 1-based page of `perPage` items. */
+/** 1-based. */
 export interface PageWindow {
   page: number;
   perPage: number;
 }
 
-/** The items of one page; a page past the end is empty. */
+/** A page past the end is empty. */
 export function slicePage<T>(items: readonly T[], { page, perPage }: PageWindow): T[] {
   return items.slice((page - 1) * perPage, page * perPage);
 }
 
-/** Rows `offset` to `offset + limit` of an ordered query, for SQL `OFFSET` and `LIMIT`. */
 export interface RowRange {
   offset: number;
   limit: number;
 }
 
-/**
- * The rows `slicePage` keeps, as a range a query can apply, or undefined when the page is empty.
- * Lenient paging lets `page` and `perPage` be fractional or huge, so the bounds truncate the way
- * `Array.prototype.slice` truncates them.
- */
+/** Undefined for an empty page. Lenient fractional or huge bounds truncate as `Array.prototype.slice` does. */
 export function pageRange({ page, perPage }: PageWindow): RowRange | undefined {
   const start = Math.trunc((page - 1) * perPage);
   const end = Math.min(Math.trunc(page * perPage), Number.MAX_SAFE_INTEGER);
@@ -27,11 +22,7 @@ export function pageRange({ page, perPage }: PageWindow): RowRange | undefined {
   return { offset: start, limit: end - start };
 }
 
-/**
- * Rows `offset` to `offset + limit` of a list, as a range a query can apply, or undefined when
- * there are none.
- * Without a `limit` the range runs to the last row. Bounds truncate as in `pageRange`.
- */
+/** Undefined when there are none. Without a `limit` the range runs to the last row. */
 export function offsetRange(offset: number, limit = Infinity): RowRange | undefined {
   const start = Math.trunc(offset);
   const end = Math.min(Math.trunc(offset + limit), Number.MAX_SAFE_INTEGER);

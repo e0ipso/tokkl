@@ -1,7 +1,4 @@
-/**
- * Report request bodies of Toggl's Reports API v3 and of the web app, parsed into the filter and
- * options of a report job. Every refusal happens here, before any entry is read.
- */
+/** Every refusal happens here, before any entry is read. */
 import { daysBetween, parseDateKey } from '@tokkl/common/time';
 import type { DurationFormat } from '@tokkl/types';
 import { isRoundingMinutes, ROUNDING_MINUTES } from '../domain/workspaceValues.ts';
@@ -53,7 +50,6 @@ function durationBound(body: JsonBody, field: string): number | undefined {
   return value;
 }
 
-/** The filter fields shared by Toggl's Reports API v3 bodies and the app's report endpoints. */
 export function parseReportFilter(body: JsonBody, workspace: Workspace, maxDays?: number): ReportFilter {
   const range = validateRange(body.start_date, body.end_date ?? body.start_date, maxDays);
   if (body.billable !== undefined && body.billable !== null && typeof body.billable !== 'boolean') {
@@ -96,14 +92,14 @@ export function parseReportFilter(body: JsonBody, workspace: Workspace, maxDays?
   };
 }
 
-/** A request's `duration_format`; anything unknown is the improved format. */
+/** Anything unknown is the improved format. */
 export function parseDurationFormat(value: unknown): DurationFormat {
   return value === 'classic' || value === 'decimal' ? value : 'improved';
 }
 
 const ORDER_BY = ['date', 'user', 'duration', 'description', 'last_update'] as const satisfies readonly OrderBy[];
 
-/** A request's `order_by`, `date` when absent; the Toggl error otherwise. */
+/** `date` when absent. */
 export function parseOrderBy(value: unknown): OrderBy {
   const orderBy = value ?? 'date';
   if (!(ORDER_BY as readonly unknown[]).includes(orderBy))
@@ -113,7 +109,7 @@ export function parseOrderBy(value: unknown): OrderBy {
   return orderBy as OrderBy;
 }
 
-/** A request's sort direction in any letter case. Anything but `asc` sorts descending, as in Toggl. */
+/** Any letter case. Anything but `asc` sorts descending, as in Toggl. */
 export function parseSortDirection(value: unknown): SortDirection {
   return String(value ?? 'DESC').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 }
@@ -127,7 +123,7 @@ const GROUPINGS: Readonly<Record<string, Dimension>> = {
   users: 'none',
 };
 
-/** A grouping by its request name, `fallback` when absent or empty; the name and the dimension. */
+/** `fallback` when absent or empty. */
 export function parseGrouping(value: unknown, fallback: string, field: string): [string, Dimension] {
   const name = value === undefined || value === null || value === '' ? fallback : String(value);
   // Own names only: `constructor` or `toString` is no grouping.
@@ -136,7 +132,6 @@ export function parseGrouping(value: unknown, fallback: string, field: string): 
   return [name, dim];
 }
 
-/** A positive integer, `fallback` when absent. */
 export function parsePositiveInt(value: unknown, fallback: number, field: string): number {
   if (value === undefined || value === null) return fallback;
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1)
@@ -144,7 +139,6 @@ export function parsePositiveInt(value: unknown, fallback: number, field: string
   return value;
 }
 
-/** The web app's detailed report order, from its `sort` and lower-case `dir`. */
 export function parseDetailedOrder(body: JsonBody): { orderBy: DetailedOrderBy; orderDir: SortDirection } {
   const sort = body.sort ?? 'date';
   if (sort !== 'date' && sort !== 'duration' && sort !== 'description') {

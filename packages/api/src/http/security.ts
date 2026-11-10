@@ -13,7 +13,7 @@ const CONTENT_SECURITY_POLICY = [
   "form-action 'self'",
 ].join('; ');
 
-/** Headers every response carries: a same-origin CSP, no framing, no sniffing, no referrer. */
+/** A same-origin CSP, no framing, no sniffing, no referrer. */
 export const securityHeaders: RequestHandler = (req, res, next) => {
   res.set({
     'Content-Security-Policy': CONTENT_SECURITY_POLICY,

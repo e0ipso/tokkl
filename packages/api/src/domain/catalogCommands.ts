@@ -1,8 +1,4 @@
-/**
- * What a client asks of a client, project, task or tag, already parsed by `commands/catalogs.ts`.
- * Names are trimmed and non-blank. An optional field is absent when the client did not send it,
- * and `null` clears a value that can be empty.
- */
+/** Parsed by `commands/catalogs.ts`. Names are trimmed and non-blank; `null` clears a value that can be empty. */
 import type { Id } from './model.ts';
 
 export const MAX_NAME_LENGTH = 255;
@@ -20,13 +16,11 @@ export interface ClientChanges {
 }
 
 export interface ClientRestore {
-  /** Restore every archived project of the client. */
   allProjects: boolean;
-  /** Restore these projects of the client. */
   projectIds: Id[];
 }
 
-/** A project's client: by id (`null` for none), or by name, created when missing. */
+/** By id (`null` for none), or by name, created when missing. */
 export type ClientChoice = { id: Id | null } | { name: string };
 
 export interface ProjectFields {

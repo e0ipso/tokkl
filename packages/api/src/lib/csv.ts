@@ -1,16 +1,13 @@
-/** RFC 4180 CSV parsing and writing. */
+/** RFC 4180. */
 import { setImmediate as nextTurn } from 'node:timers/promises';
 
-/** Bounds on what a parse may hold. A file that passes one is refused while it is read. */
 export interface CsvLimits {
-  /** Rows with a non-blank value, the header included. Blank rows are dropped and not counted. */
+  /** The header counts; blank rows are dropped and not counted. */
   maxRows: number;
   maxFieldsPerRow: number;
-  /** Characters in one value. */
   maxFieldLength: number;
 }
 
-/** The parse stopped at `limit`. */
 export class CsvLimitError extends Error {
   readonly limit: keyof CsvLimits;
   constructor(limit: keyof CsvLimits) {
@@ -21,17 +18,10 @@ export class CsvLimitError extends Error {
 }
 
 const UNLIMITED: CsvLimits = { maxRows: Infinity, maxFieldsPerRow: Infinity, maxFieldLength: Infinity };
-/** Characters read between turns given back to the event loop. */
 const BATCH_CHARACTERS = 1 << 16;
-/** The characters that end a stretch of plain text outside quotes. */
 const SPECIAL = /[",\r\n]/g;
 
-/**
- * Parses CSV text into rows of values, dropping rows whose values are all blank. A leading BOM is
- * ignored. A quote opens a quoted value only as a value's first character; text after the closing
- * quote is part of the value. The parse gives the event loop a turn after each stretch of text it
- * reads, and refuses the file with a `CsvLimitError` as soon as it passes one of `limits`.
- */
+/** Drops blank rows and a BOM; quotes open only at a value's start. Yields as it reads; throws `CsvLimitError`. */
 export async function parseCsv(text: string, limits: Partial<CsvLimits> = {}): Promise<string[][]> {
   const { maxRows, maxFieldsPerRow, maxFieldLength } = { ...UNLIMITED, ...limits };
   const input = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;

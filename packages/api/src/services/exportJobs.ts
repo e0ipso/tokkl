@@ -1,9 +1,4 @@
-/**
- * Account exports as report-runner jobs. A job reads the export in one read snapshot, the entries a
- * batch at a time, and hands each serialised piece to `emit` as soon as it is ready. `emit` holds
- * the job back until the reader of the output has caught up, so the history never sits in memory
- * whole: not in the worker, and not in the API process.
- */
+/** `emit` holds the job back until the reader caught up, so the history never sits in memory whole. */
 import type { DurationFormat } from '@tokkl/types';
 import { authenticatedUser, type Authentication } from '../domain/credentials.ts';
 import { forbidden } from '../lib/errors.ts';
@@ -11,12 +6,10 @@ import type { Repositories, ReportCursor } from '../domain/ports.ts';
 import type { EntryDetails } from '../domain/model.ts';
 import { csvExportWriter, jsonExportWriter } from './exports.ts';
 
-/** What an export writes, and the name the download gets. */
 export type ExportAssemblyJob =
   | { kind: 'export-json'; exportedAt: string; filename: string }
   | { kind: 'export-csv'; range: { from?: string; to?: string }; filename: string; durationFormat?: DurationFormat };
 
-/** An export job and whose account it reads. */
 export interface ExportJobWork {
   userId: number;
   assembly: ExportAssemblyJob;
@@ -28,20 +21,15 @@ export interface ExportSource {
   readSnapshot<T>(work: (repositories: ExportRepositories) => Promise<T>): Promise<T>;
 }
 
-/** Takes one piece of the output; resolves once the next may follow. */
+/** Resolves once the next piece may follow. */
 export type ExportEmitter = (chunk: string) => Promise<void>;
 
-/** Entries an export reads and serialises at a time. */
 export const EXPORT_BATCH_SIZE = 500;
-/**
- * The most output bytes a worker sends ahead of what the response took. A batch is serialised
- * whole, so one batch may pass the budget before the worker waits.
- */
+/** A batch is serialised whole, so one batch may pass the budget before the worker waits. */
 export const EXPORT_BYTES_AHEAD = 1024 * 1024;
 
 const refused = () => forbidden('Incorrect username and/or password');
 
-/** Every live entry, `order` first, a batch at a time. */
 async function* exportedEntries(
   transfers: ExportRepositories['transfers'],
   userId: number,
@@ -57,11 +45,7 @@ async function* exportedEntries(
   }
 }
 
-/**
- * Checks the caller, then writes the export through `emit`, all in one read snapshot. Nothing is
- * emitted before the credential and the range are checked, so those failures still get their own
- * status.
- */
+/** Nothing is emitted before the credential and range checks, so those failures keep their own status. */
 export function runExportJob(source: ExportSource, work: ExportJobWork, emit: ExportEmitter): Promise<void> {
   const { userId, assembly, authentication } = work;
   return source.readSnapshot(async repositories => {

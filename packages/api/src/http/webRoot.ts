@@ -3,10 +3,7 @@ import { existsSync } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 
-/**
- * The app shell, read again only when the file changes, so a rebuild never leaves the server
- * pointing at asset files that no longer exist.
- */
+/** Reread when the file changes, so a rebuild never leaves the server pointing at deleted assets. */
 function appShell(path: string): () => Promise<string> {
   let cached: { mtimeMs: number; size: number; html: string } | undefined;
   return async () => {
@@ -17,7 +14,7 @@ function appShell(path: string): () => Promise<string> {
   };
 }
 
-/** Serves the built web app from `webRoot`, or a plain hint at `/` when it has not been built. */
+/** Or a plain hint at `/` when the app has not been built. */
 export function webRootRoutes(webRoot: string): Router {
   const router = express.Router();
   const indexPath = join(webRoot, 'index.html');

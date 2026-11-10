@@ -31,7 +31,7 @@ const HEADER_ALIASES: Record<string, string[]> = {
 };
 
 const MAX_ROWS = 100_000;
-/** Far beyond a Toggl export, which has about twenty columns and short values. */
+/** Far beyond a Toggl export, which has about twenty columns. */
 const MAX_COLUMNS = 1000;
 const MAX_VALUE_LENGTH = 1_000_000;
 const LIMITS: CsvLimits = { maxRows: MAX_ROWS + 1, maxFieldsPerRow: MAX_COLUMNS, maxFieldLength: MAX_VALUE_LENGTH };
@@ -40,7 +40,7 @@ const LIMIT_MESSAGES: Readonly<Record<keyof CsvLimits, string>> = {
   maxFieldsPerRow: `At most ${MAX_COLUMNS} columns per row`,
   maxFieldLength: `A value is longer than ${MAX_VALUE_LENGTH} characters`,
 };
-/** Catalog names an import remembers; a failed row clears them. */
+/** A failed row clears the cache. */
 const NAME_CACHE = 256;
 
 function columnIndex(header: string[]): Record<string, number> {
@@ -94,40 +94,32 @@ function instant(dateValue: string, timeValue: string, timeZone: string): Date |
   return zonedToUtc(date.year, date.month, date.day, time.hour, time.minute, time.second, timeZone);
 }
 
-/** The `YYYY-MM-DD` key of a date cell, or null when it is not a real date. */
+/** Null when it is not a real date. */
 function dayKey(dateValue: string): string | null {
   const date = parseDate(dateValue.trim());
   return date ? `${date.year}-${pad2(date.month)}-${pad2(date.day)}` : null;
 }
 
-/**
- * The seconds in a Duration cell. Besides the shared duration grammar it reads the classic format's
- * "m:ss min" for spans under an hour, which the grammar would take for hours and minutes.
- */
+/** Also reads the classic "m:ss min" for spans under an hour, which the shared grammar takes for h:mm. */
 function csvDuration(value: string): number | null {
   const minutes = /^(\d+):([0-5]\d) min$/.exec(value.trim());
   return minutes ? Number(minutes[1]) * 60 + Number(minutes[2]) : parseDuration(value);
 }
 
-/** Undoes the quote prefix that spreadsheet-safe CSV writers add before =, +, - and @. */
+/** Undoes the quote prefix spreadsheet-safe CSV writers add before =, +, - and @. */
 function unescapeCell(value: string): string {
   return /^'[=+\-@]/.test(value) ? value.slice(1) : value;
 }
 
-/**
- * How a selection names a Toggl user. JSON keeps the pair unambiguous, so User "Alice" with Email
- * "a@x" and User "Alice <a@x>" with no Email stay two users.
- */
+/** JSON keeps the pair unambiguous: User "Alice" with Email "a@x" and User "Alice <a@x>" stay two users. */
 function userKey(name: string, email: string): string {
   return JSON.stringify([name, email]);
 }
 
-/** How the import shows a Toggl user to people: "Name <email>", or whichever of the two it has. */
 function userLabel({ user, email }: ImportUser): string {
   return user && email ? `${user} <${email}>` : user || email;
 }
 
-/** Rows a selection leaves out, with the reason the import reports for them. */
 function skippedReason(found: ImportUser): string {
   const label = userLabel(found);
   return label ? `Rows from ${label} were not selected` : 'Rows without a Toggl user were not selected';
@@ -135,14 +127,13 @@ function skippedReason(found: ImportUser): string {
 
 type Cell = (row: string[], key: string) => string;
 
-/** A parsed Toggl detailed CSV: its rows without the header, and `cell` to read one trimmed value. */
 interface TogglCsvTable {
   rows: string[][];
   cell: Cell;
   hasUsers: boolean;
 }
 
-/** Parses the file within the import limits, giving the event loop turns as it reads. */
+/** Yields to the event loop as it reads. */
 async function parseLimited(text: string): Promise<string[][]> {
   try {
     return await parseCsv(text, LIMITS);
@@ -152,10 +143,7 @@ async function parseLimited(text: string): Promise<string[][]> {
   }
 }
 
-/**
- * Parses the file and checks it has the columns an import needs. Run it before the import's
- * transaction, so a large file is read without holding the database.
- */
+/** Run before the import's transaction, so a large file is read without holding the database. */
 export async function readTogglCsv(text: string): Promise<TogglCsvTable> {
   const rows = await parseLimited(text),
     header = rows.shift();
@@ -171,7 +159,6 @@ export async function readTogglCsv(text: string): Promise<TogglCsvTable> {
   return { rows, cell, hasUsers: col.user !== undefined || col.email !== undefined };
 }
 
-/** The Toggl user of every row and the users with their row counts, when the file has user columns. */
 function tableUsers(rows: string[][], cell: Cell, hasUsers: boolean) {
   const rowUsers = rows.map(row => (hasUsers ? userKey(cell(row, 'user'), cell(row, 'email')) : ''));
   const users = new Map<string, ImportUser>();
@@ -185,7 +172,7 @@ function tableUsers(rows: string[][], cell: Cell, hasUsers: boolean) {
   return { rowUsers, users };
 }
 
-/** The selected user keys, or null for every row. A real import of several users needs a choice. */
+/** Null for every row. A real import of several users needs a choice. */
 function selection(users: Map<string, ImportUser>, options: { dryRun: boolean; users?: string[] }) {
   const selected = options.users ? new Set(options.users) : null;
   if (selected && !selected.size) throw invalidInput('Choose whose rows to import.');
@@ -203,7 +190,7 @@ interface RowSpan {
   noTime: { day: string; duration: number } | null;
 }
 
-/** The exact span of a row in the user's zone. Failures are row errors, reported with their message. */
+/** In the user's zone. Failures are row errors, reported with their message. */
 function rowSpan(row: string[], cell: Cell, user: User): RowSpan {
   if (!cell(row, 'startTime') && !cell(row, 'endTime') && cell(row, 'duration') !== '') {
     const day = dayKey(cell(row, 'startDate'));
@@ -225,7 +212,7 @@ function rowSpan(row: string[], cell: Cell, user: User): RowSpan {
   return { start, stop, noTime: null };
 }
 
-/** The new-entry body for one row, in the shape `parseNewEntry` takes from the API. */
+/** In the shape `parseNewEntry` takes from the API. */
 function rowEntry(row: string[], cell: Cell, span: RowSpan, projectId: number | null, taskId: number | null) {
   return {
     description: cell(row, 'description'),
@@ -243,7 +230,6 @@ function rowEntry(row: string[], cell: Cell, span: RowSpan, projectId: number | 
   };
 }
 
-/** The result before any row runs: the file's users, and which of them the selection skips. */
 function emptyResult(
   dryRun: boolean,
   rows: number,
@@ -265,10 +251,7 @@ function emptyResult(
   };
 }
 
-/**
- * Finds or creates the clients, projects and tasks rows name, remembering the ids. The memory is
- * only valid while the import's guards are held, and a failed row clears it with its savepoint.
- */
+/** The remembered ids are valid only while the import's guards are held; a failed row clears them. */
 function catalogNames(ctx: OperationContext<EntryRepositories>, wid: number, result: ImportResult) {
   const clients = new BoundedCache<string, number>(NAME_CACHE),
     projects = new BoundedCache<string, number>(NAME_CACHE),
@@ -318,10 +301,7 @@ function catalogNames(ctx: OperationContext<EntryRepositories>, wid: number, res
   };
 }
 
-/**
- * Imports the selected rows of a Toggl detailed CSV into the user's default workspace, with exact
- * times. Joins the supplied operation; each selected row owns one recoverable savepoint.
- */
+/** Into the user's default workspace, with exact times. Each selected row owns one savepoint. */
 export async function importTogglCsv(
   ctx: OperationContext<EntryRepositories>,
   userId: number,

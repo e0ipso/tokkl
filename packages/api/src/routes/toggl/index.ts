@@ -6,7 +6,7 @@ import { meRoutes } from './me.ts';
 import { timeEntryRoutes } from './timeEntries.ts';
 import { workspaceRoutes } from './workspaces.ts';
 
-/** The Toggl Track API v9 subset Tokkl serves under `/api/v9`. Every route needs a signed-in user. */
+/** Every route needs a signed-in user. */
 export function togglV9Routes(
   deps: Pick<
     Deps,

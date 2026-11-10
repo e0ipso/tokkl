@@ -1,4 +1,3 @@
-/** Account, preference, workspace and instance setting bodies, parsed into commands. */
 import { canonicalTimeZone } from '@tokkl/common/time';
 import type {
   AccessChange,
@@ -25,10 +24,7 @@ import type { JsonObject, UserRole } from '../domain/model.ts';
 
 const MAX_INVITE_NOTE_LENGTH = 255;
 
-/**
- * The rules for a password being set: first-admin setup, invite acceptance, password change and
- * password reset. Anything else, a missing value included, is a 400.
- */
+/** For setup, invite acceptance, password change and reset. A missing value is a 400. */
 export function parseNewPassword(value: unknown): string {
   const password = typeof value === 'string' ? value : '';
   if (password.length < MIN_PASSWORD_LENGTH)
@@ -38,7 +34,7 @@ export function parseNewPassword(value: unknown): string {
   return password;
 }
 
-/** First-admin setup and invite acceptance. An absent or empty timezone is UTC. */
+/** An absent or empty timezone is UTC. */
 export function parseNewAccount(body: JsonBody): NewAccount {
   const email = typeof body.email === 'string' ? body.email.trim() : '';
   const fullname = typeof body.fullname === 'string' ? body.fullname.trim().slice(0, MAX_ACCOUNT_TEXT_LENGTH) : '';
@@ -70,7 +66,7 @@ export function parseAccessChange(body: JsonBody): AccessChange {
   return { role: roleChange, disabled };
 }
 
-/** The email an admin typed to confirm a deletion; the domain compares it with the account's. */
+/** The domain compares it with the account's. */
 export function parseDeletionConfirmation(body: JsonBody): string | undefined {
   return typeof body.email === 'string' ? body.email : undefined;
 }
@@ -98,7 +94,7 @@ function accountChanges(body: JsonBody): AccountChanges {
   };
 }
 
-/** `PUT /me`: profile fields, and a new password with the current one when `password` is sent. */
+/** A new password requires the current one. */
 export function parseProfileUpdate(body: JsonBody): ProfileUpdate {
   const changes = accountChanges(body);
   if (body.password === undefined) return { changes };
@@ -107,7 +103,6 @@ export function parseProfileUpdate(body: JsonBody): ProfileUpdate {
   return { changes, password: { password, currentPassword } };
 }
 
-/** Throws 400 for a known preference with a value the app cannot use. */
 export function parsePreferenceChanges(body: JsonBody): PreferenceChanges {
   for (const [key, value] of Object.entries(body)) {
     const problem = preferenceProblem(key, value);
@@ -117,7 +112,7 @@ export function parsePreferenceChanges(body: JsonBody): PreferenceChanges {
   return body as JsonObject;
 }
 
-/** The settings a PUT changes. Unknown keys and values outside a rule are a 400 naming the field. */
+/** Unknown keys and values outside a rule are a 400 naming the field. */
 export function parseSettingChanges(body: JsonBody): SettingChanges {
   const changes: SettingChanges = {};
   for (const [name, value] of Object.entries(body)) {
@@ -137,7 +132,7 @@ export function parseSettingChanges(body: JsonBody): SettingChanges {
   return changes;
 }
 
-/** `PUT /workspaces/:wid`. A blank name keeps the current one. */
+/** A blank name keeps the current one. */
 export function parseWorkspaceChanges(body: JsonBody): WorkspaceChanges {
   const name = optionalString(body.name, 'name', 140)?.trim() || undefined;
   const currency = optionalString(body.default_currency, 'default_currency', 3);

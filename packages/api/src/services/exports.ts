@@ -19,13 +19,9 @@ export const EXPORT_FORMAT = 'tokkl-export';
 export const LEGACY_EXPORT_FORMAT = 'timetrack-export';
 const EXPORT_FORMAT_VERSION = 1;
 type ExportUser = Omit<User, 'passwordHash' | 'apiToken'>;
-/** An account export without its entries: the part read in one go before the entries stream. */
 type ExportHead = Omit<AccountExportProjection, 'entries'>;
 
-/**
- * The JSON export a piece at a time: `opening`, then each batch of entries (newest first) through
- * `entries`, then `closing`. The pieces concatenate into `JSON.stringify` of the whole export.
- */
+/** The pieces, entries newest first, concatenate into `JSON.stringify` of the whole export. */
 export function jsonExportWriter(head: ExportHead, exportedAt: string) {
   // The serializers select public fields; credentials are absent from the input projection.
   const publicUser = { ...head.user, passwordHash: '', apiToken: '' };
@@ -47,9 +43,8 @@ export function jsonExportWriter(head: ExportHead, exportedAt: string) {
   const closing = ']}';
   let written = false;
   return {
-    /** Everything up to the entries' opening bracket. */
     opening: whole.slice(0, -closing.length),
-    /** The entries of one batch, with the comma that joins them to the batch before. */
+    /** Includes the comma that joins it to the batch before. */
     entries(batch: EntryDetails[]): string {
       if (!batch.length) return '';
       const text = batch.map(e => JSON.stringify(serializeTimeEntry(e, { meta: true, user: publicUser }))).join(',');
@@ -111,17 +106,11 @@ function togglCsvRow(item: CsvItem, user: CsvUser, durationFormat: DurationForma
     item.tags.join(', '),
   ];
 }
-/** The header line of Toggl's time entry CSV. */
 export const togglCsvHeader = (): string => toCsv([[...CSV_COLUMNS]]);
-/** The lines of `items` without the header. The header and the chunks concatenate into one CSV. */
 export function togglCsvLines(items: CsvItem[], user: CsvUser, durationFormat: DurationFormat = 'improved'): string {
   return items.length ? toCsv(items.map(item => togglCsvRow(item, user, durationFormat))) : '';
 }
-/**
- * The CSV export a piece at a time: `header`, then each batch of entries (oldest first) through
- * `entries`. Only stopped entries that start inside `range`, read as days in the user's time zone,
- * are written. An invalid range fails here, before anything is written.
- */
+/** Only stopped entries starting inside `range`, as days in the user's zone. A bad range fails before any write. */
 export function csvExportWriter(
   user: CsvUser,
   range: { from?: string; to?: string },

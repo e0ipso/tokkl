@@ -1,14 +1,9 @@
-/**
- * Typed readers for query parameters and loosely typed body fields. Each keeps the API's existing
- * answer for invalid input: some refuse it with a 400, and Toggl's paging fields fall back to their
- * defaults, as Toggl does.
- */
+/** Each keeps the API's existing answer for invalid input: a 400, or for Toggl's paging fields the default. */
 import type { Request } from 'express';
 import { invalidInput } from '../lib/errors.ts';
 import { parseIdList } from '../lib/values.ts';
 import type { PageWindow } from '../lib/pagination.ts';
 
-/** First value of a query parameter, or undefined. */
 export function query(req: Request, name: string): string | undefined {
   const value = req.query[name];
   if (typeof value === 'string') return value;
@@ -16,25 +11,23 @@ export function query(req: Request, name: string): string | undefined {
   return undefined;
 }
 
-/** Every string value of a repeated query parameter, such as `user=a&user=b`; undefined when absent. */
 export function queryList(req: Request, name: string): string[] | undefined {
   const value = req.query[name];
   if (value === undefined) return undefined;
   return [value].flat().filter((item): item is string => typeof item === 'string');
 }
 
-/** `true` or `1`; anything else, absent included, is false. */
+/** `true` or `1`; anything else is false. */
 export function queryFlag(req: Request, name: string): boolean {
   const value = query(req, name);
   return value === 'true' || value === '1';
 }
 
-/** A non-empty query value, or undefined for an absent or empty one. */
+/** Undefined for an absent or empty value. */
 export function queryText(req: Request, name: string): string | undefined {
   return query(req, name) || undefined;
 }
 
-/** One of `allowed`, `fallback` when absent, else a 400 with `message`. */
 export function queryChoice<const T extends string>(
   req: Request,
   name: string,
@@ -58,16 +51,12 @@ export function changedSince(req: Request): string | undefined {
   return date.toISOString();
 }
 
-/** A comma-separated id list such as `client_ids=1,2`; undefined when absent or empty. */
 export function queryIds(req: Request, name: string, limit: number): number[] | undefined {
   const value = query(req, name);
   return value ? parseIdList(value, limit) : undefined;
 }
 
-/**
- * Toggl's lenient paging number: a value that is not a non-zero number, such as `abc`, `0` or an
- * empty string, means `fallback`. Callers clamp the result.
- */
+/** Anything but a non-zero number (`abc`, `0`, '') means `fallback`. Callers clamp the result. */
 export function lenientNumber(value: unknown, fallback: number): number {
   return Number(value ?? fallback) || fallback;
 }
@@ -77,7 +66,7 @@ interface PageLimits {
   maxPerPage: number;
 }
 
-/** A 1-based page and its size from lenient inputs, clamped to at least 1 and `maxPerPage`. */
+/** Clamped to at least 1 and `maxPerPage`. */
 export function pageWindow(page: unknown, perPage: unknown, limits: PageLimits): PageWindow {
   return {
     page: Math.max(lenientNumber(page, 1), 1),
@@ -85,7 +74,6 @@ export function pageWindow(page: unknown, perPage: unknown, limits: PageLimits):
   };
 }
 
-/** The `page`/`per_page` query window, or undefined when the request asks for neither. */
 export function optionalPageWindow(req: Request, limits: PageLimits): PageWindow | undefined {
   const page = query(req, 'page');
   const perPage = query(req, 'per_page');

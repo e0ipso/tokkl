@@ -1,4 +1,4 @@
-/** Client, project, task and tag bodies, as the Toggl v9 API and the JSON restore send them. */
+/** As the Toggl v9 API and the JSON restore send them. */
 import { isHexColor } from '@tokkl/common/colors';
 import {
   MAX_CLIENT_NOTES_LENGTH,
@@ -26,9 +26,8 @@ import {
 } from '../lib/values.ts';
 
 const name = (value: unknown, label: string) => requireName(value, label, MAX_NAME_LENGTH);
-/** A name that keeps its current value when absent. */
 const optionalName = (value: unknown, label: string) => (value === undefined ? undefined : name(value, label));
-/** A field that `null` clears: absent stays absent, anything else goes through `read`. */
+/** Absent stays absent; `null` clears. */
 function clearable<T>(value: unknown, read: (value: unknown) => T | null | undefined): T | null | undefined {
   return value === undefined ? undefined : (read(value) ?? null);
 }
@@ -40,7 +39,7 @@ export function parseNewClient(body: JsonBody): NewClient {
   return { name: name(body.name, 'Client name'), notes: notes(body) ?? null };
 }
 
-/** `archived` that is not a boolean is ignored, as Toggl does. */
+/** A non-boolean `archived` is ignored, as Toggl does. */
 export function parseClientChanges(body: JsonBody): ClientChanges {
   return {
     name: optionalName(body.name, 'Client name'),
@@ -127,7 +126,6 @@ export function parseTaskChanges(body: JsonBody): TaskChanges {
   return { name: optionalName(body.name, 'Task name'), ...taskFields(body) };
 }
 
-/** A tag body: its name. */
 export function parseTagName(body: JsonBody): string {
   return name(body.name, 'Tag name');
 }

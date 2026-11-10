@@ -1,4 +1,3 @@
-/** Tasks of a project, with their project and client names and tracked total. */
 import { now } from '../../lib/clock.ts';
 import { sql, type Expression, type ExpressionBuilder, type Kysely, type SqlBool } from 'kysely';
 import type { Backend } from '../config.ts';
@@ -9,7 +8,7 @@ import { StorageConflict } from '../../domain/ports.ts';
 import { catalogWrite, containsName, nameKey, taskEstimate } from './catalog-sql.ts';
 import { catalogTaskQuery, catalogTaskRefQuery, insertId, required, task, taskSummary } from './catalog-queries.ts';
 
-/** Whether a stored name has a character outside ASCII: more bytes than characters. */
+/** More bytes than characters. */
 function nonAsciiName(backend: Backend) {
   const name = sql.ref('t.name');
   return backend === 'sqlite'
@@ -19,11 +18,7 @@ function nonAsciiName(backend: Backend) {
       : sql<boolean>`length(${name}) <> char_length(${name})`;
 }
 
-/**
- * Keeps the tasks of `wid` that `filter` names. A name search keeps an ASCII name only when its
- * folded key contains the search, which is exactly JavaScript's lower-casing for ASCII, and keeps
- * every other name for the caller's exact test.
- */
+/** An ASCII name stays only when its folded key contains the search; others stay for the caller's exact test. */
 function searchScope(backend: Backend, wid: number, filter: TaskSearchFilter & { nameCandidates?: string }) {
   return (eb: ExpressionBuilder<PhysicalDatabase & { t: PhysicalDatabase['tasks'] }, 't'>) => {
     const kept: Expression<SqlBool>[] = [eb('t.workspace_id', '=', wid)];

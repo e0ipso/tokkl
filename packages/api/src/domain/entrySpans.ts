@@ -1,7 +1,4 @@
-/**
- * The rules for an entry's start and stop: whole seconds, the instance time resolution on the
- * owner's clock, the 999-hour cap, and the midnight-anchored span of a no-time entry.
- */
+/** Whole seconds, the resolution grid, the 999-hour cap and midnight-anchored no-time spans. */
 import { MAX_ALL_DAY_SECONDS, MAX_DURATION_SECONDS } from '@tokkl/common/duration';
 import { snapDuration, snapSpan, type SnappedSpan } from '@tokkl/common/snap';
 import { dateKey, startOfDay } from '@tokkl/common/time';
@@ -13,7 +10,7 @@ export function seconds(date: Date): number {
   return Math.floor(date.getTime() / 1000);
 }
 
-/** `date` truncated to whole seconds, the precision the database stores. */
+/** The precision the database stores. */
 export function wholeSeconds(date: Date): Date {
   return new Date(seconds(date) * 1000);
 }
@@ -22,10 +19,7 @@ export function entryDurationSeconds(row: Pick<TimeEntry, 'start' | 'stop'>, now
   return seconds(row.stop ? new Date(row.stop) : now) - seconds(new Date(row.start));
 }
 
-/**
- * Snaps a stopped span to the instance resolution on the clock of the owner's timezone, or returns
- * null when it is too short to keep (see `snapSpan`).
- */
+/** On the owner's clock; null when too short to keep. */
 export function snapToResolution(resolution: number, user: User, start: Date, stop: Date): SnappedSpan | null {
   return snapSpan(wholeSeconds(start), wholeSeconds(stop), resolution, user.timezone);
 }
@@ -41,7 +35,6 @@ export function timedStart(times: EntryTimes, fallback: Date): Date {
   return wholeSeconds(new Date(times.startDate ? `${times.startDate}${iso.slice(10)}` : iso));
 }
 
-/** A sent stop and a sent duration must agree. */
 export function assertConsistentDuration(start: Date, sentStop: Date | undefined, duration: number | undefined): void {
   if (sentStop && duration !== undefined && seconds(sentStop) - seconds(start) !== duration) {
     throw invalidInput('Stop and duration must be consistent with start');
@@ -53,12 +46,7 @@ export interface Span {
   stop: Date | null;
 }
 
-/**
- * Validates a stopped span and, unless `exact` is set, snaps its start and stop to the instance
- * resolution. A span too short to keep is refused, unless the edit left the stored times alone
- * (`unchanged`): those stay as they are, so an older zero-length entry can still be renamed. The
- * 999-hour cap applies to the snapped span. A running span keeps its exact start.
- */
+/** Snaps unless `exact`. Too short is refused unless `unchanged`, so old zero-length entries stay renamable. */
 export function settleSpan(
   resolution: number,
   user: User,
@@ -79,10 +67,7 @@ export function settleSpan(
   return settled;
 }
 
-/**
- * The stored span of a no-time entry: local midnight of `day` in the owner's timezone, and that
- * plus the duration. Live writes snap the duration; imports pass `exact`.
- */
+/** Local midnight of `day` in the owner's timezone, plus the duration. Imports pass `exact`. */
 export function noTimeSpan(
   resolution: number,
   user: User,
@@ -112,13 +97,7 @@ export function newNoTimeSpan(resolution: number, user: User, times: EntryTimes,
   return noTimeSpan(resolution, user, day, duration, { exact });
 }
 
-/**
- * The span of a no-time entry after an update. The day is `start_date`, else the local date of
- * `start`, else the entry's own. The duration is `duration`, else `stop - start` when the entry is
- * being turned on, else its own. Once an entry has no times, a `start` must be local midnight and a
- * `stop` must be the anchored stop. An edit that keeps the day and the duration keeps the stored
- * span, so an imported entry off the grid can still be renamed.
- */
+/** An edit that keeps the day and duration keeps the stored span, so an off-grid import stays renamable. */
 export function updatedNoTimeSpan(resolution: number, user: User, current: TimeEntry, times: EntryTimes): SnappedSpan {
   if (!current.stop) throw invalidInput('No-time entries can not be running');
   const wasAllDay = current.allDay;

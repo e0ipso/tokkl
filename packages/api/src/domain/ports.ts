@@ -33,14 +33,10 @@ import type {
 } from './model.ts';
 import type { RowRange } from '../lib/pagination.ts';
 
-/** The most trashed entries one trash read returns, so the read stays bounded. */
 export const TRASH_READ_LIMIT = 1000;
 
 type StorageConflictKind = 'unique' | 'foreign-key' | 'serialization' | 'deadlock' | 'busy';
-/**
- * What a repository throws when the database refuses a write for a conflict, which the domain maps
- * to its own errors. No SQL, constraint names or driver cause.
- */
+/** Thrown for a write conflict, which the domain maps. Carries no SQL, constraint names or driver cause. */
 export class StorageConflict extends Error {
   readonly kind: StorageConflictKind;
   constructor(kind: StorageConflictKind) {
@@ -50,7 +46,7 @@ export class StorageConflict extends Error {
   }
 }
 
-// Inputs have passed domain validation. Repositories still enforce scoping and database constraints.
+// Inputs have passed domain validation; repositories still enforce scoping and constraints.
 export interface NewAccount {
   email: string;
   fullName: string;
@@ -67,7 +63,7 @@ export interface AccountChanges {
   beginningOfWeek?: number;
   defaultWorkspaceId?: Id;
 }
-/** Revision 0 stands for a user without stored timer state. */
+/** Revision 0: the user has no stored timer state. */
 interface UserTimerRevision {
   user: User;
   timerRevision: number;
@@ -76,16 +72,16 @@ export interface UsersRepository {
   count(): Promise<number>;
   countActiveAdmins(): Promise<number>;
   get(id: Id): Promise<User | undefined>;
-  /** One statement: the same user as get, with the user's current timer revision. */
+  /** One statement. */
   getWithTimerRevision(id: Id): Promise<UserTimerRevision | undefined>;
   findByEmail(email: string): Promise<User | undefined>;
   findByApiToken(token: string): Promise<User | undefined>;
   list(): Promise<User[]>;
-  /** Creates the account and its owned default workspace and membership together. */
+  /** Together with its owned default workspace and membership. */
   createAccount(input: NewAccount): Promise<User>;
   updateAccount(id: Id, changes: AccountChanges): Promise<User>;
   setPreferences(id: Id, preferences: JsonObject): Promise<void>;
-  /** Conditional update rechecks the hash seen before asynchronous password verification. */
+  /** Compare-and-set on `expectedPasswordHash`, read before the async password verification. */
   changeCredentials(id: Id, expectedPasswordHash: string, passwordHash: string, apiToken: string): Promise<boolean>;
   rotateApiToken(id: Id, apiToken: string): Promise<void>;
   setAccess(id: Id, role: UserRole, disabledAt: UtcInstant | null): Promise<User>;
@@ -98,10 +94,7 @@ export interface WorkspacesRepository {
   getRole(userId: Id, workspaceId: Id): Promise<MembershipRole | undefined>;
   countMembers(workspaceId: Id): Promise<number>;
   listMembers(workspaceId: Id): Promise<WorkspaceMember[]>;
-  /**
-   * How many writes have changed the workspace's v9 project list: a project or client write, or a
-   * new default currency. 0 for a missing workspace.
-   */
+  /** Counts project, client and default-currency writes; 0 for a missing workspace. */
   catalogRevision(workspaceId: Id): Promise<number>;
   create(name: string): Promise<Workspace>;
   update(
@@ -114,7 +107,7 @@ export interface WorkspacesRepository {
   deleteSoleMemberWorkspaces(userId: Id): Promise<void>;
 }
 export interface SettingsRepository {
-  /** Missing values remain missing so application settings rules apply deployment defaults. */
+  /** Missing values stay missing so deployment defaults apply. */
   read(): Promise<Partial<InstanceSettings>>;
   write(changes: SettingChange[]): Promise<void>;
 }
@@ -127,10 +120,7 @@ export interface TokensRepository {
   revokeInvite(id: Id): Promise<boolean>;
   revokeInvitesCreatedBy(userId: Id): Promise<void>;
   revokeUnusedPasswordResets(userId: Id): Promise<void>;
-  /**
-   * Deletes up to a batch of used or expired links, which nothing reads again, skipping rows other
-   * writes hold, and returns how many it deleted.
-   */
+  /** Deletes up to a batch of used or expired links, skipping rows other writes hold; returns the count. */
   deleteSpent(now: UtcInstant): Promise<number>;
 }
 export interface SessionsRepository {
@@ -138,13 +128,9 @@ export interface SessionsRepository {
   create(session: Session): Promise<void>;
   delete(tokenHash: string): Promise<void>;
   deleteForUser(userId: Id, keepTokenHash?: string): Promise<void>;
-  /**
-   * Deletes up to a batch of sessions that expired before `now`, skipping rows other writes hold,
-   * and returns how many it deleted. An expired session that is still stored never signs in.
-   */
+  /** Deletes up to a batch of expired sessions, skipping rows other writes hold; returns the count. */
   deleteExpired(now: UtcInstant): Promise<number>;
 }
-/** A hashed limiter key and the failures it allows per window. */
 export interface RateLimitCounter {
   keyHash: string;
   limit: number;
@@ -152,19 +138,12 @@ export interface RateLimitCounter {
 export type RateLimitCounterKey = Pick<RateLimitCounter, 'keyHash'>;
 export type RateLimitReservation =
   | { ok: true; reservations: string[] }
-  /** Reset times of the counters at their failure limit. */
   | { ok: false; reason: 'blocked'; resetAts: UtcInstant[] }
-  /** No counter is at its limit, but live reservations fill at least one. */
+  /** No counter is at its limit, but live reservations fill one. */
   | { ok: false; reason: 'slots' };
-/**
- * Callers supply `now`. A counter whose window has ended has no failures, and an expired
- * reservation holds no slot, so stale rows never change an answer. `deleteExpired` removes them.
- */
+/** Callers supply `now`. Ended windows and expired reservations never change an answer. */
 export interface RateLimitsRepository {
-  /**
-   * All or none: one reservation per counter, or none when any counter is blocked or full. A refusal
-   * keeps no counter row it would have created.
-   */
+  /** All or none: a refusal reserves nothing and keeps no counter row it would have created. */
   reserve(
     counters: readonly RateLimitCounter[],
     now: UtcInstant,
@@ -181,13 +160,9 @@ export interface RateLimitsRepository {
   ): Promise<void>;
   /** Clears failures. Live reservations keep their slots. */
   reset(keyHashes: readonly string[], now: UtcInstant): Promise<void>;
-  /**
-   * Deletes up to a batch of expired reservations, and of expired counters that no live reservation
-   * holds, skipping rows other writes hold. Returns how many rows it deleted.
-   */
+  /** Deletes up to a batch of expired reservations and unheld expired counters, skipping locked rows. */
   deleteExpired(now: UtcInstant): Promise<number>;
 }
-/** What a password check uses; cleanup is the maintenance job's. */
 export type RateLimitChecks = Pick<RateLimitsRepository, 'reserve' | 'release' | 'reset'>;
 export interface ClientFilter {
   status?: 'active' | 'archived' | 'both';
@@ -199,11 +174,11 @@ export interface ClientsRepository {
   findByName(workspaceId: Id, name: string): Promise<Client | undefined>;
   create(input: Pick<Client, 'workspaceId' | 'name' | 'notes' | 'archived'>): Promise<Client>;
   update(workspaceId: Id, id: Id, changes: Partial<Pick<Client, 'name' | 'notes' | 'archived'>>): Promise<Client>;
-  /** Caller validates project ownership before invoking this selective restore. */
+  /** The caller checks project ownership. */
   restore(workspaceId: Id, id: Id, projectIds: Id[], all: boolean): Promise<Client>;
-  /** Updates the client and its projects, returning project IDs whose active flag changed. */
+  /** Returns the project ids whose active flag changed. */
   setArchived(workspaceId: Id, id: Id, archived: boolean): Promise<Id[]>;
-  /** Atomically detaches projects, resolving resulting name collisions before removing the client. */
+  /** Detaches the projects, resolving name collisions, and removes the client, atomically. */
   deleteAndDetachProjects(workspaceId: Id, id: Id): Promise<void>;
 }
 export interface ProjectFilter {
@@ -221,7 +196,7 @@ export interface ProjectsRepository {
   /** Ordered by folded name, then id. A `range` keeps only those rows of that order. */
   list(workspaceId: Id, filter?: ProjectFilter, range?: RowRange): Promise<ProjectSummary[]>;
   get(workspaceId: Id, id: Id): Promise<ProjectSummary | undefined>;
-  /** Indexed lookup; never computes history totals. */
+  /** Never computes history totals. */
   getRef(workspaceId: Id, id: Id): Promise<ProjectRef | undefined>;
   findByName(workspaceId: Id, clientId: Id | null, name: string): Promise<Project | undefined>;
   create(input: ProjectInput): Promise<ProjectSummary>;
@@ -229,13 +204,11 @@ export interface ProjectsRepository {
   delete(workspaceId: Id, id: Id, entryMode: 'detach' | 'delete'): Promise<void>;
 }
 export type TaskInput = Omit<Task, 'id' | 'createdAt' | 'updatedAt'>;
-/** What the workspace task search sorts and pages by in memory: id, name and creation instant. */
 export type TaskSortKey = Pick<Task, 'id' | 'name' | 'createdAt'>;
 /** The workspace task search's filters that SQL applies exactly. */
 export interface TaskSearchFilter {
   projectId?: Id;
   active?: boolean;
-  /** Keeps tasks updated at or after this instant. */
   changedSince?: UtcInstant;
 }
 export interface TasksRepository {
@@ -245,29 +218,17 @@ export interface TasksRepository {
     workspaceId: Id,
     filter?: { projectId?: Id; active?: boolean; name?: string; ids?: readonly Id[] },
   ): Promise<TaskSummary[]>;
-  /**
-   * The sort keys of the tasks `filter` keeps, in id order. With `nameCandidates`, a lower-cased
-   * search, it also drops every task whose JavaScript-lower-cased name cannot contain it: an ASCII
-   * name is kept only when it does, and a name with other characters is always kept, for the caller
-   * to test.
-   */
+  /** In id order. `nameCandidates` drops ASCII names that cannot contain it; others are kept for the caller. */
   listSortKeys(workspaceId: Id, filter: TaskSearchFilter & { nameCandidates?: string }): Promise<TaskSortKey[]>;
-  /** How many tasks `filter` keeps. */
   count(workspaceId: Id, filter: TaskSearchFilter): Promise<number>;
-  /**
-   * The `range` rows of the tasks `filter` keeps, ordered by creation instant, then id, both
-   * ascending or both descending.
-   */
+  /** Ordered by creation instant, then id, both in the same direction. */
   listByCreation(
     workspaceId: Id,
     filter: TaskSearchFilter,
     order: 'ASC' | 'DESC',
     range: RowRange,
   ): Promise<TaskSummary[]>;
-  /**
-   * The tasks of every workspace the user belongs to, ordered by workspace id, folded name, then
-   * id. A `range` keeps only those rows of that order.
-   */
+  /** Ordered by workspace id, folded name, then id. */
   listForMember(
     userId: Id,
     filter: { active?: boolean; changedSince?: UtcInstant },
@@ -303,22 +264,22 @@ export interface EntryFilter {
   projectIds?: Array<Id | null>;
   limit?: number;
 }
-/** Exact normalized values; application rules snap live writes before invoking persistence. */
+/** Already normalized and snapped by the application. */
 export type EntryInput = Omit<TimeEntry, 'id' | 'createdAt' | 'updatedAt'> & { tagIds: Id[] };
 export interface EntriesRepository {
   list(userId: Id, filter?: EntryFilter): Promise<EntryDetails[]>;
   get(userId: Id, id: Id, includeDeleted?: boolean): Promise<EntryDetails | undefined>;
   running(userId: Id): Promise<EntryDetails | undefined>;
   bounds(userId: Id): Promise<EntryBounds>;
-  /** The user's newest `TRASH_READ_LIMIT` trashed entries, newest deletion first. */
+  /** Newest deletion first, at most `TRASH_READ_LIMIT`. */
   listDeleted(userId: Id): Promise<EntryDetails[]>;
-  /** How many trashed entries the user has, those `listDeleted` leaves out included. */
+  /** Includes those `listDeleted` leaves out. */
   countDeleted(userId: Id): Promise<number>;
-  /** Used for timezone reanchoring without fetching every entry's related labels. */
+  /** For timezone reanchoring; skips the related labels. */
   listAllDay(userId: Id): Promise<TimeEntry[]>;
   findDuplicate(key: EntryDuplicateKey): Promise<Id | undefined>;
   create(input: EntryInput): Promise<EntryDetails>;
-  /** Same integrity checks as create, without reloading labels discarded by import callers. */
+  /** Same integrity checks as create, without reloading labels. */
   insert(input: EntryInput): Promise<Id>;
   update(
     userId: Id,
@@ -328,34 +289,24 @@ export interface EntriesRepository {
   ): Promise<EntryDetails>;
   softDelete(userId: Id, workspaceId: Id, id: Id, at: UtcInstant): Promise<void>;
   restore(userId: Id, id: Id): Promise<EntryDetails>;
-  /** Every workspace holding at least one of the user's trashed entries, however many there are. */
   trashedWorkspaceIds(userId: Id): Promise<Id[]>;
-  /** Deletes the user's trashed entries in `workspaceIds`, or only `id` among them. */
   purgeDeleted(userId: Id, scope: { workspaceIds: Id[]; id?: Id }): Promise<number>;
 }
-/** A create a client named with an idempotency key. */
 interface IdempotencyRecord {
   /** Hash of the user and the client's key. */
   keyHash: string;
   userId: Id;
-  /** Digest of the request the key first came with. */
+  /** Digest of the first request with this key. */
   fingerprint: string;
-  /** The id of the record the create made. */
   resultId: Id;
   createdAt: UtcInstant;
 }
 export interface IdempotencyKeysRepository {
   find(keyHash: string): Promise<IdempotencyRecord | undefined>;
-  /**
-   * Records a create. When another transaction recorded the same key first, it fails as a
-   * serialization conflict, so the runner runs the whole operation again and it finds that record.
-   */
+  /** A concurrent insert of the same key fails as a serialization conflict, so the runner retries and finds it. */
   insert(record: IdempotencyRecord): Promise<void>;
   delete(keyHash: string): Promise<void>;
-  /**
-   * Deletes up to a batch of records created before `before`, skipping rows other writes hold, and
-   * returns how many it deleted.
-   */
+  /** Deletes up to a batch of records created before `before`, skipping locked rows; returns the count. */
   deleteExpired(before: UtcInstant): Promise<number>;
 }
 export interface TimersRepository {
@@ -363,7 +314,7 @@ export interface TimersRepository {
   getSession(userId: Id): Promise<PomodoroSession | undefined>;
   getPauseChain(userId: Id): Promise<PauseChain | undefined>;
   getRevision(userId: Id): Promise<TimerRevision | undefined>;
-  /** IDs in ascending order for predictable lock acquisition before catalog changes. */
+  /** Ascending, for a predictable lock order. */
   affectedUsers(workspaceId: Id): Promise<Id[]>;
   saveSession(session: PomodoroSession): Promise<void>;
   deleteSession(userId: Id): Promise<void>;
@@ -373,7 +324,7 @@ export interface TimersRepository {
   saveRevision(revision: TimerRevision): Promise<void>;
 }
 export interface ReportSelection {
-  /** UTC half-open start range, derived by application calendar rules. */
+  /** UTC, half-open. */
   from: UtcInstant;
   to: UtcInstant;
   projectIds?: Array<Id | null>;
@@ -390,22 +341,18 @@ export interface ReportSelection {
   minDurationSeconds?: number;
   maxDurationSeconds?: number;
 }
-/**
- * An order the database applies to selected report entries. Ties go to the entry id, in the same
- * direction. `duration` sorts on the whole elapsed seconds after `rounding`, as reports show them.
- */
+/** Ties go to the entry id, same direction. `duration` sorts on rounded whole seconds, as reports show them. */
 export interface ReportOrder {
   by: 'start' | 'updated' | 'duration';
   direction: 'ASC' | 'DESC';
   /** -1 down, 0 nearest, 1 up, to a step of `minutes`; no rounding when `minutes` is 0 or less. */
   rounding: { mode: number; minutes: number };
 }
-/** Rows skipped from the front of an ordered selection, and how many follow. */
 export interface ReportWindow {
   offset: number;
   limit: number;
 }
-/** Where a start/id batch read resumes: just after this entry. */
+/** Resume just after this entry. */
 export interface ReportCursor {
   start: UtcInstant;
   id: Id;
@@ -413,16 +360,12 @@ export interface ReportCursor {
 interface ReportCounts {
   entries: number;
   billable: number;
-  /** Billable entries whose project has its own hourly rate. */
   billableWithProjectRate: number;
 }
-/**
- * Stopped, live entries of one user in one workspace that match a selection. Every read is bounded
- * by its ids, window or batch size, so no call loads the whole selection's projections.
- */
+/** Stopped live entries of one user and workspace. Every read is bounded by ids, window or batch size. */
 interface ReportsRepository {
   count(userId: Id, workspaceId: Id, selection: ReportSelection): Promise<ReportCounts>;
-  /** The selected ids in `order`; all of them without a window. */
+  /** All of them without a window. */
   ids(
     userId: Id,
     workspaceId: Id,
@@ -430,20 +373,20 @@ interface ReportsRepository {
     order: ReportOrder,
     window?: ReportWindow,
   ): Promise<Id[]>;
-  /** Every selected id with its description, unordered, for orders the database cannot collate. */
+  /** Unordered, for orders the database cannot collate. */
   descriptions(
     userId: Id,
     workspaceId: Id,
     selection: ReportSelection,
   ): Promise<Array<{ id: Id; description: string }>>;
-  /** The selected entries among `ids` with their ordered tags, in the order of `ids`. */
+  /** In the order of `ids`, with ordered tags. */
   entries(
     userId: Id,
     workspaceId: Id,
     selection: ReportSelection,
     ids: readonly Id[],
   ): Promise<ReportEntryProjection[]>;
-  /** Up to `limit` selected entries after `after` in start/id order, with their ordered tags. */
+  /** In start/id order, with ordered tags. */
   batch(
     userId: Id,
     workspaceId: Id,
@@ -452,17 +395,13 @@ interface ReportsRepository {
     limit: number,
   ): Promise<ReportEntryProjection[]>;
 }
-/** An account export's entry order: newest first (start, then id, descending) or oldest first. */
+/** `newest`: start, then id, descending. */
 type ExportEntryOrder = 'newest' | 'oldest';
 export interface TransfersRepository {
-  /** All related projections are collected in one consistent read snapshot. */
+  /** One consistent read snapshot. */
   exportAccount(userId: Id): Promise<AccountExportProjection>;
-  /** The export without its entries, as `exportAccount` reads it. */
   exportHead(userId: Id): Promise<Omit<AccountExportProjection, 'entries'>>;
-  /**
-   * Up to `limit` of the entries `exportAccount` lists, the next ones after `after` in `order`. The
-   * pages of one snapshot concatenate into its list, or into the list reversed for `oldest`.
-   */
+  /** Pages of one snapshot concatenate into `exportAccount`'s list, reversed for `oldest`. */
   exportEntries(
     userId: Id,
     order: ExportEntryOrder,
@@ -487,33 +426,22 @@ export interface Repositories {
   reports: ReportsRepository;
   transfers: TransfersRepository;
 }
-/**
- * SQL-free operations of one open write transaction. A scope cannot open another transaction: code
- * that receives an `OperationContext` runs inside its caller's, and only a runner (`Storage` and the
- * domain's `*Runner` interfaces) opens one.
- */
+/** One open write transaction. Only a runner opens one; code given an `OperationContext` runs in its caller's. */
 export interface TransactionScope<R extends object> {
   savepoint<T>(work: (context: OperationContext<R>) => Promise<T>): Promise<T>;
   beforeCommit(key: string, callback: () => Promise<void>): void;
-  /**
-   * Runs `read` once every before-commit hook has run, just before COMMIT, so an operation can build
-   * its answer from the state the transaction commits. `read` may only read: a hook it registers
-   * fails the transaction.
-   */
+  /** Runs `read` after every before-commit hook, just before COMMIT. `read` may only read: registering a hook fails. */
   readAtCommit(read: () => Promise<void>): void;
   afterCommit(callback: () => Promise<void>): void;
   lockUserTimer(userId: Id): Promise<void>;
   lockInstanceAdministration(): Promise<void>;
-  /** Acquire instance, then ascending workspaces, then ascending users, across all calls. */
+  /** Lock order across all calls: instance, then ascending workspaces, then ascending users. */
   lockUsers(userIds: Id[]): Promise<void>;
   lockWorkspaces(workspaceIds: Id[]): Promise<void>;
 }
 export type OperationContext<R extends object> = R & TransactionScope<R>;
 export type TransactionContext = OperationContext<Repositories>;
-/**
- * The application's database. Every repository call runs inside an explicit unit of work: a write
- * transaction, which takes the guards in the documented order, or a read-only snapshot.
- */
+/** Every repository call runs inside a write transaction, which takes the guards in order, or a read-only snapshot. */
 export interface Storage {
   transaction<T>(work: (context: TransactionContext) => Promise<T>, options?: { dryRun?: boolean }): Promise<T>;
   readSnapshot<T>(work: (repositories: Repositories) => Promise<T>): Promise<T>;
@@ -521,9 +449,9 @@ export interface Storage {
   close(): Promise<void>;
 }
 
-/** A hint that a user's committed timer revision changed. It never carries state. */
+/** A hint only; it never carries state. */
 export type TimerSignal = { userId: number; revision: number };
-/** Carries timer signals between API processes. A receiver rebuilds state from its own database read. */
+/** Between API processes. A receiver rebuilds state from its own database read. */
 export interface TimerBus {
   send(signal: TimerSignal): void;
   /** Registers the single receiver. */
@@ -531,10 +459,6 @@ export interface TimerBus {
   close(): Promise<void>;
 }
 
-/**
- * The current time, for operations that act "now". The composition root passes `systemClock`
- * (`lib/clock.ts`); a fixed clock makes those operations repeatable.
- */
 export interface Clock {
   now(): Date;
 }

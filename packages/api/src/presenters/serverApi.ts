@@ -1,4 +1,3 @@
-/** The API version, capabilities and Pomodoro limits this server announces in `GET /api/app/status`. */
 import {
   DEFAULT_POMODORO_SESSION_CONFIG,
   POMODORO_SESSION_CONFIG_RANGES,
@@ -23,10 +22,7 @@ export function presentServerApi(): ServerApi {
   return { api_version: 1, capabilities: [...CAPABILITIES] };
 }
 
-/**
- * The ranges the server enforces on Pomodoro lengths and the defaults a new account starts with,
- * so clients stop copying them. Fresh on each call.
- */
+/** So clients stop copying them. Fresh on each call. */
 export function presentPomodoroLimits(): PomodoroLimits {
   const limit = (key: keyof PomodoroSessionConfig) => ({
     ...POMODORO_SESSION_CONFIG_RANGES[key],

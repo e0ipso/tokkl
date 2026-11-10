@@ -5,7 +5,7 @@ import type { RateLimitCounterKey, RateLimitReservation, RateLimitsRepository } 
 import type { PhysicalDatabase } from '../physical.ts';
 import { safeInteger, utcInstant } from '../conversion.ts';
 
-/** Most rows one cleanup call deletes from each table. The maintenance job calls again for the rest. */
+/** Per table. The maintenance job calls again for the rest. */
 const CLEANUP_BATCH = 500;
 const later = (now: string, ms: number) => new Date(Date.parse(now) + ms).toISOString();
 
@@ -15,7 +15,6 @@ interface CounterState {
   live: number;
 }
 
-/** Whether the counter row in scope has a reservation that has not expired. */
 function liveReservation(eb: ExpressionBuilder<PhysicalDatabase, 'rate_limit_counters'>, now: string) {
   return eb.exists(
     eb
@@ -26,7 +25,7 @@ function liveReservation(eb: ExpressionBuilder<PhysicalDatabase, 'rate_limit_cou
   );
 }
 
-/** A counter at its limit blocks; otherwise live reservations that fill any counter refuse for slots. */
+/** A counter at its limit blocks; otherwise a counter full of live reservations refuses for slots. */
 function refusalFor(
   counters: readonly (CounterState & { limit: number })[],
 ): Exclude<RateLimitReservation, { ok: true }> | undefined {
@@ -36,10 +35,7 @@ function refusalFor(
   return undefined;
 }
 
-/**
- * Every write locks its counters by primary key in ascending key order, so overlapping counter sets
- * cannot deadlock. Cleanup runs apart from the writes and skips rows they hold, so it never waits.
- */
+/** Ascending primary-key locks prevent deadlocks; cleanup skips held rows, so it never waits. */
 export function createRateLimitRepository(db: Kysely<PhysicalDatabase>, backend: Backend): RateLimitsRepository {
   const server = backend !== 'sqlite';
   const mysql = backend === 'mysql' || backend === 'mariadb';
@@ -75,7 +71,7 @@ export function createRateLimitRepository(db: Kysely<PhysicalDatabase>, backend:
       if (result.numUpdatedRows === 1n) return;
     }
   }
-  /** The first failure of a window starts it, as after a reset. */
+  /** The first failure of a window starts it. */
   async function addFailure(keyHash: string, now: string, windowMs: number): Promise<void> {
     await lock(keyHash, now, windowMs);
     await db
@@ -108,7 +104,7 @@ export function createRateLimitRepository(db: Kysely<PhysicalDatabase>, backend:
     if (idle.length) await db.deleteFrom('rate_limit_counters').where('key_hash', 'in', idle).execute();
     return expired.length + idle.length;
   }
-  /** Locks every counter in key order and reads its window and live reservations under the lock. */
+  /** Reads windows and live reservations under the locks. */
   async function lockAll(
     counters: readonly RateLimitCounterKey[],
     now: string,
@@ -139,7 +135,7 @@ export function createRateLimitRepository(db: Kysely<PhysicalDatabase>, backend:
     }
     return seen;
   }
-  /** One reservation per counter, each expiring after the lease. Returns their ids. */
+  /** Each expires after the lease. */
   async function addReservations(
     counters: readonly RateLimitCounterKey[],
     now: string,
@@ -153,7 +149,7 @@ export function createRateLimitRepository(db: Kysely<PhysicalDatabase>, backend:
     if (rows.length) await db.insertInto('rate_limit_reservations').values(rows).execute();
     return rows.map(row => row.id);
   }
-  /** A refusal keeps no idle counter, so refused attempts cannot fill the table with new keys. */
+  /** So refused attempts cannot fill the table with new keys. */
   async function dropIdle(counters: readonly RateLimitCounterKey[], now: string): Promise<void> {
     await db
       .deleteFrom('rate_limit_counters')

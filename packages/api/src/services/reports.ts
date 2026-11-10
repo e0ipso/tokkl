@@ -44,47 +44,37 @@ export interface ReportSource {
 export type ReportUser = Pick<User, 'id' | 'fullName' | 'email' | 'timezone' | 'beginningOfWeek'>;
 type ReportWorkspace = Pick<Workspace, 'id' | 'defaultCurrency' | 'defaultHourlyRate'>;
 
-/** Entries a report formats at a time, and the most ids one entry read names. */
+/** Also the most ids one entry read names. */
 export const REPORT_BATCH_SIZE = 500;
-/** A detailed report's order. Ties go to the entry id, in the same direction. */
+/** Ties go to the entry id, in the same direction. */
 interface DetailedOrder {
   orderBy: OrderBy;
   direction: SortDirection;
 }
-/**
- * One report's entries inside its read snapshot, formatted with the caller's filter. Every read is
- * bounded: a page reads its window, and a full pass hands over one batch at a time.
- */
+/** Every read is bounded: a page reads its window, and a full pass hands over one batch at a time. */
 export interface ReportReader {
   readonly user: ReportUser;
   readonly filter: ReportFilter;
-  /** How many entries match, and whether any of them has an amount. */
   counts(): Promise<{ total: number; hasAmounts: boolean }>;
-  /** Up to `limit` entries from position `offset` (0-based) in `order`. */
   page(order: DetailedOrder, offset: number, limit: number): Promise<ReportEntry[]>;
-  /** Every entry in `order`, one batch at a time. */
   ordered(order: DetailedOrder, visit: (batch: ReportEntry[]) => void | Promise<void>): Promise<void>;
-  /** Every entry by start, then id, one batch at a time. */
   each(visit: (batch: ReportEntry[]) => void): Promise<void>;
 }
 interface ReportReadOptions {
   authentication?: Authentication;
 }
 
-/** The orders the database applies. Descriptions sort by the runtime's collation instead. */
+/** Descriptions sort by the runtime's collation instead. */
 const SQL_ORDERS: Readonly<Record<Exclude<OrderBy, 'description'>, ReportOrder['by']>> = {
   date: 'start',
   user: 'start',
   duration: 'duration',
   last_update: 'updated',
 };
-/** `String.prototype.localeCompare` without locales or options compares as this collator does. */
+/** Compares as `String.prototype.localeCompare` without locales or options. */
 const collator = new Intl.Collator();
 
-/**
- * Checks the caller and the workspace, then runs `work` over the filter's entries, all in one read
- * snapshot. `work` formats as it reads, so the snapshot stays open until `work` settles.
- */
+/** `work` formats as it reads, so the snapshot stays open until `work` settles. */
 export function readReport<T>(
   source: ReportSource,
   userId: number,
@@ -122,12 +112,10 @@ export function readReport<T>(
     };
     const reports = repositories.reports;
     const format = (rows: ReportEntryProjection[]): ReportEntry[] => formatReportEntries(rows, user, workspace, filter);
-    /** The entries of `ids`, read a batch at a time, in the order of `ids`. */
     async function* entriesOf(ids: readonly number[]): AsyncGenerator<ReportEntry[]> {
       for (let i = 0; i < ids.length; i += REPORT_BATCH_SIZE)
         yield format(await reports.entries(userId, workspaceId, selection, ids.slice(i, i + REPORT_BATCH_SIZE)));
     }
-    /** The ids in `order`, only those inside `window` when there is one. */
     async function orderedIds(order: DetailedOrder, window?: ReportWindow): Promise<number[]> {
       if (order.orderBy !== 'description') {
         const sqlOrder: ReportOrder = {

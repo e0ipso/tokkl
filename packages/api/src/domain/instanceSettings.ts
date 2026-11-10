@@ -2,7 +2,6 @@ import { isTimeResolution } from '@tokkl/common/snap';
 import type { SettingsRepository } from './ports.ts';
 import type { InstanceSettings } from './model.ts';
 
-/** Every time resolution an admin can choose: the divisors of 60. */
 const TIME_RESOLUTIONS = Array.from({ length: 60 }, (_, i) => i + 1).filter(isTimeResolution);
 const DEFAULT_TIME_RESOLUTION = 5;
 const DEFAULT_INVITE_DAYS = 7;
@@ -20,7 +19,6 @@ const SETTING_RULES: Readonly<Record<keyof InstanceSettings, SettingRule>> = {
   inviteDays: range(1, 90),
   timeResolutionMinutes: { valid: isTimeResolution, expected: `one of ${TIME_RESOLUTIONS.join(', ')}` },
 };
-/** Request field names of the settings. */
 export const SETTING_NAMES = {
   session_days: 'sessionDays',
   invite_days: 'inviteDays',
@@ -31,17 +29,16 @@ export function validSetting(key: keyof InstanceSettings, value: unknown): value
   return typeof value === 'number' && Number.isSafeInteger(value) && SETTING_RULES[key].valid(value);
 }
 
-/** What a valid value of `key` looks like, for the 400 message. */
+/** For the 400 message. */
 export const settingExpectation = (key: keyof InstanceSettings) => SETTING_RULES[key].expected;
 
-/** The stored time resolution when it is valid, else the default. */
 export function timeResolutionOf(stored: Partial<InstanceSettings>): number {
   return validSetting('timeResolutionMinutes', stored.timeResolutionMinutes)
     ? stored.timeResolutionMinutes
     : DEFAULT_TIME_RESOLUTION;
 }
 
-/** The effective settings: stored values that pass their rule, else the deployment's defaults. */
+/** Stored values that pass their rule, else the deployment's defaults. */
 export async function getInstanceSettings(
   ctx: { settings: SettingsRepository },
   deploymentSessionDays: number,

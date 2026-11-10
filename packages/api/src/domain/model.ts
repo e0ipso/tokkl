@@ -4,7 +4,7 @@ import type { PomodoroSessionConfig, SessionPhaseKind } from '@tokkl/common/pomo
 export type Id = number;
 /** Canonical UTC ISO 8601 with millisecond precision. Never a driver-local timestamp. */
 export type UtcInstant = string;
-/** Valid YYYY-MM-DD calendar key, separate from an instant. */
+/** YYYY-MM-DD calendar key. */
 type DateOnly = string;
 export type JsonValue = null | boolean | number | string | JsonValue[] | JsonObject;
 export interface JsonObject {
@@ -121,7 +121,7 @@ export interface TaskSummary extends Task {
   projectIsPrivate: boolean;
   clientId: Id | null;
   clientName: string | null;
-  /** Public tracked_seconds serializes milliseconds, despite its public name. */
+  /** Milliseconds, despite the public name tracked_seconds. */
   trackedMilliseconds: number;
 }
 export type TaskRef = Pick<Task, 'id' | 'workspaceId' | 'projectId' | 'active'>;
@@ -150,7 +150,7 @@ export interface TimeEntry extends AuditTimes {
   deletedAt: UtcInstant | null;
 }
 export interface EntryDetails extends TimeEntry {
-  /** Public labels use ASCII case-insensitive name order, with id as a stable tie breaker. */
+  /** ASCII case-insensitive name order, then id. */
   tags: TagLabel[];
   project: { name: string; color: string; active: boolean; billable: boolean } | null;
   client: { id: Id; name: string } | null;
@@ -162,7 +162,7 @@ export interface PauseChain {
   projectId: Id | null;
   taskId: Id | null;
   description: string;
-  /** Canonical fingerprint order is ascending id. */
+  /** Ascending, the fingerprint's order. */
   tagIds: Id[];
   billable: boolean;
   seconds: number;
@@ -189,7 +189,7 @@ export interface TimerRevision {
   revision: number;
   fingerprint: string;
   discardedPomodoro: DiscardedPomodoro | null;
-  /** The entry of the Pomodoro session this revision's state showed; null when it showed none. */
+  /** Null when the state showed no session. */
   sessionEntryId: Id | null;
 }
 export interface TimerSnapshot {
@@ -199,7 +199,7 @@ export interface TimerSnapshot {
   revision: TimerRevision | null;
 }
 
-/** Unrounded stopped-entry data; application report logic owns rounding, dates and money. */
+/** Unrounded; report logic owns rounding, dates and money. */
 export interface ReportEntryProjection {
   id: Id;
   userId: Id;
@@ -221,7 +221,7 @@ export interface ReportEntryProjection {
   taskName: string | null;
   tags: TagLabel[];
 }
-/** Export values omit credentials and span only the account's memberships and own entries. */
+/** Omits credentials; spans only the account's memberships and own entries. */
 export interface AccountExportProjection {
   user: Omit<User, 'passwordHash' | 'apiToken'>;
   memberships: Membership[];
