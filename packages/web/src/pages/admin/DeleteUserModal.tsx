@@ -9,7 +9,6 @@ import { deleteConfirmError } from './accountChange.ts';
 import { t } from '../../i18n/messages.ts';
 import { tx } from '../../i18n/rich.ts';
 
-/** Deletes an account once the admin types its email. */
 export function DeleteUserModal({
   user,
   onClose,

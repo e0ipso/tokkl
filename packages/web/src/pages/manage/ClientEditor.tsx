@@ -8,7 +8,6 @@ import { Modal } from '../../components/Overlay.tsx';
 import { useAction } from '../../components/useAction.ts';
 import { t } from '../../i18n/messages.ts';
 
-/** Creates a client, or edits one: its name and notes. */
 export function ClientEditor({ client, onClose }: { client: Client | null; onClose: () => void }) {
   const wid = useWid();
   const formId = useId();

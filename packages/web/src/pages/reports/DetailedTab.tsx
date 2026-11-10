@@ -14,7 +14,6 @@ import { money } from './format.ts';
 import type { ReportPatch, SortDir, SortKey } from './urlState.ts';
 import { t } from '../../i18n/messages.ts';
 
-/** A project's name, followed by its task when there is one. */
 function projectText(project: string, task: string | null): string {
   return task ? t('entries.projectWithTask', { project, task }) : project;
 }

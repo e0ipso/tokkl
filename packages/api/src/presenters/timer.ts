@@ -1,4 +1,3 @@
-/** The `TimerState` that timer routes answer with and timer streams send. */
 import type { TimerState } from '@tokkl/types';
 import type { TimerView } from '../domain/timerView.ts';
 import { serializeTimeEntry } from './toggl.ts';

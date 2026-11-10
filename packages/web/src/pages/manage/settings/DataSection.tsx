@@ -4,7 +4,6 @@ import { SettingsCard } from './SettingsCard.tsx';
 import { TogglImport } from './TogglImport.tsx';
 import { t } from '../../../i18n/messages.ts';
 
-/** The Data card: exports, the Toggl CSV import and the Tokkl JSON restore. */
 export function DataSection({ timeZone }: { timeZone: string }) {
   return (
     <SettingsCard id="data" title={t('settings.sectionData')}>
