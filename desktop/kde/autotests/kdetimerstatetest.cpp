@@ -1,11 +1,3 @@
-// The widget's timer as QML creates it (TokklTimerState): every object is
-// there from the start, the timer and the Pomodoro session share one state
-// client on the timer state's connection, and the session takes the
-// Pomodoro mode from the applet's configuration once QML sets the applet.
-// The applet lives in a containment of a test corona, which writes its
-// appletsrc file under the test's own XDG_CONFIG_HOME. Nothing is
-// configured, so neither KDE Wallet nor the network is reached.
-
 #include "appletpomodorostore.h"
 #include "kdetimerstate.h"
 #include "testcorona.h"
@@ -57,15 +49,12 @@ private Q_SLOTS:
         QVERIFY(state.timer());
         QVERIFY(state.session());
         QVERIFY(state.preferences());
-        // The timer reads one client on the timer state's connection.
         QVERIFY(state.timer()->stateClient());
         QCOMPARE(state.timer()->stateClient()->connection(), state.connection());
         QCOMPARE(state.timer()->connection(), state.connection());
         QCOMPARE(state.connection()->state(), Connection::Unconfigured);
     }
 
-    // The mode the applet keeps reaches the session once QML sets the
-    // applet, and the session writes it back there.
     void readsTheModeOnceTheAppletIsSet()
     {
         AppletPomodoroStore saved;

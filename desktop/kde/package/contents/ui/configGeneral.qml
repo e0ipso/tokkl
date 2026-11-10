@@ -7,20 +7,18 @@ import org.kde.kirigami as Kirigami
 
 import com.canpicasoft.tokkl.backend
 
-// Connection settings. The address, sign-in method and email are ordinary
-// widget settings (cfg_*). The API token or password goes to KDE Wallet
-// through TokklConnectionSetup and is never written to the configuration.
+// The secret goes to KDE Wallet, never to the configuration.
 KCM.SimpleKCM {
     id: page
 
-    // Plasma saves every cfg_ property on Apply, so this one only ever holds
-    // a validated address; the field may hold anything the user typed.
+    // Plasma saves every cfg_ property on Apply, so this holds only a
+    // validated address; the field may hold anything typed.
     property string cfg_instanceUrl
     property string cfg_authMode: "token"
     property alias cfg_email: emailField.text
     property alias cfg_monochromeIcon: monochromeIcon.checked
 
-    // Tells the dialog that the secret changed, which no cfg_ property covers.
+    // The secret has no cfg_ property to mark the page changed.
     signal configurationChanged()
 
     readonly property bool passwordMode: cfg_authMode === "password"
@@ -31,7 +29,6 @@ KCM.SimpleKCM {
         setup.saveSecret();
     }
 
-    // Shows the address Plasma passes in, unless the field already holds it.
     function showInstanceUrl() {
         if (setup.persistedUrl(urlField.text) !== cfg_instanceUrl) {
             urlField.text = cfg_instanceUrl;
@@ -39,8 +36,8 @@ KCM.SimpleKCM {
     }
     onCfg_instanceUrlChanged: showInstanceUrl()
 
-    // Keeps the secret field tied to the account on screen: a secret loaded
-    // for one account is cleared when the page moves to another.
+    // A secret loaded for one account is cleared when the page moves to
+    // another.
     TokklConnectionSetup {
         id: setup
         onSecretChanged: {
@@ -48,11 +45,8 @@ KCM.SimpleKCM {
                 secretField.text = setup.secret;
             }
         }
-        // Plasma treats the page as saved once saveConfig() returns, but the
-        // wallet answers later. After a refused write the typed secret and
-        // the error stay on the page, and the dialog asks for Apply again,
-        // so closing it prompts instead of dropping the secret. OK closes the
-        // dialog before the answer; Plasma gives a page no way to stop that.
+        // The wallet answers after Plasma treats the page as saved, so a
+        // refused write asks for Apply again. OK still closes first.
         onSecretSaveFinished: saved => {
             if (!saved) {
                 page.configurationChanged();
@@ -60,8 +54,7 @@ KCM.SimpleKCM {
         }
     }
 
-    // Load the stored secret for the current address and account, once the
-    // user stops typing.
+    // Debounces loading the stored secret while the user types.
     Timer {
         id: loadTimer
         interval: 400

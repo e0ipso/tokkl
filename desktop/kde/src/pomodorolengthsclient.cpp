@@ -34,7 +34,6 @@ PomodoroLengthsClient::PomodoroLengthsClient(Connection *connection, QObject *pa
 
 PomodoroLengthsClient::~PomodoroLengthsClient()
 {
-    // A save still waiting keeps the connection and preferences alive.
     PomodoroLengthsSaves::instance()->keepUntilAnswered(m_connection, m_preferences);
 }
 

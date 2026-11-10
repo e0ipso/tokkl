@@ -1,29 +1,17 @@
-# Tokkl KDE companion: a Plasma 6 panel widget (QML package) and the Qt/C++
-# QML module it imports, built on the shared core in desktop/core.
-# Standalone project; the npm workspaces and the server image do not build or
-# ship anything from this directory.
-
 cmake_minimum_required(VERSION 3.27...3.31)
 
-# Minimum versions. They match the oldest supported target stack:
-#   Debian 13:     Qt 6.8.2, KDE Frameworks 6.13.0, Plasma 6.3.5
-#   Kubuntu 26.04: Qt 6.10.2, KDE Frameworks 6.24.0, Plasma 6.6.4 at release
-#   Fedora KDE 44: Qt 6.10.2, KDE Frameworks 6.25.0, Plasma 6.6.4 (libplasma) at release
-# Older Plasma 6 releases are not supported.
+# The oldest supported stack, Debian 13: Qt 6.8.2, KF 6.13.0, Plasma 6.3.5.
 set(TOKKL_QT_MIN_VERSION "6.8.0")
 set(TOKKL_KF_MIN_VERSION "6.13.0")
 set(TOKKL_PLASMA_MIN_VERSION "6.3.0")
 
-# The shared desktop core (tokklcore and its tests). Package builds point
-# this at the copy next to their source tree.
+# Package builds point this at the copy next to their source tree.
 set(TOKKL_CORE_DIR "${CMAKE_CURRENT_LIST_DIR}/../core"
     CACHE PATH "Source directory of the Tokkl desktop core")
 
 include(${TOKKL_CORE_DIR}/cmake/TokklVersion.cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/cmake/TokklMetadata.cmake)
 
-# Empty by default: the version comes from the root package.json. Release
-# builds pass the resolved shared Tokkl version, for example -DTOKKL_VERSION=1.2.0.
 set(TOKKL_VERSION "" CACHE STRING "Tokkl release version; empty reads the root package.json")
 set(TOKKL_PACKAGE_JSON "${CMAKE_CURRENT_LIST_DIR}/../../package.json"
     CACHE FILEPATH "package.json that provides the default version")
@@ -33,14 +21,11 @@ tokkl_resolve_version(TOKKL_RESOLVED_VERSION
     OVERRIDE "${TOKKL_VERSION}")
 tokkl_version_core(_tokkl_version_core "${TOKKL_RESOLVED_VERSION}")
 if(TOKKL_VERSION STREQUAL "")
-    # Re-run configure when the root version changes.
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${TOKKL_PACKAGE_JSON}")
 endif()
 
 project(tokkl-kde VERSION ${_tokkl_version_core} LANGUAGES CXX)
 
-# The widget's plugin id comes from its metadata; the backend's QML module
-# URI extends it.
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/package/metadata.json" _tokkl_metadata)
 string(JSON TOKKL_PLASMOID_ID GET "${_tokkl_metadata}" KPlugin Id)
 set(TOKKL_BACKEND_URI "${TOKKL_PLASMOID_ID}.backend")
@@ -56,15 +41,12 @@ include(ECMFindQmlModule)
 include(ECMPoQmTools)
 include(FeatureSummary)
 
-# Multimedia plays the Pomodoro alarm; only tokklkde and the backend module
-# link it, never the core.
 find_package(Qt6 ${TOKKL_QT_MIN_VERSION} REQUIRED COMPONENTS Core Gui Multimedia Network Qml Quick)
-# The backend keeps the pause chain in the applet's KConfig group. libplasma's
-# CMake package does not pull in KF6Config, which its link interface names.
+# libplasma's CMake package does not pull in KF6Config, which its link
+# interface names.
 find_package(KF6 ${TOKKL_KF_MIN_VERSION} REQUIRED COMPONENTS Wallet Package Config)
 find_package(Plasma ${TOKKL_PLASMA_MIN_VERSION} REQUIRED)
 
-# QML modules the widget and its Configure page import at runtime.
 ecm_find_qmlmodule(org.kde.plasma.plasmoid)
 ecm_find_qmlmodule(org.kde.plasma.components)
 ecm_find_qmlmodule(org.kde.plasma.configuration)
@@ -76,17 +58,14 @@ message(STATUS "Tokkl KDE companion version: ${TOKKL_RESOLVED_VERSION}")
 add_subdirectory("${TOKKL_CORE_DIR}" core)
 add_subdirectory(src)
 add_subdirectory(package)
-# The translations of the core's messages, when the source carries them: KDE's
-# translation tooling puts Qt catalogs in poqm/<lang>/tokklcore_qt.po.
+# KDE's translation tooling puts Qt catalogs in poqm/<lang>/tokklcore_qt.po.
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/poqm")
     ecm_install_po_files_as_qm(poqm)
 endif()
 
 if(BUILD_TESTING)
     find_package(Qt6 ${TOKKL_QT_MIN_VERSION} REQUIRED COMPONENTS DBus Test QuickTest)
-    # The smoke test translates the Configure page with KI18n as Plasma does.
-    # The panel test sets Kirigami units through KirigamiPlatform, which
-    # find_package(Plasma) does not bring in on Plasma 6.3.
+    # find_package(Plasma) does not bring in KirigamiPlatform on Plasma 6.3.
     find_package(KF6 ${TOKKL_KF_MIN_VERSION} REQUIRED COMPONENTS I18n KirigamiPlatform)
     find_package(PlasmaQuick ${TOKKL_PLASMA_MIN_VERSION} REQUIRED)
     add_subdirectory(autotests)

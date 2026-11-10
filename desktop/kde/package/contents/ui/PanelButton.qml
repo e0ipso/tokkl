@@ -8,37 +8,25 @@ import org.kde.plasma.components as PlasmaComponents
 
 import com.canpicasoft.tokkl.backend
 
-// The panel item: the Tokkl icon, the hourglass in Pomodoro mode, the
-// project indicator, the elapsed time (the session's countdown during a
-// session) and, unless the timer is ready, a symbol for its state.
-//
-// Left click, Space or Return pause a running timer and resume a paused one,
-// in either mode. In Timer mode they start a stopped timer; Stop is in the
-// menu. In Pomodoro mode they start a session. Whenever a session is active,
-// in either mode and whichever device started it, they confirm Next phase
-// while the alarm rings and otherwise open the menu. Right click, the Menu
-// key or Shift+F10 opens the menu. Tab focuses the item and a frame shows the
-// focus.
+// During an active session the primary click confirms Next phase while the
+// alarm rings and otherwise opens the menu.
 MouseArea {
     id: button
 
     required property TokklTimer timer
-    // Null until the backend has built it; the timer alone then takes the
-    // click, as in Timer mode.
+    // Null reads as Timer mode.
     property TokklPomodoroSession session: null
     property bool monochromeIcon: false
     readonly property color panelInk: Kirigami.Theme.textColor
     readonly property bool lightPanelInk: panelInk.r * 0.2126 + panelInk.g * 0.7152 + panelInk.b * 0.0722 > 0.5
 
-    // The words the button, its menu and the widget's tooltip share.
     required property StatusText words
     readonly property alias menu: menu
 
     signal openRequested(url url)
     signal configureRequested
 
-    // The left click, Space, Return and the press action. Returns true when
-    // the session asks for the menu instead.
+    // Returns true when the session asks for the menu instead.
     function activate(): bool {
         if (button.session === null) {
             button.timer.toggle();
@@ -47,8 +35,7 @@ MouseArea {
         return button.session.activate() === TokklPomodoroSession.OpenMenu;
     }
 
-    // Opens the menu with its first enabled entry highlighted, so the
-    // keyboard focus is visible at once.
+    // Highlights the first enabled entry so keyboard focus shows at once.
     function openMenuFromKeyboard() {
         menu.popup(button, 0, button.height);
         for (let i = 0; i < menu.count; ++i) {
@@ -89,11 +76,9 @@ MouseArea {
     }
 
     Accessible.role: Accessible.Button
-    // What the click does, as the core decides it (TokklStatusParts.action).
     Accessible.name: button.words.actionName
-    // The session's line has no project or connection state, so the
-    // description names them: a failing connection otherwise shows only as
-    // the state symbol. The core decides which parts (TokklStatusParts).
+    // Names the project and connection state, which the session's line
+    // leaves out; otherwise a failing connection shows only as a symbol.
     Accessible.description: button.words.accessibleDescription
     Accessible.focusable: true
     Accessible.onPressAction: {
@@ -118,7 +103,6 @@ MouseArea {
             color: button.monochromeIcon ? button.panelInk : "transparent"
         }
 
-        // Pomodoro mode: the hourglass, tinted like the logo when monochrome.
         Kirigami.Icon {
             objectName: "pomodoroGlyph"
             Layout.preferredWidth: Kirigami.Units.iconSizes.small
@@ -170,7 +154,6 @@ MouseArea {
         }
     }
 
-    // The keyboard focus frame.
     Rectangle {
         objectName: "focusFrame"
         anchors.fill: parent

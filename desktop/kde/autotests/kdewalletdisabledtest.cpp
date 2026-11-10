@@ -1,7 +1,5 @@
-// KdeConnection and KdeConnectionSetup with KDE Wallet turned off in
-// kwalletrc. KDE Wallet reads that setting once per process, so this runs
-// apart from kdeconnection. The kwalletrc is in a temporary directory, and the
-// session bus address leads nowhere, so no real wallet or setting is touched.
+// KDE Wallet reads kwalletrc once per process, so this runs apart from
+// kdeconnectiontest.
 
 #include "kdeconnection.h"
 #include "kwalletcredentialstore.h"

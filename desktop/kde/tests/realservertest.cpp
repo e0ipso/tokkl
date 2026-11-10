@@ -1,13 +1,5 @@
-// The companion's connection and timer controller against real Tokkl
-// servers, over HTTP. realserver.test.ts in this directory starts the servers
-// with the API's multi-user test fixtures, puts a proxy in front of each
-// instance that can hold a reply back, and runs this binary with the fixture
-// description in TOKKL_REALSERVER_FIXTURE. It checks the servers' data after
-// this binary exits. Run it through realserver.test.ts, not on its own.
-//
-// Only the credential store, the Pomodoro mode store and the clock are fakes:
-// the stores so no wallet or settings file is needed, the clock so polling can
-// be moved forward without waiting.
+// Run through realserver.test.ts, which starts the servers and proxies and
+// checks the servers' data after this binary exits.
 
 #include "apitypes.h"
 #include "connection.h"
@@ -38,13 +30,8 @@ using namespace Tokkl;
 namespace
 {
 constexpr int timeoutMs = 15000;
-// How long a check for "nothing else happens" waits in real time, on top of
-// moving the fake clock past several poll intervals.
 constexpr int quietMs = 2000;
-// The instances' time resolution, set by the fixture, in seconds.
 constexpr qint64 resolutionSeconds = 60;
-// How long a change made on the server may take to reach a companion whose
-// stream is up.
 constexpr int pushMs = 2000;
 
 struct Entry {
@@ -137,13 +124,11 @@ bool loadFixture(QString *error)
     return true;
 }
 
-// One request the companion sent, and the answer when it came.
 struct Exchange {
     HttpRequest request;
     std::optional<HttpResponse> response;
 };
 
-// The real transport, recording what goes through it.
 class RecordingTransport : public Transport
 {
     Q_OBJECT
@@ -163,14 +148,12 @@ public:
         return reply;
     }
 
-    // Streams pass through unrecorded.
     PendingStream *openStream(const HttpRequest &request) override
     {
         return m_inner.openStream(request);
     }
 
-    // Requests from index `from` on that match the method and a path suffix
-    // (the path after /api/v9, or after `api`, query excluded).
+    // The path suffix is after `api`, query excluded.
     QList<std::shared_ptr<Exchange>> since(qsizetype from, const QByteArray &method = {}, const QString &path = {}, const QString &api = QStringLiteral("/api/v9")) const
     {
         QList<std::shared_ptr<Exchange>> found;
@@ -184,13 +167,11 @@ public:
         return found;
     }
 
-    // The same for the app's own API, such as /timer/pause.
     QList<std::shared_ptr<Exchange>> sinceApp(qsizetype from, const QByteArray &method = {}, const QString &path = {}) const
     {
         return since(from, method, path, QStringLiteral("/api/app"));
     }
 
-    // Every recorded request has its answer.
     bool settled() const
     {
         return std::all_of(log.cbegin(), log.cend(), [](const auto &exchange) {
@@ -209,7 +190,6 @@ bool isWrite(const QByteArray &method)
     return method == "POST" || method == "PUT" || method == "PATCH" || method == "DELETE";
 }
 
-// Pomodoro mode in memory.
 class MemoryPomodoroStore : public PomodoroStore
 {
 public:
@@ -227,16 +207,13 @@ public:
     bool pomodoro = false;
 };
 
-// The companion as the widget assembles it, with the fake store and clock.
-// It sends the widget's client name, which realserver.test.ts checks in
-// created_with.
+// realserver.test.ts checks the widget's client name in created_with.
 struct Session {
     FakeCredentialStore store;
     RecordingTransport transport;
     FakeClock clock;
     MemoryPomodoroStore pomodoroStore;
     TimerStack stack{&transport, &store, pomodoroStore, clock, QStringLiteral("tokkl-kde")};
-    // The stack's parts, by the names the tests read them under.
     Connection &connection{*stack.connection()};
     TimerController &timer{*stack.timer()};
     TimerStateClient &state{*timer.stateClient()};
@@ -260,8 +237,6 @@ struct Session {
         connection.setInstanceUrl(user.url);
     }
 
-    // Replaces the stored token for the same instance, as saving another
-    // account's token on the Configure page does.
     void replaceToken(const User &user)
     {
         bool written = false;
@@ -271,10 +246,8 @@ struct Session {
         QTRY_VERIFY_WITH_TIMEOUT(written, timeoutMs);
     }
 
-    // Moves the fake clock across several poll intervals and lets real time
-    // pass, so a retry or poll loop would show in the log. The steps are
-    // shorter than the gap between ticks that the state client takes for a
-    // wake from sleep, which would read the state and replace the stream.
+    // Steps stay shorter than the tick gap the state client reads as a wake
+    // from sleep, which would replace the stream.
     void idle()
     {
         const int step = TimerStateClient::resumeGapMs / 2;
@@ -284,16 +257,13 @@ struct Session {
         QTest::qWait(quietMs);
     }
 
-    // The reply to the last request since `from` with this method and app
-    // path has arrived. A state from the stream may come first.
+    // A state from the stream may come first.
     bool answered(qsizetype from, const QByteArray &method, const QString &path) const
     {
         const auto found = transport.sinceApp(from, method, path);
         return !found.isEmpty() && found.last()->response.has_value();
     }
 
-    // The paths of the writes sent since `from`, such as /timer/pause, after
-    // /api/app. A write outside the app's API shows as its full path.
     QStringList writesSince(qsizetype from) const
     {
         QStringList paths;
@@ -326,7 +296,6 @@ struct Session {
     }
 };
 
-// A blocking JSON request to the fixture's control server.
 std::optional<QJsonObject> control(const QString &path, const QJsonObject &body = {})
 {
     QNetworkAccessManager manager;
@@ -361,7 +330,6 @@ bool hold(const QString &instance, const QByteArray &method, const QString &path
         .has_value();
 }
 
-// The same for a request to the app's own API, such as /timer/pause.
 bool holdApp(const QString &instance, const QByteArray &method, const QString &path)
 {
     return control(QStringLiteral("/hold"),
@@ -415,8 +383,7 @@ private:
     bool m_active;
 };
 
-// How many requests with this method and app path the proxy has received
-// from any client since the run began, whatever the companion logged.
+// Counted at the proxy, whatever the companion logged.
 int requestsSeen(const QString &instance, const QByteArray &method, const QString &path)
 {
     const auto answer = control(QStringLiteral("/seen"),
@@ -426,17 +393,15 @@ int requestsSeen(const QString &instance, const QByteArray &method, const QStrin
     return answer ? answer->value(QStringLiteral("seen")).toInt() : -1;
 }
 
-// Cuts every held reply off before its last byte and closes the connection.
-// The server has acted on the request. A connection that closes before the
-// first byte of the reply would make Qt send the request again by itself.
+// A connection closed before the first reply byte would make Qt resend
+// the request by itself.
 bool dropHeld(const QString &instance)
 {
     const auto answer = control(QStringLiteral("/drop"), {{QStringLiteral("instance"), instance}});
     return answer && answer->value(QStringLiteral("dropped")).toInt() > 0;
 }
 
-// A request to the app's API as the user, from outside the companion: another
-// device of the same account. The proxy never sees it.
+// Another device of the same account; the proxy never sees it.
 struct Answer {
     int status = 0;
     QJsonObject body;
@@ -454,7 +419,6 @@ Answer callAs(const User &user, const QByteArray &method, const QString &path, c
     return answer ? Answer{answer->value(QStringLiteral("status")).toInt(), answer->value(QStringLiteral("body")).toObject()} : Answer{};
 }
 
-// A request outside the companion's own flow, with its encoders and transport.
 HttpResponse sendRaw(const QByteArray &method, const User &user, const QByteArray &authorization, const QString &path, const QByteArray &body = {})
 {
     NetworkTransport transport(QStringLiteral("tokkl-kde"));
@@ -474,7 +438,6 @@ QByteArray tokenAuthorization(const User &user)
     return basicAuthorization(AuthMode::Token, QString(), user.token);
 }
 
-// The requests as one line each, for the message of a failed check.
 QString describe(const QList<std::shared_ptr<Exchange>> &exchanges)
 {
     QStringList lines;
@@ -495,7 +458,6 @@ QStringList sorted(QStringList list)
     return list;
 }
 
-// The companion's H:MM, in whole minutes.
 QString hoursAndMinutes(qint64 seconds)
 {
     return QStringLiteral("%1:%2").arg(seconds / 3600).arg((seconds % 3600) / 60, 2, 10, QLatin1Char('0'));
@@ -514,14 +476,11 @@ class RealServerTest : public QObject
         return fixture.users[key];
     }
 
-    // The answer every refused credential gets, from a token that never existed.
     HttpResponse unknownTokenAnswer(const User &anyone)
     {
         return sendRaw("GET", anyone, basicAuthorization(AuthMode::Token, QString(), QStringLiteral("0000000000000000000000000000dead")), QStringLiteral("/me"));
     }
 
-    // After a refusal: no account data, no writes, a message that does not
-    // claim to know why, and no request until the user reconnects.
     void checkRefusedAndQuiet(Session &s)
     {
         QCOMPARE(s.connection.state(), Connection::AuthenticationFailed);
@@ -539,8 +498,8 @@ class RealServerTest : public QObject
         s.idle();
         QCOMPARE(s.transport.log.size(), before);
 
-        // An explicit reconnect asks once more and stops again. The refusal
-        // ended the generation, so the server's announcement is read first.
+        // The refusal ended the generation, so the server's announcement is read
+        // first.
         s.connection.reconnect();
         QTRY_COMPARE_WITH_TIMEOUT(s.transport.since(before).size(), 2, timeoutMs);
         QTRY_VERIFY_WITH_TIMEOUT(s.transport.since(before).last()->response.has_value(), timeoutMs);
@@ -561,9 +520,6 @@ private Q_SLOTS:
         QVERIFY(heldReplies(QStringLiteral("a")) == 0);
     }
 
-    // A user who is not an admin and whose workspace is not 1 sees only their
-    // own projects and timer, and the server refuses their requests against
-    // another workspace.
     void isolation()
     {
         const User &u = user(QStringLiteral("a.u"));
@@ -590,11 +546,9 @@ private Q_SLOTS:
                      qPrintable(exchange->request.url.toString()));
         }
 
-        // The companion's own encoders, aimed at the admin's workspace.
         const QByteArray auth = tokenAuthorization(u);
         const QString foreign = QStringLiteral("/workspaces/%1/time_entries").arg(admin.workspaceId);
         const QList<std::tuple<QByteArray, QString, QByteArray>> attempts = {
-            // A plain v9 create of a running entry; the companion itself starts through /api/app.
             {"POST", foreign, QJsonDocument(QJsonObject{
                                   {QStringLiteral("workspace_id"), admin.workspaceId},
                                   {QStringLiteral("start"), QDateTime::currentDateTimeUtc().toString(Qt::ISODate)},
@@ -612,9 +566,6 @@ private Q_SLOTS:
         }
     }
 
-    // Switching accounts on one instance: replies to the old account that
-    // arrive late, a read and a start, change nothing for the new one, and the
-    // start is not sent again.
     void userSwitchWithLateReplies()
     {
         const User &admin = user(QStringLiteral("a.admin"));
@@ -625,7 +576,6 @@ private Q_SLOTS:
         QTRY_VERIFY_WITH_TIMEOUT(s.ready(admin), timeoutMs);
         QCOMPARE(s.timer.currentEntry()->id, admin.running->id);
 
-        // A late read of the admin's running entry.
         QVERIFY(holdApp(QStringLiteral("a"), "GET", QStringLiteral("/timer")));
         s.state.refresh();
         s.timer.refreshProjects();
@@ -640,7 +590,6 @@ private Q_SLOTS:
         QVERIFY(s.ready(u));
         QVERIFY(!s.timer.currentEntry());
 
-        // A late start by u, answered after the switch back to the admin.
         const qsizetype beforeStart = s.transport.log.size();
         QVERIFY(holdApp(QStringLiteral("a"), "POST", QStringLiteral("/timer/start")));
         QVERIFY(s.timer.start());
@@ -662,9 +611,6 @@ private Q_SLOTS:
         }
     }
 
-    // Switching instances where every id collides: the user, workspace,
-    // project and running entry ids are the same on both. A late reply from
-    // the old instance changes nothing, and a stop goes to the new one only.
     void crossInstanceCollidingIds()
     {
         const User &a = user(QStringLiteral("a.s"));
@@ -695,7 +641,6 @@ private Q_SLOTS:
         QTest::qWait(500);
 
         QVERIFY(s.ready(b));
-        // The new instance's GET /api/app/status, read once, picks the app routes.
         QCOMPARE(s.transport.sinceApp(switchedAt, "GET", QStringLiteral("/status")).size(), 1);
         QVERIFY(s.connection.server().capabilities.contains(QStringLiteral("timer-actions")));
         QCOMPARE(s.timer.currentEntry()->id, b.running->id);
@@ -711,12 +656,8 @@ private Q_SLOTS:
         QCOMPARE(s.transport.sinceApp(switchedAt, "POST", QStringLiteral("/timer/stop")).size(), 1);
     }
 
-    // The account loses the workspace it works in. The read of its catalog
-    // revision is refused with 403: the companion asks /me once, blocks writes and its
-    // workspace reads, and sends nothing more. The credentials are not
-    // treated as refused. A stop would not show the loss: POST
-    // /api/app/timer/stop checks only that the workspace exists, so it would
-    // stop the entry.
+    // A stop would not show the loss: /api/app/timer/stop checks only that the
+    // workspace exists.
     void membershipLoss()
     {
         const User &m = user(QStringLiteral("a.m"));
@@ -741,13 +682,11 @@ private Q_SLOTS:
 
         s.idle();
 
-        // The catalog revision is the workspace read the refresh sends.
         const auto reads = s.transport.sinceApp(before, "GET", QStringLiteral("/workspaces/%1/catalog").arg(m.workspaceId));
         QCOMPARE(reads.size(), 1);
         QCOMPARE(reads.first()->response->status, 403);
         QVERIFY(s.transport.since(before, "GET", QStringLiteral("/workspaces/%1/projects").arg(m.workspaceId)).isEmpty());
         QCOMPARE(s.transport.since(before, "GET", QStringLiteral("/me")).size(), 1);
-        // The refresh read the state too, which the account keeps.
         QCOMPARE(s.transport.sinceApp(before, "GET", QStringLiteral("/timer")).size(), 1);
         QVERIFY2(s.transport.since(before).size() == 3, qPrintable(describe(s.transport.since(before))));
         QCOMPARE(s.connection.state(), Connection::Connected);
@@ -759,9 +698,7 @@ private Q_SLOTS:
         QCOMPARE(s.transport.since(before).size(), 3);
     }
 
-    // The admin disables an account while the companion has a write to send.
-    // The stop's 403 alone is not taken as refused credentials: /me is asked
-    // once, and its 403 is.
+    // The stop's 403 alone is not taken as refused credentials; /me's is.
     void disabledTokenDuringWrite()
     {
         const User &dt = user(QStringLiteral("a.dt"));
@@ -774,8 +711,7 @@ private Q_SLOTS:
         // A read still on its way when the account is disabled would be the
         // first request refused.
         QTRY_VERIFY_WITH_TIMEOUT(s.transport.settled(), timeoutMs);
-        // The server ends the account's stream when it disables it. The stream
-        // goes silent first, so the stop is the first request to be refused.
+        // The stream goes silent first, so the stop is the first request refused.
         StreamStall stall(QStringLiteral("a"));
         QVERIFY(stall.active());
         QVERIFY(control(QStringLiteral("/disable"), {{QStringLiteral("user"), dt.key}}));
@@ -789,7 +725,6 @@ private Q_SLOTS:
         QCOMPARE(all.at(0)->response->status, 403);
         QCOMPARE(s.transport.since(before, "GET", QStringLiteral("/me")).size(), 1);
 
-        // The same answer as for a token that never existed.
         const HttpResponse unknown = unknownTokenAnswer(dt);
         QCOMPARE(all.at(1)->response->status, 403);
         QCOMPARE(unknown.status, 403);
@@ -799,7 +734,6 @@ private Q_SLOTS:
         checkRefusedAndQuiet(s);
     }
 
-    // The same with email and password, refused on a read of the timer.
     void disabledPasswordOnRead()
     {
         const User &dp = user(QStringLiteral("a.dp"));
@@ -812,7 +746,6 @@ private Q_SLOTS:
         QTRY_VERIFY_WITH_TIMEOUT(s.state.streaming(), timeoutMs);
         QCOMPARE(s.timer.currentEntry()->id, dp.running->id);
         QTRY_VERIFY_WITH_TIMEOUT(s.transport.settled(), timeoutMs);
-        // As above, the read is the first request to be refused.
         StreamStall stall(QStringLiteral("a"));
         QVERIFY(stall.active());
         QVERIFY(control(QStringLiteral("/disable"), {{QStringLiteral("user"), dp.key}}));
@@ -822,8 +755,7 @@ private Q_SLOTS:
         s.timer.refreshProjects();
         QTRY_COMPARE_WITH_TIMEOUT(s.connection.state(), Connection::AuthenticationFailed, timeoutMs);
         QTest::qWait(500);
-        // The entry read refuses the credentials; the catalog read sent with
-        // it may be refused first and trigger one /me. Nothing is written.
+        // The catalog read may be refused first and trigger one /me.
         const auto all = s.transport.since(before);
         QVERIFY2(all.size() >= 2 && all.size() <= 3, qPrintable(describe(all)));
         QVERIFY(s.transport.since(before, "GET", QStringLiteral("/me")).size() <= 1);
@@ -839,12 +771,6 @@ private Q_SLOTS:
         checkRefusedAndQuiet(s);
     }
 
-    // Pause and resume against the server. The clone copies the task, the
-    // tags and the billable flag, and the chain total is what the server
-    // stored for the stopped entries. Another client deletes the task and then
-    // the project while the chain is paused: the stream brings the chain
-    // without them, and a resume still starts a clone, with the tags, the flag
-    // and the description but no project or task.
     void pauseAndResume()
     {
         const User &p = user(QStringLiteral("a.p"));
@@ -925,7 +851,6 @@ private Q_SLOTS:
         QTRY_VERIFY_WITH_TIMEOUT(s.timer.isPaused() && s.timer.canWrite(), timeoutMs);
         QCOMPARE(s.timer.chainSeconds(), total);
 
-        // Stop while paused discards the chain and writes no entry.
         const qsizetype beforeStop = s.transport.log.size();
         QVERIFY(s.timer.stop());
         QTRY_VERIFY_WITH_TIMEOUT(!s.timer.isPaused() && s.timer.canWrite(), timeoutMs);
@@ -939,12 +864,8 @@ private Q_SLOTS:
         QVERIFY(!s.timer.currentEntry());
     }
 
-    // Another device resumes while this companion's stream is silent, so the
-    // resume the companion sends carries a revision the server has left. The
-    // server refuses it with 409 and the state that is there now, which the
-    // companion shows: the clone the other device started. The refusal stays on
-    // show through the polls that follow, the resume is never sent again, and
-    // stop ends the chain.
+    // Another device resumes while this stream is silent, so the resume
+    // carries a revision the server has left.
     void resumeOnStaleRevision()
     {
         const User &q = user(QStringLiteral("a.q"));
@@ -988,7 +909,6 @@ private Q_SLOTS:
         QCOMPARE(s.timer.errorString(), refusal);
         QVERIFY(s.timer.isRunning());
 
-        // The clone belongs to the chain, so stopping it ends the chain.
         stall.release();
         QVERIFY(s.timer.stop());
         QTRY_VERIFY_WITH_TIMEOUT(!s.timer.isRunning() && s.timer.canWrite(), timeoutMs);
@@ -999,10 +919,6 @@ private Q_SLOTS:
         QCOMPARE(s.transport.sinceApp(before, "POST", QStringLiteral("/timer/stop")).size(), 1);
     }
 
-    // A Pomodoro session run from the companion: Start session, Next phase
-    // twice and End session. The pomodoros keep the project and billable flag
-    // the session started with, every call carries the revision the companion
-    // held and is answered, and nothing goes through the v9 entry calls.
     void pomodoroSessionRun()
     {
         const User &sn = user(QStringLiteral("a.sn"));
@@ -1034,7 +950,6 @@ private Q_SLOTS:
         QVERIFY(first.entryId > 0);
         QCOMPARE(first.config.workMinutes, 25);
 
-        // Work to rest changes the session only.
         QVERIFY(s.pomodoro.confirmNextPhase());
         QTRY_VERIFY_WITH_TIMEOUT(s.pomodoro.phase() == QLatin1String("shortRest") && s.answered(before, "POST", QStringLiteral("/pomodoro/next")), timeoutMs);
         QCOMPARE(s.pomodoro.nextPhase(), QStringLiteral("work"));
@@ -1043,14 +958,12 @@ private Q_SLOTS:
         const qint64 restRevision = s.state.state()->revision;
         QVERIFY(restRevision > startRevision);
 
-        // Rest to work ends the first pomodoro and starts the second.
         const qsizetype beforeSecond = s.transport.log.size();
         QVERIFY(s.pomodoro.confirmNextPhase());
         QTRY_VERIFY_WITH_TIMEOUT(s.pomodoro.phase() == QLatin1String("work") && s.answered(beforeSecond, "POST", QStringLiteral("/pomodoro/next")), timeoutMs);
         QCOMPARE(s.pomodoro.pomodoroNumber(), 2);
         const TimerPomodoro second = *s.state.state()->pomodoro;
         QVERIFY(second.entryId != first.entryId);
-        // The first one lasted seconds: the server dropped it, and the state says so once.
         QVERIFY(s.state.state()->discardedPomodoro);
         QCOMPARE(s.state.state()->discardedPomodoro->entryId, first.entryId);
         QCOMPARE(s.pomodoro.message(), QStringLiteral("This pomodoro was too short to save."));
@@ -1067,12 +980,10 @@ private Q_SLOTS:
         QVERIFY(!s.pomodoro.modeLocked());
         QTRY_VERIFY_WITH_TIMEOUT(s.timer.canWrite(), timeoutMs);
         QVERIFY(s.state.streaming());
-        // The second pomodoro lasted seconds, so the server dropped it and the state says so.
         QVERIFY(s.state.state()->discardedPomodoro);
         QCOMPARE(s.state.state()->discardedPomodoro->entryId, second.entryId);
         QCOMPARE(s.pomodoro.message(), QStringLiteral("This pomodoro was too short to save."));
 
-        // Four writes, all to the app's session calls, each answered with 200.
         QCOMPARE(s.writesSince(before),
                  (QStringList{QStringLiteral("/pomodoro"), QStringLiteral("/pomodoro/next"), QStringLiteral("/pomodoro/next"), QStringLiteral("/pomodoro/end")}));
         for (const auto &exchange : s.transport.since(before)) {
@@ -1083,10 +994,7 @@ private Q_SLOTS:
         }
     }
 
-    // A session started, advanced and ended on another device shows in the
-    // companion within two seconds, in Timer mode, through the stream alone:
-    // the companion sends no read and no write, and the fake clock never moves,
-    // so no poll could have brought it.
+    // The fake clock never moves, so only the stream can bring the session.
     void pomodoroSessionPushedByAnotherDevice()
     {
         const User &pu = user(QStringLiteral("a.pu"));
@@ -1122,10 +1030,6 @@ private Q_SLOTS:
         QVERIFY(s.transport.sinceApp(before, "GET", QStringLiteral("/timer")).isEmpty());
     }
 
-    // Pause, resume, pause again and discard with Stop. The chain total is what
-    // the server stored: the hour the seeded entry ran, and nothing for the
-    // clone, which stopped seconds after it started. Each action is the
-    // server's timer action, and no v9 call writes.
     void pauseResumeAndDiscard()
     {
         const User &pc = user(QStringLiteral("a.pc"));
@@ -1182,10 +1086,8 @@ private Q_SLOTS:
         }
     }
 
-    // The proxy keeps the reply to a pause back and cuts it off. The server has
-    // paused, and the stream says so while the reply is held, but the
-    // companion does not know the outcome of its write: it never sends the
-    // pause again, reads the state, and that read settles the result.
+    // The server has paused, but the companion does not know the outcome of
+    // its write.
     void lostPauseReply()
     {
         const User &hd = user(QStringLiteral("a.hd"));
@@ -1211,10 +1113,8 @@ private Q_SLOTS:
         const auto pauses = s.transport.sinceApp(before, "POST", QStringLiteral("/timer/pause"));
         QCOMPARE(pauses.size(), 1);
         QTRY_VERIFY_WITH_TIMEOUT(pauses.first()->response.has_value(), timeoutMs);
-        // What came back is the head of a reply and part of its body: nothing the companion can read.
         QVERIFY(!QJsonDocument::fromJson(pauses.first()->response->body).isObject());
 
-        // A read sent after the lost reply brings the state and ends the wait.
         QTRY_VERIFY_WITH_TIMEOUT(!s.state.settling() && s.timer.canWrite(), timeoutMs);
         const qsizetype pausedAt = s.transport.log.indexOf(pauses.first());
         bool readAfter = false;
@@ -1232,8 +1132,6 @@ private Q_SLOTS:
         QCOMPARE(s.timer.errorString(), QString());
         QCOMPARE(s.timer.status(), TimerController::Ready);
 
-        // Nothing sends the pause again, however long it takes: the proxy
-        // received one, whatever the companion's own log says.
         s.idle();
         QCOMPARE(s.writesSince(before), QStringList{QStringLiteral("/timer/pause")});
         QCOMPARE(requestsSeen(QStringLiteral("a"), "POST", QStringLiteral("/timer/pause")) - pausesBefore, 1);
