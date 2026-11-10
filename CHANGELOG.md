@@ -1,3 +1,13 @@
+## [2.2.0](https://github.com/e0ipso/tokkl/compare/v2.1.0...v2.2.0) (2026-11-10)
+
+### Features
+
+* **web:** show the Pomodoro lengths as stepper cards ([7e59f7c](https://github.com/e0ipso/tokkl/commit/7e59f7cbd1e52794e769ca0a2ba49f9029865cb3))
+
+### Bug Fixes
+
+* **web:** keep the Pomodoro stepper cards compact on wide screens ([9d89eea](https://github.com/e0ipso/tokkl/commit/9d89eea73ee4202fa127680e6a5f478c333d8008)), closes [#75](https://github.com/e0ipso/tokkl/issues/75)
+
 ## [2.1.0](https://github.com/e0ipso/tokkl/compare/v2.0.0...v2.1.0) (2026-11-02)
 
 ### Features
