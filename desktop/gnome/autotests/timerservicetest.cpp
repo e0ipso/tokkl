@@ -1,6 +1,3 @@
-// org.tokkl.Timer1 driven over a private D-Bus daemon, as the extension uses
-// it, against the core's scripted transport, credential store and clock.
-
 #include "alarmoutput.h"
 #include "pomodoroalarm.h"
 #include "statuspresentation.h"
@@ -54,13 +51,10 @@ const QString clientBus = QStringLiteral("timerd-client");
 const QString propertiesInterface = QStringLiteral("org.freedesktop.DBus.Properties");
 const QString startedAt = QStringLiteral("2026-10-16T08:58:55Z");
 const QString invalidArgs = QStringLiteral("org.freedesktop.DBus.Error.InvalidArgs");
-// The a{si} and a{ss} properties, named so the test macros read them whole.
 using IntMap = QMap<QString, int>;
 using StringMap = QMap<QString, QString>;
-// The account's lengths: one minute each, a long rest after two work phases.
 const PomodoroConfig lengths{1, 1, 1, 2};
 
-// A Configure call from the client bus for a token account, not waited for.
 QDBusPendingCall configureCall(const QString &url, const QString &secret)
 {
     QDBusMessage message = QDBusMessage::createMethodCall(TimerService::serviceName, TimerService::objectPath, TimerService::interfaceName, QStringLiteral("Configure"));
@@ -84,8 +78,6 @@ QJsonObject entryObject(qint64 id, qint64 project, bool running, bool billable =
     };
 }
 
-// A billable entry on Beta (12) from begin: running, or stopped after the
-// given seconds.
 QJsonObject chainEntry(qint64 id, const QDateTime &begin, std::optional<qint64> seconds)
 {
     return QJsonObject{
@@ -130,8 +122,6 @@ IntMap lengthsMap(const PomodoroConfig &config)
     };
 }
 
-// GET /api/app/time_entries/latest: the newest entry the account has,
-// stopped, on Alpha.
 QByteArray latestBody()
 {
     QJsonObject entry = entryObject(4, 11, false, true);
@@ -140,9 +130,6 @@ QByteArray latestBody()
     return json(entry);
 }
 
-// The server's pause chain of the entries chainEntry() builds: Review on
-// Beta, with the seconds its stopped entries stored, and the running clone
-// unless paused.
 QJsonObject pauseObject(bool paused, qint64 seconds, std::optional<qint64> clone = std::nullopt)
 {
     return QJsonObject{
@@ -159,7 +146,6 @@ QJsonObject pauseObject(bool paused, qint64 seconds, std::optional<qint64> clone
     };
 }
 
-// The body of an action that carries the revision it was made against.
 QJsonObject revisionBody(qint64 revision)
 {
     return QJsonObject{{QStringLiteral("revision"), revision}};
@@ -171,7 +157,6 @@ struct Interface {
     QSet<QString> signalNames;
 };
 
-// The interfaces of an introspection document, by name.
 QMap<QString, Interface> parseIntrospection(const QByteArray &xml)
 {
     QMap<QString, Interface> interfaces;
@@ -207,18 +192,14 @@ QMap<QString, Interface> parseIntrospection(const QByteArray &xml)
     return interfaces;
 }
 
-// Records PropertiesChanged and RequestFinished of org.tokkl.Timer1 on the
-// client connection.
 class ChangeRecorder : public QObject
 {
     Q_OBJECT
 
 public:
     QList<QVariantMap> changes;
-    // Each RequestFinished as its id, ok and error.
     QList<QVariantList> finished;
 
-    // Every value a property took, in order.
     QVariantList valuesOf(const QString &property) const
     {
         QVariantList values;
@@ -244,7 +225,6 @@ public Q_SLOTS:
     }
 };
 
-// Records what the alarm asks of the audio, one line per call.
 class FakeAlarmOutput : public AlarmOutput
 {
 public:
@@ -265,14 +245,12 @@ public:
         calls.append(QStringLiteral("stop"));
     }
 
-    // As a sound server that refused the last sound.
     void fail(const QString &reason)
     {
         reportFailure(reason);
     }
 };
 
-// The bundled sounds, from the core's sounds/ directory.
 QString bundledSoundsDir()
 {
     const QStringList files = QString::fromUtf8(TOKKL_POMODORO_SOUND_FILES).split(QLatin1Char('|'));
@@ -285,9 +263,7 @@ QString bundled(const QString &soundId)
 }
 }
 
-// The object graph main.cpp builds for tokkl-timerd, on the test's
-// transport, credential store and clock, in the same order. The alarm plays
-// on an output that records what it is asked.
+// main.cpp's object graph, built in the same order.
 struct Daemon {
     Daemon(Transport *transport, CredentialStore *store, const QString &settingsFile, Clock *clock)
         : settings(settingsFile, QSettings::IniFormat)
@@ -307,7 +283,6 @@ struct Daemon {
     QSettings settings;
     SettingsPomodoroStore pomodoroStore;
     TimerStack stack;
-    // The stack's, by the names the tests read them under.
     Connection &connection;
     TimerController &timer;
     PomodoroSession &session;
@@ -331,14 +306,11 @@ class TimerServiceTest : public QObject
         TimerService *service = nullptr;
         ChangeRecorder recorder;
         QSet<qsizetype> answered;
-        // What the server holds for the account, at its revision. serve()
-        // answers every state read with it.
         QJsonValue running = QJsonValue::Null;
         QJsonValue chain = QJsonValue::Null;
         QJsonValue session = QJsonValue::Null;
         QJsonValue dropped = QJsonValue::Null;
         qint64 revision = 1;
-        // How far the server's clock runs ahead of this machine's.
         qint64 serverAheadMs = 0;
 
         QString settingsFile() const
@@ -380,8 +352,7 @@ class TimerServiceTest : public QObject
             return call(QStringLiteral("org.freedesktop.DBus.Peer"), QStringLiteral("Ping")).type() == QDBusMessage::ReplyMessage;
         }
 
-        // Replaces the service with a new one on the same settings file, as
-        // a restart of tokkl-timerd. The recorder stays connected.
+        // As a tokkl-timerd restart on the same settings file.
         bool restart()
         {
             service = nullptr;
@@ -391,7 +362,6 @@ class TimerServiceTest : public QObject
             return service->registerOn(QDBusConnection(serviceBus)) && ping();
         }
 
-        // One tick per second, as the system clock ticks.
         void advance(int seconds)
         {
             for (int i = 0; i < seconds; ++i) {
@@ -420,7 +390,6 @@ class TimerServiceTest : public QObject
             return call(TimerService::interfaceName, method, arguments);
         }
 
-        // The first output of a method call, or an invalid variant on error.
         QVariant result(const QString &method, const QVariantList &arguments = {}) const
         {
             const QDBusMessage reply = timer(method, arguments);
@@ -436,7 +405,6 @@ class TimerServiceTest : public QObject
             return reply.arguments().constFirst().value<QDBusVariant>().variant();
         }
 
-        // The server's state at its current revision, on the fake clock.
         QByteArray state() const
         {
             return json(QJsonObject{
@@ -449,8 +417,6 @@ class TimerServiceTest : public QObject
             });
         }
 
-        // A change on the server: the next revision, which is also returned
-        // as the state an action or the event stream sends.
         QByteArray change(const QJsonValue &runningEntry, const QJsonValue &pauseChain = QJsonValue::Null, const QJsonValue &pomodoro = QJsonValue::Null, const QJsonValue &discardedPomodoro = QJsonValue::Null)
         {
             running = runningEntry;
@@ -461,7 +427,6 @@ class TimerServiceTest : public QObject
             return state();
         }
 
-        // A state from the event stream, as another device's change sends it.
         bool push(const QByteArray &state)
         {
             FakeStream *stream = transport.lastStream();
@@ -472,7 +437,6 @@ class TimerServiceTest : public QObject
             return true;
         }
 
-        // Requests whose API path ends with the given text.
         QList<qsizetype> find(const QByteArray &method, const QByteArray &suffix) const
         {
             QList<qsizetype> found;
@@ -491,8 +455,6 @@ class TimerServiceTest : public QObject
             transport.respond(index, response);
         }
 
-        // Answers the latest request with the method and path, as the
-        // instance would. False when there is none.
         bool answer(const QByteArray &method, const QByteArray &suffix, const QByteArray &body, int status = 200)
         {
             const QList<qsizetype> found = find(method, suffix);
@@ -503,8 +465,6 @@ class TimerServiceTest : public QObject
             return true;
         }
 
-        // Answers every read the core sends, as the instance would, until the
-        // service reports ready with nothing left to read.
         bool serve()
         {
             return QTest::qWaitFor([this] {
@@ -536,7 +496,6 @@ class TimerServiceTest : public QObject
             });
         }
 
-        // Configure over the bus with a token, then answer the reads.
         bool connect()
         {
             const QDBusMessage reply = timer(QStringLiteral("Configure"), {instanceUrl, QStringLiteral("token"), QString(), QStringLiteral("tok-1")});
@@ -564,8 +523,6 @@ private Q_SLOTS:
         m_bus.stop();
     }
 
-    // Introspection shows the interface of dbus/org.tokkl.Timer1.xml, and the
-    // properties announce changes through PropertiesChanged.
     void introspection()
     {
         Fixture f;
@@ -621,8 +578,6 @@ private Q_SLOTS:
             {QStringLiteral("InterfaceVersion"), QStringLiteral("u read")},
         };
         QCOMPARE(timer.properties, properties);
-        // The version of the interface, which the extension picks its
-        // fallbacks by.
         const QVariant version = f.get(QStringLiteral("InterfaceVersion"));
         QCOMPARE(version.metaType(), QMetaType::fromType<uint>());
         QCOMPARE(version.toUInt(), 2u);
@@ -657,8 +612,6 @@ private Q_SLOTS:
         QVERIFY(live.value(propertiesInterface).signalNames.contains(QStringLiteral("PropertiesChanged")));
     }
 
-    // Configure saves the secret and the settings, the core connects, and each
-    // property follows its core property and announces the change.
     void configureConnectsAndPublishes()
     {
         Fixture f;
@@ -686,7 +639,6 @@ private Q_SLOTS:
         QCOMPARE(me.size(), 1);
         QCOMPARE(f.transport.requests.at(me.first()).authorization, basicAuthorization(AuthMode::Token, QString(), QStringLiteral("tok-1")));
 
-        // The next start defaults to the project of the last entry.
         TimerController *core = &f.daemon->timer;
         QCOMPARE(f.get(QStringLiteral("Status")).toString(), QStringLiteral("ready"));
         QCOMPARE(f.get(QStringLiteral("ChosenProject")).toLongLong(), 11);
@@ -705,7 +657,6 @@ private Q_SLOTS:
         QCOMPARE(projects.at(0).value(QStringLiteral("billable")).toBool(), true);
         QCOMPARE(projects.at(1).value(QStringLiteral("name")).toString(), QStringLiteral("Beta"));
 
-        // The changes reached the bus as PropertiesChanged.
         QVERIFY(QTest::qWaitFor([&f] {
             return f.recorder.valuesOf(QStringLiteral("Status")).contains(QStringLiteral("ready"));
         }));
@@ -716,15 +667,11 @@ private Q_SLOTS:
         const QVariantList published = f.recorder.valuesOf(QStringLiteral("Projects"));
         QVERIFY(!published.isEmpty());
         QCOMPARE(qdbus_cast<QList<QVariantMap>>(published.last()).size(), 2);
-        // Only values that changed travel.
         for (const QVariantMap &change : std::as_const(f.recorder.changes)) {
             QVERIFY(!change.isEmpty());
         }
     }
 
-    // A state that changes properties of every kind reaches the bus as one
-    // PropertiesChanged, and each property Get reads differently afterwards
-    // is in it with that value.
     void changesArriveOncePerTurn()
     {
         Fixture f;
@@ -733,8 +680,7 @@ private Q_SLOTS:
         QFile file(QStringLiteral(TOKKL_TIMER1_XML));
         QVERIFY(file.open(QIODevice::ReadOnly));
         const QStringList names = parseIntrospection(file.readAll()).value(TimerService::interfaceName).properties.keys();
-        // Only plain values compare after the bus; containers arrive as
-        // QDBusArgument.
+        // Containers arrive as QDBusArgument, so only plain values compare.
         const auto plain = [](const QVariant &value) {
             return value.metaType() != QMetaType::fromType<QDBusArgument>();
         };
@@ -745,8 +691,6 @@ private Q_SLOTS:
         QVERIFY(f.ping());
         const qsizetype published = f.recorder.changes.size();
 
-        // Another device starts an entry: the entry, the mode lock, the
-        // actions and the project shown change together.
         QVERIFY(f.push(f.change(entryObject(5, 12, true))));
         QVERIFY(QTest::qWaitFor([&f, published] {
             return f.recorder.changes.size() > published;
@@ -767,26 +711,19 @@ private Q_SLOTS:
         }
     }
 
-    // The core's project rules hold over the bus, and the entries the service
-    // starts carry its client name.
     void projectRulesAndClientName()
     {
         Fixture f;
         QVERIFY(f.start());
         QVERIFY(f.connect());
 
-        // A pick while stopped wins over the default and applies the
-        // project's billable default.
         QCOMPARE(f.result(QStringLiteral("SetProject"), {qint64(12)}).toBool(), true);
         QCOMPARE(f.get(QStringLiteral("ChosenProject")).toLongLong(), 12);
         QCOMPARE(f.get(QStringLiteral("Billable")).toBool(), false);
         QCOMPARE(f.get(QStringLiteral("IndicatorColor")).toString(), QStringLiteral("#d94182"));
-        // Only an active project of the workspace is a choice.
         QCOMPARE(f.result(QStringLiteral("SetProject"), {qint64(999)}).toBool(), false);
         QCOMPARE(f.get(QStringLiteral("ChosenProject")).toLongLong(), 12);
 
-        // Start creates a new entry on the chosen project, against the
-        // revision shown.
         QCOMPARE(f.result(QStringLiteral("Start")).toBool(), true);
         const QList<qsizetype> starts = f.find("POST", "/app/timer/start");
         QCOMPARE(starts.size(), 1);
@@ -794,7 +731,6 @@ private Q_SLOTS:
         QCOMPARE(body.value(QStringLiteral("created_with")).toString(), QStringLiteral("tokkl-gnome"));
         QCOMPARE(body.value(QStringLiteral("project_id")).toInteger(), 12);
         QCOMPARE(body.value(QStringLiteral("revision")).toInteger(), f.revision);
-        // A second start while the first is in flight sends nothing.
         QCOMPARE(f.result(QStringLiteral("Start")).toBool(), false);
         QCOMPARE(f.find("POST", "/app/timer/start").size(), 1);
 
@@ -806,15 +742,12 @@ private Q_SLOTS:
         QVERIFY(f.recorder.valuesOf(QStringLiteral("Running")).contains(true));
         QVERIFY(f.recorder.valuesOf(QStringLiteral("StartTime")).contains(start));
 
-        // The project is locked while the entry runs.
         const qsizetype sent = f.transport.requests.size();
         QCOMPARE(f.result(QStringLiteral("SetProject"), {qint64(11)}).toBool(), false);
         QCOMPARE(f.result(QStringLiteral("SetProject"), {qint64(0)}).toBool(), false);
         QCOMPARE(f.transport.requests.size(), sent);
         QCOMPARE(f.get(QStringLiteral("ChosenProject")).toLongLong(), 12);
 
-        // Billable stays editable: one timer edit that carries only billable,
-        // naming the running entry.
         QCOMPARE(f.result(QStringLiteral("SetBillable"), {QVariant(true)}).toBool(), true);
         const QList<qsizetype> updates = f.find("POST", "/app/timer/edit");
         QCOMPARE(updates.size(), 1);
@@ -826,7 +759,6 @@ private Q_SLOTS:
         QCOMPARE(f.get(QStringLiteral("Billable")).toBool(), true);
         QVERIFY(f.recorder.valuesOf(QStringLiteral("Billable")).contains(true));
 
-        // Stop, after which the next start defaults to the stopped entry's project.
         QCOMPARE(f.result(QStringLiteral("Stop")).toBool(), true);
         const QList<qsizetype> stops = f.find("POST", "/app/timer/stop");
         QCOMPARE(stops.size(), 1);
@@ -837,16 +769,12 @@ private Q_SLOTS:
         QCOMPARE(f.get(QStringLiteral("StartTime")).toLongLong(), 0);
         QCOMPARE(f.get(QStringLiteral("ChosenProject")).toLongLong(), 12);
         QVERIFY(f.recorder.valuesOf(QStringLiteral("Running")).contains(false));
-        // No project, while stopped, is a valid pick.
         QCOMPARE(f.result(QStringLiteral("SetProject"), {qint64(0)}).toBool(), true);
         QCOMPARE(f.get(QStringLiteral("ChosenProject")).toLongLong(), 0);
         QCOMPARE(f.get(QStringLiteral("ChosenProjectName")).toString(), QString());
         QCOMPARE(f.get(QStringLiteral("IndicatorState")).toString(), QStringLiteral("none"));
     }
 
-    // A request is followed to its end: RequestFinished carries its id with
-    // the outcome, after the properties it changed, and the plain methods
-    // send none.
     void requestsReportTheirEnd()
     {
         Fixture f;
@@ -856,10 +784,8 @@ private Q_SLOTS:
             return value.toULongLong();
         };
 
-        // A start the server refuses.
         const qulonglong refusedStart = requestOf(f.result(QStringLiteral("RequestStart")));
         QVERIFY(refusedStart > 0);
-        // One write at a time: nothing is sent while it runs.
         QCOMPARE(requestOf(f.result(QStringLiteral("RequestStart"))), 0ULL);
         const QList<qsizetype> starts = f.find("POST", "/app/timer/start");
         QCOMPARE(starts.size(), 1);
@@ -869,7 +795,6 @@ private Q_SLOTS:
         // ErrorString had the words before the signal came.
         QVERIFY(f.recorder.valuesOf(QStringLiteral("ErrorString")).contains(QStringLiteral("Project is archived")));
 
-        // A start the server applies, with the next id.
         const qulonglong start = requestOf(f.result(QStringLiteral("RequestStart")));
         QVERIFY(start > refusedStart);
         f.respond(f.find("POST", "/app/timer/start").last(), FakeTransport::answer(200, f.change(entryObject(5, 11, true))));
@@ -878,8 +803,6 @@ private Q_SLOTS:
         QVERIFY(f.serve());
         QCOMPARE(f.get(QStringLiteral("Running")).toBool(), true);
 
-        // A pause whose answer never comes: not ok, with the connection's
-        // words.
         const qulonglong pause = requestOf(f.result(QStringLiteral("RequestPause")));
         QVERIFY(pause > start);
         f.respond(f.find("POST", "/app/timer/pause").last(), FakeTransport::failure(HttpResponse::Outcome::Timeout));
@@ -889,8 +812,6 @@ private Q_SLOTS:
         QVERIFY(!f.recorder.finished.last().at(2).toString().isEmpty());
         QVERIFY(f.serve());
 
-        // The plain method sends and reports nothing more; a request with
-        // nothing to do returns 0.
         QCOMPARE(requestOf(f.result(QStringLiteral("RequestResume"))), 0ULL);
         QCOMPARE(f.result(QStringLiteral("Stop")).toBool(), true);
         f.respond(f.find("POST", "/app/timer/stop").last(), FakeTransport::answer(200, f.change(QJsonValue::Null)));
@@ -899,10 +820,7 @@ private Q_SLOTS:
         QCOMPARE(f.recorder.finished.size(), 3);
     }
 
-    // The server's clock runs 90 s ahead of this machine's. StartTime keeps
-    // the server's start; LocalStartTime is on this machine's clock, so the
-    // extension's elapsed time, its clock minus LocalStartTime, is the
-    // core's.
+    // The server's clock runs 90 s ahead of this machine's.
     void localStartTimeFollowsTheServerClock()
     {
         Fixture f;
@@ -917,8 +835,6 @@ private Q_SLOTS:
         QVERIFY(f.recorder.valuesOf(QStringLiteral("LocalStartTime")).contains(start - 90));
         QCOMPARE(f.clock.now().toSecsSinceEpoch() - local, f.daemon->timer.elapsedSeconds());
 
-        // This machine's clock is set 60 s forward. The same state, read
-        // again, moves only the offset, and LocalStartTime follows it.
         f.clock.current = f.clock.current.addSecs(60);
         f.serverAheadMs = 30000;
         QVERIFY(f.push(f.state()));
@@ -926,15 +842,12 @@ private Q_SLOTS:
         QCOMPARE(f.get(QStringLiteral("StartTime")).toLongLong(), start);
         QCOMPARE(f.clock.now().toSecsSinceEpoch() - (start - 30), f.daemon->timer.elapsedSeconds());
 
-        // Stopped elsewhere: both are 0.
         QVERIFY(f.push(f.change(QJsonValue::Null)));
         QTRY_COMPARE(f.get(QStringLiteral("Running")).toBool(), false);
         QCOMPARE(f.get(QStringLiteral("LocalStartTime")).toLongLong(), 0);
         QCOMPARE(f.get(QStringLiteral("StartTime")).toLongLong(), 0);
     }
 
-    // RefreshProjects, which the extension calls when its menu opens, asks
-    // for the catalog revision and reads the list only when it moved.
     void refreshProjectsReadsTheListWhenItMoved()
     {
         Fixture f;
@@ -958,7 +871,6 @@ private Q_SLOTS:
         QCOMPARE(f.find("GET", "/timer").size(), states);
     }
 
-    // A project list cut short at the paging limit is published as such.
     void projectsIncompleteIsPublished()
     {
         Fixture f;
@@ -973,8 +885,6 @@ private Q_SLOTS:
         QVERIFY(f.connect());
         QCOMPARE(f.get(QStringLiteral("ProjectsIncomplete")).toBool(), false);
 
-        // The projects changed, and every page up to the limit is full and
-        // new.
         f.transport.catalog = FakeTransport::catalogAt(2);
         QCOMPARE(f.timer(QStringLiteral("RefreshProjects")).type(), QDBusMessage::ReplyMessage);
         for (int number = 1; number <= Connection::maxProjectPages; ++number) {
@@ -992,12 +902,9 @@ private Q_SLOTS:
         }
         QTRY_COMPARE(f.get(QStringLiteral("ProjectsIncomplete")).toBool(), true);
         QVERIFY(f.recorder.valuesOf(QStringLiteral("ProjectsIncomplete")).contains(true));
-        // The projects read stay offered.
         QCOMPARE(f.service->projects().size(), Connection::maxProjectPages * Connection::projectPageSize);
     }
 
-    // A running entry on an archived project: Projects lacks it, but the
-    // core reads it, so the indicator shows it and ChosenProjectName names it.
     void archivedRunningProjectIsNamed()
     {
         Fixture f;
@@ -1024,13 +931,10 @@ private Q_SLOTS:
         }));
         QCOMPARE(f.get(QStringLiteral("IndicatorColor")).toString(), QStringLiteral("#2da608"));
         QCOMPARE(f.get(QStringLiteral("ChosenProjectName")).toString(), QStringLiteral("Legacy"));
-        // The label's parts say it is archived, so the extension words it
-        // as the KDE and macOS menus do.
         const QVariantMap label = qdbus_cast<QVariantMap>(f.get(QStringLiteral("ChosenProjectLabel")));
         QCOMPARE(label.value(QStringLiteral("name")).toString(), QStringLiteral("Legacy"));
         QCOMPARE(label.value(QStringLiteral("archived")).toBool(), true);
         QCOMPARE(label.value(QStringLiteral("missing")).toBool(), false);
-        // The core decides which words the label takes.
         QCOMPARE(label.value(QStringLiteral("kind")).toString(), QStringLiteral("named"));
         const QList<QVariantMap> projects = qdbus_cast<QList<QVariantMap>>(f.get(QStringLiteral("Projects")));
         for (const QVariantMap &project : projects) {
@@ -1041,10 +945,6 @@ private Q_SLOTS:
         }));
     }
 
-    // Pause asks the server to stop the running entry and keep the chain,
-    // Resume starts its clone against the revision shown, and ChainSeconds
-    // is what the server stored until Stop ends the chain. Running and
-    // StartTime keep their meaning throughout.
     void pauseAndResume()
     {
         Fixture f;
@@ -1055,14 +955,11 @@ private Q_SLOTS:
         QCOMPARE(f.get(QStringLiteral("Running")).toBool(), true);
         QCOMPARE(f.get(QStringLiteral("Paused")).toBool(), false);
         QCOMPARE(f.get(QStringLiteral("ChainSeconds")).toLongLong(), 0);
-        // Nothing is paused, so there is nothing to resume.
         QCOMPARE(f.result(QStringLiteral("Resume")).toBool(), false);
 
         qint64 total = 0;
         qint64 running = 5;
         for (const qint64 seconds : {qint64(60), qint64(300)}) {
-            // Pause sends one request against the revision shown, and the
-            // entry stops when the server says so.
             const qint64 pausedAt = f.revision;
             QCOMPARE(f.result(QStringLiteral("Pause")).toBool(), true);
             const QList<qsizetype> pauses = f.find("POST", "/timer/pause");
@@ -1077,8 +974,6 @@ private Q_SLOTS:
             QCOMPARE(f.get(QStringLiteral("Running")).toBool(), false);
             QCOMPARE(f.get(QStringLiteral("StartTime")).toLongLong(), 0);
             QVERIFY(f.recorder.valuesOf(QStringLiteral("ChainSeconds")).contains(total));
-            // The paused entry's project and billable flag stay on show and
-            // cannot be chosen.
             QCOMPARE(f.get(QStringLiteral("ChosenProject")).toLongLong(), 12);
             QCOMPARE(f.get(QStringLiteral("ChosenProjectName")).toString(), QStringLiteral("Beta"));
             QCOMPARE(f.get(QStringLiteral("Billable")).toBool(), true);
@@ -1089,7 +984,6 @@ private Q_SLOTS:
             QCOMPARE(f.result(QStringLiteral("SetBillable"), {QVariant(false)}).toBool(), false);
             QCOMPARE(f.transport.requests.size(), sent);
 
-            // Resume sends the revision shown, and the server starts the clone.
             const qint64 shown = f.revision;
             const qsizetype before = f.find("POST", "/timer/resume").size();
             QCOMPARE(f.result(QStringLiteral("Resume")).toBool(), true);
@@ -1107,7 +1001,6 @@ private Q_SLOTS:
             QCOMPARE(f.get(QStringLiteral("ChainSeconds")).toLongLong(), total);
         }
 
-        // Stop while running stops the clone and ends the chain.
         QCOMPARE(f.result(QStringLiteral("Stop")).toBool(), true);
         const QList<qsizetype> stops = f.find("POST", "/app/timer/stop");
         QCOMPARE(stops.size(), 1);
@@ -1120,9 +1013,6 @@ private Q_SLOTS:
         QCOMPARE(f.result(QStringLiteral("Resume")).toBool(), false);
     }
 
-    // Stop while paused asks the server to discard the chain against the
-    // revision shown and changes nothing until the server answers. The next
-    // Start begins a new chain.
     void stopWhilePausedDiscardsTheChain()
     {
         Fixture f;
@@ -1137,8 +1027,6 @@ private Q_SLOTS:
         QCOMPARE(f.get(QStringLiteral("Paused")).toBool(), true);
         QCOMPARE(f.get(QStringLiteral("ChainSeconds")).toLongLong(), 600);
 
-        // Stop sends the discard against the revision shown and changes
-        // nothing until the server answers.
         const qint64 shown = f.revision;
         QCOMPARE(f.result(QStringLiteral("Stop")).toBool(), true);
         QList<qsizetype> discards = f.find("POST", "/timer/discard");
@@ -1147,8 +1035,7 @@ private Q_SLOTS:
         QCOMPARE(f.get(QStringLiteral("Paused")).toBool(), true);
         QCOMPARE(f.result(QStringLiteral("Stop")).toBool(), false);
 
-        // No answer: the chain stays and the discard is not sent again. A
-        // read that follows settles it, and then Stop can be tried again.
+        // No answer: the chain stays until a follow-up read settles it.
         f.respond(discards.first(), FakeTransport::failure(HttpResponse::Outcome::NetworkError, QStringLiteral("Host unreachable")));
         QCOMPARE(f.get(QStringLiteral("Paused")).toBool(), true);
         QCOMPARE(f.result(QStringLiteral("Stop")).toBool(), false);
@@ -1164,15 +1051,12 @@ private Q_SLOTS:
         QCOMPARE(f.get(QStringLiteral("ChainSeconds")).toLongLong(), 0);
         QCOMPARE(f.get(QStringLiteral("Running")).toBool(), false);
         QVERIFY(f.recorder.valuesOf(QStringLiteral("Paused")).contains(false));
-        // Nothing is left to stop or resume, and the next start is plain.
         QCOMPARE(f.result(QStringLiteral("Stop")).toBool(), false);
         QCOMPARE(f.result(QStringLiteral("Resume")).toBool(), false);
         QCOMPARE(f.result(QStringLiteral("Start")).toBool(), true);
         QCOMPARE(f.find("POST", "/app/timer/start").size(), 1);
     }
 
-    // A 409 shows the state the server sent instead, and says why nothing
-    // happened.
     void conflictShowsTheChangeFromAnotherDevice()
     {
         Fixture f;
@@ -1210,7 +1094,6 @@ private Q_SLOTS:
         QCOMPARE(f.daemon->connection.instanceUrl(), QString());
     }
 
-    // A refused secret leaves the settings as they were.
     void configureReportsCredentialStoreFailure()
     {
         Fixture f;
@@ -1225,7 +1108,6 @@ private Q_SLOTS:
         QCOMPARE(f.get(QStringLiteral("Status")).toString(), QStringLiteral("unconfigured"));
     }
 
-    // A restarted service connects with the saved settings and the stored secret.
     void restoresSettings()
     {
         Fixture f;
@@ -1243,7 +1125,6 @@ private Q_SLOTS:
                  basicAuthorization(AuthMode::Token, QString(), QStringLiteral("tok-saved")));
     }
 
-    // The replaced call says so: its settings were never applied.
     void replacedConfigureFailsAsSuperseded()
     {
         QTemporaryDir dir;
@@ -1269,7 +1150,6 @@ private Q_SLOTS:
         QCOMPARE(daemon.connection.instanceUrl(), parseInstanceUrl(other).base.toString());
     }
 
-    // A second instance cannot take the name, as tokkl-timerd then exits.
     void secondInstanceRefused()
     {
         Fixture f;
@@ -1282,10 +1162,6 @@ private Q_SLOTS:
         QCOMPARE(QDBusConnection(clientBus).interface()->serviceOwner(TimerService::serviceName).value(), QDBusConnection(serviceBus).baseService());
     }
 
-    // A session started on another device shows in Timer mode, locks the
-    // mode and takes the clicks: the menu before the planned end, Next phase
-    // after it. Its actions go to the server against the revision shown, and
-    // the state that follows shows the result.
     void sessionStartedElsewhereAppearsInTimerMode()
     {
         Fixture f;
@@ -1300,7 +1176,6 @@ private Q_SLOTS:
         QCOMPARE(f.get(QStringLiteral("PomodoroMode")).toBool(), false);
         QCOMPARE(f.get(QStringLiteral("ModeLocked")).toBool(), true);
         QCOMPARE(f.get(QStringLiteral("CanStartSession")).toBool(), false);
-        // The open pomodoro belongs to the session, not to the timer.
         QCOMPARE(f.get(QStringLiteral("Running")).toBool(), false);
         QCOMPARE(f.get(QStringLiteral("StartTime")).toLongLong(), 0);
         QCOMPARE(f.get(QStringLiteral("Paused")).toBool(), false);
@@ -1314,18 +1189,15 @@ private Q_SLOTS:
         QVERIFY(f.recorder.valuesOf(QStringLiteral("SessionActive")).contains(true));
         QVERIFY(f.recorder.valuesOf(QStringLiteral("ModeLocked")).contains(true));
 
-        // The timer is the session's while it runs.
         const qsizetype sent = f.transport.requests.size();
         QCOMPARE(f.result(QStringLiteral("SetPomodoroMode"), {QVariant(true)}).toBool(), false);
         QCOMPARE(f.result(QStringLiteral("Start")).toBool(), false);
         QCOMPARE(f.result(QStringLiteral("Stop")).toBool(), false);
         QCOMPARE(f.result(QStringLiteral("Pause")).toBool(), false);
         QCOMPARE(f.result(QStringLiteral("StartSession")).toBool(), false);
-        // Before the planned end a click opens the menu.
         QCOMPARE(f.result(QStringLiteral("Activate")).toString(), QStringLiteral("open-menu"));
         QCOMPARE(f.transport.requests.size(), sent);
 
-        // After it the click confirms Next phase against the revision shown.
         f.advance(50);
         QVERIFY(f.serve());
         QCOMPARE(f.get(QStringLiteral("Ringing")).toBool(), true);
@@ -1344,7 +1216,6 @@ private Q_SLOTS:
         QCOMPARE(f.get(QStringLiteral("Ringing")).toBool(), false);
         QCOMPARE(f.get(QStringLiteral("UpcomingPhase")).toString(), QStringLiteral("work"));
 
-        // The menu's End session goes to the server too.
         QCOMPARE(f.result(QStringLiteral("EndSession")).toBool(), true);
         const QList<qsizetype> ends = f.find("POST", "/pomodoro/end");
         QCOMPARE(ends.size(), 1);
@@ -1357,7 +1228,6 @@ private Q_SLOTS:
         QVERIFY(f.find("POST", "/app/timer/start").isEmpty());
     }
 
-    // A session ended on another device leaves the timer free again.
     void sessionEndedElsewhereFreesTheTimer()
     {
         Fixture f;
@@ -1376,10 +1246,6 @@ private Q_SLOTS:
         QCOMPARE(f.result(QStringLiteral("Start")).toBool(), true);
     }
 
-    // Pomodoro mode is stored and locks while a session runs. The session is
-    // the server's: Start session, Next phase and End session go to it, the
-    // planned end rings with the chosen sound for the player, and a restart
-    // reads the session again.
     void pomodoroSessionOverTheBus()
     {
         Fixture f;
@@ -1407,13 +1273,10 @@ private Q_SLOTS:
             const QSettings settings(f.settingsFile(), QSettings::IniFormat);
             QCOMPARE(settings.value(QStringLiteral("Pomodoro/pomodoroMode")).toBool(), true);
         }
-        // Start is refused in Pomodoro mode and sends nothing.
         const qsizetype sent = f.transport.requests.size();
         QCOMPARE(f.result(QStringLiteral("Start")).toBool(), false);
         QCOMPARE(f.transport.requests.size(), sent);
 
-        // Start session sends the chosen project, and the server starts the
-        // session with the account's lengths.
         const QDateTime at = f.clock.now();
         QCOMPARE(f.result(QStringLiteral("StartSession")).toBool(), true);
         QCOMPARE(f.get(QStringLiteral("CanStartSession")).toBool(), false);
@@ -1447,8 +1310,6 @@ private Q_SLOTS:
         QVERIFY(f.recorder.valuesOf(QStringLiteral("ModeLocked")).contains(true));
         QCOMPARE(f.result(QStringLiteral("SetPomodoroMode"), {QVariant(false)}).toBool(), false);
         QCOMPARE(f.get(QStringLiteral("PomodoroMode")).toBool(), true);
-        // The open pomodoro is the session's: Project and Billable are locked,
-        // in Actions and in the methods.
         const qsizetype requests = f.transport.requests.size();
         QCOMPARE(f.result(QStringLiteral("SetProject"), {qint64(0)}).toBool(), false);
         QCOMPARE(f.result(QStringLiteral("SetBillable"), {QVariant(false)}).toBool(), false);
@@ -1456,8 +1317,7 @@ private Q_SLOTS:
         QCOMPARE(f.service->actions().value(QStringLiteral("project")).value(QStringLiteral("enabled")).toBool(), false);
         QCOMPARE(f.service->actions().value(QStringLiteral("billable")).value(QStringLiteral("enabled")).toBool(), false);
 
-        // The countdown is not published; the planned end is, as Ringing,
-        // and the player hears the sound chosen for the transition.
+        // The countdown is not published, only the planned end.
         f.advance(59);
         QVERIFY(f.serve());
         QVERIFY(f.ping());
@@ -1472,8 +1332,6 @@ private Q_SLOTS:
         QVERIFY(f.recorder.valuesOf(QStringLiteral("RingingTransition")).contains(QStringLiteral("workToShortRest")));
         QCOMPARE(output.calls, QStringList{QStringLiteral("loop ") + bundled(QStringLiteral("long-rest-to-work"))});
 
-        // Next phase asks the server, which starts the rest; the alarm
-        // rings on until the state shows it.
         const qint64 shown = f.revision;
         QCOMPARE(f.result(QStringLiteral("NextPhase")).toBool(), true);
         QCOMPARE(QJsonDocument::fromJson(f.transport.requests.at(f.find("POST", "/pomodoro/next").first()).body).object(), revisionBody(shown));
@@ -1488,7 +1346,6 @@ private Q_SLOTS:
         QCOMPARE(output.calls.size(), 2);
         QCOMPARE(output.calls.last(), QStringLiteral("stop"));
 
-        // Rest to work: the server saves the pomodoro, the service sends no entry.
         f.advance(61);
         QVERIFY(f.serve());
         QCOMPARE(f.result(QStringLiteral("NextPhase")).toBool(), true);
@@ -1499,7 +1356,6 @@ private Q_SLOTS:
         QCOMPARE(f.get(QStringLiteral("PomodoroNumber")).toInt(), 2);
         QCOMPARE(f.get(QStringLiteral("UpcomingPhase")).toString(), QStringLiteral("longRest"));
 
-        // A restarted service reads the session from the server.
         QVERIFY(f.restart());
         QCOMPARE(f.get(QStringLiteral("PomodoroMode")).toBool(), true);
         QCOMPARE(f.get(QStringLiteral("SessionActive")).toBool(), false);
@@ -1509,7 +1365,6 @@ private Q_SLOTS:
         QCOMPARE(f.get(QStringLiteral("PomodoroNumber")).toInt(), 2);
         QCOMPARE(f.get(QStringLiteral("ModeLocked")).toBool(), true);
 
-        // End session asks the server and unlocks the mode.
         f.advance(90);
         QVERIFY(f.serve());
         QCOMPARE(f.result(QStringLiteral("EndSession")).toBool(), true);
@@ -1526,8 +1381,6 @@ private Q_SLOTS:
         QCOMPARE(f.get(QStringLiteral("PomodoroMode")).toBool(), false);
     }
 
-    // A pomodoro the server dropped as too short is reported as
-    // SessionMessage, and so is the reason the server refused an action.
     void sessionMessageIsPublished()
     {
         Fixture f;
@@ -1535,8 +1388,6 @@ private Q_SLOTS:
         QVERIFY(f.connect());
         QCOMPARE(f.result(QStringLiteral("SetPomodoroMode"), {QVariant(true)}).toBool(), true);
 
-        // A refused start says why, and the session can be started again
-        // once the read after it has answered.
         QCOMPARE(f.result(QStringLiteral("StartSession")).toBool(), true);
         QVERIFY(f.answer("POST", "/pomodoro", errorBody("Project not found"), 404));
         QCOMPARE(f.get(QStringLiteral("SessionMessage")).toString(), QStringLiteral("Project not found"));
@@ -1546,7 +1397,6 @@ private Q_SLOTS:
         QVERIFY(f.serve());
         QCOMPARE(f.get(QStringLiteral("CanStartSession")).toBool(), true);
 
-        // The next action clears it.
         const QDateTime at = f.clock.now();
         QCOMPARE(f.result(QStringLiteral("StartSession")).toBool(), true);
         QCOMPARE(f.get(QStringLiteral("SessionMessage")).toString(), QString());
@@ -1567,8 +1417,6 @@ private Q_SLOTS:
         }));
     }
 
-    // Actions carries the core's menu rules with the GNOME policy, and its
-    // changes reach the bus like any other property's.
     void actionsFollowTheCore()
     {
         Fixture f;
@@ -1602,7 +1450,6 @@ private Q_SLOTS:
         QCOMPARE(action(QStringLiteral("run")).value(QStringLiteral("visible")).toBool(), false);
         QCOMPARE(action(QStringLiteral("startSession")).value(QStringLiteral("visible")).toBool(), true);
         QCOMPARE(action(QStringLiteral("startSession")).value(QStringLiteral("enabled")).toBool(), true);
-        // The last Actions the bus saw shows Start session.
         QVERIFY(QTest::qWaitFor([&f] {
             const QVariantList published = f.recorder.valuesOf(QStringLiteral("Actions"));
             return !published.isEmpty()
@@ -1612,8 +1459,6 @@ private Q_SLOTS:
         QCOMPARE(last.value(QStringLiteral("startSession")).value(QStringLiteral("visible")).toBool(), true);
     }
 
-    // Presentation carries the core's StatusPresentation with the GNOME
-    // policy, and its changes reach the bus like any other property's.
     void presentationFollowsTheCore()
     {
         Fixture f;
@@ -1637,7 +1482,6 @@ private Q_SLOTS:
             return !published.isEmpty() && qdbus_cast<QVariantMap>(published.last()).value(QStringLiteral("mark")).toString() == QLatin1String("none");
         }));
 
-        // Pomodoro mode joins the summary.
         QCOMPARE(f.result(QStringLiteral("SetPomodoroMode"), {QVariant(true)}).toBool(), true);
         QVERIFY(QTest::qWaitFor([&f] {
             const QVariantList published = f.recorder.valuesOf(QStringLiteral("Presentation"));
@@ -1646,11 +1490,6 @@ private Q_SLOTS:
         }));
     }
 
-    // Activate: in Timer mode, and while an entry runs or a chain is
-    // paused, it toggles the timer (start, pause, resume); in Pomodoro mode
-    // it starts a session, is ignored while that waits for the server or
-    // without an account, opens the menu during a phase, and confirms the
-    // next phase while ringing.
     void activateInEachBranch()
     {
         Fixture f;
@@ -1659,12 +1498,10 @@ private Q_SLOTS:
         QCOMPARE(f.result(QStringLiteral("Activate")).toString(), QStringLiteral("ignored"));
         QCOMPARE(f.result(QStringLiteral("StartSession")).toBool(), false);
         QCOMPARE(f.result(QStringLiteral("SetPomodoroMode"), {QVariant(false)}).toBool(), true);
-        // The timer's toggle without an account sends nothing either.
         QCOMPARE(f.result(QStringLiteral("Activate")).toString(), QStringLiteral("ignored"));
         QVERIFY(f.connect());
 
         QCOMPARE(f.result(QStringLiteral("Activate")).toString(), QStringLiteral("handled"));
-        // A click while the start waits for its answer applies nothing.
         QCOMPARE(f.result(QStringLiteral("Activate")).toString(), QStringLiteral("ignored"));
         QCOMPARE(f.find("POST", "/app/timer/start").size(), 1);
         QVERIFY(f.answer("POST", "/app/timer/start", f.change(entryObject(5, 11, true))));
@@ -1677,8 +1514,6 @@ private Q_SLOTS:
         QCOMPARE(f.find("POST", "/timer/pause").size(), 1);
         QVERIFY(f.answer("POST", "/timer/pause", f.change(QJsonValue::Null, pauseObject(true, 65))));
         QVERIFY(f.serve());
-        // The click paused the chain, which locks the mode too; Stop while
-        // paused discards it.
         QCOMPARE(f.get(QStringLiteral("Running")).toBool(), false);
         QCOMPARE(f.get(QStringLiteral("Paused")).toBool(), true);
         QCOMPARE(f.get(QStringLiteral("ModeLocked")).toBool(), true);
@@ -1708,10 +1543,6 @@ private Q_SLOTS:
         QCOMPARE(f.find("POST", "/app/timer/start").size(), 1);
     }
 
-    // The lengths follow the account; a save sends only what differs, and
-    // the server's refusals show per length or as the general error.
-    // The limits are the core's, keyed as PomodoroLengths, so the
-    // extension's controls need no copy of them.
     void pomodoroLengthLimitsAreTheCores()
     {
         Fixture f;
@@ -1719,7 +1550,6 @@ private Q_SLOTS:
         const auto published = [&f] {
             return qdbus_cast<QMap<QString, IntMap>>(f.get(QStringLiteral("PomodoroLengthLimits")).value<QDBusArgument>());
         };
-        // Before a server announced any, the core's placeholder.
         QCOMPARE(published().value(QStringLiteral("work")).value(QStringLiteral("max")), PomodoroLimits::placeholder().workMinutes.max);
         QVERIFY(f.connect());
         QTRY_COMPARE(published().value(QStringLiteral("work")).value(QStringLiteral("max")), 180);
@@ -1766,7 +1596,6 @@ private Q_SLOTS:
         QCOMPARE(saves.size(), 1);
         QCOMPARE(QJsonDocument::fromJson(f.transport.requests.at(saves.first()).body).object(),
                  QJsonObject({{QStringLiteral("pomodoro_focus_interval_in_minutes"), 200}}));
-        // Nothing else is sent while the save runs.
         QCOMPARE(f.result(QStringLiteral("SetPomodoroLengths"), {2, 1, 1, 2}).toBool(), false);
         const QString refused = QStringLiteral("Invalid pomodoro_focus_interval_in_minutes: expected an integer from 1 to 180");
         HttpResponse refusal = FakeTransport::answer(400, errorBody("Invalid pomodoro_focus_interval_in_minutes: expected an integer from 1 to 180"));
@@ -1780,11 +1609,9 @@ private Q_SLOTS:
         }));
         QCOMPARE(qdbus_cast<StringMap>(f.recorder.valuesOf(QStringLiteral("PomodoroLengthErrors")).last()), workError);
 
-        // Nothing differs, nothing is sent.
         QCOMPARE(f.result(QStringLiteral("SetPomodoroLengths"), {1, 1, 1, 2}).toBool(), false);
         QCOMPARE(f.find("POST", "/me/preferences").size(), 1);
 
-        // An accepted save shows the new lengths and clears the error.
         QCOMPARE(f.result(QStringLiteral("SetPomodoroLengths"), {2, 1, 1, 2}).toBool(), true);
         saves = f.find("POST", "/me/preferences");
         QCOMPARE(saves.size(), 2);
@@ -1796,13 +1623,11 @@ private Q_SLOTS:
         }));
         QVERIFY(qdbus_cast<StringMap>(f.recorder.valuesOf(QStringLiteral("PomodoroLengthErrors")).last()).isEmpty());
 
-        // A refusal that names no length is the general error.
         QCOMPARE(f.result(QStringLiteral("SetPomodoroLengths"), {2, 1, 1, 3}).toBool(), true);
         f.respond(f.find("POST", "/me/preferences").last(), FakeTransport::answer(400, errorBody("Preferences are too large")));
         QCOMPARE(qdbus_cast<StringMap>(f.get(QStringLiteral("PomodoroLengthErrors"))),
                  (StringMap{{QStringLiteral("general"), QStringLiteral("Preferences are too large")}}));
 
-        // RefreshPreferences reads the lengths again.
         const qsizetype reads = f.find("GET", "/me/preferences").size();
         QCOMPARE(f.timer(QStringLiteral("RefreshPreferences")).type(), QDBusMessage::ReplyMessage);
         const QList<qsizetype> found = f.find("GET", "/me/preferences");
@@ -1812,10 +1637,6 @@ private Q_SLOTS:
         QVERIFY(qdbus_cast<StringMap>(f.get(QStringLiteral("PomodoroLengthErrors"))).isEmpty());
     }
 
-    // Each transition plays its namesake until SetSound chooses another,
-    // which the settings file keeps across a restart. Unknown transitions
-    // and ids are invalid arguments. A preview reaches the player as a Qt
-    // signal and is refused without one.
     void soundsOverTheBus()
     {
         Fixture f;
@@ -1867,8 +1688,6 @@ private Q_SLOTS:
         QCOMPARE(qdbus_cast<StringMap>(f.get(QStringLiteral("Sounds"))), chosen);
     }
 
-    // A sound the output could not play, or whose file is missing, shows in
-    // AlarmError until the next sound starts.
     void alarmErrorTellsWhyNoSoundPlayed()
     {
         Fixture f;
@@ -1880,11 +1699,9 @@ private Q_SLOTS:
         QCOMPARE(f.get(QStringLiteral("AlarmError")).toString(), QStringLiteral("No alarm sound: Connection refused"));
         QTRY_VERIFY(f.recorder.valuesOf(QStringLiteral("AlarmError")).contains(QStringLiteral("No alarm sound: Connection refused")));
 
-        // The next sound starts afresh.
         QCOMPARE(f.result(QStringLiteral("PreviewSound"), {QStringLiteral("work-to-long-rest")}).toBool(), true);
         QCOMPARE(f.get(QStringLiteral("AlarmError")).toString(), QString());
 
-        // A file that is not there plays nothing and says so.
         QTemporaryDir empty;
         QVERIFY(empty.isValid());
         PomodoroAlarm elsewhere(f.daemon->session, output, f.daemon->sounds, empty.path());
@@ -1893,10 +1710,6 @@ private Q_SLOTS:
         QVERIFY2(elsewhere.failure().startsWith(QStringLiteral("No alarm sound: ")) && elsewhere.failure().contains(empty.path()), qPrintable(elsewhere.failure()));
     }
 
-    // The alarm loops the file of the sound chosen for the ringing
-    // transition, follows a change of choice while ringing, stops on Next
-    // phase and on End session, and plays a preview once. An alarm made
-    // while one rings starts at once.
     void alarmPlayerDrivesTheBackend()
     {
         Fixture f;
@@ -1919,14 +1732,11 @@ private Q_SLOTS:
         f.advance(1);
         QCOMPARE(f.get(QStringLiteral("Ringing")).toBool(), true);
         QCOMPARE(backend.calls, QStringList{QStringLiteral("loop ") + bundled(QStringLiteral("long-rest-to-work"))});
-        // Choosing another sound for the ringing transition switches the loop.
         QCOMPARE(f.result(QStringLiteral("SetSound"), {QStringLiteral("workToShortRest"), QStringLiteral("work-to-long-rest")}).toBool(), true);
         QCOMPARE(backend.calls.last(), QStringLiteral("loop ") + bundled(QStringLiteral("work-to-long-rest")));
-        // A choice for another transition changes nothing.
         backend.calls.clear();
         QCOMPARE(f.result(QStringLiteral("SetSound"), {QStringLiteral("longRestToWork"), QStringLiteral("work-to-short-rest")}).toBool(), true);
         QVERIFY(backend.calls.isEmpty());
-        // A second player hears the alarm that already rings.
         FakeAlarmOutput late;
         PomodoroAlarm latePlayer(f.daemon->session, late, f.daemon->sounds, bundledSoundsDir());
         QCOMPARE(late.calls, QStringList{QStringLiteral("loop ") + bundled(QStringLiteral("work-to-long-rest"))});
@@ -1944,7 +1754,6 @@ private Q_SLOTS:
         QVERIFY(f.answer("POST", "/pomodoro/end", f.change(QJsonValue::Null)));
         QCOMPARE(backend.calls.last(), QStringLiteral("stop"));
         QCOMPARE(backend.calls.size(), 2);
-        // A preview while silent plays once and leaves no loop behind.
         backend.calls.clear();
         QCOMPARE(f.result(QStringLiteral("PreviewSound"), {QStringLiteral("work-to-long-rest")}).toBool(), true);
         QCOMPARE(backend.calls, QStringList{QStringLiteral("once ") + bundled(QStringLiteral("work-to-long-rest"))});

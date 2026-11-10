@@ -1,6 +1,3 @@
-// installTranslations() against catalogs in a temporary locale directory:
-// which file it picks for a locale, and that it installs nothing without one.
-
 #include "translations.h"
 
 #include <QCoreApplication>
@@ -14,8 +11,7 @@ using namespace Tokkl;
 
 namespace
 {
-// A catalog with one message, which lrelease built from a .ts file that
-// translates "source text" in the context TranslationsTest as
+// lrelease output translating "source text" in context TranslationsTest as
 // "translated text". Qt 6.8 refuses a catalog without messages.
 const QByteArray testCatalog = QByteArray::fromHex(
     "3cb86418caef9c95cd211cbf60a1bddd4200000008090dc0740000000069"

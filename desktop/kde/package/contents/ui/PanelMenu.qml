@@ -6,36 +6,16 @@ import org.kde.plasma.components as PlasmaComponents
 
 import com.canpicasoft.tokkl.backend
 
-// The panel item's menu: state, the session's message, Start session, Next
-// phase, End session, Start or Stop, Project, Billable, Pomodoro mode,
-// Reconnect, Open Tokkl and Configure. Arrow keys move, Right opens Project,
-// Return or Space triggers and Escape closes. A hidden entry is disabled too,
-// so the arrow keys skip it.
-//
-// Which of Start or Stop, Start session, Next phase, End session, Project,
-// Billable and Pomodoro mode show and can be chosen comes from the core's
-// rules (TokklMenuActions, MenuActionStates in desktop/core), with the KDE
-// policy: writes wait for canWrite. The timer's rule disables Project and
-// Billable during a session, as neither reaches the open pomodoro. The
-// session is the server's, so Next phase and End session show whenever one
-// is active, in either mode and whichever device started it, and the state
-// line then names the phase.
-//
-// Stop ends the timer and its pause chain; while paused it asks the server
-// to discard the chain. Project sets only the project of the next start;
-// changing the project of a running entry means stopping and starting a new
-// entry. Billable sets the next start too and, while an entry runs, edits
-// that entry in place.
+// Which actions show and can be chosen comes from the core's MenuActions;
+// the KDE policy adds that writes wait for canWrite.
 PlasmaComponents.Menu {
     id: menu
 
     required property TokklTimer timer
-    // Null until the backend has built it, which reads as Timer mode.
+    // Null reads as Timer mode.
     property TokklPomodoroSession session: null
     required property StatusText words
 
-    // The core's states of the timer and session actions: visible, enabled
-    // and label for each.
     readonly property TokklMenuActions menuActions: TokklMenuActions {
         timer: menu.timer
         session: menu.session
@@ -59,17 +39,15 @@ PlasmaComponents.Menu {
     signal openRequested(url url)
     signal configureRequested
 
-    // A separate window, so the menu is not clipped to the panel.
+    // Otherwise the panel clips the menu.
     popupType: T.Popup.Window
 
-    // The projects have no stream: each opening asks the core to check
-    // them, so a project renamed or deleted elsewhere does not stay listed.
+    // Projects have no stream, so each opening refreshes them.
     onAboutToShow: menu.timer.refreshProjects()
     // Plasma's own delegate binds to its parent before it has one.
     delegate: PlasmaComponents.MenuItem {}
 
-    // Shows the controller's state; a click asks the controller instead of
-    // flipping the check mark itself.
+    // A click asks the controller instead of flipping the check mark.
     component ChoiceItem: PlasmaComponents.MenuItem {
         required property bool selected
 
@@ -78,8 +56,7 @@ PlasmaComponents.Menu {
         onToggled: checked = Qt.binding(() => selected)
     }
 
-    // An entry shown only in some states. Hidden, it takes no room and is
-    // disabled, so the keyboard never lands on it.
+    // Hidden also means disabled, so the arrow keys skip it.
     component OptionalItem: PlasmaComponents.MenuItem {
         required property bool shown
         property bool available: true
@@ -89,7 +66,6 @@ PlasmaComponents.Menu {
         height: shown ? implicitHeight : 0
     }
 
-    // An action as the core's state describes it.
     component ActionItem: OptionalItem {
         required property var actionState
 
@@ -97,8 +73,8 @@ PlasmaComponents.Menu {
         available: actionState.enabled
     }
 
-    // Another instance, account or secret: close, so no choice made for the
-    // previous context can be triggered.
+    // Close on a new instance, account or secret, so no choice made for the
+    // previous one can fire.
     Connections {
         target: menu.timer.connection
         ignoreUnknownSignals: true
@@ -115,8 +91,6 @@ PlasmaComponents.Menu {
         Accessible.description: menu.words.detailText
     }
 
-    // The session's message, such as a pomodoro too short to save or an
-    // action that could not reach the instance.
     OptionalItem {
         id: messageItem
         shown: messageItem.text.length > 0
@@ -151,7 +125,6 @@ PlasmaComponents.Menu {
     ActionItem {
         id: runItem
 
-        // Running or paused: the chain is open until Stop.
         readonly property bool stops: runItem.actionState.label === "stop"
 
         actionState: menu.actionStates.run
@@ -163,13 +136,9 @@ PlasmaComponents.Menu {
     PlasmaComponents.Menu {
         id: projectMenu
 
-        // The rows after No project, in the order the core gives them: the
-        // current entry's archived project, a note when the list is cut
-        // short, then the active projects. Row i is item 1 + i of the menu.
+        // Row i is menu item 1 + i, after No project.
         readonly property var rows: menu.timer.projectChoices
 
-        // A choice is possible: the timer can write, nothing runs, no chain
-        // is paused and no session is active.
         readonly property bool choosable: menu.actionStates.project.enabled
 
         popupType: T.Popup.Window
@@ -185,10 +154,6 @@ PlasmaComponents.Menu {
             onTriggered: menu.timer.chooseProject(null)
         }
 
-        // The archived project is shown and checked, never offered for new
-        // work. The note says the projects read are fewer than the workspace
-        // has and points to the web app; it comes before the projects so a
-        // long list does not bury it.
         Instantiator {
             model: projectMenu.rows
             delegate: ChoiceItem {

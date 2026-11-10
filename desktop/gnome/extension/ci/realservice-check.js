@@ -1,10 +1,5 @@
-// Drives the installed extension inside a running GNOME Shell against a real
-// tokkl-timerd connected to a real Tokkl server, so the service's properties
-// reach the panel and the panel's clicks reach the server. It reads the
-// server's address, the account's API token and a project from the
-// TOKKL_GNOME_FIXTURE environment variable (JSON: url, token, project with
-// id, name and color). realservice.test.ts serves that server and checks its
-// data after this exits.
+// Reads TOKKL_GNOME_FIXTURE (JSON: url, token, project with id, name and
+// color). realservice.test.ts serves that server and checks its data after.
 //
 //   gjs -m realservice-check.js UUID TOKKL_TIMERD
 
@@ -39,7 +34,6 @@ const property = name =>
         '(v)',
     )[0];
 
-// What another device does: a call to the app API with the account's token.
 function otherDevice(method, path, body = null) {
     const argv = [
         'curl',
@@ -60,7 +54,6 @@ function otherDevice(method, path, body = null) {
     return JSON.parse(output);
 }
 
-// Which of the menu's start, stop and session items show.
 const items = () =>
     shell(`(() => {
     const button = ${button};
@@ -135,7 +128,6 @@ await step('a primary click starts an entry on the server', async () => {
     await waitFor('Running', () => property('Running') === true, 30_000);
     const start = property('StartTime');
     if (Math.abs(start - before) > 60) throw new Error(`StartTime ${start} is not near ${before}`);
-    // Whole minutes: the entry has just started.
     await waitFor('the running time', () => (label() === '0:00' && property('Status') === 'ready') || label());
     await waitFor('the locked project', () => sensitive('_projectMenu') === false);
 });
@@ -157,8 +149,8 @@ await step('a second primary click pauses: the server stops the entry and the ti
         30_000,
     );
     await waitFor('ready', () => property('Status') === 'ready' || property('Status'), 30_000);
-    // The entry ran seconds, under half a step of the time resolution, so the server sent it to the
-    // trash at zero length and the chain adds nothing.
+    // A run of seconds, under half a time-resolution step, goes to the trash at
+    // zero length, so the chain adds nothing.
     chain = property('ChainSeconds');
     if (chain !== 0) throw new Error(`ChainSeconds ${chain}`);
     await waitFor('the chain total', () => label() === formatElapsed(chain) || label());

@@ -10,8 +10,7 @@ namespace Tokkl
 
 namespace
 {
-// The server's or the connection's reason, first the one that names no
-// length.
+// Prefers the reason that names no length.
 QString refusalOf(const PomodoroPreferences *preferences)
 {
     const QString reasons[] = {
@@ -91,7 +90,6 @@ void PomodoroLengthsSaves::onStateChanged(PomodoroPreferences *preferences)
     setRefusal(key, refusalOf(preferences));
     Q_EMIT answered(preferences);
     if (m_kept.contains(preferences)) {
-        // The page that sent it is gone.
         const QPointer<Connection> connection = m_kept.take(preferences);
         preferences->deleteLater();
         if (connection) {

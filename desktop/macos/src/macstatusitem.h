@@ -11,22 +11,8 @@
 namespace Tokkl
 {
 
-// The menu bar item as an NSStatusItem whose button shows text.
-//
-// QSystemTrayIcon cannot do this: its API has an icon and a tooltip but no
-// text, and Qt's Cocoa backend only ever sets the status button's image. It
-// also opens its context menu on every click, so a click could not start or
-// stop the timer.
-//
-// A left click emits activated(). A right click or a Control-click opens
-// the menu, as the native QMenu Qt keeps for it, and so does popUpMenu().
-//
-// The button's image, before the title, draws the StatusImage it is given.
-// It is never a template image, so the project indicator keeps its colours.
-// The logo and the hourglass can use their own colours or the menu bar
-// foreground. The image is drawn in the menu bar's appearance, so monochrome
-// ink follows light and dark menu bars. A pulse redraws it on a
-// timer, which stops when the indicator stops pulsing.
+// QSystemTrayIcon shows no text and opens its menu on every click. The image
+// is never a template image, so the project indicator keeps its colours.
 class MacStatusItem : public StatusItem
 {
     Q_OBJECT

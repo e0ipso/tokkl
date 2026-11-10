@@ -1,9 +1,5 @@
 # Usage: cmake -DTOKKL_SOURCE_DIR=<desktop/kde> -P nativeversiontest.cmake
-#
-# Pins which release versions scripts/native-version.sh accepts and what it
-# maps them to, then checks that the package versions it prints sort in SemVer
-# order. dpkg and rpm each check the order when they are on PATH; a missing
-# one is skipped with a status message.
+# dpkg and rpm each check the order only when they are on PATH.
 cmake_minimum_required(VERSION 3.27...3.31)
 
 set(script "${TOKKL_SOURCE_DIR}/scripts/native-version.sh")
@@ -54,7 +50,6 @@ endforeach()
 expect_refused()
 expect_refused(1.0.0 1.0.1)
 
-# Sorted by SemVer precedence, lowest first.
 set(ordered
     1.0.0 1.0.1 1.2.0-RC.1 1.2.0-alpha 1.2.0-alpha.1 1.2.0-alpha.2
     1.2.0-alpha.10 1.2.0-alphab 1.2.0-alphab.1 1.2.0-beta 1.2.0-beta.1

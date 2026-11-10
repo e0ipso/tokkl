@@ -1,9 +1,5 @@
 #pragma once
 
-// The widget's timer as QML creates it: the core's TimerStack on the
-// network, KDE Wallet and one system clock, with the Pomodoro mode in the
-// applet's configuration.
-
 #include "appletpomodorostore.h"
 #include "clock.h"
 #include "timerstack.h"
@@ -14,17 +10,12 @@
 namespace Tokkl
 {
 
-// Builds the connection, the timer state client, the timer, the Pomodoro
-// preferences client and the Pomodoro session when it is created, so none
-// of them is ever null in QML, and owns them. QML configures the connection
-// through its grouped properties (connection.instanceUrl and the others)
-// and hands over the applet, whose configuration keeps the Pomodoro mode;
-// the session takes the mode stored there once the applet is set.
+// Builds everything in the constructor so no property is ever null in QML.
 class KdeTimerState : public QObject
 {
     Q_OBJECT
 
-    // The Plasma::Applet, the widget's Plasmoid.
+    // A Plasma::Applet.
     Q_PROPERTY(QObject *applet READ applet WRITE setApplet NOTIFY appletChanged)
     Q_PROPERTY(Tokkl::Connection *connection READ connection CONSTANT)
     Q_PROPERTY(Tokkl::TimerController *timer READ timer CONSTANT)

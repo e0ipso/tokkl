@@ -1,6 +1,4 @@
-// Tests for instanceurl.js against the cases the core's ConnectionSetup
-// test reads too:
-//   node --test 'desktop/gnome/extension/**/*.test.js'
+// The cases are shared with the core's ConnectionSetup test.
 
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

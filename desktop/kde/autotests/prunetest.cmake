@@ -1,5 +1,3 @@
-# Checks that a source file removed from package/contents/ disappears from the
-# assembled package and from the staged install, with no clean build.
 # Usage: cmake -DTOKKL_SOURCE_DIR=<desktop/kde> -DWORK_DIR=<dir>
 #              [-DECM_DIR=<dir>] [-DPlasma_DIR=<dir>] -P prunetest.cmake
 cmake_minimum_required(VERSION 3.27...3.31)
@@ -9,8 +7,6 @@ file(MAKE_DIRECTORY "${WORK_DIR}")
 set(src "${WORK_DIR}/src")
 set(bld "${WORK_DIR}/build")
 
-# A fixture project around a copy of the real package, so the test can delete
-# files without touching the checkout.
 file(COPY "${TOKKL_SOURCE_DIR}/package" "${TOKKL_SOURCE_DIR}/cmake" DESTINATION "${src}")
 file(WRITE "${src}/package/contents/ui/Extra.qml" "import QtQuick\nItem {}\n")
 file(WRITE "${src}/CMakeLists.txt" [=[
@@ -27,7 +23,6 @@ find_package(Plasma REQUIRED)
 add_subdirectory(package)
 ]=])
 
-# Runs a command and fails the test, with its output, when it fails.
 function(run what)
     execute_process(COMMAND ${ARGN}
         RESULT_VARIABLE result OUTPUT_VARIABLE out ERROR_VARIABLE out)
@@ -36,7 +31,6 @@ function(run what)
     endif()
 endfunction()
 
-# Installs into a fresh staging directory and returns any Extra.qml it holds.
 function(stage_install name out_var)
     set(stage "${WORK_DIR}/${name}")
     file(REMOVE_RECURSE "${stage}")
@@ -60,7 +54,6 @@ if(NOT found)
     message(FATAL_ERROR "fixture check: Extra.qml missing from the staged install before removal")
 endif()
 
-# Delete the source file and rebuild in the same build directory.
 file(REMOVE "${src}/package/contents/ui/Extra.qml")
 run("rebuild" ${CMAKE_COMMAND} --build "${bld}")
 

@@ -10,8 +10,8 @@ class QMenu;
 namespace Tokkl
 {
 
-// The app's item in the menu bar. QSystemTrayIcon cannot show text, so on
-// macOS this is an NSStatusItem (MacStatusItem); tests use a fake.
+// QSystemTrayIcon cannot show text, so macOS uses an NSStatusItem
+// (MacStatusItem); tests use a fake.
 class StatusItem : public QObject
 {
     Q_OBJECT
@@ -19,26 +19,19 @@ class StatusItem : public QObject
 public:
     using QObject::QObject;
 
-    // The text in the menu bar.
     virtual void setTitle(const QString &title) = 0;
     virtual void setToolTip(const QString &toolTip) = 0;
-    // What a screen reader announces for the item.
     virtual void setAccessibleName(const QString &name) = 0;
-    // The menu a secondary click opens. The item does not own it.
+    // Not owned.
     virtual void setMenu(QMenu *menu) = 0;
-    // Opens that menu at the item, as a secondary click does.
     virtual void popUpMenu() = 0;
-    // The logo and the project indicator, drawn before the text. The item
-    // runs the pulse while image.indicator.pulsing is true.
+    // The item runs the pulse while image.indicator.pulsing is true.
     virtual void setImage(const StatusImage &image) = 0;
-    // True when the system asks for reduced motion.
     virtual bool reduceMotion() const = 0;
 
 Q_SIGNALS:
-    // A primary click: pause, resume or start the timer, or in Pomodoro
-    // mode act on the session.
+    // A primary click.
     void activated();
-    // The system's reduced motion setting changed.
     void reduceMotionChanged();
 };
 

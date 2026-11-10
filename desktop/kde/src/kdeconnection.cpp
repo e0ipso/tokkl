@@ -17,8 +17,8 @@ KdeConnection::KdeConnection(QObject *parent)
 {
 }
 
-// The connection owns the transport and the clock it is given here. As
-// children they go after the session that uses them.
+// As children of the connection, the transport and clock outlive the
+// session that uses them.
 KdeConnection::KdeConnection(NetworkTransport *transport, SystemClock *clock, QObject *parent)
     : Connection(transport, KWalletCredentialStore::shared(), *clock, kdeClientName(), parent)
 {

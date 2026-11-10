@@ -1,13 +1,5 @@
-# The core unit tests (api, connection, networktransport and timer) come
-# from desktop/core, added with it in the top-level CMakeLists.txt.
-#
-# Every bus test here starts its own dbus-daemon (privatebus.h) with no service
-# files of the user's, so the user's session bus, keyring and services are
-# never reached.
-#
-# timerservice drives org.tokkl.Timer1 over the private bus against the
-# core's fake transport, credential store and clock, with a fake output
-# behind the alarm. It needs no QtKeychain and no audio.
+# Every bus test starts its own dbus-daemon (privatebus.h), so the user's
+# session bus, keyring and services are never reached.
 
 find_program(TOKKL_DBUS_DAEMON dbus-daemon REQUIRED)
 
@@ -15,7 +7,6 @@ set(_gnome_xdg "${CMAKE_CURRENT_BINARY_DIR}/xdg-gnome")
 set(_gnome_env
     "XDG_DATA_HOME=${_gnome_xdg}/data;XDG_CONFIG_HOME=${_gnome_xdg}/config;XDG_CACHE_HOME=${_gnome_xdg}/cache;XDG_STATE_HOME=${_gnome_xdg}/state")
 
-# The bundled sounds, for the alarm and WAV reader tests.
 list(JOIN TOKKL_POMODORO_SOUND_FILES "|" _sound_files)
 
 add_executable(timerservicetest timerservicetest.cpp privatebus.h)
@@ -26,15 +17,10 @@ target_compile_definitions(timerservicetest PRIVATE
     TOKKL_POMODORO_SOUND_FILES="${_sound_files}")
 add_test(NAME timerservice COMMAND timerservicetest)
 
-# servicesettings checks Configure's settings and secret handling apart from
-# the bus, against the core's fake transport and credential store and a
-# temporary settings file.
 add_executable(servicesettingstest servicesettingstest.cpp)
 target_link_libraries(servicesettingstest PRIVATE tokklgnome tokklcorefakes Qt6::Test)
 add_test(NAME servicesettings COMMAND servicesettingstest)
 
-# wavfile checks the WAV reader against the bundled sounds, with no audio
-# server.
 add_executable(wavfiletest wavfiletest.cpp)
 target_link_libraries(wavfiletest PRIVATE tokklgnome Qt6::Test)
 target_compile_definitions(wavfiletest PRIVATE TOKKL_POMODORO_SOUND_FILES="${_sound_files}")
@@ -43,10 +29,7 @@ add_test(NAME wavfile COMMAND wavfiletest)
 set_tests_properties(timerservice servicesettings wavfile PROPERTIES ENVIRONMENT "${_gnome_env}")
 
 if(TOKKL_GNOME_DAEMON)
-    # keychainstore runs the QtKeychain store against a GNOME Keyring daemon
-    # the test starts on its private bus, unlocked with a throwaway password,
-    # with its keyrings in a temporary directory, and checks the secret with
-    # libsecret's secret-tool.
+    # Runs a throwaway GNOME Keyring daemon on the private bus.
     find_program(TOKKL_GNOME_KEYRING_DAEMON gnome-keyring-daemon REQUIRED)
     find_program(TOKKL_SECRET_TOOL secret-tool REQUIRED)
     add_executable(keychainstoretest keychainstoretest.cpp privatebus.h)
@@ -57,8 +40,6 @@ if(TOKKL_GNOME_DAEMON)
         TOKKL_SECRET_TOOL="${TOKKL_SECRET_TOOL}")
     add_test(NAME keychainstore COMMAND keychainstoretest)
 
-    # activation lets a private bus start the built tokkl-timerd from the
-    # activation file the project installs, pointed at the build tree.
     set(_activation_dir "${CMAKE_CURRENT_BINARY_DIR}/activation")
     set(TOKKL_TIMERD_EXEC "$<TARGET_FILE:tokkl-timerd>")
     configure_file("${PROJECT_SOURCE_DIR}/dbus/org.tokkl.Timer1.service.in"
@@ -74,8 +55,7 @@ if(TOKKL_GNOME_DAEMON)
     add_dependencies(activationtest tokkl-timerd)
     add_test(NAME activation COMMAND activationtest)
 
-    # pulsebackend runs the sound server backend with no server to reach
-    # (the test sets PULSE_SERVER to a socket that does not exist).
+    # PULSE_SERVER points at a missing socket.
     add_executable(pulsebackendtest pulsebackendtest.cpp)
     target_link_libraries(pulsebackendtest PRIVATE tokklalarm Qt6::Test)
     target_compile_definitions(pulsebackendtest PRIVATE TOKKL_POMODORO_SOUND_FILES="${_sound_files}")

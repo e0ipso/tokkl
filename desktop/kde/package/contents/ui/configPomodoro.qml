@@ -7,30 +7,23 @@ import org.kde.kirigami as Kirigami
 
 import com.canpicasoft.tokkl.backend
 
-// Pomodoro settings. The four lengths are the account's preferences on the
-// Tokkl server, shared with the web app, so Apply sends the changed ones
-// there. Until the page has read them, as when the server cannot be reached,
-// it shows the ones the panel last knew, read-only. The sound of each
-// transition is an ordinary widget setting (cfg_*).
+// The lengths are server-side account preferences; until the page reads
+// them it shows the panel's cached ones, read-only.
 KCM.SimpleKCM {
     id: page
 
-    // The account as the Connection page saved it. This page only reads it.
+    // Read-only here.
     property string cfg_instanceUrl
     property string cfg_authMode: "token"
     property string cfg_email
 
-    // The lengths the panel last knew, which it keeps in the widget's
-    // settings with PomodoroLengthsCache. The page never changes them. Apply
-    // still writes back the values the page opened with, and the panel then
-    // restores its own.
+    // Written by the panel's PomodoroLengthsCache; this page never changes
+    // them.
     property int cfg_cachedWorkMinutes: 25
     property int cfg_cachedShortRestMinutes: 5
     property int cfg_cachedLongRestMinutes: 15
     property int cfg_cachedLongRestEvery: 4
 
-    // A sound id per transition. The alarm plays the transition's default
-    // for an id the catalogue does not have.
     property string cfg_workToShortRestSound: "work-to-short-rest"
     property string cfg_shortRestToWorkSound: "short-rest-to-work"
     property string cfg_workToLongRestSound: "work-to-long-rest"
@@ -40,36 +33,26 @@ KCM.SimpleKCM {
     signal configurationChanged()
 
     readonly property TokklPomodoroPreferences preferences: lengths.preferences
-    // The page's connection has read the account's lengths. Until then the
-    // preferences hold the defaults, so the fields show the cached lengths
-    // and cannot be edited, and Apply cannot post a value nobody typed.
+    // Until true the preferences hold defaults, so the fields stay
+    // read-only and Apply cannot post a value nobody typed.
     property bool lengthsRead: false
     readonly property bool lengthsEditable: lengthsRead && preferences.editable && !preferences.saving
     readonly property var lengthFields: [workField, shortRestField, longRestField, everyField]
 
-    // Plasma calls this on Apply, once it has saved the cfg_ properties. The
-    // lengths client posts the lengths that differ from the server's. The
-    // answer comes after Plasma has treated the page as saved, so a refused
-    // save asks for Apply again, with the typed values and the server's
-    // reason still on the page. OK closes the dialog before the answer;
-    // Plasma gives a page no way to stop that, so the save outlives the page
-    // (see pomodorolengthssaves.h) and the panel's menu and tooltip show a
-    // refusal.
+    // The answer arrives after Plasma treats the page as saved, so a refusal
+    // asks for Apply again. OK can close first; see pomodorolengthssaves.h.
     function saveConfig() {
         if (!lengthFields.some(field => field.edited)) {
             return;
         }
         if (!lengthsEditable) {
-            // Nothing can be sent now. The typed values stay, and the page
-            // asks for Apply again once Plasma has turned Apply off.
+            // Re-arm Apply after Plasma has turned it off.
             Qt.callLater(page.configurationChanged);
         } else if (!lengths.save(workField.value, shortRestField.value, longRestField.value, everyField.value)) {
-            // The server already holds every typed value.
             lengthFields.forEach(field => field.reset());
         }
     }
 
-    // Saved when the server now holds every value on the page.
     function finishSave() {
         if (lengthFields.every(field => field.value === field.savedValue)) {
             lengthFields.forEach(field => field.reset());
@@ -94,8 +77,6 @@ KCM.SimpleKCM {
         }
     }
 
-    // Another account, or the same one signed in again: its lengths are
-    // read again, and the preferences show the defaults until then.
     Connections {
         target: lengths.connection
         function onGenerationChanged() {
@@ -103,8 +84,7 @@ KCM.SimpleKCM {
         }
     }
 
-    // Plasma runs this page apart from the panel item, so it has a
-    // connection of its own to the same account.
+    // Plasma runs this page in its own engine, apart from the panel.
     TokklPomodoroLengths {
         id: lengths
         connection.instanceUrl: page.cfg_instanceUrl
@@ -112,21 +92,17 @@ KCM.SimpleKCM {
         connection.email: page.cfg_email
     }
 
-    // Plays a sound once for Preview.
     TokklAlarm {
         id: previewPlayer
     }
 
-    // A length in whole units, from minimum to maximum. It shows the
-    // server's value until the user changes it, and keeps the typed value
-    // until the server holds it.
+    // Keeps the typed value until the server holds it.
     component LengthField: GridLayout {
         id: lengthField
 
         required property int savedValue
         required property int minimum
         required property int maximum
-        // The server's reason for refusing the typed value.
         required property string error
         property bool countsPomodoros: false
         property alias value: spinBox.value
@@ -182,16 +158,12 @@ KCM.SimpleKCM {
         }
     }
 
-    // The sound of one transition, and a button that plays it once.
     component SoundField: RowLayout {
         id: soundField
 
-        // Such as "workToShortRest".
         required property string transition
-        // The cfg_ value.
         required property string soundId
         required property TokklAlarm player
-        // What the alarm plays for the transition.
         readonly property string effectiveSound: TokklPomodoroSounds.isSoundId(soundId) ? soundId : TokklPomodoroSounds.defaultSound(transition)
 
         signal chosen(string soundId)
@@ -285,7 +257,6 @@ KCM.SimpleKCM {
             onModified: page.configurationChanged()
         }
 
-        // A failed read, or a refused save that names no field.
         Kirigami.InlineMessage {
             objectName: "lengthsError"
             visible: page.preferences.errorString !== ""
@@ -335,7 +306,6 @@ KCM.SimpleKCM {
             onChosen: soundId => page.cfg_longRestToWorkSound = soundId
         }
 
-        // Why the last preview was silent.
         QQC2.Label {
             objectName: "soundError"
             visible: text !== ""

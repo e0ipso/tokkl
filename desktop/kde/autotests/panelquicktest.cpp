@@ -1,12 +1,4 @@
-// Runs the QML tests in autotests/qml against the widget's panel components
-// and its Configure page. The backend types are registered from tokklcore
-// under the backend URI, and a PanelFixture builds them as a TimerStack on
-// the scripted transport, credential store and clock from fakes.h, with the
-// Pomodoro mode in a temporary QSettings file.
-// The Configure pages' TokklConnectionSetup and TokklPomodoroLengths use
-// another such transport and store, which a WalletFixture controls, and
-// their TokklAlarm plays the core's copies of the sounds. Nothing reaches a
-// host, KDE Wallet or real settings.
+// Nothing here reaches a host, KDE Wallet or real settings.
 
 #include "alarmplayer.h"
 #include "connection.h"
@@ -59,7 +51,6 @@ public:
     explicit PanelFixture(QObject *parent = nullptr)
         : QObject(parent)
     {
-        // A current server: GET /api/app/status names its capabilities.
         m_transport.status = FakeTransport::currentStatus();
     }
 
@@ -88,15 +79,11 @@ public:
         return int(m_transport.requests.size());
     }
 
-    // The reads of the workspace's catalog revision, which the transport
-    // answers on its own.
     int catalogChecks() const
     {
         return int(m_transport.catalogRequests.size());
     }
 
-    // The core's shared fixture of the panels' words, statuspresentation.json,
-    // as a map: the English words and the elapsed cases among the rest.
     Q_INVOKABLE QVariantMap statusFixture() const
     {
         QFile file(QStringLiteral(TOKKL_STATUS_FIXTURE));
@@ -106,23 +93,18 @@ public:
         return QJsonDocument::fromJson(file.readAll()).object().toVariantMap();
     }
 
-    // The projects changed on the server: the next catalog read answers a
-    // new revision.
     Q_INVOKABLE void changeCatalog()
     {
         m_transport.catalog = FakeTransport::catalogAt(++m_catalogRevision);
     }
 
-    // The network is down for the catalog checks too: they wait, unanswered,
-    // until failCatalogChecks().
+    // Catalog checks wait unanswered until failCatalogChecks().
     Q_INVOKABLE void holdCatalogChecks()
     {
         m_transport.holdCatalog = true;
         m_heldCatalogFrom = m_transport.catalogReplies.size();
     }
 
-    // Fails every held catalog check as unreachable, then answers later ones
-    // again on their own.
     Q_INVOKABLE void failCatalogChecks()
     {
         for (qsizetype i = m_heldCatalogFrom; i < m_transport.catalogReplies.size(); ++i) {
@@ -131,16 +113,13 @@ public:
         m_transport.holdCatalog = false;
     }
 
-    // Stores a token for the instance and selects it, as the Configure page
-    // would. The connection then reads the secret and asks for /me.
     Q_INVOKABLE void configure(const QString &url, const QString &token)
     {
         m_store.secrets.insert(credentialKey(parseInstanceUrl(url), AuthMode::Token, QString()), token);
         m_stack.connection()->setInstanceUrl(url);
     }
 
-    // The newest unanswered request with this method whose API path, after
-    // /api/v9, ends with the suffix; -1 when there is none.
+    // API path after /api/v9; -1 when there is none.
     Q_INVOKABLE int pending(const QString &method, const QString &suffix) const
     {
         for (qsizetype i = m_transport.requests.size() - 1; i >= 0; --i) {
@@ -152,8 +131,6 @@ public:
         return -1;
     }
 
-    // method, path, query (a map), body (parsed JSON, or the raw text), and
-    // whether it carried credentials.
     Q_INVOKABLE QVariantMap request(int index) const
     {
         const HttpRequest &request = m_transport.requests.at(index);
@@ -177,15 +154,12 @@ public:
         m_transport.respond(index, FakeTransport::answer(status, body.toUtf8()));
     }
 
-    // No HTTP answer, as when the network is down.
     Q_INVOKABLE void failNetwork(int index)
     {
         m_answered.insert(index);
         m_transport.respond(index, FakeTransport::failure(HttpResponse::Outcome::NetworkError, QStringLiteral("unreachable")));
     }
 
-    // Sends a state to the open event stream, as the server does when the
-    // state changes. False when no stream is open.
     Q_INVOKABLE bool push(const QString &body)
     {
         FakeStream *stream = m_transport.lastStream();
@@ -196,13 +170,11 @@ public:
         return true;
     }
 
-    // The fake clock's time as an RFC 3339 UTC string, shifted by seconds.
     Q_INVOKABLE QString clockIso(int offsetSeconds = 0) const
     {
         return m_clock.current.addSecs(offsetSeconds).toString(Qt::ISODate);
     }
 
-    // The item's window is the application's focus window.
     Q_INVOKABLE bool hasFocusWindow(QQuickItem *item) const
     {
         return item && item->window() && QGuiApplication::focusWindow() == item->window();
@@ -213,8 +185,7 @@ public:
         m_clock.advance(ms);
     }
 
-    // Sets Kirigami.Units.longDuration for the engine, as Plasma's Animation
-    // speed setting does (1 at "Instant"). Returns the value before.
+    // Plasma's Animation speed sets it to 1 at "Instant".
     Q_INVOKABLE int setLongDuration(int ms)
     {
         QQmlEngine *engine = qmlEngine(this);
@@ -236,15 +207,12 @@ private:
     QTemporaryDir m_dir;
     QSettings m_settings{m_dir.filePath(QStringLiteral("pomodoro.ini")), QSettings::IniFormat};
     SettingsPomodoroStore m_pomodoroStore{&m_settings};
-    // The connection, the timer and the session as every companion builds
-    // them. After the fakes, so it goes first.
+    // After the fakes, so it is destroyed first.
     TimerStack m_stack{&m_transport, &m_store, m_pomodoroStore, m_clock, testClientName()};
     QSet<qsizetype> m_answered;
 };
 
-// The transport and store behind every TokklConnectionSetup the Configure
-// page makes, and the clock of the Pomodoro page's connection. They live as
-// long as the process.
+// Live as long as the process.
 FakeTransport *setupTransport()
 {
     static auto *transport = [] {
@@ -267,7 +235,6 @@ FakeClock *setupClock()
     return clock;
 }
 
-// The page's TokklConnectionSetup, created from QML as the widget's is.
 class FakeConnectionSetup : public ConnectionSetup
 {
     Q_OBJECT
@@ -279,14 +246,12 @@ public:
     }
 };
 
-// The requests of setupTransport() that a test has answered.
 QSet<qsizetype> &setupAnswered()
 {
     static QSet<qsizetype> answered;
     return answered;
 }
 
-// The Pomodoro page's TokklPomodoroLengths, on the same transport and store.
 class FakePomodoroLengths : public PomodoroLengthsClient
 {
     Q_OBJECT
@@ -298,8 +263,7 @@ public:
     }
 };
 
-// The Pomodoro page's TokklAlarm. It plays the core's copies of the sounds,
-// as no widget is installed.
+// Plays the core's copies of the sounds, as no widget is installed.
 class FakeAlarm : public AlarmPlayer
 {
     Q_OBJECT
@@ -313,7 +277,6 @@ public:
     }
 };
 
-// Scripts the wallet and the network behind the Configure pages.
 class WalletFixture : public QObject
 {
     Q_OBJECT
@@ -328,14 +291,12 @@ public:
         return setupStore()->writes;
     }
 
-    // Reads and writes are refused as by a locked wallet, or work again.
     Q_INVOKABLE void setRefused(bool refused)
     {
         setupStore()->failure = refused ? CredentialResult::Status::Unavailable : CredentialResult::Status::Ok;
     }
 
-    // Empties the wallet and forgets the requests. Replies to forgotten
-    // requests are never delivered.
+    // Replies to forgotten requests are never delivered.
     Q_INVOKABLE void reset()
     {
         setRefused(false);
@@ -346,14 +307,11 @@ public:
         setupAnswered().clear();
     }
 
-    // Stores a token for the instance, as the Connection page would.
     Q_INVOKABLE void storeToken(const QString &url, const QString &token)
     {
         setupStore()->secrets.insert(credentialKey(parseInstanceUrl(url), AuthMode::Token, QString()), token);
     }
 
-    // The newest unanswered request with this method whose path ends with
-    // the suffix; -1 when there is none.
     Q_INVOKABLE int pending(const QString &method, const QString &suffix) const
     {
         const QList<HttpRequest> &requests = setupTransport()->requests;
@@ -365,7 +323,6 @@ public:
         return -1;
     }
 
-    // The request's body, parsed as JSON.
     Q_INVOKABLE QVariant requestBody(int index) const
     {
         return QJsonDocument::fromJson(setupTransport()->requests.at(index).body).toVariant();
@@ -377,8 +334,6 @@ public:
         setupTransport()->respond(index, FakeTransport::answer(status, body.toUtf8()));
     }
 
-    // A 400 whose Tokkl-Error-Field header names field, as the server
-    // refuses a preference.
     Q_INVOKABLE void refuse(int index, const QString &field, const QString &body)
     {
         setupAnswered().insert(index);
@@ -387,26 +342,22 @@ public:
         setupTransport()->respond(index, response);
     }
 
-    // No HTTP answer, as when the network is down.
     Q_INVOKABLE void failNetwork(int index)
     {
         setupAnswered().insert(index);
         setupTransport()->respond(index, FakeTransport::failure(HttpResponse::Outcome::NetworkError, QStringLiteral("unreachable")));
     }
 
-    // The token stored for the instance, or an empty string.
     Q_INVOKABLE QString storedToken(const QString &url) const
     {
         return setupStore()->secrets.value(credentialKey(parseInstanceUrl(url), AuthMode::Token, QString()));
     }
 
-    // The page's connection setup.
     Q_INVOKABLE QObject *setupOf(QObject *page) const
     {
         return page ? page->findChild<ConnectionSetup *>() : nullptr;
     }
 
-    // The Pomodoro page's lengths client and sound player.
     Q_INVOKABLE QObject *lengthsOf(QObject *page) const
     {
         return page ? page->findChild<PomodoroLengthsClient *>() : nullptr;

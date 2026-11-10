@@ -1,8 +1,7 @@
 #pragma once
 
-// A session bus daemon of the test's own, so nothing a test does reaches the
-// user's session bus, keyring or services. It listens in a temporary
-// directory and has no service files unless the test passes a directory.
+// A private session bus, so tests never reach the user's bus, keyring or
+// services.
 
 #include <QByteArray>
 #include <QFile>
@@ -18,9 +17,7 @@ public:
         stop();
     }
 
-    // Starts dbus-daemon with its socket and configuration in dir. Services
-    // in serviceDir, if given, can be activated. Returns the bus address, or
-    // an empty one on failure.
+    // Returns the bus address, or empty on failure.
     QByteArray start(const QString &dir, const QString &serviceDir = QString())
     {
         const QString config = dir + QStringLiteral("/bus.conf");

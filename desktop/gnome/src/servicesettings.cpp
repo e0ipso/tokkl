@@ -14,7 +14,6 @@ namespace
 {
 using Kind = ServiceSettings::Outcome::Kind;
 
-// Why configure() cannot use the settings, or empty when it can.
 QString invalidReason(const InstanceUrl &instance, const QString &authMode, const QString &email)
 {
     if (!instance.isValid()) {
@@ -56,8 +55,7 @@ void ServiceSettings::configure(const QString &instanceUrl, const QString &authM
     }
 
     const AuthMode mode = authModeFromString(authMode);
-    // The same cleaning as the KDE Configure page: tokens never carry
-    // surrounding whitespace, passwords are used exactly as typed.
+    // Same as the KDE Configure page: tokens are trimmed, passwords are not.
     const QString cleaned = mode == AuthMode::Token ? secret.trimmed() : secret;
     const ConnectionSettings settings{instance.base.toString(), authMode, email.trimmed()};
     const quint64 serial = ++m_serial;
@@ -70,8 +68,7 @@ void ServiceSettings::configure(const QString &instanceUrl, const QString &authM
         if (!result.ok()) {
             done(Outcome{Kind::StoreRefused, m_store ? m_store->message(result) : result.message()});
         } else if (serial != m_serial) {
-            // A later call came while the store wrote; its settings win,
-            // whichever write ends last.
+            // The later call's settings win, whichever write ends last.
             qCInfo(lcCredentials) << "A later Configure call replaced this one's settings";
             done(Outcome{Kind::Superseded, tr("A later connection change replaced these settings.")});
         } else {

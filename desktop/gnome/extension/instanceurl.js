@@ -1,25 +1,8 @@
-// Whether an instance address sends the secret unencrypted, by the rule of
-// the core's ConnectionSetup::isInsecure(), which the KDE and macOS settings
-// use: a usable http:// address whose host is neither localhost nor a
-// loopback address. desktop/core/autotests/insecureurls.json holds the cases
-// both follow. Nothing here imports from GNOME, so Node runs its tests.
-//
-// The rule is copied here instead of asked of tokkl-timerd because the
-// preferences window warns while the address is typed, also when the service
-// is stopped or older than the extension supports. A call to a stopped
-// service would start it through D-Bus activation, which the extension never
-// does on its own.
+// Copy of ConnectionSetup::isInsecure() (see core/autotests/insecureurls.json):
+// asking a stopped service would start it through D-Bus activation.
 
-// scheme://authority/path, with no query or fragment.
 const URL_PATTERN = /^([A-Za-z][A-Za-z0-9+.-]*):\/\/([^/?#]*)([^?#]*)$/;
 
-/**
- * The host of an authority without user info, lowercased, or null when it
- * has none or its port is not one.
- *
- * @param {string} authority
- * @returns {string|null}
- */
 function hostOf(authority) {
     const match = /^(?:\[([0-9A-Fa-f:.]+)\]|([^:[\]]*))(?::(\d*))?$/.exec(authority);
     if (!match) return null;
@@ -29,12 +12,6 @@ function hostOf(authority) {
     return host === '' ? null : host;
 }
 
-/**
- * The eight groups of an IPv6 address, or null when it is not one.
- *
- * @param {string} host
- * @returns {number[]|null}
- */
 function ipv6Groups(host) {
     const halves = host.split('::');
     if (halves.length > 2) return null;
@@ -53,14 +30,7 @@ function isLoopback(host) {
     return groups !== null && groups.slice(0, 7).every(group => group === 0) && groups[7] === 1;
 }
 
-/**
- * Whether the settings should warn that the address uses plain http. An
- * address that is not usable gets no warning: the service refuses it when
- * Connect sends it.
- *
- * @param {string} text the instance URL as typed
- * @returns {boolean}
- */
+// An unusable address gets no warning: the service refuses it on Connect.
 export function isInsecureUrl(text) {
     const match = URL_PATTERN.exec(text.trim());
     if (!match || match[1].toLowerCase() !== 'http' || match[2].includes('@')) return false;

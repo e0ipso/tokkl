@@ -1,10 +1,5 @@
-// Opens the installed extension's preferences in the Extensions app's own
-// preferences window, with the extension as GNOME Shell describes it, fills
-// in the form, presses Connect and checks what mock-timer.js
-// received and what the extension's settings kept. Then it edits the
-// Pomodoro lengths and sounds against the mock. Needs a Wayland display
-// (the headless GNOME Shell of shell-test.sh) and mock-timer.js on the
-// session bus.
+// Needs a Wayland display (shell-test.sh's headless Shell) and mock-timer.js
+// on the session bus.
 //
 //   gjs -m prefs-check.js UUID
 
@@ -18,8 +13,8 @@ const [uuid] = programArgs;
 const decoder = new TextDecoder();
 const read = path => decoder.decode(GLib.file_get_contents(path)[1]);
 
-// The Extensions app's own start-up: it sets up the gnome-shell package,
-// whose modules provide ExtensionPreferences.
+// The Extensions app's start-up sets up the gnome-shell package, whose
+// modules provide ExtensionPreferences.
 const launcher = read('/usr/share/gnome-shell/org.gnome.Shell.Extensions');
 const option = name => new RegExp(`${name}: '([^']+)'`).exec(launcher)[1];
 imports.package.init({ name: 'gnome-shell', prefix: option('prefix'), libdir: option('libdir') });
@@ -159,7 +154,6 @@ async function step(name, body) {
 }
 
 const lastCall = () => mockCalls().at(-1) ?? [];
-// Connect is insensitive from the click until the answer is handled.
 const answered = () => waitFor('the answer', () => form.connect.sensitive === true);
 const sameCall = (actual, expected) => JSON.stringify(actual) === JSON.stringify(expected) || actual;
 
@@ -228,7 +222,6 @@ await step('a secret typed for one connection is dropped when the URL, method or
     if (form.secret.text !== '') throw new Error('a new email kept the secret');
     form.email.text = 'me@example.com';
     form.mode.selected = 0;
-    // A secret typed after the change stays and goes to the connection shown.
     form.secret.text = 'typed-again';
     const before = mockCalls().length;
     form.connect.emit('clicked');
@@ -279,7 +272,6 @@ await step('the form opens with the last accepted values', async () => {
     again.window.close();
 });
 
-// The Pomodoro rows by the keys of PomodoroLengths and Sounds.
 const lengthTitles = { work: 'Work', shortRest: 'Short rest', longRest: 'Long rest', longRestEvery: 'Long rest every' };
 const soundTitles = {
     workToShortRest: 'Work → short rest',
@@ -328,7 +320,6 @@ await step('the Pomodoro group shows the lengths read on opening and the chosen 
     mockSet('PomodoroLengths', lengthsVariant({ work: 25, shortRest: 5, longRest: 15, longRestEvery: 4 }));
     const before = mockCalls().length;
     pomodoro = pomodoroGroup((await openWindow()).window);
-    // mock-timer.js answers RefreshPreferences with these.
     await waitFor('the account lengths', () =>
         sameCall(lengthValues(pomodoro), { work: 50, shortRest: 10, longRest: 20, longRestEvery: 3 }),
     );
@@ -380,8 +371,7 @@ await step('Save lengths sends the edited lengths, also one still being typed', 
 });
 
 await step('lengths changed elsewhere replace the rows', async () => {
-    // Also waits out the service's answer to the last save, which comes
-    // before this change.
+    // Also waits out the answer to the last save, which comes before this change.
     mockSet('PomodoroLengths', lengthsVariant({ work: 40, shortRest: 10, longRest: 20, longRestEvery: 6 }));
     await waitFor('the new lengths', () =>
         sameCall(lengthValues(pomodoro), { work: 40, shortRest: 10, longRest: 20, longRestEvery: 6 }),
@@ -484,7 +474,6 @@ await step('a service below the floor gets the update line and no call from the 
         .filter(([, widget]) => widget.sensitive)
         .map(([name]) => name);
     if (usable.length) throw new Error(`sensitive against an older service: ${JSON.stringify(usable)}`);
-    // Clicks that reach the handlers all the same send nothing.
     older.secret.text = 'token-value';
     older.connect.emit('clicked');
     group.save.emit('clicked');

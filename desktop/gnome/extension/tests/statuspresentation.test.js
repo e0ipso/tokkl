@@ -1,6 +1,4 @@
-// The words the button's time, accessible name and status line show, from
-// the Presentation property, against the fixture the core's test reads too:
-//   node --test 'desktop/gnome/extension/**/*.test.js'
+// The fixture is shared with the core's test.
 
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -41,7 +39,6 @@ function wordsOf(input) {
     return describeStatus(input.status, input.hasDetail ? 'The instance is unreachable' : '', identity);
 }
 
-// A part, mark or status the core adds without words here fails.
 test('every key of the core has words', () => {
     const texts = partTexts(timeOf(cases[0].input), wordsOf(cases[0].input), 'Project Alpha', 1000, identity);
     for (const part of keys.parts) assert.equal(typeof texts[part], 'string', `part ${part}`);
@@ -80,8 +77,6 @@ test('each part has its words, and a part without any is left out', () => {
     });
 });
 
-// The English words are the ones every panel shows, as the shared fixture
-// lists them; each toolkit translates them on its own.
 test('the words are the shared English words', () => {
     assert.deepEqual(Object.keys(english.statuses).sort(), [...keys.statuses].sort());
     for (const [status, text] of Object.entries(english.statuses))

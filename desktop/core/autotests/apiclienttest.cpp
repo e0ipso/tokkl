@@ -1,7 +1,3 @@
-// ApiClient against a scripted session and transport: what it asks the
-// session before a request, what it hands back after one, and which answers
-// it drops. connectiontest covers the same paths through Connection.
-
 #include "apiclient.h"
 #include "clock.h"
 #include "fakes.h"
@@ -15,7 +11,6 @@ using namespace Tokkl;
 
 namespace
 {
-// Answers what the test sets and records what the client reports.
 class ScriptedSession : public ApiSession
 {
 public:
@@ -207,7 +202,7 @@ private Q_SLOTS:
         });
         QCOMPARE(session.asked, QList<ApiAccess>{ApiAccess::Write});
         QCOMPARE(transport.requests.first().method, QByteArrayLiteral("POST"));
-        // Not a timer state: the 409 cannot say what refused the action.
+        // Not a timer state, so the 409 cannot say what refused the action.
         transport.respondLast(FakeTransport::answer(409, "\"stale\""));
         QVERIFY(received);
         QCOMPARE(received->outcome, TimerActionResult::Outcome::Refused);
@@ -230,9 +225,7 @@ private Q_SLOTS:
         QCOMPARE(session.failures.first().second, ApiAccess::Write);
     }
 
-    // A keyed action whose outcome is unknown goes out once more after one
-    // retry wait, with the same body and key, and the second answer is the
-    // one reported. A plain action carries no key and is never sent again.
+    // A plain action carries no key and is never sent again.
     void aKeyedActionWithoutAnAnswerGoesOutOnceMore()
     {
         FakeTransport transport;
@@ -267,9 +260,6 @@ private Q_SLOTS:
         QCOMPARE(transport.requests.size(), 3);
     }
 
-    // The wait before the second send takes its jitter from the session's
-    // clock: at the largest jitter none of several resends goes out before
-    // retryMinMs and nearly a quarter more.
     void theResendWaitTakesTheSessionClocksJitter()
     {
         FakeTransport transport;
@@ -288,8 +278,6 @@ private Q_SLOTS:
         QTRY_COMPARE(transport.requests.size(), 2 * actions);
     }
 
-    // An answer, a refusal or a session that refuses the second send ends
-    // a keyed action with what the first one got.
     void aKeyedActionIsSentAgainOnlyForAnUnknownOutcome()
     {
         FakeTransport transport;
@@ -308,7 +296,6 @@ private Q_SLOTS:
         transport.respondLast(FakeTransport::answer(409, "\"stale\""));
         QCOMPARE(transport.requests.size(), 2);
 
-        // The failure started a cooldown: the session refuses the second.
         client.keyedAction(testUrl, "{}", "k3", record);
         session.refuse = ApiError{ApiError::Kind::RateLimited, 0, QStringLiteral("wait")};
         transport.respondLast(FakeTransport::failure(HttpResponse::Outcome::Timeout));
@@ -317,8 +304,6 @@ private Q_SLOTS:
         QCOMPARE(received.last().outcome, TimerActionResult::Outcome::Unknown);
     }
 
-    // The wait before the second send ends with the generation or the
-    // client: nothing goes out, and done never runs.
     void theResendWaitEndsWithTheGenerationOrTheClient_data()
     {
         QTest::addColumn<bool>("newGeneration");
@@ -347,8 +332,6 @@ private Q_SLOTS:
         QVERIFY(!called);
     }
 
-    // The session may refuse by the time the wait ends, as during a
-    // cooldown: the first answer is reported.
     void aRefusalAfterTheWaitReportsTheFirstAnswer()
     {
         FakeTransport transport;
@@ -366,8 +349,7 @@ private Q_SLOTS:
         QCOMPARE(transport.requests.size(), 1);
     }
 
-    // One retry wait: retryMinMs plus up to a quarter more from the clock's
-    // jitter, the same rule as the state client's reconnect.
+    // The same rule as the state client's reconnect.
     void theRetryWaitAddsUpToAQuarter()
     {
         FakeClock clock;
@@ -376,7 +358,6 @@ private Q_SLOTS:
         QCOMPARE(retryWaitMs(1000, clock), 1249);
         clock.jitter = 5000;
         QCOMPARE(retryWaitMs(1000, clock), 1249);
-        // The system clock's jitter stays below the bound too.
         const SystemClock system;
         for (int i = 0; i < 20; ++i) {
             const int wait = retryWaitMs(retryMinMs, system);
@@ -408,7 +389,6 @@ private Q_SLOTS:
         QCOMPARE(session.failures.first().second, ApiAccess::Account);
     }
 
-    // A 503 that says when to come back is the session's to wait out.
     void aStreamUnavailableWithRetryAfterGoesToTheSession()
     {
         FakeTransport transport;

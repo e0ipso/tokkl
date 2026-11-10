@@ -77,7 +77,6 @@ QString projectLabel(const ProjectLabelParts &parts)
     case ProjectLabelParts::Kind::Unknown:
         return tr("Unknown project");
     case ProjectLabelParts::Kind::Unavailable:
-        // The entry names a project the instance no longer has.
         return tr("Unavailable project");
     case ProjectLabelParts::Kind::Named:
         break;
@@ -158,8 +157,6 @@ std::optional<QStringList> withPart(const QString &part, QStringList words, cons
     } else if (part == QLatin1String("pomodoroMode")) {
         words = QStringList{tr("%1 · Pomodoro mode").arg(words.join(QStringLiteral(" · ")))};
     } else if (part != QLatin1String("message")) {
-        // The menu shows the session's message on a line of its own; any
-        // other key has no words.
         return std::nullopt;
     }
     return words;
@@ -172,7 +169,6 @@ StatusPresentation presentation(const TimerModel &timer, const PomodoroSession &
     return StatusPresentation::of(StatusInput::of(timer, &session), StatusPolicy::macos());
 }
 
-// The words of the parts, joined by " · ".
 QString render(const QList<StatusPart> &parts, const TimerModel &timer, const PomodoroSession &session)
 {
     QStringList words;
@@ -211,7 +207,6 @@ QString menuBarTitle(const TimerModel &timer, const PomodoroSession &session)
 
 QString itemName(const TimerModel &timer, const PomodoroSession &session)
 {
-    // The core decides what the click does; the name says it.
     const QString action = primaryActionKey(session.primaryAction());
     if (action == QLatin1String("session")) {
         return actionName(action, session);

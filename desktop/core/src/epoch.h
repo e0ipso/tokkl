@@ -8,10 +8,8 @@
 namespace Tokkl
 {
 
-// Counts the contexts an object goes through, such as the accounts of a
-// connection. The answer to a request sent in one context must not reach
-// the object once it has moved to the next, or once it is gone; guard()
-// wraps the request's callback so it does not.
+// guard() keeps an answer from reaching its object after the object moved to
+// a new context (advance()) or was destroyed.
 class Epoch
 {
 public:
@@ -20,14 +18,12 @@ public:
         return m_value;
     }
 
-    // Starts a new context. Callbacks guarded before it do nothing.
     void advance()
     {
         ++m_value;
     }
 
-    // Wraps f so it runs only while owner exists and advance() has not been
-    // called since. The epoch must be a member of owner.
+    // The epoch must be a member of owner.
     template<typename Owner, typename F>
     auto guard(Owner *owner, F f) const
     {

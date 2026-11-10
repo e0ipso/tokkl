@@ -1,8 +1,4 @@
-# The tokklcore library: the API client, the credential store interface,
-# connection state, the timer state client and its event stream, the timer
-# controller, the Pomodoro mode store, preferences client and session, and
-# the catalogue of Pomodoro sounds. Qt Core and Network only; each companion
-# supplies its own credential store and client name.
+# Qt Core and Network only; each companion supplies its credential store and client name.
 
 add_library(tokklcore STATIC
     alarmoutput.h

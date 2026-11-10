@@ -10,9 +10,7 @@ namespace Tokkl
 
 class Connection;
 
-// The connection settings a companion keeps in its own QSettings file: the
-// instance address, the sign-in method and the email. Never the secret,
-// which only the credential store holds.
+// Never the secret, which only the credential store holds.
 struct ConnectionSettings {
     static constexpr QLatin1StringView instanceUrlKey{"instanceUrl"};
     static constexpr QLatin1StringView authModeKey{"authMode"};
@@ -22,12 +20,10 @@ struct ConnectionSettings {
     QString authMode = QStringLiteral("token"); // "token" or "password"
     QString email;
 
-    // What settings holds; token sign-in when it names no method.
+    // Token sign-in when settings names no method.
     static ConnectionSettings read(const QSettings &settings);
-    // Writes the three keys and syncs the file, with what else settings
-    // holds unsaved. False when this write could not reach the file; the
-    // earlier values then stay, also in memory. An earlier failed write
-    // does not count against this one.
+    // False when the write could not reach the file; the earlier values then
+    // stay, also in memory.
     bool write(QSettings &settings) const;
     void applyTo(Connection &connection) const;
 

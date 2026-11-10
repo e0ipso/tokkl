@@ -1,6 +1,3 @@
-// Tests for menumodel.js, what the panel button and menu show:
-//   node --test 'desktop/gnome/extension/**/*.test.js'
-
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
@@ -9,8 +6,6 @@ import { describeStatus, projectLabel } from '../timer1.js';
 
 const identity = text => text;
 
-// The Actions property as tokkl-timerd publishes it for a stopped, ready
-// timer in Timer mode, with some actions replaced.
 function actions(overrides = {}) {
     return {
         run: { visible: true, enabled: true, label: 'start' },
@@ -186,7 +181,6 @@ test('a sound that did not play shows after the other messages', () => {
         menuFor({ alarmError, actionError: 'The timer service did not answer.' }).message.text,
         'The timer service did not answer.',
     );
-    // A service from before AlarmError leaves it out.
     assert.deepEqual(menuFor({ alarmError: undefined }).message, { text: '', visible: false });
 });
 
@@ -220,8 +214,6 @@ test('the project choices start with No project and check the chosen one', () =>
 });
 
 const ready = describeStatus('ready', '', identity);
-// The Presentation the service publishes with the GNOME policy, for a
-// ready timer outside a session.
 const timerPresentation = { summary: ['activity', 'project', 'connection'], menuLine: ['connection'], mark: 'none' };
 const stopped = {
     status: 'ready',

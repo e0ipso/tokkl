@@ -1,6 +1,3 @@
-// Tests for timerrequests.js, Start, Stop, Pause and Resume as requests:
-//   node --test 'desktop/gnome/extension/**/*.test.js'
-
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
@@ -8,8 +5,6 @@ import { TimerRequests } from '../timerrequests.js';
 
 const unknownMethod = { name: 'org.freedesktop.DBus.Error.UnknownMethod' };
 
-// A service that answers each call from answers, by method name, and
-// records the calls.
 function service(answers) {
     const calls = [];
     const call = (method, done) => {
@@ -35,7 +30,6 @@ test('a request reports its own end, and no other', () => {
     requests.finished(99, false, 'not ours');
     requests.finished(8, true, '');
     requests.finished(7n, false, 'This project is archived.');
-    // Each id ends once.
     requests.finished(7, true, '');
     assert.deepEqual(ends, [
         ['stop', true, ''],

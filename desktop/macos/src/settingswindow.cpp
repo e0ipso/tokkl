@@ -53,10 +53,8 @@ constexpr std::array<TransitionKind, 4> transitions{
     TransitionKind::LongRestToWork,
 };
 
-// Long rest every: a count of pomodoros, shown with a plural that follows
-// the count. The text is a numerus message, so a catalog can give each
-// language its own forms. With no catalog loaded Qt shows a source text as
-// written, so the English source keeps the singular apart from the plural.
+// Without a catalog Qt shows the numerus source text as written, so the
+// English source keeps the singular apart from the plural.
 class PomodoroCountBox : public QSpinBox
 {
 public:
@@ -73,8 +71,6 @@ protected:
         return digits(text).toInt();
     }
 
-    // The count is the digits typed; the words around them come back with
-    // the value.
     QValidator::State validate(QString &input, int &) const override
     {
         const QString typed = digits(input);
@@ -151,8 +147,6 @@ SettingsWindow::SettingsWindow(Transport *transport,
     buildConnectionRows(form);
     buildLoginRows(form);
 
-    // The Pomodoro section: the account's lengths, then the sound of each
-    // transition with a button to hear it.
     auto *pomodoro = new QGroupBox(tr("Pomodoro"));
     auto *pomodoroForm = new QFormLayout(pomodoro);
     buildPomodoroRows(pomodoroForm);
@@ -264,8 +258,7 @@ void SettingsWindow::buildPomodoroRows(QFormLayout *form)
 void SettingsWindow::buildSoundRows(QFormLayout *form)
 {
     const std::array<QString, 4> soundLabels{tr("Work → short rest:"), tr("Short rest → work:"), tr("Work → long rest:"), tr("Long rest → work:")};
-    // Each selector and Preview button names its transition in words, as
-    // a screen reader would read the arrow of the visible label.
+    // Accessible names spell out the arrow of the visible label.
     const std::array<QString, 4> soundNames{tr("Work to short rest sound"), tr("Short rest to work sound"), tr("Work to long rest sound"),
                                             tr("Long rest to work sound")};
     const std::array<QString, 4> previewNames{tr("Preview the work to short rest sound"), tr("Preview the short rest to work sound"),
@@ -285,8 +278,7 @@ void SettingsWindow::buildSoundRows(QFormLayout *form)
         row->addWidget(button);
         m_soundBoxes.at(index(kind)) = box;
         m_previewButtons.at(index(kind)) = button;
-        // The row is a layout, which takes no buddy, so the label is made
-        // here and points at the selector.
+        // A layout row takes no buddy, so the label points at the selector.
         auto *label = new QLabel(soundLabels.at(index(kind)));
         label->setBuddy(box);
         form->addRow(label, row);
@@ -308,7 +300,6 @@ void SettingsWindow::buildSoundRows(QFormLayout *form)
 
 void SettingsWindow::nameFields()
 {
-    // Stable names, so automation finds each field whatever its label.
     const std::pair<QWidget *, QString> named[] = {
         {m_urlField, QStringLiteral("url")},
         {m_urlNote, QStringLiteral("urlNote")},
@@ -343,8 +334,6 @@ void SettingsWindow::nameFields()
 
 void SettingsWindow::connectFields(QDialogButtonBox *buttons)
 {
-    // Load the stored secret for the account on screen once the user stops
-    // typing.
     m_loadTimer.setSingleShot(true);
     m_loadTimer.setInterval(400);
     connect(&m_loadTimer, &QTimer::timeout, m_setup, &ConnectionSetup::loadSecret);
@@ -428,7 +417,6 @@ bool SettingsWindow::save()
     values.lengths.longRestMinutes = m_lengthBoxes.at(index(PomodoroField::LongRestMinutes))->value();
     values.lengths.longRestEvery = m_lengthBoxes.at(index(PomodoroField::LongRestEvery))->value();
     values.lengthsOwner = m_lengthsOwner;
-    // Disabled before the save starts, which may finish at once.
     m_saveButton->setEnabled(false);
     m_saveError->hide();
     return m_save->start(values);
@@ -449,8 +437,6 @@ QString SettingsWindow::authMode() const
     return m_passwordButton->isChecked() ? passwordMode : tokenMode;
 }
 
-// Keeps the secret field tied to the account on screen: a secret loaded for
-// one account is cleared when the window moves to another.
 void SettingsWindow::onAccountChanged()
 {
     m_setup->setAccount(m_urlField->text(), authMode(), m_emailField->text());
@@ -542,7 +528,6 @@ void SettingsWindow::loadLengths(bool keepEdits)
 {
     const PomodoroConfig config = m_preferences.config();
     const QString owner = m_preferences.owner();
-    // An edit is meant for the account it was made on.
     keepEdits = keepEdits && owner == m_lengthsOwner;
     m_lengthsOwner = owner;
     for (const PomodoroField field : lengthFields) {
@@ -556,12 +541,10 @@ void SettingsWindow::loadLengths(bool keepEdits)
     }
 }
 
-// Shows the preferences' state: whether the lengths can be edited, the
-// errors, and the end of a save in flight.
 void SettingsWindow::updatePomodoro()
 {
-    // Another account whose lengths equal the ones shown announces no new
-    // lengths, but the edits still belonged to the one before.
+    // Another account with equal lengths announces no change, but the edits
+    // belonged to the one before.
     if (m_preferences.owner() != m_lengthsOwner) {
         loadLengths(true);
     }
@@ -572,8 +555,6 @@ void SettingsWindow::updatePomodoro()
         m_lengthErrors.at(index(field))->setText(error);
         m_lengthErrors.at(index(field))->setVisible(!error.isEmpty());
     }
-    // Without an account the note says why; a read that failed for lack of
-    // one would only repeat it.
     const QString general = editable ? m_preferences.errorString() : QString();
     m_pomodoroError->setText(general);
     m_pomodoroError->setVisible(!general.isEmpty());

@@ -116,7 +116,6 @@ bool ServerApi::isSupported() const
 
 namespace
 {
-// One length of pomodoro_limits: {min, max, default}.
 bool decodeLimit(const QJsonObject &limits, QLatin1String key, PomodoroRange &range, int &defaultValue)
 {
     const QJsonObject limit = limits.value(key).toObject();

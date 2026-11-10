@@ -1,6 +1,5 @@
-// The top bar button and its menu. Everything shown comes from the
-// org.tokkl.Timer1 proxy, through menumodel.js; every action is one method
-// call on it, and the service decides whether it happens.
+// The top bar button and menu. Every action is one Timer1 method call, and the
+// service decides whether it happens.
 
 import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
@@ -28,17 +27,10 @@ import {
 } from './timer1.js';
 import { TimerRequests } from './timerrequests.js';
 
-// The properties the project submenu's items show. A change to any other
-// property leaves the items as they are.
 const PROJECT_ITEM_PROPERTIES = ['Projects', 'ProjectsIncomplete', 'ChosenProject'];
 
 export const TokklIndicator = GObject.registerClass(
     class TokklIndicator extends PanelMenu.Button {
-        /**
-         * @param {import('gi://Gio').File} logo the clock logo PNG in the
-         *     extension's directory
-         * @param {() => void} openPreferences
-         */
         _init(logo, openPreferences) {
             super._init(0.5, _('Tokkl timer'));
 
@@ -49,14 +41,9 @@ export const TokklIndicator = GObject.registerClass(
             this._ownGesture = null;
             this._syncing = false;
             this._tickId = 0;
-            // Set when a method call fails, or the server refuses a request
-            // this menu sent, so the menu says so; the next call clears it.
+            // Holds a failed call or a refused request until the next call.
             this._actionError = '';
 
-            // The button lays out one child: the logo, the hourglass of Pomodoro
-            // mode, the project indicator and the time, in that order. The logo
-            // and the hourglass take the top bar's icon size; setHourglass gives
-            // the hourglass its picture.
             const box = new St.BoxLayout({ style_class: 'panel-status-menu-box' });
             this._logo = new St.Icon({
                 gicon: new Gio.FileIcon({ file: logo }),
@@ -84,10 +71,8 @@ export const TokklIndicator = GObject.registerClass(
             this._settings = St.Settings.get();
             this._settingsSignal = this._settings.connect('notify::enable-animations', () => this._sync());
 
-            // Primary clicks pause, resume and start, so the buttons must be
-            // told apart: from Shell 50 through a gesture of our own, before it
-            // in vfunc_event below. From Shell 51, Space and Return reach us
-            // before the menu's key controller takes them.
+            // Primary clicks act, so buttons must be told apart: Shell 50 needs our own
+            // gesture, and from Shell 51 Space and Return reach us before the menu does.
             this._ownGesture = replaceClickGesture(this, button => this._onPress(button));
             captureActivateKeys(
                 this,
@@ -111,8 +96,6 @@ export const TokklIndicator = GObject.registerClass(
             this._statusItem = new PopupMenu.PopupMenuItem('', { reactive: false, can_focus: false });
             this.menu.addMenuItem(this._statusItem);
 
-            // The service's last word on a session, such as a pomodoro too short
-            // to save. It stays until the next one.
             this._messageItem = new PopupMenu.PopupMenuItem('', { reactive: false, can_focus: false });
             this._messageItem.label.clutter_text.line_wrap = true;
             this.menu.addMenuItem(this._messageItem);
@@ -121,12 +104,11 @@ export const TokklIndicator = GObject.registerClass(
             this._detailItem.label.clutter_text.line_wrap = true;
             this.menu.addMenuItem(this._detailItem);
 
-            // Start or Stop, as the service's Actions say. Stop ends the chain.
+            // Stop ends the chain; it never pauses.
             this._toggleItem = new PopupMenu.PopupMenuItem(_('Start'));
             this._toggleItem.connect('activate', () => this._startOrStop());
             this.menu.addMenuItem(this._toggleItem);
 
-            // The session's actions; _sync shows the ones the state offers.
             this._startSessionItem = new PopupMenu.PopupMenuItem(_('Start session'));
             this._startSessionItem.connect('activate', () => this._call('StartSession', []));
             this.menu.addMenuItem(this._startSessionItem);
@@ -139,21 +121,17 @@ export const TokklIndicator = GObject.registerClass(
 
             this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
-            // Timer mode or Pomodoro mode. Like Billable below, it must not send
-            // back what _sync sets.
             this._modeItem = new PopupMenu.PopupSwitchMenuItem(_('Pomodoro mode'), false);
             this._modeItem.connect('toggled', (item, state) => {
                 if (!this._syncing) this._setPomodoroMode(state);
             });
             this.menu.addMenuItem(this._modeItem);
 
-            // Its items are rebuilt by _syncProjectItems.
             this._projectMenu = new PopupMenu.PopupSubMenuMenuItem('');
             this.menu.addMenuItem(this._projectMenu);
 
             this._billableItem = new PopupMenu.PopupSwitchMenuItem(_('Billable'), false);
-            // From GNOME Shell 50 on the item also emits toggled when _sync sets
-            // it, and that must not go back to the service as a choice.
+            // From GNOME Shell 50 the item also emits toggled when _sync sets it.
             this._billableItem.connect('toggled', (item, state) => {
                 if (!this._syncing) this._setBillable(state);
             });
@@ -165,19 +143,13 @@ export const TokklIndicator = GObject.registerClass(
             settingsItem.connect('activate', () => openPreferences());
             this.menu.addMenuItem(settingsItem);
 
-            // The projects have no stream: each opening checks them. The
-            // handler returns nothing, as true would stop the Shell's own
-            // handlers of the signal.
+            // Projects have no stream, so each opening checks them. Returning true here
+            // would stop the Shell's own handlers.
             this.menu.connect('open-state-changed', (_menu, open) => {
                 refreshProjectsOnOpen(open, this._proxy);
             });
         }
 
-        /**
-         * Follows a new proxy, or none while the service cannot be reached.
-         *
-         * @param {import('gi://Gio').DBusProxy | null} proxy
-         */
         setProxy(proxy) {
             this._disconnectProxy();
             this._proxy = proxy;
@@ -209,7 +181,6 @@ export const TokklIndicator = GObject.registerClass(
             this._requests = null;
         }
 
-        // A service owns the name but is older than the extension supports.
         _outdated() {
             return serviceOutdated(this._proxy);
         }
@@ -225,8 +196,6 @@ export const TokklIndicator = GObject.registerClass(
                 interfaceVersion: interfaceVersion(this._proxy),
                 errorString: this._property('ErrorString', ''),
                 running: this._property('Running', false),
-                // The start on this machine's clock, so elapsed time matches the
-                // other apps when the clocks differ.
                 startTime: this._property('LocalStartTime', 0),
                 paused: this._property('Paused', false),
                 chainSeconds: this._property('ChainSeconds', 0),
@@ -248,20 +217,12 @@ export const TokklIndicator = GObject.registerClass(
                 upcomingPhase: this._property('UpcomingPhase', ''),
                 sessionMessage: this._property('SessionMessage', ''),
                 alarmError: this._property('AlarmError', ''),
-                // Which items show and can be chosen.
                 actions: this._property('Actions', null),
-                // Which parts the time's words show.
                 presentation: this._property('Presentation', null),
                 actionError: this._actionError,
             };
         }
 
-        /**
-         * Shows the service's state.
-         *
-         * @param {string[]} [changed] the properties that changed; all of them
-         *     when left out
-         */
         _sync(changed) {
             const state = this._state();
             const words = describeStatus(state.status, state.errorString, _, state.interfaceVersion);
@@ -274,8 +235,6 @@ export const TokklIndicator = GObject.registerClass(
                 startTime: state.startTime,
                 chainSeconds: state.chainSeconds,
                 pomodoroMode: state.pomodoroMode,
-                // The panel counts the phase down while a session is active, in
-                // either mode.
                 session: state.sessionActive ? state : null,
                 presentation: state.status !== null ? state.presentation : null,
             };
@@ -298,7 +257,6 @@ export const TokklIndicator = GObject.registerClass(
             this._syncSwitch(this._billableItem, menu.billable);
         }
 
-        // Sets a switch without sending the value back to the service.
         _syncSwitch(item, shown) {
             this._syncing = true;
             if (shown.text !== undefined) item.label.text = shown.text;
@@ -339,8 +297,6 @@ export const TokklIndicator = GObject.registerClass(
             this.accessible_name = shown.accessibleName;
         }
 
-        // Ticks once a second while an entry runs or a session is active, and
-        // not at all otherwise.
         _syncTick() {
             if (this._ticking && !this._tickId) {
                 this._tickId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 1, () => {
@@ -354,13 +310,7 @@ export const TokklIndicator = GObject.registerClass(
             }
         }
 
-        // What a primary click and Space or Return on the button do. The
-        // service decides: during a session, in either mode, it confirms a phase
-        // that rings and otherwise asks for the menu. Without a session, with a
-        // timer or in Timer mode it pauses, resumes or starts, and in Pomodoro
-        // mode it starts a session.
         _activate() {
-            // An older service gets nothing; the menu says to update it.
             if (this._outdated()) {
                 if (!this.menu.isOpen) this.menu.toggle();
                 return;
@@ -374,9 +324,8 @@ export const TokklIndicator = GObject.registerClass(
             this._request(this._property('Actions', null)?.run?.label === 'stop' ? 'Stop' : 'Start');
         }
 
-        // The service answers false when it refused a choice, and then announces
-        // nothing, so a refused choice puts the switch back to the service's
-        // value.
+        // A refused choice is answered false with no property change, so the switch
+        // is reset to the service's value.
         _setBillable(state) {
             this._call('SetBillable', [state], accepted => accepted || this._sync());
         }
@@ -385,16 +334,6 @@ export const TokklIndicator = GObject.registerClass(
             this._call('SetPomodoroMode', [state], accepted => accepted || this._sync());
         }
 
-        /**
-         * Calls a Timer1 method. A failed call, such as one the service never
-         * answered, shows a short message in the menu until the next call,
-         * and the menu shows the service's last known state again.
-         *
-         * @param {string} method
-         * @param {Array} args
-         * @param {(reply: any) => void} [onReply] gets the method's result, or
-         *     null when the call failed; not called once the button is gone
-         */
         _call(method, args, onReply) {
             if (!this._proxy || this._outdated()) return;
             this._clearActionError();
@@ -405,14 +344,8 @@ export const TokklIndicator = GObject.registerClass(
             });
         }
 
-        /**
-         * Sends Start or Stop as a request this menu follows to its end (see
-         * timerrequests.js): when the server refuses it, or its outcome is
-         * unknown, the service's words for it show in the menu until the
-         * next call, also once ErrorString has moved on.
-         *
-         * @param {'Start' | 'Stop'} action
-         */
+        // The menu shows a refused or unknown outcome until the next call, even
+        // after ErrorString has moved on. See timerrequests.js.
         _request(action) {
             if (!this._proxy || this._outdated()) return;
             this._clearActionError();
@@ -431,7 +364,7 @@ export const TokklIndicator = GObject.registerClass(
         _clearActionError() {
             if (!this._actionError) return;
             this._actionError = '';
-            // Leaves the project items alone: this may run in one's activate.
+            // Leaves the project items alone: this may run inside one's activate.
             this._sync([]);
         }
 
@@ -442,10 +375,6 @@ export const TokklIndicator = GObject.registerClass(
             this._sync([]);
         }
 
-        // A primary click is the service's Activate (see _activate); other
-        // buttons and touch open the menu, whose Stop ends the timer. Space and
-        // Return on the focused button do what a primary click does (see
-        // _isActivateKey), and Down opens the menu.
         _onPress(button) {
             if (button === Clutter.BUTTON_PRIMARY) {
                 this.menu.close();
@@ -455,8 +384,7 @@ export const TokklIndicator = GObject.registerClass(
             }
         }
 
-        // Space or Return without a modifier other than Caps Lock and Num Lock,
-        // the keys PopupMenu would otherwise take to open the menu.
+        // Caps Lock and Num Lock are allowed. PopupMenu would otherwise open on these keys.
         _isActivateKey(symbol, modifiers) {
             if (symbol !== Clutter.KEY_space && symbol !== Clutter.KEY_Return) return false;
             return (
@@ -469,9 +397,8 @@ export const TokklIndicator = GObject.registerClass(
         }
 
         vfunc_event(event) {
-            // Before GNOME Shell 51, the event signal, whose handler this is,
-            // comes before the key-press-event signal on which PopupMenu opens
-            // the menu.
+            // Before GNOME Shell 51 the event signal comes before key-press-event, on
+            // which PopupMenu opens the menu.
             if (
                 event.type() === Clutter.EventType.KEY_PRESS &&
                 this._isActivateKey(event.get_key_symbol(), event.get_state())
@@ -479,8 +406,8 @@ export const TokklIndicator = GObject.registerClass(
                 this._onPress(Clutter.BUTTON_PRIMARY);
                 return Clutter.EVENT_STOP;
             }
-            // From 50 on the gesture handles presses, and St.Widget has no
-            // event handler to chain up to.
+            // From Shell 50 the gesture handles presses, and St.Widget has no event
+            // handler to chain up to.
             if (this._ownGesture) return Clutter.EVENT_PROPAGATE;
             if (event.type() === Clutter.EventType.BUTTON_PRESS) {
                 this._onPress(event.get_button());
@@ -502,8 +429,6 @@ export const TokklIndicator = GObject.registerClass(
     },
 );
 
-// Puts what describeMenu() says on a menu item: its text, if it has one, and
-// whether it shows and can be chosen.
 function showItem(item, shown) {
     if (shown.text !== undefined) item.label.text = shown.text;
     if (shown.visible !== undefined) item.visible = shown.visible;

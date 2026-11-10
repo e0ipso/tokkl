@@ -1,7 +1,3 @@
-// The QtKeychain credential store against a real GNOME Keyring on a private
-// D-Bus daemon, with its keyrings in a temporary directory: secrets reach the
-// Secret Service through libsecret, and the user's keyring is never touched.
-
 #include "keychaincredentialstore.h"
 #include "privatebus.h"
 
@@ -24,7 +20,6 @@ namespace
 const QString secretsService = QStringLiteral("org.freedesktop.secrets");
 const QString key = QStringLiteral("token https://a.example.test");
 
-// Runs one store operation and waits for its callback.
 CredentialResult wait(const std::function<void(QObject *, CredentialStore::Callback)> &operation)
 {
     QObject context;
@@ -58,15 +53,13 @@ private Q_SLOTS:
         qputenv("XDG_DATA_HOME", m_home.filePath(QStringLiteral("data")).toLocal8Bit());
         qputenv("XDG_CONFIG_HOME", m_home.filePath(QStringLiteral("config")).toLocal8Bit());
         qputenv("XDG_RUNTIME_DIR", runtime.toLocal8Bit());
-        // QtKeychain picks the Secret Service on GNOME.
+        // Makes QtKeychain pick the Secret Service.
         qputenv("XDG_CURRENT_DESKTOP", "GNOME");
 
         const QByteArray address = m_bus.start(m_home.path());
         QVERIFY(!address.isEmpty());
         qputenv("DBUS_SESSION_BUS_ADDRESS", address);
 
-        // A keyring daemon of the test's own, unlocked with a throwaway
-        // password, serving the Secret Service on the private bus.
         m_keyring.setProgram(QStringLiteral(TOKKL_GNOME_KEYRING_DAEMON));
         m_keyring.setArguments({QStringLiteral("--foreground"), QStringLiteral("--components=secrets"), QStringLiteral("--unlock")});
         m_keyring.setProcessEnvironment(QProcessEnvironment::systemEnvironment());
@@ -87,7 +80,6 @@ private Q_SLOTS:
             20000);
         QVERIFY2(serving(), m_keyring.readAllStandardError().constData());
 
-        // The bus libsecret uses is the private one.
         QDBusConnection session = QDBusConnection::sessionBus();
         QVERIFY(session.isConnected());
         const QDBusReply<QString> sessionId = session.interface()->call(QStringLiteral("GetId"));
@@ -132,8 +124,6 @@ private Q_SLOTS:
         QCOMPARE(read.secret, QStringLiteral("tok-keyring-1"));
     }
 
-    // The secret is in the Secret Service, where libsecret's own tool finds
-    // it under the key and the tokkl service.
     void storedInSecretService()
     {
         KeychainCredentialStore store;

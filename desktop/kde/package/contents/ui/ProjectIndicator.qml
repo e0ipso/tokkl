@@ -5,28 +5,15 @@ import org.kde.kirigami as Kirigami
 
 import com.canpicasoft.tokkl.backend
 
-// The project of the running or paused entry, or of the next start while
-// stopped, as a small shape in the panel row. A dot pulses while an entry
-// runs, a still dot shows while paused and a still square while stopped. The project colour fills the shape inside a
-// ring in the theme text colour, which keeps 3:1 against the panel in light
-// and dark themes whatever the project colour. Only the fill pulses; the ring
-// and the dashed outline stay at full opacity, so the edge never fades. A project without a valid
-// colour is filled with the text colour. No project draws a dashed outline of
-// the shape, and a project still being read leaves the slot empty. The slot
-// has the same width in every state, so the row never changes size.
-//
-// The shape is decoration: StatusText names the project in the tooltip and
-// the accessible description, so nothing depends on colour.
+// The text-colour ring keeps 3:1 contrast in light and dark themes whatever
+// the project colour; only the fill pulses, so the edge never fades.
 Item {
     id: indicator
 
     required property TokklTimer timer
 
-    // Reduced motion follows Plasma's Animation speed setting, which stores
-    // AnimationDurationFactor in kdeglobals; "Instant" is 0. The KDE Kirigami
-    // platform plugins scale Units by it, but at 0 longDuration is 1, not 0,
-    // with Kirigami 6.24 (shortDuration is 0). Plasma's own BusyIndicator
-    // stops its motion when longDuration <= 1, and so does this.
+    // With "Instant" animations Kirigami 6.24 sets longDuration to 1, not 0;
+    // Plasma's BusyIndicator uses the same <= 1 test.
     readonly property bool reducedMotion: Kirigami.Units.longDuration <= 1
 
     readonly property bool filled: timer.indicatorState === TokklTimer.IndicatorState.Project
@@ -36,7 +23,7 @@ Item {
     readonly property color ringColor: Kirigami.Theme.textColor
     readonly property bool pulsing: pulse.running
     readonly property alias fillOpacity: fill.opacity
-    // As Plasma's BusyIndicator: no motion for a hidden item or window.
+    // As Plasma's BusyIndicator.
     readonly property bool shown: visible && Window.visibility !== Window.Hidden
 
     readonly property int shapeSize: Math.round(Kirigami.Units.iconSizes.small * 5 / 8)
@@ -104,9 +91,7 @@ Item {
         }
     }
 
-    // The pulse of the running dot's fill: the web app's 1.6 s cycle down to
-    // 0.35 opacity and back. While paused, under reduced motion or while
-    // hidden, it stops at full opacity.
+    // Matches the web app's 1.6 s pulse.
     SequentialAnimation {
         id: pulse
         running: indicator.timer.running && indicator.filled && indicator.shown && !indicator.reducedMotion

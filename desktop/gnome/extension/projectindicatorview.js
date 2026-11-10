@@ -1,15 +1,11 @@
-// The project indicator's drawing on the panel button. projectindicator.js
-// decides what it shows; this widget only paints that.
-
 import Clutter from 'gi://Clutter';
 import GObject from 'gi://GObject';
 import St from 'gi://St';
 
 import { fillColor, pulseOpacity, PULSE_PERIOD_MS, shapeGeometry } from './projectindicator.js';
 
-// The project indicator in a slot of its own; projectindicator.js decides
-// what it shows. Two drawing areas share the slot, so the fill can pulse
-// while the ring or outline above it keeps full opacity.
+// Two drawing areas share the slot, so the fill can pulse while the ring or
+// outline above it keeps full opacity.
 export const TokklProjectIndicator = GObject.registerClass(
     class TokklProjectIndicator extends St.Widget {
         _init() {
@@ -36,9 +32,6 @@ export const TokklProjectIndicator = GObject.registerClass(
             return this._shape;
         }
 
-        /**
-         * @param {ReturnType<typeof describeIndicator>} shape
-         */
         setShape(shape) {
             this._shape = shape;
             this.accessible_name = shape.label;
@@ -54,8 +47,8 @@ export const TokklProjectIndicator = GObject.registerClass(
             this._edge.queue_repaint();
         }
 
-        // The timeline follows the fill's frame clock, so it does not advance
-        // while the top bar is not on screen.
+        // The timeline follows the fill's frame clock, so it stops while the top bar
+        // is off screen.
         _startPulse() {
             this._pulse = new Clutter.Timeline({ actor: this._fill, duration: PULSE_PERIOD_MS, repeat_count: -1 });
             this._pulse.connect('new-frame', (timeline, elapsedMs) => {
@@ -70,8 +63,6 @@ export const TokklProjectIndicator = GObject.registerClass(
             this._fill.opacity = 255;
         }
 
-        // The ring, the outline and a fill without a project colour take the
-        // top bar's text colour.
         _paint(area, fill) {
             const cr = area.get_context();
             const [width, height] = area.get_surface_size();

@@ -1,7 +1,3 @@
-// The Pomodoro sounds the companions install, the files
-// TOKKL_POMODORO_SOUND_FILES names, against the SHA-256 sums in
-// docs/sounds/README.md, and the sound catalogue against those files.
-
 #include "apitypes.h"
 #include "pomodorosounds.h"
 #include "soundchoices.h"
@@ -22,17 +18,14 @@ using namespace Tokkl;
 
 namespace
 {
-// The build joins the list with "|", as a compile definition cannot hold
-// CMake's ";".
+// The build joins the list with "|": a compile definition cannot hold CMake's ";".
 QStringList soundFiles()
 {
     return QStringLiteral(TOKKL_POMODORO_SOUND_FILES).split(QLatin1Char('|'), Qt::SkipEmptyParts);
 }
 
-// The sum the README gives each file name. Each sound's section names its
-// file, as packages/web/public/sounds/<file>, and then gives the committed
-// file's "SHA-256 `<hex>`", so a sum belongs to the file named last before
-// it. Only the name counts, so the sums also hold for copies elsewhere.
+// A sum belongs to the file the README names last before it. Only the name
+// counts, so the sums also hold for copies elsewhere.
 QHash<QString, QByteArray> readmeSums(const QString &text)
 {
     static const QRegularExpression token(QStringLiteral("([A-Za-z0-9_.-]+\\.wav)|SHA-256 `([0-9a-f]{64})`"));
@@ -71,7 +64,6 @@ private Q_SLOTS:
         }
     }
 
-    // Each file is a WAV with the sum the README gives its name.
     void files()
     {
         QFETCH(QString, path);
@@ -85,8 +77,7 @@ private Q_SLOTS:
         QCOMPARE(QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex(), m_sums.value(name));
     }
 
-    // The files are the catalogue's, in its order, so a platform can find
-    // an installed sound by the catalogue's file name.
+    // A platform finds an installed sound by the catalogue's file name.
     void catalogueNamesTheFiles()
     {
         QStringList names;
@@ -100,8 +91,6 @@ private Q_SLOTS:
         QCOMPARE(names, catalogue);
     }
 
-    // Every transition starts with a sound of its own from the catalogue,
-    // and a stored id the catalogue no longer has is not taken for one.
     void defaults()
     {
         QSet<QString> ids;
@@ -117,7 +106,6 @@ private Q_SLOTS:
         QVERIFY(!pomodoroSound(QStringLiteral("pomodoro-work-to-short-rest")));
     }
 
-    // A stored choice counts only when the catalogue has it.
     void chosenFallsBackToTheDefault()
     {
         QCOMPARE(chosenSound(u"long-rest-to-work", TransitionKind::WorkToShortRest), QStringLiteral("long-rest-to-work"));
@@ -125,8 +113,6 @@ private Q_SLOTS:
         QCOMPARE(chosenSound(QStringView(), TransitionKind::LongRestToWork), defaultSound(TransitionKind::LongRestToWork));
     }
 
-    // A sound's file in a directory, only for a catalogue id whose file is
-    // there.
     void locatesFiles()
     {
         const QString dir = QFileInfo(soundFiles().first()).absolutePath();
@@ -138,8 +124,6 @@ private Q_SLOTS:
         QCOMPARE(soundFile(empty.path(), u"work-to-short-rest"), QString());
     }
 
-    // Choices go under the companion's own keys and survive a new
-    // QSettings on the same file; an unknown id is refused.
     void choicesUseTheGivenKeys()
     {
         QTemporaryDir dir;
@@ -167,9 +151,7 @@ private Q_SLOTS:
         QCOMPARE(none.chosen(TransitionKind::WorkToShortRest), defaultSound(TransitionKind::WorkToShortRest));
     }
 
-    // QSettings keeps the first error it meets. A choice that fails keeps
-    // the sound stored before, and one made once the cause is gone is stored
-    // and announced.
+    // QSettings keeps the first error it meets.
     void aChoiceAfterAFailedOneIsStored()
     {
         QTemporaryDir dir;
@@ -180,7 +162,6 @@ private Q_SLOTS:
             return QStringLiteral("Sounds/") + transitionKindName(kind);
         });
         QSignalSpy changed(&choices, &SoundChoices::changed);
-        // A directory stands where the file would go.
         QVERIFY(QDir().mkpath(file));
         QVERIFY(!choices.choose(TransitionKind::WorkToShortRest, QStringLiteral("long-rest-to-work")));
         QCOMPARE(choices.chosen(TransitionKind::WorkToShortRest), defaultSound(TransitionKind::WorkToShortRest));
@@ -196,7 +177,6 @@ private Q_SLOTS:
     }
 
 private:
-    // The README's sum for each file name.
     QHash<QString, QByteArray> m_sums;
 };
 

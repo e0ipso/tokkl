@@ -174,8 +174,6 @@ const Clock &Connection::clock() const
     return m_clock;
 }
 
-// ----- configuration and credentials ---------------------------------------
-
 void Connection::settingsChanged()
 {
     // Another instance or account: nothing from the old one may stay visible,
@@ -234,7 +232,6 @@ void Connection::onSecretRead(const CredentialResult &result)
 {
     if (!result.ok()) {
         qCWarning(lcCredentials) << "Reading the secret failed:" << result.status;
-        // Without the secret nothing can be validated or written.
         if (isConnected()) {
             resetAccount();
         }
@@ -252,9 +249,8 @@ void Connection::onSecretRead(const CredentialResult &result)
 void Connection::showFailedWrite(CredentialResult::Status status)
 {
     qCWarning(lcCredentials) << "The store did not save the secret:" << status;
-    // A new generation, so a read issued before the failure cannot replace
-    // this error. What the store now holds for the key is not what the user
-    // entered, so nothing is validated or written with it.
+    // A new generation, so an earlier read cannot replace this error, and the
+    // stored value, not what the user entered, is never used.
     resetAccount();
     m_retryTimer.stop();
     m_credentials.forgetSecret();
@@ -280,8 +276,6 @@ void Connection::refreshAccount()
     authenticate(false);
 }
 
-// ----- authentication ------------------------------------------------------
-
 void Connection::authenticate(bool explicitRequest)
 {
     m_retryTimer.stop();
@@ -305,9 +299,8 @@ void Connection::authenticate(bool explicitRequest)
 
 void Connection::readAnnouncement()
 {
-    // A supported announcement holds for the generation. Any other answer
-    // is asked for again by the next validation, such as a reconnect after
-    // the server was updated.
+    // A supported announcement holds for the generation; anything else is asked
+    // again on the next validation.
     m_announcement = Announcement{m_generation, true, ServerApi()};
     m_api.send("GET", app(QStringLiteral("/status")), QByteArray(), [this](const HttpResponse &response) {
         m_announcement.pending = false;
@@ -316,9 +309,8 @@ void Connection::readAnnouncement()
             handleFailure(response, error);
             return;
         }
-        // Any other answer, an older server's 404 too, is the server's;
-        // /me then tells a wrong address or refused credentials from a
-        // server that is too old.
+        // Even an older server's 404 counts; /me then tells a wrong address or
+        // refused credentials from a server that is too old.
         m_announcement.server = serverApiFromResponse(response);
         sendMe();
     });
@@ -380,9 +372,8 @@ void Connection::fetchMe(Callback<Me> done)
     });
 }
 
-// The credentials were refused. A 403 alone does not say why, so the message
-// does not claim the account is disabled. Wallet values stay so the user can
-// correct them.
+// A 403 alone does not say why, so the message does not claim the account is
+// disabled. Wallet values stay so the user can correct them.
 void Connection::refuseCredentials(const ApiError &error)
 {
     pauseAuthentication(tr("The instance refused these credentials (%1). Check them in the widget settings, then reconnect.").arg(error.message));
@@ -455,8 +446,6 @@ void Connection::setState(State state, const QString &error)
     Q_EMIT stateChanged();
 }
 
-// ----- rate limiting -------------------------------------------------------
-
 void Connection::startCooldown(const QByteArray &retryAfter, const QString &message)
 {
     m_cooldown.start(retryAfter);
@@ -477,8 +466,6 @@ void Connection::onCooldownEnded()
         Q_EMIT stateChanged();
     }
 }
-
-// ----- ApiSession ----------------------------------------------------------
 
 QByteArray Connection::authorization() const
 {
@@ -522,8 +509,6 @@ bool Connection::absorbFailure(const HttpResponse &response, const ApiError &err
     }
     return true;
 }
-
-// ----- operations ----------------------------------------------------------
 
 QUrl Connection::api(const QString &path) const
 {
@@ -588,7 +573,6 @@ void Connection::fetchProjectPage(const std::shared_ptr<ProjectPages> &pages)
                 fetchProjectPage(pages);
                 return;
             }
-            // Still more after the last page read: the list is cut short.
             if (pages->done) {
                 pages->done(ApiResult<ProjectList>::success(ProjectList{pages->projects, more}));
             }

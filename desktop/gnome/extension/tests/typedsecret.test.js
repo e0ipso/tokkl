@@ -1,7 +1,3 @@
-// Tests for typedsecret.js, which drops a typed secret once the connection
-// it was typed for changes:
-//   node --test 'desktop/gnome/extension/**/*.test.js'
-
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
@@ -17,7 +13,6 @@ const typedFor = (secret, ...connection) => {
 test('the secret stays while the connection it was typed for is the same', () => {
     const typed = typedFor('hunter2', url, 'password', 'me@example.com');
     assert.equal(typed.staleFor('hunter2', connectionIdentity(url, 'password', 'me@example.com')), false);
-    // Surrounding spaces are not sent, so they change nothing.
     assert.equal(typed.staleFor('hunter2', connectionIdentity(` ${url} `, 'password', ' me@example.com')), false);
 });
 

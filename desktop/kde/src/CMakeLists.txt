@@ -1,13 +1,4 @@
-# The backend QML module the widget imports. The API client, the credential
-# store interface, connection state and timer controller are the tokklcore
-# library from desktop/core, which the module and the tests link. The
-# tokklkde library adds KDE Wallet and the types QML creates; qmltypes.h
-# gives the classes their QML names.
-
-# The KDE side: the KDE Wallet store, the connection types the Configure
-# pages create, which inject it, the Pomodoro store in the widget's own
-# configuration, the widget's timer on the core's TimerStack and the alarm
-# player. Qt Multimedia is linked here only; the core never sees it.
+# Qt Multimedia is linked here only; the core never sees it.
 add_library(tokklkde STATIC
     alarmplayer.cpp
     alarmplayer.h
@@ -27,11 +18,10 @@ add_library(tokklkde STATIC
     pomodorosoundcatalogue.h
 )
 set_target_properties(tokklkde PROPERTIES POSITION_INDEPENDENT_CODE ON)
-# The alarm player finds the installed widget's sounds by the widget's id.
 target_compile_definitions(tokklkde PRIVATE
     TOKKL_PLASMOID_ID="${TOKKL_PLASMOID_ID}"
 )
-# Multimedia is public: the alarm player's header includes its headers.
+# Public: alarmplayer.h includes Qt Multimedia headers.
 target_link_libraries(tokklkde
     PUBLIC
         tokklcore
@@ -53,9 +43,7 @@ target_sources(tokklbackend PRIVATE
     companion.h
     qmltypes.h
 )
-# Loads the catalog of the core's tr() messages when the module loads, from
-# locale/<lang>/LC_MESSAGES/tokklcore_qt.qm in the XDG data dirs. The QML
-# strings use KI18n; see desktop/core/src/translations.h.
+# The core's tr() catalog; QML strings use KI18n (see translations.h).
 ecm_create_qm_loader(tokklbackend tokklcore_qt)
 
 target_compile_definitions(tokklbackend PRIVATE

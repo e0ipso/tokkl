@@ -1,16 +1,5 @@
-// Connection settings for the Tokkl extension. Connect sends them to
-// tokkl-timerd's Configure method; the service checks them, stores the token
-// or password in the keyring and connects. The extension's own settings keep
-// the instance URL, sign-in method and email that were last accepted, so the
-// form opens filled in. No secret is ever stored here.
-//
-// The Pomodoro group edits the account's Pomodoro lengths and the sound of
-// each transition, also through tokkl-timerd: it sends the lengths on to the
-// Tokkl server and keeps the sounds in its own settings.
-//
-// A tokkl-timerd older than the extension supports gets no call from here,
-// as from the panel button: the rows turn insensitive and the window says to
-// update it.
+// Connect sends the settings to tokkl-timerd's Configure, which keeps the
+// secret in the keyring. Only accepted non-secret values reach GSettings.
 
 import Adw from 'gi://Adw';
 import Gio from 'gi://Gio';
@@ -37,14 +26,10 @@ function toastError(window, error) {
 }
 
 class PomodoroGroup {
-    /**
-     * @param {Adw.PreferencesWindow} window shows the toasts
-     */
     constructor(window) {
         this._window = window;
         this._proxy = null;
         this._saving = false;
-        // Set while rows follow the service, so the change is not sent back.
         this._syncing = false;
         this._soundIds = [];
         this._choicesKey = '';
@@ -54,11 +39,8 @@ class PomodoroGroup {
         this._save.connect('clicked', () => this._saveLengths());
         this.group.header_suffix = this._save;
 
-        // Keyed as PomodoroLengths. The ranges and defaults are the ones the
-        // service publishes in PomodoroLengthLimits once it is reached, the
-        // core's placeholder until the server announces its own. Before that
-        // a row has no range, and it is insensitive: nothing can be saved
-        // without the service.
+        // Ranges and defaults come from PomodoroLengthLimits. Until the service is
+        // reached a row has no range and stays insensitive.
         const minutes = _('Minutes');
         this._lengths = [
             ['work', _('Work'), minutes],
@@ -77,7 +59,6 @@ class PomodoroGroup {
             return { key, unit, row };
         });
 
-        // Keyed as Sounds.
         this._sounds = [
             ['workToShortRest', _('Work → short rest')],
             ['shortRestToWork', _('Short rest → work')],
@@ -97,13 +78,6 @@ class PomodoroGroup {
         this._sync(null);
     }
 
-    /**
-     * Follows the service and asks it to read the lengths from the server
-     * again. Returns the handler ids to disconnect when the window closes.
-     *
-     * @param {Gio.DBusProxy} proxy
-     * @returns {number[]}
-     */
     setProxy(proxy) {
         this._proxy = proxy;
         const signals = [
@@ -111,20 +85,17 @@ class PomodoroGroup {
             proxy.connect('notify::g-name-owner', () => this._sync(null)),
         ];
         this._sync(null);
-        // A failed read shows in PomodoroLengthErrors. An older service gets
-        // no call, as from the panel button.
+        // A failed read shows in PomodoroLengthErrors.
         if (!serviceOutdated(proxy)) proxy.RefreshPreferencesRemote(() => {});
         return signals;
     }
 
-    // Nothing of a service older than the extension supports: its rows stay
-    // insensitive.
     _property(name, fallback) {
         return supportedProperty(this._proxy, name, fallback);
     }
 
-    // changed holds the properties that changed, or is null to show them all.
-    // A new InterfaceVersion can make every property usable or unusable.
+    // changed is null to show every property. A new InterfaceVersion can change
+    // which properties are usable.
     _sync(changed) {
         if (changed !== null && 'InterfaceVersion' in changed) changed = null;
         if (changed === null || 'PomodoroLengthLimits' in changed) this._syncLimits();
@@ -132,8 +103,6 @@ class PomodoroGroup {
         this._syncSounds();
     }
 
-    // The range of each row, and its value while the service has no
-    // lengths for it.
     _syncLimits() {
         const limits = this._property('PomodoroLengthLimits', {});
         const lengths = this._property('PomodoroLengths', {});
@@ -152,8 +121,8 @@ class PomodoroGroup {
         const lengths = this._property('PomodoroLengths', {});
         const errors = this._property('PomodoroLengthErrors', {});
         for (const { key, unit, row } of this._lengths) {
-            // Typed lengths stay until the service has new ones, so a refused
-            // save keeps them. Rows that cannot be saved show the known ones.
+            // Typed lengths stay until the service has new ones, so a refused save keeps
+            // them. Rows that cannot be saved show the known values.
             if ((refill || !editable) && key in lengths) row.value = lengths[key];
             row.sensitive = editable;
             row.subtitle = errors[key] || unit;
@@ -196,7 +165,7 @@ class PomodoroGroup {
     _saveLengths() {
         if (!this._proxy || serviceOutdated(this._proxy)) return;
         const values = this._lengths.map(({ row }) => {
-            // Takes in a number that is still being typed.
+            // Commits a number that is still being typed.
             row.update();
             return Math.round(row.value);
         });
@@ -225,7 +194,6 @@ class PomodoroGroup {
             if (!error && result[0]) return;
             if (error) this._toastError(error);
             else this._toast(_('The sound choice could not be saved'));
-            // Back to the stored choice.
             this._syncSounds();
         });
     }
@@ -248,7 +216,6 @@ class PomodoroGroup {
     }
 }
 
-// The appearance switch, bound to the extension's settings.
 function appearanceGroup(settings) {
     const group = new Adw.PreferencesGroup({ title: _('Appearance') });
     const monochrome = new Adw.SwitchRow({
@@ -260,7 +227,6 @@ function appearanceGroup(settings) {
     return group;
 }
 
-// The service's state in one row.
 class StatusGroup {
     constructor() {
         this._row = new Adw.ActionRow({ title: _('Timer service') });
@@ -270,10 +236,6 @@ class StatusGroup {
         this._proxy = null;
     }
 
-    /**
-     * @param {Gio.DBusProxy} proxy
-     * @returns {number[]} the handler ids to disconnect when the window closes
-     */
     setProxy(proxy) {
         this._proxy = proxy;
         const signals = [
@@ -300,19 +262,11 @@ class StatusGroup {
     }
 }
 
-// The instance address, sign-in method, email and secret, and Connect,
-// which sends them to Configure. Only accepted values reach the settings,
-// and never the secret.
 class ConnectionGroup {
-    /**
-     * @param {Adw.PreferencesWindow} window shows the toasts
-     * @param {Gio.Settings} settings
-     */
     constructor(window, settings) {
         this._window = window;
         this._settings = settings;
         this._proxy = null;
-        // Set from Connect until Configure's answer is handled.
         this._configuring = false;
 
         this.group = new Adw.PreferencesGroup({
@@ -328,8 +282,7 @@ class ConnectionGroup {
         });
         this.group.add(this._url);
 
-        // The warning the KDE and macOS settings give for a plain-http
-        // address, in the same words.
+        // Same words as the KDE and macOS plain-http warning.
         this._insecure = new Adw.ActionRow({
             title: _('This address uses plain http. Your token or password would be sent unencrypted.'),
             title_lines: 0,
@@ -358,8 +311,8 @@ class ConnectionGroup {
         this._secret = new Adw.PasswordEntryRow();
         this.group.add(this._secret);
 
-        // A secret typed for one instance, sign-in method or email is
-        // cleared when one of them changes, and has to be typed again.
+        // A secret typed for one instance, sign-in method or email is cleared when
+        // any of them changes.
         this._typedSecret = new TypedSecret();
         this._secret.connect('changed', () => this._typedSecret.edited(this._secret.text, this._identity()));
         this._url.connect('changed', () => this._dropStaleSecret());
@@ -381,10 +334,6 @@ class ConnectionGroup {
         this.buttonGroup.add(this._connect);
     }
 
-    /**
-     * @param {Gio.DBusProxy} proxy
-     * @returns {number[]} the handler ids to disconnect when the window closes
-     */
     setProxy(proxy) {
         this._proxy = proxy;
         const signals = [
@@ -395,8 +344,6 @@ class ConnectionGroup {
         return signals;
     }
 
-    // An older service cannot be configured from here; the Timer service
-    // row says to update it.
     _syncSensitive() {
         const usable = !serviceOutdated(this._proxy);
         for (const row of [this._url, this._modes, this._email, this._secret]) row.sensitive = usable;
@@ -427,15 +374,12 @@ class ConnectionGroup {
         const values = { url: this._url.text.trim(), mode, email: this._email.text.trim() };
         this._configuring = true;
         this._syncSensitive();
-        // The email belongs to password sign-in only.
         const address = mode === 'password' ? values.email : '';
         this._proxy.ConfigureRemote(values.url, mode, address, this._secret.text, (result, error) => {
             this._configuring = false;
             this._syncSensitive();
-            // Only settings the service applied are kept. That leaves out a
-            // call a later one replaced before its settings were applied
-            // (org.tokkl.Timer1.Error.Superseded): the later call's settings
-            // are the service's.
+            // A call that a later one superseded (org.tokkl.Timer1.Error.Superseded)
+            // errors, so only settings the service applied are kept.
             if (error) {
                 toastError(this._window, error);
                 return;

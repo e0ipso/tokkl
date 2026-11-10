@@ -32,8 +32,6 @@ const QString TimerService::supersededError = QStringLiteral("org.tokkl.Timer1.E
 
 namespace
 {
-// The key of a failed read, or of a refusal that names no length, in
-// PomodoroLengthErrors.
 const QString generalErrorKey = QStringLiteral("general");
 
 constexpr TransitionKind transitions[] = {
@@ -76,13 +74,8 @@ TimerService::TimerService(const Parts &parts, QObject *parent)
     qDBusRegisterMetaType<QMap<QString, QMap<QString, int>>>();
     new Timer1Adaptor(this);
 
-    // Any of these signals has every property read again on the next turn
-    // of the event loop, and only the values that differ from what the bus
-    // last saw are sent. No table says which signal changes which property,
-    // so none can miss one: a property's getter may read anything these
-    // objects announce. Elapsed time and the countdown are left out:
-    // clients count up from LocalStartTime and down to PlannedEnd
-    // themselves.
+    // Any of these rereads every property and sends only the diff, so there
+    // is no signal-to-property table to go stale. New getter state needs its signal here.
     watch(m_timer,
           &TimerModel::contextChanged,
           &TimerModel::statusChanged,
@@ -106,8 +99,6 @@ TimerService::TimerService(const Parts &parts, QObject *parent)
     watch(m_preferences, &PomodoroPreferences::changed, &PomodoroPreferences::stateChanged, &PomodoroPreferences::limitsChanged);
     watch(m_sounds, &SoundChoices::changed);
     watch(m_alarm, &PomodoroAlarm::failureChanged);
-    // LocalStartTime reads the state client's offset, which no model
-    // signal announces.
     watch(m_timer->stateClient(), &TimerStateClient::offsetChanged);
     connect(m_timer, &TimerController::writeFinished, this, &TimerService::onWriteFinished);
 
@@ -166,8 +157,6 @@ qint64 TimerService::localStartTime() const
     if (!entry || !entry->isRunning()) {
         return 0;
     }
-    // serverNow() is this machine's clock plus the offset, so the start on
-    // this clock is the server's start minus it.
     return entry->start.addMSecs(-m_timer->stateClient()->serverOffsetMs()).toSecsSinceEpoch();
 }
 
@@ -201,8 +190,7 @@ QString TimerService::indicatorColor() const
 
 QList<QVariantMap> TimerService::projects() const
 {
-    // The active projects of the core's project choices, with only the
-    // fields the interface names, so no null value reaches the bus.
+    // Only the named fields, so no null value reaches the bus.
     QList<QVariantMap> list;
     const ProjectChoices choices = m_timer->projectChoices();
     for (const ProjectChoices::Row &row : choices.rows) {
@@ -323,9 +311,6 @@ QString TimerService::sessionMessage() const
 
 QMap<QString, QVariantMap> TimerService::actions() const
 {
-    // GNOME's menu has always waited for Status ready before it offered a
-    // write, and has left Project and Billable to the timer during a
-    // session; the policy keeps both.
     const QVariantMap states = MenuActionStates::of(*m_timer, m_session, true).toVariantMap();
     QMap<QString, QVariantMap> actions;
     for (auto it = states.cbegin(); it != states.cend(); ++it) {
@@ -356,7 +341,6 @@ bool TimerService::pomodoroLengthsEditable() const
 
 QMap<QString, QString> TimerService::pomodoroLengthErrors() const
 {
-    // Only the refused keys, so an empty map means no error.
     QMap<QString, QString> errors;
     const std::pair<QString, QString> named[] = {
         {QStringLiteral("work"), m_preferences->workMinutesError()},
@@ -375,8 +359,6 @@ QMap<QString, QString> TimerService::pomodoroLengthErrors() const
 
 QMap<QString, QMap<QString, int>> TimerService::pomodoroLengthLimits() const
 {
-    // The core's limits are keyed by the preferences' names; the bus keys
-    // them as PomodoroLengths.
     const std::pair<QString, QString> keys[] = {
         {QStringLiteral("work"), QStringLiteral("workMinutes")},
         {QStringLiteral("shortRest"), QStringLiteral("shortRestMinutes")},
@@ -418,7 +400,6 @@ QList<QVariantMap> TimerService::soundCatalogue() const
 
 bool TimerService::Start()
 {
-    // In Pomodoro mode the desktop starts no timer: sessions run instead.
     return answer(!m_session->pomodoroMode() && m_timer->start());
 }
 
@@ -462,7 +443,7 @@ qulonglong TimerService::follow(bool sent)
     if (!sent) {
         return 0;
     }
-    // The core answers a write later, never while it sends it.
+    // The core never answers a write synchronously.
     m_request = ++m_lastRequest;
     return m_request;
 }
@@ -471,9 +452,8 @@ void TimerService::onWriteFinished(bool ok, const QString &message)
 {
     const qulonglong request = std::exchange(m_request, 0);
     if (request == 0) {
-        return; // a write from Start, Activate or another plain method
+        return;
     }
-    // The properties the write changed reach the bus first.
     publishChanges();
     Q_EMIT RequestFinished(request, ok, message);
 }
@@ -490,7 +470,6 @@ bool TimerService::SetBillable(bool billable)
 
 void TimerService::Configure(const QString &instanceUrl, const QString &authMode, const QString &email, const QString &secret)
 {
-    // Answered once the credential store has, with the message for the user.
     setDelayedReply(true);
     m_settings->configure(instanceUrl, authMode, email, secret, [call = message(), bus = QDBusContext::connection()](const ServiceSettings::Outcome &outcome) {
         switch (outcome.kind) {
@@ -579,8 +558,6 @@ bool TimerService::SetSound(const QString &transition, const QString &soundId)
         }
         return false;
     }
-    // A choice the file cannot keep is not taken, so Sounds keeps showing
-    // the one stored.
     return answer(m_sounds->choose(*kind, soundId));
 }
 
@@ -595,14 +572,6 @@ bool TimerService::PreviewSound(const QString &soundId)
     m_alarm->preview(soundId);
     return true;
 }
-
-// ----- publishing ----------------------------------------------------------
-//
-// Every Q_PROPERTY of the service is an org.tokkl.Timer1 property, read
-// through its getter with the type the adaptor gives it on the bus. A new
-// property is a Q_PROPERTY and its getter; when the getter reads something
-// none of the watched signals announces, that object's signal joins the
-// constructor's watch list.
 
 const QList<QMetaProperty> &TimerService::publication()
 {
@@ -641,7 +610,6 @@ void TimerService::markChanged()
         Qt::QueuedConnection);
 }
 
-// A core signal that changed nothing visible sends nothing.
 void TimerService::publishChanges()
 {
     if (!std::exchange(m_dirty, false)) {

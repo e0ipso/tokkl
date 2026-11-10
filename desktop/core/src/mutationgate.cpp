@@ -55,10 +55,8 @@ MutationGate::Ending MutationGate::finish(Outcome outcome, const ApiError &error
             ending.message = Message::Show;
             break;
         default:
-            // Answered and refused, for example a 409 for an entry that was
-            // already stopped. Read what the server has now. A refused start
-            // or resume created nothing, so the read cannot answer it: its
-            // message stays until the next action.
+            // A refused start or resume created nothing, so no read answers
+            // it; its message stays until the next action.
             ending.message = start ? Message::Keep : Message::Show;
             ending.refresh = true;
             break;

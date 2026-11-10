@@ -1,7 +1,4 @@
-// The Pomodoro session next to the timer controller and its state client,
-// driven through the fake clock and the scripted transport. Timer states come
-// from read replies, action replies and the event stream, as they would from
-// the server, so a state from the stream stands for another device.
+// A state from the event stream stands for another device's change.
 
 #include "connection.h"
 #include "fakes.h"
@@ -37,7 +34,6 @@ const QByteArray endPath = "/app/pomodoro/end";
 const QByteArray timerStartPath = "/app/timer/start";
 const QString tooShort = QStringLiteral("This pomodoro was too short to save.");
 
-// A running entry of the workspace in the v9 shape.
 QJsonObject runningEntry(qint64 id, const QDateTime &start)
 {
     return QJsonObject{
@@ -53,7 +49,6 @@ QJsonObject runningEntry(qint64 id, const QDateTime &start)
     };
 }
 
-// One active, billable project of the workspace.
 QByteArray projectsBody()
 {
     return QByteArrayLiteral(R"([{"id":11,"workspace_id":7,"client_id":null,"client_name":null,"name":"Alpha","color":"#06aaf5","active":true,"billable":true}])");
@@ -61,8 +56,6 @@ QByteArray projectsBody()
 
 }
 
-// A timer that is only TimerActions, as a session sees it: answers the test
-// sets.
 class StandInTimer : public TimerActions
 {
     Q_OBJECT
@@ -103,9 +96,8 @@ public:
     int toggles = 0;
 };
 
-// The server's state as only a SessionState, with no connection behind it:
-// the state the test sets, and the actions the session sends, kept with
-// their callbacks for the test to answer.
+// The actions the session sends are kept with their callbacks for the test
+// to answer.
 class StandInState : public SessionState
 {
     Q_OBJECT
@@ -156,7 +148,6 @@ private:
     const Clock *m_clock;
 };
 
-// A store whose mode the test sets, as if it now read another place.
 class SwitchingStore : public PomodoroStore
 {
     Q_OBJECT
@@ -221,7 +212,6 @@ class PomodoroSessionTest : public QObject
             return clock.now().addMSecs(skewMs);
         }
 
-        // Requests whose path ends with the given text.
         QList<qsizetype> find(const QByteArray &method, const QByteArray &suffix) const
         {
             QList<qsizetype> found;
@@ -245,8 +235,7 @@ class PomodoroSessionTest : public QObject
             return QJsonDocument::fromJson(transport.requests.at(index).body).object();
         }
 
-        // The state at the next revision, built now on the server's clock:
-        // the session in phase, or none, and a pomodoro the change discarded.
+        // The session in phase, or none, and a pomodoro the change discarded.
         QByteArray state(const std::optional<Phase> &phase, const QJsonValue &discarded = QJsonValue::Null)
         {
             const QDateTime pomodoroStart = phase && phase->pomodoroStart.isValid() ? phase->pomodoroStart : phase ? phase->start : QDateTime();
@@ -261,8 +250,6 @@ class PomodoroSessionTest : public QObject
             return QJsonDocument(body).toJson(QJsonDocument::Compact);
         }
 
-        // The state at the next revision with the entry running outside a
-        // session.
         QByteArray runningState(const QJsonObject &entry)
         {
             const QJsonObject body{
@@ -276,7 +263,6 @@ class PomodoroSessionTest : public QObject
             return QJsonDocument(body).toJson(QJsonDocument::Compact);
         }
 
-        // A state from the event stream, as another device's change sends it.
         void push(const QByteArray &state)
         {
             transport.lastStream()->push("event: timer\ndata: " + state + "\n\n");
@@ -295,8 +281,6 @@ class PomodoroSessionTest : public QObject
         }
     };
 
-    // Configure token auth, answer /me, then the state read with the given
-    // state (nothing running by default) and the project list.
     static bool connectAccount(Fixture &f, const QByteArray &state = QByteArray(), const QString &instance = instanceA)
     {
         f.credentials.secrets.insert(credentialKey(parseInstanceUrl(instance), AuthMode::Token, QString()), token);
@@ -309,7 +293,6 @@ class PomodoroSessionTest : public QObject
         }
         f.transport.respond(before, FakeTransport::answer(200, meBody()));
         const qsizetype read = f.last("GET", statePath);
-        // The list read follows the catalog revision's answer.
         if (read < 0 || !f.transport.lastStream() || !QTest::qWaitFor([&] {
                 return f.last("GET", "/projects") > before;
             })) {
@@ -322,8 +305,7 @@ class PomodoroSessionTest : public QObject
     }
 
 private Q_SLOTS:
-    // A store that reads another place now, as the KDE widget's does once
-    // QML hands it the applet, brings the mode stored there.
+    // As the KDE widget's store does once QML hands it the applet.
     void takesTheModeOfTheStoresNewSource()
     {
         Fixture f(false);
@@ -335,15 +317,13 @@ private Q_SLOTS:
         store.switchTo(true);
         QVERIFY(session.pomodoroMode());
         QCOMPARE(changed.size(), 1);
-        // The same mode again changes nothing.
         store.switchTo(true);
         QCOMPARE(changed.size(), 1);
         QVERIFY(session.setPomodoroMode(false));
         QVERIFY(!store.stored);
     }
 
-    // The menus' actions come from one set of rules; GNOME's write items
-    // also wait for Ready.
+    // GNOME's write items also wait for Ready.
     void menuActionsFollowTheTimerAndTheSession()
     {
         Fixture f;
@@ -358,14 +338,12 @@ private Q_SLOTS:
         actions.setSession(f.session.get());
         QSignalSpy changes(&actions, &MenuActions::changed);
 
-        // No account: Start shows and cannot be chosen.
         QVERIFY(actions.states() == plasma());
         QVERIFY(plasma().run.visible && !plasma().run.enabled);
         QCOMPARE(plasma().run.label, QStringLiteral("start"));
         QVERIFY(!plasma().startSession.visible && !plasma().nextPhase.visible && !plasma().endSession.visible);
         QVERIFY(!plasma().project.enabled && !plasma().billable.enabled);
         QVERIFY(plasma().mode.enabled);
-        // Without a session the menu reads as Timer mode.
         QVERIFY(MenuActionStates::of(f.timer, nullptr).run.visible);
         QVERIFY(!MenuActionStates::of(f.timer, nullptr).mode.enabled);
 
@@ -377,8 +355,6 @@ private Q_SLOTS:
             QCOMPARE(states.project.label, QStringLiteral("project"));
         }
 
-        // A refused start keeps its message: status Error while the timer can
-        // still write. GNOME, which waits for Ready, holds the writes.
         QVERIFY(f.timer.start());
         QVERIFY(!plasma().run.enabled);
         f.transport.respond(f.last("POST", timerStartPath), FakeTransport::answer(400, "\"Project is archived\""));
@@ -387,19 +363,16 @@ private Q_SLOTS:
         QVERIFY(f.timer.canWrite());
         QVERIFY(plasma().run.enabled && plasma().project.enabled);
         QVERIFY(!gnome().run.enabled && !gnome().project.enabled && !gnome().billable.enabled);
-        // A billable choice clears the kept message.
         QVERIFY(f.timer.chooseBillable(false));
         QVERIFY(gnome().run.enabled);
 
-        // Pomodoro mode: Start session instead of Start.
         QVERIFY(f.session->setPomodoroMode(true));
         QVERIFY(!plasma().run.visible && !plasma().run.enabled);
         QVERIFY(plasma().startSession.visible && plasma().startSession.enabled);
         QCOMPARE(actions.statesVariant().value(QStringLiteral("startSession")).toMap().value(QStringLiteral("visible")).toBool(), true);
 
-        // A session: Next phase and End session. Its open pomodoro is a
-        // running entry, so every menu locks Project and Billable, and the
-        // timer refuses them too.
+        // Its open pomodoro is a running entry, so every menu locks Project and
+        // Billable, and the timer refuses them too.
         QVERIFY(f.session->startSession());
         QVERIFY(!plasma().startSession.enabled);
         f.respond(f.last("POST", startPath), f.state(work(f.serverNow())));
@@ -424,8 +397,6 @@ private Q_SLOTS:
         QVERIFY(actions.states() == plasma());
     }
 
-    // What the click does is the core's answer, and the panels name it from
-    // its key; activate() does what the answer says.
     void primaryActionSaysWhatTheClickDoes()
     {
         Fixture f;
@@ -445,7 +416,6 @@ private Q_SLOTS:
         QVERIFY(f.session->setPomodoroMode(true));
         QCOMPARE(f.session->primaryAction(), PrimaryAction::StartSession);
         QCOMPARE(parts.action(), QStringLiteral("startSession"));
-        // Without a session the click is the timer's toggle.
         QCOMPARE(primaryActionOf(f.timer, nullptr), PrimaryAction::Start);
 
         f.push(f.state(work(f.serverNow())));
@@ -459,9 +429,6 @@ private Q_SLOTS:
         }
     }
 
-    // The session needs nothing of the timer but TimerActions: it reads and
-    // acts through the timer's client, starts with the typed selection, and
-    // a click in Timer mode is the timer's toggle and reports what it did.
     void worksThroughTimerActions()
     {
         Fixture f(false);
@@ -489,16 +456,12 @@ private Q_SLOTS:
         QCOMPARE(f.body(start).value(QStringLiteral("project_id")).toInteger(), 11);
         QCOMPARE(f.body(start).value(QStringLiteral("billable")).toBool(), true);
 
-        // A held timer locks the mode, as the timer says.
         f.respond(start, f.state(std::nullopt));
         timer.held = true;
         Q_EMIT timer.changed();
         QVERIFY(session.modeLocked());
     }
 
-    // The session needs nothing of the network either: it shows the state
-    // its SessionState holds and acts through it, and accountReset() drops
-    // the action on its way, so a late answer changes nothing.
     void worksThroughSessionState()
     {
         Fixture f(false);
@@ -518,10 +481,8 @@ private Q_SLOTS:
 
         QVERIFY(session.confirmNextPhase());
         QCOMPARE(state.sent, QStringList{QStringLiteral("next")});
-        // One action at a time.
         QVERIFY(!session.endSession());
 
-        // Another account: the state goes, then the reset.
         state.held.reset();
         Q_EMIT state.stateChanged();
         Q_EMIT state.accountReset();
@@ -532,7 +493,6 @@ private Q_SLOTS:
         state.pending(TimerActionResult{TimerActionResult::Outcome::Refused, std::nullopt, error});
         QVERIFY(session.message().isEmpty());
 
-        // Nothing waits any more: a new session can start.
         QVERIFY(session.setPomodoroMode(true));
         QVERIFY(session.startSession());
         QCOMPARE(state.sent, (QStringList{QStringLiteral("next"), QStringLiteral("start")}));
@@ -548,8 +508,6 @@ private Q_SLOTS:
         QVERIFY(!f.session->isActive());
         QVERIFY(!f.session->modeLocked());
 
-        // Another device started a session 10 s ago. It shows in Timer mode,
-        // on this device's clock, and locks the mode.
         QSignalSpy sessionChanges(f.session.get(), &PomodoroSession::sessionChanged);
         const QDateTime start = f.serverNow().addSecs(-10);
         f.push(f.state(work(start)));
@@ -571,12 +529,10 @@ private Q_SLOTS:
         QCOMPARE(f.session->nextPhase(), QStringLiteral("shortRest"));
         QVERIFY(!f.session->isRinging());
 
-        // Before the planned end a click opens the menu.
         QCOMPARE(f.session->activate(), PomodoroSession::Activation::OpenMenu);
         QVERIFY(f.find("POST", nextPath).isEmpty());
 
-        // It rings at the server's planned end, not 30 s later on this
-        // device's clock.
+        // It rings at the server's planned end, not 30 s later on this device's clock.
         QSignalSpy ringing(f.session.get(), &PomodoroSession::ringingChanged);
         f.tick(49);
         QCOMPARE(f.session->countdownText(), QStringLiteral("0:01"));
@@ -590,15 +546,12 @@ private Q_SLOTS:
         QCOMPARE(f.session->overtimeSeconds(), 2);
         QCOMPARE(f.session->countdownText(), QStringLiteral("+0:02"));
 
-        // A state of the same phase, such as an edit of the running entry,
-        // and a clock set back keep it ringing.
         f.push(f.state(work(start)));
         f.clock.advance(-5000);
         QVERIFY(f.session->isRinging());
         QCOMPARE(ringing.size(), 1);
         f.clock.advance(5000);
 
-        // A click confirms Next phase against the revision shown, once.
         QCOMPARE(f.session->activate(), PomodoroSession::Activation::Handled);
         const qsizetype next = f.last("POST", nextPath);
         QVERIFY(next >= 0);
@@ -607,7 +560,6 @@ private Q_SLOTS:
         QCOMPARE(f.find("POST", nextPath).size(), 1);
         QVERIFY(f.session->isRinging());
 
-        // The new phase stops the alarm.
         const QDateTime rest = f.serverNow();
         f.respond(next, f.state(shortRest(rest, start)));
         QVERIFY(!f.session->isRinging());
@@ -619,7 +571,6 @@ private Q_SLOTS:
         QCOMPARE(f.session->pomodoroNumber(), 1);
         QCOMPARE(f.session->nextPhase(), QStringLiteral("work"));
 
-        // Another device ends the session: the mode is free again.
         f.push(f.state(std::nullopt));
         QVERIFY(!f.session->isActive());
         QVERIFY(!f.session->modeLocked());
@@ -632,8 +583,6 @@ private Q_SLOTS:
 
     void ringsFromTheStateAfterARestart()
     {
-        // The app starts after the planned end of a session that runs: the
-        // phase rings at once.
         Fixture f(false);
         QVERIFY(connectAccount(f, f.state(work(f.serverNow().addSecs(-70)))));
         f.createSession();
@@ -642,14 +591,11 @@ private Q_SLOTS:
         QCOMPARE(f.session->overtimeSeconds(), 10);
         QCOMPARE(f.session->countdownText(), QStringLiteral("+0:10"));
 
-        // Another device confirms Next phase: the alarm stops here too.
         QSignalSpy ringing(f.session.get(), &PomodoroSession::ringingChanged);
         f.push(f.state(shortRest(f.serverNow(), f.serverNow().addSecs(-70))));
         QVERIFY(!f.session->isRinging());
         QCOMPARE(ringing.size(), 1);
 
-        // The rest rings at its end, and stops when another device ends the
-        // session.
         f.tick(60);
         QVERIFY(f.session->isRinging());
         QCOMPARE(f.session->ringingTransition(), QStringLiteral("shortRestToWork"));
@@ -659,9 +605,7 @@ private Q_SLOTS:
         QVERIFY(!f.session->isActive());
     }
 
-    // A session starts only when the timer could start anything: not during
-    // a 429 cooldown, and not once the workspace is lost, although an
-    // account is bound and a state has been read in both cases.
+    // An account is bound and a state read in both cases.
     void startSessionWaitsLikeTheTimer_data()
     {
         QTest::addColumn<QByteArray>("trigger");
@@ -696,21 +640,16 @@ private Q_SLOTS:
     void startsAndEndsOnTheServer()
     {
         Fixture f;
-        // Before an account, the timer's toggle sends nothing.
         QCOMPARE(f.session->activate(), PomodoroSession::Activation::Ignored);
         QVERIFY(connectAccount(f));
         QVERIFY(!f.session->canStartSession());
 
-        // In Timer mode a click is the timer's: it starts an entry, and the
-        // mode stays locked while it runs.
         QCOMPARE(f.session->activate(), PomodoroSession::Activation::Handled);
         const qsizetype timerStart = f.last("POST", timerStartPath);
         QVERIFY(timerStart >= 0);
-        // While the start waits for its answer, a click is ignored, as
-        // Activate promises over D-Bus.
+        // Activate promises this over D-Bus.
         QCOMPARE(f.session->activate(), PomodoroSession::Activation::Ignored);
         QCOMPARE(f.find("POST", timerStartPath).size(), 1);
-        // The state the start answers with shows it.
         const QJsonObject started = runningEntry(30, f.serverNow());
         f.respond(timerStart, f.runningState(started));
         QVERIFY(!f.session->canStartSession());
@@ -720,8 +659,6 @@ private Q_SLOTS:
         f.push(f.state(std::nullopt));
         QVERIFY(!f.session->modeLocked());
 
-        // In Pomodoro mode a click starts a session with the chosen project
-        // and billable flag, and with the lengths left to the server.
         QVERIFY(f.session->setPomodoroMode(true));
         QVERIFY(f.store.loadPomodoroMode());
         QVERIFY(f.timer.chooseProject(11));
@@ -751,8 +688,6 @@ private Q_SLOTS:
         QVERIFY(!f.session->setPomodoroMode(false));
         QCOMPARE(f.session->countdownText(), QStringLiteral("1:00"));
 
-        // End session sends the revision shown. The server drops the short
-        // pomodoro and says so.
         f.tick(5);
         QVERIFY(f.session->endSession());
         const qsizetype end = f.last("POST", endPath);
@@ -769,7 +704,6 @@ private Q_SLOTS:
         QVERIFY(!f.session->modeLocked());
         QVERIFY(f.session->canStartSession());
 
-        // The same state from the stream tells nothing new.
         f.session->clearMessage();
         f.push(ended);
         QCOMPARE(f.session->message(), QString());
@@ -782,8 +716,6 @@ private Q_SLOTS:
         QVERIFY(connectAccount(f, f.state(work(start))));
         QVERIFY(f.session->isRinging());
 
-        // Another device confirmed first: the 409 shows its state, and Next
-        // phase is not sent again.
         QVERIFY(f.session->confirmNextPhase());
         const qsizetype next = f.last("POST", nextPath);
         QCOMPARE(f.body(next), (QJsonObject{{QStringLiteral("revision"), f.revision}}));
@@ -794,8 +726,7 @@ private Q_SLOTS:
         QCOMPARE(f.find("POST", nextPath).size(), 1);
         QCOMPARE(f.session->message(), QString());
 
-        // End session times out: it may have happened, so nothing is sent
-        // until a later read shows what the server holds.
+        // It may have happened, so nothing is sent until a later read.
         QVERIFY(f.session->endSession());
         const qsizetype end = f.last("POST", endPath);
         const qsizetype readsBefore = f.find("GET", statePath).size();
@@ -820,8 +751,6 @@ private Q_SLOTS:
         QVERIFY(f.session->confirmNextPhase());
         QCOMPARE(f.find("POST", nextPath).size(), 1);
 
-        // The answer for the first instance never comes. On the second one
-        // the session takes actions again.
         QVERIFY(connectAccount(f, f.state(work(f.serverNow().addSecs(-65))), instanceB));
         QVERIFY(f.session->isRinging());
         QVERIFY(f.session->confirmNextPhase());
@@ -833,8 +762,6 @@ private Q_SLOTS:
         QVERIFY(f.session->endSession());
     }
 
-    // A wake the platform reports past the planned end rings at once,
-    // before the next tick, and the state is read once for it.
     void ringsOnAWakeBeforeTheNextTick()
     {
         Fixture f;
@@ -848,7 +775,6 @@ private Q_SLOTS:
         QCOMPARE(f.session->countdownText(), QStringLiteral("+0:30"));
         QCOMPARE(f.find("GET", statePath).size(), reads + 1);
 
-        // The late tick of the same sleep reads nothing more.
         f.tick(1);
         QCOMPARE(f.find("GET", statePath).size(), reads + 1);
         QCOMPARE(f.session->countdownText(), QStringLiteral("+0:31"));
@@ -860,14 +786,11 @@ private Q_SLOTS:
         QVERIFY(connectAccount(f, f.state(work(f.serverNow()))));
         QVERIFY(!f.session->setPomodoroMode(true));
 
-        // The instance is out of reach: End session fails with the
-        // connection's message.
         QVERIFY(f.session->endSession());
         f.transport.respond(f.last("POST", endPath), FakeTransport::failure(HttpResponse::Outcome::NetworkError));
         QCOMPARE(f.session->message(), QStringLiteral("Could not reach the Tokkl instance."));
         QCOMPARE(f.connection.state(), Connection::Disconnected);
 
-        // The countdown and the alarm go on from the last state.
         QVERIFY(f.session->isActive());
         f.tick(30);
         QCOMPARE(f.session->countdownText(), QStringLiteral("0:30"));

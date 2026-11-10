@@ -1,7 +1,3 @@
-// Cooldown::waitMs on its own: the wait a Retry-After value asks for,
-// clamped to the bounds, for every value a server can send. A date counts
-// from the time given.
-
 #include "cooldown.h"
 
 #include <QTest>

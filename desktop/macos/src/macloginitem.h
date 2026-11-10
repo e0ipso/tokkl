@@ -5,9 +5,8 @@
 namespace Tokkl
 {
 
-// Opens the app at login through SMAppService.mainAppService (macOS 13 and
-// later). System Settings → General → Login Items lists it, and the user can
-// turn it off there too, so state() always asks the system.
+// SMAppService.mainAppService (macOS 13+). The user can turn it off in
+// System Settings, so state() always asks the system.
 class MacLoginItem : public LoginItem
 {
 public:

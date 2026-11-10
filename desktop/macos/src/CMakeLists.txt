@@ -1,5 +1,4 @@
-# tokklmacos: the menu bar app without the platform layer. It needs Qt
-# Widgets and tokklcore only, so it builds and is tested on any platform.
+# No platform layer, so it builds and is tested on any platform.
 add_library(tokklmacos STATIC
     alarmplayer.h
     loginitem.h
@@ -26,13 +25,9 @@ target_link_libraries(tokklmacos
         Qt6::Widgets
 )
 
-# The iconset npm run icons renders from the icon pack's master.
 set(_iconset "${CMAKE_CURRENT_SOURCE_DIR}/../resources/${TOKKL_BUNDLE_ICON}.iconset")
 
-# The menu bar logo is the iconset's 16 point icon at 1x and 2x, and the
-# monochrome logo is the outline npm run icons renders beside the iconset.
-# Both are compiled into the library, so the item's image is composed and
-# tested on any platform.
+# Compiled into the library, so the item's image is tested on any platform.
 qt_add_resources(tokklmacos statuslogo
     PREFIX "/tokkl/logo"
     BASE "${_iconset}"
@@ -48,8 +43,6 @@ qt_add_resources(tokklmacos statuslogomono
         "${_resources}/mono_16x16.png"
         "${_resources}/mono_16x16@2x.png"
 )
-# The Pomodoro mode glyph after the indicator: the colour hourglass, and the
-# outline one the menu bar tints like the monochrome logo.
 qt_add_resources(tokklmacos statushourglass
     PREFIX "/tokkl/hourglass"
     BASE "${_resources}"
@@ -60,8 +53,6 @@ qt_add_resources(tokklmacos statushourglass
         "${_resources}/hourglass_mono_16x16@2x.png"
 )
 
-# The QtKeychain credential store: the macOS Keychain on macOS. Built
-# elsewhere only when QtKeychain is installed, for its tests.
 if(Qt6Keychain_FOUND)
     add_subdirectory("${TOKKL_CORE_DIR}/keychain" keychain)
     add_library(tokklkeychain STATIC
@@ -75,16 +66,13 @@ if(Qt6Keychain_FOUND)
     )
 endif()
 
-# The alarm sounds the core lists, four WAVs. The bundle ships them in
-# Contents/Resources/sounds, where PomodoroAlarm looks for them.
+# PomodoroAlarm looks for them in Contents/Resources/sounds.
 list(LENGTH TOKKL_POMODORO_SOUND_FILES _sound_count)
 if(NOT _sound_count EQUAL 4)
     message(FATAL_ERROR "TOKKL_POMODORO_SOUND_FILES lists ${_sound_count} files, not 4; the core did not set it")
 endif()
 
 if(APPLE)
-    # The app bundle: NSStatusItem, SMAppService, NSSound and the wiring in
-    # main.mm.
     set(_platform_sources
         macalarmplayer.h
         macalarmplayer.mm
@@ -94,9 +82,7 @@ if(APPLE)
         macstatusitem.mm
         main.mm
     )
-    # The bundle icon: iconutil packs the iconset that npm run icons renders
-    # into an icns, which goes to Contents/Resources under the name
-    # CFBundleIconFile gives.
+    # Goes to Contents/Resources under the name CFBundleIconFile gives.
     find_program(TOKKL_ICONUTIL iconutil REQUIRED)
     set(_icns "${CMAKE_CURRENT_BINARY_DIR}/${TOKKL_BUNDLE_ICON}.icns")
     set(_iconset_pngs)
@@ -130,8 +116,8 @@ if(APPLE)
             "-framework AppKit"
             "-framework ServiceManagement"
     )
-    # Signs the whole bundle, ad hoc by default, so codesign can verify it
-    # and the Keychain and login items see one app.
+    # Signs the whole bundle, so codesign can verify it and the Keychain and
+    # login items see one app.
     add_custom_command(TARGET tokkl-macos POST_BUILD
         COMMAND codesign --force --sign "${TOKKL_CODESIGN_IDENTITY}" "$<TARGET_BUNDLE_DIR:tokkl-macos>"
         VERBATIM)

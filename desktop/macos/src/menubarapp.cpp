@@ -82,9 +82,8 @@ MenuBarApp::MenuBarApp(Transport *transport,
     updateItem();
 }
 
-// The menu, the window and the alarm go before the session, timer and
-// connection they show, and the stack before the store its session uses.
-// The children would otherwise go in the order they were made.
+// Users go before what they use; children would otherwise go in creation
+// order.
 MenuBarApp::~MenuBarApp()
 {
     m_statusItem.setMenu(nullptr);

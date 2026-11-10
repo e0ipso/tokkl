@@ -1,6 +1,4 @@
-// The sound server backend with no server to reach: it reports what it
-// could not play and its stream threads end, so the service goes on
-// without audio. Playback itself is checked by hand with pactl.
+// Playback itself is checked by hand with pactl.
 
 #include "pulsealarmbackend.h"
 
@@ -25,7 +23,6 @@ class PulseBackendTest : public QObject
 private Q_SLOTS:
     void initTestCase()
     {
-        // No server, and no attempt to spawn one.
         qputenv("PULSE_SERVER", "unix:/nonexistent/pulse");
         QVERIFY(QFileInfo::exists(bundledSound()));
     }
@@ -51,13 +48,10 @@ private Q_SLOTS:
         QVERIFY2(errors.first().first().toString().contains(QStringLiteral("Connection refused")), qPrintable(errors.first().first().toString()));
         QVERIFY(errors.first().first().toString().contains(QFileInfo(bundledSound()).fileName()));
         backend.stop();
-        // Another start after the refusal tries again rather than staying
-        // silent for good.
         backend.playOnce(bundledSound());
         QVERIFY(errors.wait(10000));
         QCOMPARE(errors.size(), 2);
-        // A loop stopped before the server answers ends cleanly, as does
-        // the backend's destruction while a stream is still trying.
+        // Also covers destruction while a stream is still connecting.
         backend.loop(bundledSound());
         backend.stop();
         backend.loop(bundledSound());

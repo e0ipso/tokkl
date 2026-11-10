@@ -13,8 +13,6 @@ function(expect_equal actual expected what)
     endif()
 endfunction()
 
-# Runs a snippet in a child cmake and expects it to fail with a message
-# matching <pattern>.
 function(expect_failure pattern what snippet)
     set(script "${WORK_DIR}/failure.cmake")
     file(WRITE "${script}"
@@ -36,13 +34,11 @@ endfunction()
 set(package_json "${WORK_DIR}/package.json")
 file(WRITE "${package_json}" "{ \"name\": \"tokkl\", \"version\": \"3.4.5\" }\n")
 
-# The default comes from package.json.
 tokkl_resolve_version(version PACKAGE_JSON "${package_json}")
 expect_equal("${version}" "3.4.5" "default version")
 tokkl_resolve_version(version PACKAGE_JSON "${package_json}" OVERRIDE "")
 expect_equal("${version}" "3.4.5" "empty override")
 
-# An explicit release version wins, pre-releases included.
 tokkl_resolve_version(version PACKAGE_JSON "${package_json}" OVERRIDE "4.0.0")
 expect_equal("${version}" "4.0.0" "explicit version")
 tokkl_resolve_version(version PACKAGE_JSON "${WORK_DIR}/missing.json" OVERRIDE "4.1.0-rc.1+build.7")
@@ -50,8 +46,7 @@ expect_equal("${version}" "4.1.0-rc.1+build.7" "explicit version without package
 tokkl_version_core(core "4.1.0-rc.1+build.7")
 expect_equal("${core}" "4.1.0" "version core")
 
-# The real root package.json resolves. A standalone copy of this directory,
-# built with -DTOKKL_VERSION, has no repository root to check.
+# A standalone copy built with -DTOKKL_VERSION has no repository root.
 set(root_package_json "${TOKKL_SOURCE_DIR}/../../package.json")
 if(EXISTS "${root_package_json}")
     tokkl_resolve_version(version PACKAGE_JSON "${root_package_json}")
@@ -70,7 +65,6 @@ file(WRITE "${WORK_DIR}/noversion.json" "{ \"name\": \"tokkl\" }\n")
 expect_failure("Cannot read \"version\"" "package.json without a version"
     "tokkl_resolve_version(v PACKAGE_JSON \"${WORK_DIR}/noversion.json\")")
 
-# Stamping sets KPlugin.Version and keeps the rest.
 tokkl_stamp_metadata(
     INPUT "${TOKKL_SOURCE_DIR}/package/metadata.json"
     OUTPUT "${WORK_DIR}/stamped/metadata.json"
@@ -83,7 +77,6 @@ string(JSON source_id GET "${source}" KPlugin Id)
 string(JSON stamped_id GET "${stamped}" KPlugin Id)
 expect_equal("${stamped_id}" "${source_id}" "stamped plugin id")
 
-# The source metadata must not carry its own version.
 expect_failure("sets KPlugin.Version" "versioned source metadata"
     "tokkl_stamp_metadata(INPUT \"${WORK_DIR}/stamped/metadata.json\" OUTPUT \"${WORK_DIR}/again.json\" VERSION 1.0.0)")
 

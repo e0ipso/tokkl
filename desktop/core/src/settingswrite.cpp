@@ -9,9 +9,8 @@ namespace Tokkl
 
 namespace
 {
-// A settings object on the same file or domain as settings. Only the
-// constructors that take an organization or application name give one; a
-// settings object made on a file path has neither.
+// Only settings made with an organization or application name can be
+// reopened; one made on a file path cannot.
 std::unique_ptr<QSettings> sameStore(const QSettings &settings)
 {
     if (settings.organizationName().isEmpty() && settings.applicationName().isEmpty()) {

@@ -1,6 +1,3 @@
-// The timer state client, driven through a fake clock, a scripted transport
-// with scripted streams and a scripted credential store.
-
 #include "connection.h"
 #include "fakes.h"
 #include "timerstateclient.h"
@@ -20,7 +17,7 @@ const QString token = QStringLiteral("tok-state-1");
 const QString statePath = QStringLiteral("/api/app/timer");
 const QString eventsPath = QStringLiteral("/api/app/timer/events");
 
-// A state with nothing running, built offsetMs after the given time.
+// A state with nothing running, built offsetMs after clientNow.
 QByteArray stateBody(qint64 revision, const QDateTime &clientNow, qint64 offsetMs = 0)
 {
     return QJsonDocument(QJsonObject{
@@ -34,7 +31,6 @@ QByteArray stateBody(qint64 revision, const QDateTime &clientNow, qint64 offsetM
         .toJson(QJsonDocument::Compact);
 }
 
-// One timer event as the server frames it.
 QByteArray eventFrame(const QByteArray &state)
 {
     return "event: timer\ndata: " + state + "\n\n";
@@ -59,8 +55,6 @@ class TimerStateClientTest : public QObject
         QSignalSpy changes{&client, &TimerStateClient::stateChanged};
         QSignalSpy streamingChanges{&client, &TimerStateClient::streamingChanged};
 
-        // Requests whose path is exactly the given one, after the instance's
-        // own prefix.
         QList<qsizetype> find(const QByteArray &method, const QString &path) const
         {
             QList<qsizetype> found;
@@ -89,7 +83,6 @@ class TimerStateClientTest : public QObject
             transport.respond(index, response);
         }
 
-        // Answers the latest read of the state.
         void answerRead(const QByteArray &body)
         {
             respond(last("GET", statePath), FakeTransport::answer(200, body));
@@ -102,8 +95,7 @@ class TimerStateClientTest : public QObject
             }
         }
 
-        // Ticks one second at a time until a new stream opens, at most limit
-        // seconds. The seconds it took, or -1.
+        // The seconds until a new stream opens, at most limit; -1 when none does.
         int secondsToNextStream(int limit = 120)
         {
             const qsizetype before = transport.streams.size();
@@ -117,8 +109,6 @@ class TimerStateClientTest : public QObject
         }
     };
 
-    // Configure token auth for the instance and answer /me. The client then
-    // reads the state and opens the stream.
     static bool connectAccount(Fixture &f, const QString &url = instanceA, qint64 userId = 3)
     {
         f.store.secrets.insert(credentialKey(parseInstanceUrl(url), AuthMode::Token, QString()), token);
@@ -133,8 +123,6 @@ class TimerStateClientTest : public QObject
         return f.connection.state() == Connection::Connected;
     }
 
-    // Connected, with the state read at the given revision and the stream
-    // delivering it.
     static bool streamAt(Fixture &f, qint64 revision)
     {
         if (!connectAccount(f) || f.last("GET", statePath) < 0 || !f.transport.lastStream()) {
@@ -146,8 +134,7 @@ class TimerStateClientTest : public QObject
     }
 
 private Q_SLOTS:
-    // A new context reads the state and opens the stream with the same
-    // credentials. Events may arrive in any number of pieces.
+    // Events may arrive in any number of pieces.
     void readsThenStreams()
     {
         Fixture f;
@@ -173,7 +160,6 @@ private Q_SLOTS:
         QCOMPARE(f.client.serverNow(), f.clock.now().addMSecs(2500));
         QVERIFY(!f.client.streaming());
 
-        // An event split across two pieces, the cut inside the JSON.
         FakeStream *stream = f.transport.lastStream();
         const QByteArray event = eventFrame(stateBody(4, f.clock.now(), -1000));
         stream->push(event.left(30));
@@ -186,9 +172,7 @@ private Q_SLOTS:
         QVERIFY(f.client.streaming());
         QCOMPARE(f.streamingChanges.size(), 1);
 
-        // Keep-alives, comments, other events and data without the timer
-        // event's name change nothing. An unreadable timer event drops the
-        // stream (unreadableEventDropsTheStream).
+        // Keep-alives, comments, other events and unnamed data change nothing.
         stream->push("event: keep-alive\ndata:\n\n");
         stream->push(": comment\n\n");
         stream->push("event: other\ndata: " + stateBody(9, f.clock.now()) + "\n\n");
@@ -196,8 +180,8 @@ private Q_SLOTS:
         QCOMPARE(f.changes.size(), 2);
         QCOMPARE(f.client.state()->revision, 4);
 
-        // An older revision is ignored; the same one is taken again. CRLF
-        // line ends and data split over two lines are accepted.
+        // An older revision is ignored; the same one is taken again. CRLF line ends
+        // and data split over two lines are accepted.
         stream->push(eventFrame(stateBody(2, f.clock.now())));
         QCOMPARE(f.changes.size(), 2);
         QCOMPARE(f.client.serverOffsetMs(), -1000);
@@ -207,7 +191,6 @@ private Q_SLOTS:
         QCOMPARE(f.changes.size(), 3);
         QCOMPARE(f.client.serverOffsetMs(), 750);
 
-        // No polling while the stream is up.
         const qsizetype reads = f.reads();
         f.tick(65);
         QCOMPARE(f.reads(), reads);
@@ -215,8 +198,6 @@ private Q_SLOTS:
         QVERIFY(!stream->aborted);
     }
 
-    // offsetChanged() fires whenever the offset moves, also for a state that
-    // changes nothing else, and not for one that keeps it.
     void offsetChangesAreSignalled()
     {
         Fixture f;
@@ -225,7 +206,6 @@ private Q_SLOTS:
         f.answerRead(stateBody(3, f.clock.now(), 2500));
         QCOMPARE(offset.count(), 1);
 
-        // The same revision, read after this machine's clock was set back.
         FakeStream *stream = f.transport.lastStream();
         f.clock.current = f.clock.current.addSecs(-60);
         stream->push(eventFrame(stateBody(3, f.clock.now(), 62500)));
@@ -234,14 +214,11 @@ private Q_SLOTS:
         stream->push(eventFrame(stateBody(4, f.clock.now(), 62500)));
         QCOMPARE(offset.count(), 2);
 
-        // A new account drops the offset with the state.
         f.connection.setInstanceUrl(instanceB);
         QCOMPARE(f.client.serverOffsetMs(), 0);
         QCOMPARE(offset.count(), 3);
     }
 
-    // When the stream ends the client reads the state, reconnects after a
-    // second, and polls every 30 s until a stream delivers again.
     void closeFallsBackToPoll()
     {
         Fixture f;
@@ -259,7 +236,6 @@ private Q_SLOTS:
         FakeStream *reconnect = f.transport.lastStream();
         QCOMPARE(f.transport.streamRequests.last().url.path(), eventsPath);
 
-        // It opens, but sends nothing: the state is still polled.
         f.tick(28);
         QCOMPARE(f.reads(), reads + 1);
         f.tick();
@@ -277,22 +253,20 @@ private Q_SLOTS:
         QCOMPARE(f.reads(), reads + 3);
         QCOMPARE(f.transport.streams.size(), 2);
 
-        // A wake reads at once and replaces the stream, which may have died
-        // in the sleep.
+        // A wake replaces the stream, which may have died in the sleep.
         f.client.resumed();
         QCOMPARE(f.reads(), reads + 4);
         QVERIFY(reconnect->aborted);
         QCOMPARE(f.transport.streams.size(), 3);
         QVERIFY(!f.client.streaming());
-        // So does a tick that comes late.
         f.answerRead(stateBody(8, f.clock.now()));
         f.clock.advance(2 * 3600 * 1000);
         QCOMPARE(f.reads(), reads + 5);
         QCOMPARE(f.transport.streams.size(), 4);
     }
 
-    // Each failed connect doubles the wait, from 1 s up to 60 s. A stream
-    // that stayed up for 60 s starts again from 1 s.
+    // Each failed connect doubles the wait, 1 s up to 60 s. A stream that stayed
+    // up for 60 s starts again from 1 s.
     void reconnectBacksOff()
     {
         Fixture f;
@@ -305,7 +279,6 @@ private Q_SLOTS:
             QCOMPARE(f.secondsToNextStream(), wait);
         }
 
-        // A stream that delivered but did not last does not reset the wait.
         f.transport.lastStream()->push(eventFrame(stateBody(1, f.clock.now())));
         QVERIFY(f.client.streaming());
         f.tick(10);
@@ -319,21 +292,17 @@ private Q_SLOTS:
         f.transport.lastStream()->end(FakeTransport::failure(HttpResponse::Outcome::NetworkError));
         QCOMPARE(f.secondsToNextStream(), 2);
 
-        // A stream that never ends its event is dropped like a failed one.
         FakeStream *endless = f.transport.lastStream();
         endless->push("data: " + QByteArray(TimerStateClient::maxEventBytes, 'x'));
         QVERIFY(endless->aborted);
         QCOMPARE(f.secondsToNextStream(), 4);
 
-        // A 429 starts the connection's cooldown, as for any request.
         f.transport.lastStream()->end(FakeTransport::answer(429, "\"Too many requests\"", "120"));
         QCOMPARE(f.connection.state(), Connection::RateLimited);
         QVERIFY(f.client.state());
     }
 
-    // An event over the limit is dropped with its stream before it is
-    // parsed, even when it arrives whole and holds a valid state; its lines
-    // are counted from the end of the event before it, not per piece.
+    // Lines are counted from the end of the previous event, not per piece.
     void oversizedEventIsNotParsed()
     {
         Fixture f;
@@ -344,7 +313,6 @@ private Q_SLOTS:
         QCOMPARE(f.client.state()->revision, 2);
         const qsizetype changes = f.changes.size();
 
-        // A whole event: a state padded to more than the limit.
         QByteArray padded = stateBody(3, f.clock.now());
         padded.append(QByteArray(TimerStateClient::maxEventBytes, ' '));
         stream->push(eventFrame(padded));
@@ -353,7 +321,6 @@ private Q_SLOTS:
         QCOMPARE(f.client.state()->revision, 2);
         QVERIFY(!f.client.streaming());
 
-        // Lines that each fit, sent in small pieces, still add up.
         QCOMPARE(f.secondsToNextStream(), 1);
         FakeStream *next = f.transport.lastStream();
         next->push("event: timer\n");
@@ -364,7 +331,6 @@ private Q_SLOTS:
         QVERIFY(next->aborted);
         QCOMPARE(f.changes.size(), changes);
 
-        // Small events keep a stream up however long it runs.
         QCOMPARE(f.secondsToNextStream(), 2);
         FakeStream *third = f.transport.lastStream();
         for (int i = 0; i < 50000; ++i) {
@@ -375,10 +341,6 @@ private Q_SLOTS:
         QCOMPARE(f.client.state()->revision, 4);
     }
 
-    // A timer event that is not a state, after good ones, drops the stream
-    // even while keep-alives would hold it open: the state is read at once,
-    // polled until a stream delivers again, and the next stream waits for
-    // the backoff.
     void unreadableEventDropsTheStream()
     {
         Fixture f;
@@ -396,8 +358,6 @@ private Q_SLOTS:
         f.answerRead(stateBody(6, f.clock.now()));
         QCOMPARE(f.client.state()->revision, 6);
 
-        // The next stream opens after the backoff, and while it only sends
-        // keep-alives the state is polled.
         QCOMPARE(f.secondsToNextStream(), 1);
         FakeStream *next = f.transport.lastStream();
         for (int second = 0; second < 29; ++second) {
@@ -407,15 +367,12 @@ private Q_SLOTS:
         QCOMPARE(f.reads(), reads + 2);
         f.answerRead(stateBody(6, f.clock.now()));
 
-        // Not JSON at all, from the next stream: dropped too, with a longer
-        // wait.
         next->push(eventFrame("not json"));
         QVERIFY(next->aborted);
         QCOMPARE(f.reads(), reads + 3);
         f.answerRead(stateBody(6, f.clock.now()));
         QCOMPARE(f.secondsToNextStream(), 2);
 
-        // A stream that delivers a state again stops the polling.
         f.transport.lastStream()->push(eventFrame(stateBody(7, f.clock.now())));
         QVERIFY(f.client.streaming());
         QCOMPARE(f.client.state()->revision, 7);
@@ -423,10 +380,8 @@ private Q_SLOTS:
         QCOMPARE(f.reads(), reads + 3);
     }
 
-    // The stream's retry field is the shortest wait before a reconnect, for
-    // the streams after it too. The backoff still doubles above it, the
-    // jitter still applies, and no wait goes past the cap. A field that is
-    // not digits is ignored, and a new generation forgets it.
+    // retry: is the floor for this and later streams. Backoff, jitter and cap
+    // still apply; a non-digit value is ignored, and a new generation forgets it.
     void retryFieldSetsTheShortestWait()
     {
         Fixture f;
@@ -444,24 +399,20 @@ private Q_SLOTS:
             QCOMPARE(f.secondsToNextStream(), wait);
         }
 
-        // A floor above the cap is the cap.
         f.transport.lastStream()->push(QByteArray("retry: 600000\n\n"));
         f.transport.lastStream()->end(FakeTransport::answer(503, "\"Service Unavailable\""));
         QCOMPARE(f.secondsToNextStream(), 60);
 
-        // Not digits: ignored, the floor stays.
         f.transport.lastStream()->push(QByteArray("retry: 1s\n\n"));
         f.transport.lastStream()->end(FakeTransport::answer(503, "\"Service Unavailable\""));
         QCOMPARE(f.secondsToNextStream(), 60);
 
-        // Another account starts from the defaults again.
         QVERIFY(connectAccount(f, instanceB));
         f.answerRead(stateBody(1, f.clock.now()));
         f.transport.lastStream()->end(FakeTransport::answer(503, "\"Service Unavailable\""));
         QCOMPARE(f.secondsToNextStream(), 1);
     }
 
-    // The floor takes the jitter like any wait.
     void retryFieldKeepsTheJitter()
     {
         Fixture f;
@@ -474,7 +425,6 @@ private Q_SLOTS:
         QCOMPARE(f.secondsToNextStream(), 10);
     }
 
-    // The clock's jitter lengthens each wait by up to a quarter of it.
     void reconnectAddsJitter()
     {
         Fixture f;
@@ -482,9 +432,8 @@ private Q_SLOTS:
         QVERIFY(connectAccount(f));
         f.answerRead(stateBody(1, f.clock.now()));
 
-        // The fake keeps the 3 s below each bound, so 1, 2, 4, 8 and 16 s
-        // become 1.249, 2.499, 4.999, 9.999 and 19 s, which the one-second
-        // ticks reach at 2, 3, 5, 10 and 19 s.
+        // The fake keeps the jitter 3 s below each bound: 1, 2, 4, 8 and 16 s become
+        // 1.249, 2.499, 4.999, 9.999 and 19 s, reached at ticks 2, 3, 5, 10 and 19.
         const QList<int> waits{2, 3, 5, 10, 19};
         for (int wait : waits) {
             f.transport.lastStream()->end(FakeTransport::answer(503, "\"Service Unavailable\""));
@@ -492,8 +441,6 @@ private Q_SLOTS:
         }
     }
 
-    // A new generation drops the state, its revision and the stream. A
-    // refused stream signs the account out like any refused credential.
     void generationDropsState()
     {
         Fixture f;
@@ -515,7 +462,6 @@ private Q_SLOTS:
         QCOMPARE(f.changes.size(), changes + 1);
         QVERIFY(old->aborted);
 
-        // Late answers from the old account are dropped.
         old->push(eventFrame(stateBody(10, f.clock.now())));
         f.respond(pendingRead, FakeTransport::answer(200, stateBody(10, f.clock.now())));
         QVERIFY(!f.client.state());
@@ -524,11 +470,9 @@ private Q_SLOTS:
         f.respond(f.transport.requests.size() - 1, FakeTransport::answer(200, meBody(4, 8)));
         QCOMPARE(f.transport.requests.last().url.toString(), QStringLiteral("https://b.example.test/tokkl/api/app/timer"));
         QCOMPARE(f.transport.streamRequests.last().url.toString(), QStringLiteral("https://b.example.test/tokkl/api/app/timer/events"));
-        // The other account's revision 1 is newer than nothing.
         f.answerRead(stateBody(1, f.clock.now()));
         QCOMPARE(f.client.state()->revision, 1);
 
-        // The credential stops passing when the stream reconnects.
         f.transport.lastStream()->end(cleanEnd());
         QCOMPARE(f.secondsToNextStream(), 1);
         f.transport.lastStream()->end(FakeTransport::answer(403, "\"Invalid credentials\""));
@@ -539,7 +483,6 @@ private Q_SLOTS:
         QCOMPARE(f.transport.requests.size(), requests);
     }
 
-    // The read after an end finds the account signed out.
     void signedOutAfterEnd()
     {
         Fixture f;
@@ -553,9 +496,6 @@ private Q_SLOTS:
         QCOMPARE(f.transport.streams.size(), streams);
     }
 
-    // A Pomodoro start applies to the state the user saw: refused without
-    // one, sent with its revision, and a 409 brings the server's state,
-    // which the client adopts.
     void pomodoroStartCarriesTheRevision()
     {
         Fixture f;
@@ -580,9 +520,6 @@ private Q_SLOTS:
         QCOMPARE(f.find("POST", QStringLiteral("/api/app/pomodoro")).size(), 1);
     }
 
-    // Each action posts to its route and takes the state it gets back, on
-    // success and on a 409. An unknown outcome is settled by a read, never
-    // by sending again.
     void actionsAdoptState()
     {
         Fixture f;
@@ -591,7 +528,6 @@ private Q_SLOTS:
             results.append(result);
         };
 
-        // Without a state there is no revision to send.
         QVERIFY(connectAccount(f));
         const qsizetype sent = f.transport.requests.size();
         f.client.resume(record);
@@ -612,7 +548,6 @@ private Q_SLOTS:
         QCOMPARE(f.client.state()->revision, 6);
         QCOMPARE(f.client.serverOffsetMs(), 300);
 
-        // Another device changed the timer first.
         f.client.resume(record);
         post = f.last("POST", QStringLiteral("/api/app/timer/resume"));
         QCOMPARE(f.transport.requests.at(post).body, QByteArray(R"({"revision":6})"));
@@ -622,7 +557,6 @@ private Q_SLOTS:
         QCOMPARE(results.last().error.status, 409);
         QCOMPARE(f.client.state()->revision, 8);
 
-        // A 409 without a state still says nothing changed.
         f.client.discard(record);
         post = f.last("POST", QStringLiteral("/api/app/timer/discard"));
         QCOMPARE(f.transport.requests.at(post).body, QByteArray(R"({"revision":8})"));
@@ -630,7 +564,6 @@ private Q_SLOTS:
         QVERIFY(results.last().outcome == TimerActionResult::Outcome::Refused);
         QCOMPARE(f.client.state()->revision, 8);
 
-        // An answer older than the state already held does not replace it.
         f.transport.lastStream()->push(eventFrame(stateBody(10, f.clock.now())));
         PomodoroStart start;
         start.projectId = 11;
@@ -645,7 +578,6 @@ private Q_SLOTS:
         QVERIFY(results.last().outcome == TimerActionResult::Outcome::Applied);
         QCOMPARE(f.client.state()->revision, 10);
 
-        // Unknown outcomes: a timeout, a 5xx, an unreadable answer.
         const struct {
             void (TimerStateClient::*send)(TimerStateClient::ActionCallback);
             QString path;
@@ -670,7 +602,6 @@ private Q_SLOTS:
             QVERIFY(!f.client.settling());
         }
 
-        // Any other refusal changed nothing.
         f.client.endPomodoro(record);
         f.respond(f.last("POST", QStringLiteral("/api/app/pomodoro/end")), FakeTransport::answer(400, "\"Invalid revision\""));
         QVERIFY(results.last().outcome == TimerActionResult::Outcome::Refused);
@@ -679,8 +610,6 @@ private Q_SLOTS:
         QVERIFY(!f.client.settling());
     }
 
-    // A pause applies to the state the user saw, so it is refused without
-    // one. An edit names its entry instead and needs none.
     void pauseNeedsAStateAndEditNamesItsEntry()
     {
         Fixture f;
@@ -707,10 +636,7 @@ private Q_SLOTS:
         QCOMPARE(f.client.state()->revision, 4);
     }
 
-    // After an unknown outcome the client is settling until a read sent
-    // after it brings a state. A read already on its way does not count. A
-    // failed read is tried again every 30 s, even while the stream
-    // delivers, and the action is never sent again.
+    // A read already on its way when the outcome went unknown does not settle it.
     void unknownOutcomeSettlesOnALaterRead()
     {
         Fixture f;
@@ -747,7 +673,6 @@ private Q_SLOTS:
         QCOMPARE(f.client.state()->revision, 6);
         QCOMPARE(f.find("POST", QStringLiteral("/api/app/timer/pause")).size(), 1);
 
-        // A new generation drops the wait with the state.
         f.client.pause();
         f.respond(f.last("POST", QStringLiteral("/api/app/timer/pause")), FakeTransport::failure(HttpResponse::Outcome::NetworkError));
         QVERIFY(f.client.settling());

@@ -209,7 +209,6 @@ void ApiClient::sendAction(const QUrl &url, const QByteArray &body, const QByteA
         } else {
             result.error = errorFromResponse(response);
             if (response.outcome == HttpResponse::Outcome::Finished && response.status == 409) {
-                // Refused; the body is the state that refused it.
                 const std::optional<QJsonValue> json = parseJsonBody(response.body);
                 result.state = json ? decodeTimerState(*json) : std::nullopt;
                 result.outcome = result.state ? TimerActionResult::Outcome::Conflict : TimerActionResult::Outcome::Refused;

@@ -1,5 +1,3 @@
-// Instance URLs, Basic credentials and the API's JSON shapes.
-
 #include "apitypes.h"
 #include "instanceurl.h"
 #include "transport.h"
@@ -14,7 +12,6 @@ using namespace Tokkl;
 
 namespace
 {
-// A state with a running Pomodoro session, as GET /api/app/timer sends it.
 QJsonObject sessionState()
 {
     const QJsonObject entry{
@@ -66,7 +63,6 @@ QJsonObject sessionState()
     };
 }
 
-// A paused chain: nothing runs.
 QJsonObject pausedState()
 {
     QJsonObject state = sessionState();
@@ -89,8 +85,7 @@ QJsonObject pausedState()
     return state;
 }
 
-// Replaces the value at a slash-separated path of object keys, or removes it
-// when value is undefined.
+// Replaces the value at a slash-separated key path; undefined removes it.
 QJsonValue withValue(const QJsonValue &root, QStringView path, const QJsonValue &value)
 {
     const qsizetype slash = path.indexOf(QLatin1Char('/'));
@@ -202,7 +197,6 @@ private Q_SLOTS:
         QCOMPARE(me->id, 3);
         QCOMPARE(me->defaultWorkspaceId, 9);
         QCOMPARE(me->fullname, QStringLiteral("Bea"));
-        // The token in the response is never kept.
         QVERIFY(!me->toVariantMap().values().contains(QVariant(QStringLiteral("SECRET"))));
 
         QVERIFY(!Tokkl::decodeMe(*parseJsonBody(R"({"id":3,"email":"b@example.com"})")));
@@ -224,7 +218,6 @@ private Q_SLOTS:
         QTest::newRow("string") << QByteArray(R"(,"time_resolution_minutes":"15")") << 1;
     }
 
-    // An invalid resolution does not refuse the account.
     void decodeMeTimeResolution()
     {
         QFETCH(QByteArray, field);
@@ -278,7 +271,6 @@ private Q_SLOTS:
             << 200 << QByteArray(R"({"api_version":1,"capabilities":["app-preferences","timer-actions","timer-edit","pomodoro-revision"]})") << qint64(1)
             << QStringList{QStringLiteral("app-preferences"), QStringLiteral("timer-actions"), QStringLiteral("timer-edit"), QStringLiteral("pomodoro-revision")}
             << false;
-        // Without one capability of the floor.
         for (const QString &missing : {QStringLiteral("catalog-revision"), QStringLiteral("latest-entry")}) {
             QStringList rest = all;
             rest.removeAll(missing);
@@ -297,9 +289,7 @@ private Q_SLOTS:
         QTest::newRow("no answer") << 0 << QByteArray() << qint64(0) << QStringList() << false;
     }
 
-    // GET /api/app/status announces the API. Only api_version 1 or later
-    // with every capability of ServerFloor is supported; an answer without
-    // the announcement, or no 2xx answer at all, announces nothing.
+    // Only api_version 1 or later with every ServerFloor capability is supported.
     void statusServerApi()
     {
         QFETCH(int, status);
@@ -334,8 +324,7 @@ private Q_SLOTS:
         QTest::newRow("not an object") << QByteArray("[]") << false;
     }
 
-    // pomodoro_limits reads only whole: every length with integers where
-    // 1 <= min <= default <= max.
+    // Read only whole: integers with 1 <= min <= default <= max.
     void pomodoroLimits()
     {
         QFETCH(QByteArray, limits);
@@ -355,8 +344,6 @@ private Q_SLOTS:
         }
     }
 
-    // A length outside the limits reads as the limits' default, one key at
-    // a time.
     void preferencesFollowTheLimits()
     {
         PomodoroLimits limits = PomodoroLimits::placeholder();
@@ -376,7 +363,6 @@ private Q_SLOTS:
         QCOMPARE(low->workMinutes, 30);
     }
 
-    // The floor names what the client relies on, in one place.
     void serverFloor()
     {
         QCOMPARE(ServerFloor::apiVersion, 1);
@@ -391,8 +377,7 @@ private Q_SLOTS:
                               QStringLiteral("latest-entry")}));
     }
 
-    // The announcement in a /me body, as an earlier server sent it, does
-    // not refuse the account.
+    // An earlier server sent the announcement in /me.
     void decodeMeAcceptsServerApi()
     {
         const std::optional<Me> me = Tokkl::decodeMe(*parseJsonBody(
@@ -444,8 +429,6 @@ private Q_SLOTS:
         QVERIFY(!Tokkl::decodeProjects(*parseJsonBody(R"([{"id":1}])")));
     }
 
-    // GET /api/app/time_entries/latest: one entry with the meta flags, or
-    // null.
     void decodeLatestEntry()
     {
         const QByteArray body = R"({"id":6,"workspace_id":9,"project_id":4,"billable":true,"start":"2026-10-16T08:00:00Z",
@@ -529,8 +512,6 @@ private Q_SLOTS:
         QVERIFY(errorFromResponse(refused).message.contains(QLatin1String("Connection refused")));
     }
 
-    // The machine-readable headers of an error answer reach the error, and
-    // an answer without them leaves both empty.
     void errorHeadersReachTheError()
     {
         HttpResponse response;
@@ -577,7 +558,6 @@ private Q_SLOTS:
         QTest::newRow("no answer") << 0 << QByteArray("30") << false;
     }
 
-    // A 429, or a 503 that says when to come back, asks the client to wait.
     void asksToWait()
     {
         QFETCH(int, status);
@@ -683,7 +663,6 @@ private Q_SLOTS:
         QVERIFY(paused->pause->billable);
         QCOMPARE(paused->pause->cloneEntryId, std::nullopt);
 
-        // A user who never ran a timer is at revision 0.
         const std::optional<TimerState> idle = decodeText(R"({"revision":0,"server_time":"2026-10-16T09:00:00.000Z","running_entry":null,"pause":null,"pomodoro":null,"discarded_pomodoro":null})");
         QVERIFY(idle);
         QCOMPARE(idle->revision, 0);
@@ -724,7 +703,6 @@ private Q_SLOTS:
         QTest::newRow("pause clone id zero") << withValue(paused, u"pause/clone_entry_id", 0);
     }
 
-    // Any value of the wrong shape refuses the whole state.
     void timerStateIsStrict()
     {
         QFETCH(QJsonValue, state);
@@ -745,7 +723,6 @@ private Q_SLOTS:
         QCOMPARE(body.value(QLatin1String("billable")), QJsonValue(true));
         QCOMPARE(body.value(QLatin1String("created_with")).toString(), QStringLiteral("tokkl-test"));
         QCOMPARE(body.value(QLatin1String("description")).toString(), QString());
-        // The session lengths are the account's preferences unless set.
         QVERIFY(!body.contains(QLatin1String("work_minutes")));
 
         const QJsonObject plain = QJsonDocument::fromJson(encodePomodoroStart(PomodoroStart(), 7, QStringLiteral("tokkl-test"), 5)).object();

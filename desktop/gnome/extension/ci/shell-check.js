@@ -1,7 +1,3 @@
-// Drives the installed extension inside a running GNOME Shell against
-// mock-timer.js and reports every step that fails. shell-driver.js has the
-// helpers that read and operate the panel button.
-//
 //   gjs -m shell-check.js UUID MOCK_TIMER_JS TIMER1_XML
 
 import Gio from 'gi://Gio';
@@ -14,7 +10,6 @@ const [uuid, mockTimer, timer1Xml] = programArgs;
 
 const mockCalls = () =>
     JSON.parse(call('org.tokkl.Timer1', '/org/tokkl/Timer1', 'org.tokkl.Timer1Mock', 'Calls', null, '(s)')[0]);
-// The RefreshProjects calls, which mockCalls() leaves out.
 const projectChecks = () =>
     call('org.tokkl.Timer1', '/org/tokkl/Timer1', 'org.tokkl.Timer1Mock', 'ProjectChecks', null, '(u)')[0];
 const mockSet = (name, value) =>
@@ -48,7 +43,6 @@ const actAsOlderService = older =>
         null,
     );
 
-// The ChosenProjectLabel property.
 const labelVariant = label =>
     new GLib.Variant('a{sv}', {
         name: new GLib.Variant('s', label.name),
@@ -71,7 +65,6 @@ const timerProperty = name =>
         new GLib.Variant('(ss)', ['org.tokkl.Timer1', name]),
         '(v)',
     )[0];
-// The chain total the label should show now.
 const chainTotal = () => {
     const start = timerProperty('LocalStartTime');
     const running = timerProperty('Running') && start > 0 ? Math.floor(Date.now() / 1000) - start : 0;
@@ -79,9 +72,8 @@ const chainTotal = () => {
 };
 const toggleItem = () => shell(`${button}._toggleItem.label.text`);
 const statusLine = () => shell(`${button}._statusItem.label.text`);
-// Waits until the calls since count are exactly the one method, pressing
-// the key again only when nothing arrived: the first key of a new virtual
-// keyboard can be lost while the seat adds the device.
+// Presses again only when nothing arrived: a new virtual keyboard can lose its
+// first key while the seat adds the device.
 const pressFor = async (key, method) => {
     const count = mockCalls().length;
     for (let attempt = 1; ; attempt++) {
@@ -105,7 +97,6 @@ const setInterface = (method, key, value) => {
     Gio.Settings.sync();
 };
 
-// Waits until the indicator matches every field of expected.
 const indicatorIs = (what, expected) =>
     waitFor(what, () => {
         const shown = indicator();
@@ -157,8 +148,8 @@ await step(
         if (JSON.stringify(shown.order) !== JSON.stringify(['logo', 'hourglass', 'indicator', 'time']))
             throw new Error(`order: ${JSON.stringify(shown.order)}`);
         if (shown.hourglassShown) throw new Error('the hourglass shows without Pomodoro mode');
-        // GNOME Shell can enable the extension while it is still starting up,
-        // before the top bar is shown, and the logo is drawn only after that.
+        // Shell can enable the extension before the top bar shows, and the logo is
+        // drawn only after that.
         await waitFor('the drawn logo', () => {
             const now = logo();
             return (
@@ -173,7 +164,6 @@ await step(
                 now
             );
         });
-        // The installed image is the one in the checkout.
         const [, installed] = GLib.file_get_contents(shown.path);
         const [ci] = GLib.filename_from_uri(import.meta.url);
         const [, source] = GLib.file_get_contents(GLib.build_filenamev([GLib.path_get_dirname(ci), '..', 'tokkl.png']));
@@ -234,8 +224,6 @@ await step('the panel shows the elapsed time from StartTime', async () => {
 });
 
 await step('the panel counts from LocalStartTime, the start on this clock', async () => {
-    // The server's clock runs two minutes ahead: its start is two minutes
-    // later than the start on this machine's clock.
     const start = timerProperty('StartTime');
     mockSet('LocalStartTime', new GLib.Variant('x', start - 120));
     await waitFor('1:04 or 1:05', () => /^1:0[45]$/.test(label()) || label());
@@ -293,7 +281,6 @@ await step('a paused timer says Paused with the chain total in the menu status l
     try {
         await waitFor('the menu', () => menuOpen() === true);
         await waitFor('Paused in the status line', () => statusLine() === paused || statusLine());
-        // The connection state stays in the line.
         mockSet('Status', new GLib.Variant('s', 'stale'));
         await waitFor(
             'the offline state in the status line',
@@ -395,7 +382,7 @@ await step('a chosen project fills a still square with its colour', async () => 
 });
 
 // GNOME Shell turns animations off when it renders in software, as in these
-// containers. The pulse checks lift that for themselves and restore it.
+// containers. The pulse checks lift that and restore it.
 const animations = () => shell('imports.gi.St.Settings.get().enable_animations');
 let uninhibited = false;
 
@@ -455,7 +442,6 @@ await step('a project still being read leaves the slot empty', async () => {
 });
 
 await step('a running entry on an archived project is named by the indicator and the button', async () => {
-    // The service has read the project, which Projects does not list.
     mockSet('Running', new GLib.Variant('b', true));
     mockSet('ChosenProject', new GLib.Variant('x', 42));
     mockSet('ChosenProjectName', new GLib.Variant('s', 'Legacy'));
@@ -531,8 +517,7 @@ await step('the logo switches live to a symbolic icon and follows panel colors',
 });
 
 await step('the ring keeps 3:1 against the top bar in light and dark styles', async () => {
-    // The top bar is see-through in the overview, which GNOME Shell shows
-    // at startup.
+    // The top bar is see-through in the overview, which Shell shows at startup.
     shell('Main.overview.hide()');
     await waitFor('the session top bar', () => shell('Main.overview.visible') === false);
     const results = [];
@@ -605,8 +590,7 @@ await step('Space and Return do what a primary click does, and Down opens the me
     await waitFor('0:00', () => label() === '0:00' || label());
 });
 
-// Pomodoro mode. The mock keeps no clock: the checks move PlannedEnd and set
-// Ringing themselves.
+// The mock keeps no clock: the checks move PlannedEnd and set Ringing.
 const hourglass = () =>
     shell(`(() => {
     const icon = ${button}._hourglass;
@@ -648,8 +632,7 @@ const modeItemIs = (what, expected) =>
         return Object.entries(expected).every(([key, value]) => shown[key] === value) || shown;
     });
 const accessibleName = () => shell(`${button}.accessible_name`);
-// What the label may show now: the countdown of this second or of the one
-// before, as the panel ticks once a second.
+// The panel ticks once a second, so either second's countdown may show.
 const countdownShown = () => {
     const end = timerProperty('PlannedEnd');
     const now = Date.now() / 1000;
@@ -657,7 +640,6 @@ const countdownShown = () => {
 };
 const setPlannedEnd = secondsFromNow =>
     mockSet('PlannedEnd', new GLib.Variant('x', Math.floor(Date.now() / 1000) + secondsFromNow));
-// Waits for the call after before, then for the menu to open or stay shut.
 const activateFrom = async (before, opens) => {
     await waitFor('Activate', () => (mockCalls().length > before && lastCall()[0] === 'Activate') || mockCalls());
     if (opens) {
@@ -780,7 +762,6 @@ await step('the mode, the project and billable are locked during a session', asy
     });
     if (sensitive('_projectMenu') || sensitive('_billableItem'))
         throw new Error('the project or billable is sensitive during a session');
-    // A refused change puts the switch back.
     const before = mockCalls().length;
     shell(`${button}._modeItem.toggle()`);
     await waitFor(
@@ -829,7 +810,6 @@ await step('past the planned end the label shows the overtime', async () => {
     const [status, name] = shell(`[${button}._statusItem.label.text, ${button}.accessible_name]`);
     if (!/^Work · \+1:0[2-5] overtime · Pomodoro 1 of 4$/.test(status)) throw new Error(`status: ${status}`);
     if (!name.startsWith(`${status} · `)) throw new Error(`button name: ${name}`);
-    // Minutes past the hour do not wrap.
     setPlannedEnd(-(75 * 60 + 5));
     await waitFor('+75:05', () => /^\+75:0[5-7]$/.test(label()) || label());
 });
@@ -935,7 +915,6 @@ await step('a session started on another device shows in Timer mode', async () =
     startForeignSession();
     await waitFor('the session', () => timerProperty('SessionActive') === true);
     if (timerProperty('PomodoroMode')) throw new Error('the session switched the mode');
-    // Start is hidden, and the session items show as they do in Pomodoro mode.
     await sessionItemsAre('the session items', {
         toggle: false,
         startSession: false,
@@ -954,7 +933,6 @@ await step('a session started on another device shows in Timer mode', async () =
     if (!/^Work · 2[45]:\d\d left · Pomodoro 1 of 4 · Website \(Acme\) · Connected$/.test(name))
         throw new Error(`button name: ${name}`);
 
-    // Before the planned end a click opens the menu, and nothing starts.
     let before = mockCalls().length;
     click(1);
     try {
@@ -964,7 +942,6 @@ await step('a session started on another device shows in Timer mode', async () =
     }
     await waitFor('the menu closed', () => menuOpen() === false);
 
-    // While the phase rings a click confirms the next phase.
     mockSet('Ringing', new GLib.Variant('b', true));
     mockSet('RingingTransition', new GLib.Variant('s', 'workToShortRest'));
     before = mockCalls().length;
@@ -978,7 +955,6 @@ await step('a session started on another device shows in Timer mode', async () =
         endSession: true,
     });
 
-    // End session in the menu ends it, and Start comes back.
     before = mockCalls().length;
     shell(`${button}._endSessionItem.activate(null)`);
     await waitFor('EndSession', () => (mockCalls().length > before && lastCall()[0] === 'EndSession') || mockCalls());

@@ -1,9 +1,5 @@
-# tokklqtkeychain: the QtKeychain credential store the GNOME service and the
-# macOS app share. It is not part of tokklcore, which needs Qt Core and
-# Network only: a companion adds this directory itself, after
-# find_package(Qt6Keychain), with
-#
-#   add_subdirectory("${TOKKL_CORE_DIR}/keychain" keychain)
+# Kept out of tokklcore, which needs Qt Core and Network only. After
+# find_package(Qt6Keychain): add_subdirectory("${TOKKL_CORE_DIR}/keychain" keychain)
 
 add_library(tokklqtkeychain STATIC
     qtkeychainstore.cpp
