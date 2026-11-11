@@ -6,6 +6,7 @@ import { Brand } from '../components/Brand.tsx';
 import { FormError, errorMessage } from '../components/FormError.tsx';
 import { browserTimeZone } from '../lib/browserTimeZone.ts';
 import { t } from '../i18n/messages.ts';
+import { tx } from '../i18n/rich.ts';
 
 export function AuthPage({ mode, signupEnabled = false }: { mode: 'login' | 'setup'; signupEnabled?: boolean }) {
   const qc = useQueryClient();
@@ -94,6 +95,20 @@ export function AuthPage({ mode, signupEnabled = false }: { mode: 'login' | 'set
         </button>
         {mode === 'login' && signupEnabled && <Link href="/signup">{t('auth.signupTitle')}</Link>}
       </form>
+      {mode === 'login' && (
+        <footer className="auth-links">
+          <p className="hint">
+            {tx('auth.openSource', {
+              repository: <a href="https://github.com/e0ipso/tokkl">{t('auth.viewSource')}</a>,
+            })}
+          </p>
+          <p className="hint">
+            {tx('auth.androidIntro', {
+              androidApp: <a href="https://github.com/e0ipso/tokkl-android/releases/latest">{t('auth.androidApp')}</a>,
+            })}
+          </p>
+        </footer>
+      )}
     </div>
   );
 }
