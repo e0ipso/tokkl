@@ -9,6 +9,32 @@ import { addUser, CSRF, recordLogs, setup, testConfig, testServer } from './help
 const PUBLIC_URL = 'https://tokkl.example.com';
 type Message = Parameters<Mailer['send']>[0];
 
+test('signup rejects address metadata that SMTP would interpret as another mailbox identity', async t => {
+  const { signup, messages, services } = await signupApp(t);
+  const lookup = t.mock.method(services.signupInvites, 'createSignupInvite');
+  const addresses = [
+    'victim@example.com(any-comment)',
+    'victim(any-comment)@example.com',
+    'Victim<victim@example.com>',
+    '<victim@example.com>',
+    'victim@example.com,',
+    'victim@example.com;',
+    'group:victim@example.com;',
+    '"victim"@example.com',
+    'victim@éxample.com',
+  ];
+  for (const [index, email] of addresses.entries()) {
+    const response = await signup({ email }, { 'x-forwarded-for': `203.0.113.${index + 1}` });
+    assert.equal(response.status, 400, email);
+    assert.equal(await response.json(), 'Enter a valid email address');
+  }
+  assert.equal(lookup.mock.callCount(), 0);
+  assert.equal(messages.length, 0);
+  const email = "O'Reilly+news@example.com";
+  assert.equal((await signup({ email }, { 'x-forwarded-for': '203.0.113.100' })).status, 202);
+  assert.equal(messages[0]!.to, email);
+});
+
 test('a cleanup failure still returns a safe 503 and logs fixed messages without SMTP or storage details', async t => {
   const logs = recordLogs(t);
   const { signup, services } = await signupApp(t, {

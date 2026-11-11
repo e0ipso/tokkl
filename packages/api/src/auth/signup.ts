@@ -1,13 +1,18 @@
 import type { RequestHandler } from 'express';
 import type { AccountRunner } from '../domain/accountGuards.ts';
 import { getInstanceSettings, signupEffective } from '../domain/instanceSettings.ts';
-import { isEmailAddress, MAX_ACCOUNT_TEXT_LENGTH, normalizeEmail } from '../domain/accountValues.ts';
+import { MAX_ACCOUNT_TEXT_LENGTH, normalizeEmail } from '../domain/accountValues.ts';
 import { clientAddress, readJson } from '../http/request.ts';
 import { ApplicationError, invalidInput, notFound, tooManyAttempts } from '../lib/errors.ts';
 import type { Mailer } from '../mail.ts';
 import type { ApplicationServices } from '../services/application.ts';
 import { requireCsrfHeader } from './middleware.ts';
 import type { FailureLimiter } from './rateLimit.ts';
+
+// SMTP strips address metadata and converts internationalized domains. Accept only a literal mailbox
+// so the stored email, limiter key and delivered recipient cannot disagree.
+const SIGNUP_EMAIL =
+  /^[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*$/i;
 
 interface SignupOptions {
   sessionDays: number;
@@ -33,7 +38,7 @@ export function createSignupHandler(
     if (address.refused) throw tooManyAttempts('Too many sign-up requests, try again later', address.retryAfter);
     const body = readJson(req);
     const email = typeof body.email === 'string' ? body.email.trim() : '';
-    if (!isEmailAddress(email) || email.length > MAX_ACCOUNT_TEXT_LENGTH)
+    if (!SIGNUP_EMAIL.test(email) || email.length > MAX_ACCOUNT_TEXT_LENGTH)
       throw invalidInput('Enter a valid email address');
     const target = await options.signupEmailLimiter.attempt(normalizeEmail(email), async () => false);
     if (target.refused) throw tooManyAttempts('Too many sign-up requests, try again later', target.retryAfter);
