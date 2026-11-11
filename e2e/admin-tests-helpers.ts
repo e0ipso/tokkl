@@ -48,6 +48,16 @@ export async function mockSignupInvite(page: Page, id: number, email: string): P
 /** The error comes first; a stepper card (components/LengthStepper.tsx) lists its range after it. */
 export async function describedError(control: Locator): Promise<Locator> {
   await expect(control).toHaveAttribute('aria-invalid', 'true');
+  await expect
+    .poll(
+      () =>
+        control.evaluate(element => {
+          const id = element.getAttribute('aria-describedby')?.split(' ')[0];
+          return id ? document.getElementById(id)?.getAttribute('role') : null;
+        }),
+      { message: 'the control points at its error alert' },
+    )
+    .toBe('alert');
   const id = (await control.getAttribute('aria-describedby'))?.split(' ')[0];
   expect(id, 'the control points at its error').toBeTruthy();
   return control.page().locator(`[id="${id}"]`);
