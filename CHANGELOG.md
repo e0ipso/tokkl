@@ -1,3 +1,9 @@
+## [2.3.0](https://github.com/e0ipso/tokkl/compare/v2.2.0...v2.3.0) (2026-11-11)
+
+### Features
+
+* add opt-in email self sign-up ([#79](https://github.com/e0ipso/tokkl/issues/79)) ([3a734b1](https://github.com/e0ipso/tokkl/commit/3a734b1b32ab377e5ac7912a8543f320e8ecd45f))
+
 ## [2.2.0](https://github.com/e0ipso/tokkl/compare/v2.1.0...v2.2.0) (2026-11-10)
 
 ### Features
