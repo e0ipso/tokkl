@@ -239,7 +239,12 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
             { session_days: 2, invite_days: 4, time_resolution_minutes: 10 },
             12,
           );
-          assert.deepEqual(settings, { sessionDays: 2, inviteDays: 4, timeResolutionMinutes: 10 });
+          assert.deepEqual(settings, {
+            sessionDays: 2,
+            inviteDays: 4,
+            timeResolutionMinutes: 10,
+            signupEnabled: false,
+          });
           await operations.updateSettings(admin.id, { invite_days: 3 }, 12);
           const later = await operations.createSession(bob, 'browser', 12);
           assert.equal(Date.parse(later.expires.toISOString()) - Date.now() < 3 * 86400000, true);
@@ -261,6 +266,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         const expired = await runner.transaction(ctx =>
           ctx.tokens.create({
             tokenHash: sha256('expired'),
+            email: null,
             kind: 'invite',
             role: 'user',
             note: null,
@@ -280,6 +286,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           error(404, 'This invite link is not valid. Ask your admin for a new one.'),
         );
         const revoked = await operations.createInvite(admin.id, { role: 'user' }, 30);
+        assert.equal(revoked.invite.email, null);
         await operations.revokeInvite(admin.id, revoked.invite.id);
         await assert.rejects(
           operations.acceptInvite(revoked.token, {}),
@@ -287,6 +294,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         );
         const old = await operations.createPasswordReset(admin.id, carol.id);
         const link = await operations.createPasswordReset(admin.id, carol.id);
+        assert.equal(link.reset.email, null);
         assert.equal(Date.parse(link.reset.expiresAt) - Date.parse(link.reset.createdAt), 86400000);
         await assert.rejects(
           operations.resetPassword(old.token, 'password two'),
@@ -524,6 +532,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           runner.transaction(ctx =>
             ctx.tokens.create({
               tokenHash: sha256(`spent ${name}`),
+              email: null,
               kind: 'invite',
               role: 'user',
               note: null,

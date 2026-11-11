@@ -18,13 +18,19 @@ export function InvitePage({ token }: { token: string }) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const lockedEmail = check.state === 'valid' && typeof check.data.email === 'string' ? check.data.email : undefined;
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     setBusy(true);
     setError(null);
     try {
-      await authRequests.acceptInvite(token, { email, password, fullname, timezone: browserTimeZone() });
+      await authRequests.acceptInvite(token, {
+        email: lockedEmail ?? email,
+        password,
+        fullname,
+        timezone: browserTimeZone(),
+      });
       // Load the new account before leaving, so the timer renders signed in rather than the login form.
       await qc.resetQueries();
       setLocation('/', { replace: true });
@@ -58,7 +64,15 @@ export function InvitePage({ token }: { token: string }) {
         </label>
         <label className="field">
           <span>{t('auth.email')}</span>
-          <input type="email" value={email} onChange={e => setEmail(e.target.value)} required autoComplete="username" />
+          <input
+            type="email"
+            value={lockedEmail ?? email}
+            onChange={e => setEmail(e.target.value)}
+            readOnly={lockedEmail !== undefined}
+            aria-readonly={lockedEmail !== undefined ? true : undefined}
+            required
+            autoComplete="username"
+          />
         </label>
         <label className="field">
           <span>{t('auth.password')}</span>

@@ -2,6 +2,7 @@
 import type { Kysely } from 'kysely';
 import type { Backend } from '../config.ts';
 import type { PhysicalDatabase } from '../physical.ts';
+import { normalizeEmail } from '../../domain/accountValues.ts';
 import { entityId, utcInstant } from '../conversion.ts';
 import { accountToken, generatedId, nullableInstant, type AccountRepositories } from './account-rows.ts';
 
@@ -16,6 +17,7 @@ export function createTokenRepository(db: Kysely<PhysicalDatabase>, backend: Bac
         kind: input.kind,
         role: input.role,
         note: input.note,
+        email: input.email === null ? null : normalizeEmail(input.email),
         user_id: input.userId,
         created_by: input.createdBy,
         created_at: utcInstant(input.createdAt),
@@ -83,6 +85,14 @@ export function createTokenRepository(db: Kysely<PhysicalDatabase>, backend: Bac
         .deleteFrom('account_tokens')
         .where('created_by', '=', entityId(id))
         .where('kind', '=', 'invite')
+        .where('used_at', 'is', null)
+        .execute();
+    },
+    async revokeUnusedSignupInvites(emailKey) {
+      await db
+        .deleteFrom('account_tokens')
+        .where('kind', '=', 'invite')
+        .where('email', '=', emailKey)
         .where('used_at', 'is', null)
         .execute();
     },

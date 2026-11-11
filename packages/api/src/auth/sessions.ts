@@ -2,6 +2,7 @@ import type { Request, RequestHandler, Response } from 'express';
 import type { AccountRepositories, AccountRunner } from '../domain/accountGuards.ts';
 import type { createAccountOperations } from '../domain/accounts.ts';
 import { findResetUser, findUsableInvite, INVITE_NOT_FOUND, RESET_NOT_FOUND } from '../domain/accountLinks.ts';
+import { getInstanceSettings, signupEffective } from '../domain/instanceSettings.ts';
 import { parseNewAccount, parseNewPassword } from '../commands/accounts.ts';
 import type { User } from '../domain/model.ts';
 import { clientAddress, readJson } from '../http/request.ts';
@@ -25,6 +26,7 @@ interface SessionOptions {
   loginLimiter: FailureLimiter;
   setupLimiter: FailureLimiter;
   sessionDays: number;
+  mailConfigured: boolean;
   setup: SetupState;
 }
 export function createSessionHandlers<R extends AccountRepositories>(
@@ -58,12 +60,15 @@ export function createSessionHandlers<R extends AccountRepositories>(
     return { token, found };
   };
   const inviteFor = async (req: Request) => {
-    const { token, found: role } = await linked(
+    const { token, found: invite } = await linked(
       req,
-      async token => (await runner.readSnapshot(ctx => findUsableInvite(ctx, token)))?.role || undefined,
+      async token => {
+        const invite = await runner.readSnapshot(ctx => findUsableInvite(ctx, token));
+        return invite?.role ? invite : undefined;
+      },
       INVITE_NOT_FOUND,
     );
-    return { token, role };
+    return { token, role: invite.role!, email: invite.email };
   };
   const resetFor = async (req: Request) => {
     const { token, found: user } = await linked(
@@ -73,7 +78,11 @@ export function createSessionHandlers<R extends AccountRepositories>(
     );
     return { token, user };
   };
-  const setupRequired = async () => (await runner.readSnapshot(ctx => ctx.users.count())) === 0;
+  const status = () =>
+    runner.readSnapshot(async ctx => ({
+      setup_required: (await ctx.users.count()) === 0,
+      signup_enabled: signupEffective(await getInstanceSettings(ctx, options.sessionDays), options.mailConfigured),
+    }));
   const login: RequestHandler = async (req, res) => {
     requireCsrfHeader(req);
     const body = readJson(req),
@@ -104,11 +113,15 @@ export function createSessionHandlers<R extends AccountRepositories>(
     await startSession(req, res, user);
     return res.json({ ok: true });
   };
-  const inviteInfo: RequestHandler = async (req, res) => res.json({ role: (await inviteFor(req)).role });
+  const inviteInfo: RequestHandler = async (req, res) => {
+    const { role, email } = await inviteFor(req);
+    return res.json({ role, ...(email === null ? {} : { email }) });
+  };
   const acceptInvite: RequestHandler = async (req, res) => {
     requireCsrfHeader(req);
-    const { token } = await inviteFor(req);
-    const user = await operations.acceptInvite(token, parseNewAccount(readJson(req)));
+    const { token, email } = await inviteFor(req);
+    const body = readJson(req);
+    const user = await operations.acceptInvite(token, parseNewAccount({ ...body, email: email ?? body.email }));
     await startSession(req, res, user);
     return res.json({ ok: true });
   };
@@ -131,7 +144,7 @@ export function createSessionHandlers<R extends AccountRepositories>(
     return res.json({ ok: true });
   };
   return {
-    setupRequired,
+    status,
     login,
     firstAdmin,
     inviteInfo,

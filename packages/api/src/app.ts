@@ -1,12 +1,23 @@
 import express, { type Express } from 'express';
 import type { Config } from './config.ts';
+import type { Mailer } from './mail.ts';
 import type { Storage } from './domain/ports.ts';
 import { standaloneRateLimits } from './storage/index.ts';
 import { createSessionAccountOperations, type ApplicationServices } from './services/application.ts';
 import type { Deps } from './routes/context.ts';
-import { ADDRESS_LIMIT, FailureLimiter, PASSWORD_WINDOW_MS, SETUP_CODE_LIMIT } from './auth/rateLimit.ts';
+import {
+  ADDRESS_LIMIT,
+  FailureLimiter,
+  PASSWORD_WINDOW_MS,
+  SETUP_CODE_LIMIT,
+  SIGNUP_ADDRESS_LIMIT,
+  SIGNUP_ADDRESS_WINDOW_MS,
+  SIGNUP_EMAIL_LIMIT,
+  SIGNUP_EMAIL_WINDOW_MS,
+} from './auth/rateLimit.ts';
 import { createAuthMiddleware } from './auth/middleware.ts';
 import { createSessionHandlers, type SetupState } from './auth/sessions.ts';
+import { createSignupHandler } from './auth/signup.ts';
 import { errorHandler, validationHeaders } from './http/errors.ts';
 import { requestLog } from './http/requestLog.ts';
 import { noStore, securityHeaders } from './http/security.ts';
@@ -20,11 +31,12 @@ import { appReportRoutes, reportsV3Routes } from './routes/reports.ts';
 import { timerRoutes } from './routes/timer.ts';
 import { togglV9Routes } from './routes/toggl/index.ts';
 
-interface HttpAppOptions {
+export interface HttpAppOptions {
   storage: Storage;
   config: Config;
   setup: SetupState;
   logger: Logger;
+  mailer?: Mailer;
 }
 
 export interface HttpApp {
@@ -35,19 +47,40 @@ export interface HttpApp {
 
 export function createHttpApp(
   services: ApplicationServices,
-  { storage, config, setup, logger }: HttpAppOptions,
+  { storage, config, setup, logger, mailer }: HttpAppOptions,
 ): HttpApp {
   const app = express();
   const rateLimits = standaloneRateLimits(storage);
   const loginLimiter = new FailureLimiter(rateLimits, 'password', ADDRESS_LIMIT, PASSWORD_WINDOW_MS);
+  const signupLimiters = {
+    signupAddressLimiter: new FailureLimiter(
+      rateLimits,
+      'signup-address',
+      SIGNUP_ADDRESS_LIMIT,
+      SIGNUP_ADDRESS_WINDOW_MS,
+    ),
+    signupEmailLimiter: new FailureLimiter(rateLimits, 'signup-email', SIGNUP_EMAIL_LIMIT, SIGNUP_EMAIL_WINDOW_MS),
+  };
   const deps: Deps = {
     ...services,
+    mailer,
+    mail: config.mail,
+    publicUrl: config.publicUrl,
     loginLimiter,
+    ...signupLimiters,
+    signup: createSignupHandler(storage, services.signupInvites, {
+      ...signupLimiters,
+      sessionDays: config.sessionDays,
+      mailConfigured: config.mail.configured,
+      publicUrl: config.publicUrl,
+      mailer,
+    }),
     auth: createAuthMiddleware(storage, loginLimiter),
     sessions: createSessionHandlers(storage, createSessionAccountOperations(storage, services), {
       loginLimiter,
       setupLimiter: new FailureLimiter(rateLimits, 'setup-code', SETUP_CODE_LIMIT, PASSWORD_WINDOW_MS),
       sessionDays: config.sessionDays,
+      mailConfigured: config.mail.configured,
       setup,
     }),
   };

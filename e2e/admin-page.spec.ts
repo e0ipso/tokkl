@@ -1,4 +1,12 @@
-import { describedError, expect, inviteRow, openAdmin, test, userRow } from './admin-tests-helpers.ts';
+import {
+  describedError,
+  expect,
+  inviteRow,
+  mockSignupInvite,
+  openAdmin,
+  test,
+  userRow,
+} from './admin-tests-helpers.ts';
 import { EMAIL } from './fixtures.ts';
 import { login, loginAs } from './helpers.ts';
 import { PHONE, expectFits, expectNoPageOverflow, openMore, tap } from './mobile-tests-helpers.ts';
@@ -6,6 +14,116 @@ import { PHONE, expectFits, expectNoPageOverflow, openMore, tap } from './mobile
 // The setup account is the e2e server's only admin; the users fixture adds regular accounts through invites.
 
 const LAST_ADMIN = 'At least one active admin must remain';
+
+test('sign-up is disabled with an accessible description naming the missing mail settings', async ({ page }) => {
+  await page.route('**/api/app/admin/settings', async route => {
+    const response = await route.fetch();
+    await route.fulfill({
+      response,
+      json: {
+        ...(await response.json()),
+        mail_configured: { configured: false, missing: ['TOKKL_SMTP_HOST', 'TOKKL_PUBLIC_URL'] },
+      },
+    });
+  });
+  await login(page);
+  await openAdmin(page);
+  const signup = page.locator('#instance').getByRole('checkbox', { name: 'Allow email sign-up' });
+  await expect(signup).toBeDisabled();
+  await expect(signup).not.toBeChecked();
+  await expect(signup).toHaveAccessibleDescription('Sign-up needs mail settings: TOKKL_SMTP_HOST, TOKKL_PUBLIC_URL.');
+  const description = await signup.getAttribute('aria-describedby');
+  expect(description).toBeTruthy();
+  await expect(page.locator(`[id="${description}"]`)).toBeVisible();
+});
+
+test('sign-up saves only the changed boolean and keeps a toggle made while saving', async ({ page, instance }) => {
+  let stored = { ...instance, signup_enabled: false, mail_configured: { configured: true, missing: [] } };
+  const sent: unknown[] = [];
+  let release = () => {};
+  const held = new Promise<void>(resolve => {
+    release = resolve;
+  });
+  await page.route('**/api/app/admin/settings', async route => {
+    if (route.request().method() === 'PUT') {
+      const changes = route.request().postDataJSON();
+      sent.push(changes);
+      if (sent.length === 1) await held;
+      stored = { ...stored, ...changes };
+    }
+    await route.fulfill({ json: stored });
+  });
+  await login(page);
+  await openAdmin(page);
+  const card = page.locator('#instance');
+  const signup = card.getByRole('checkbox', { name: 'Allow email sign-up' });
+  await expect(signup).toBeEnabled();
+  await signup.check();
+  await signup.uncheck();
+  await card.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.getByText('No changes to save')).toBeVisible();
+  expect(sent).toEqual([]);
+
+  await signup.check();
+  await card.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect.poll(() => sent).toEqual([{ signup_enabled: true }]);
+  await signup.uncheck();
+  release();
+  await expect(card.getByRole('button', { name: 'Save', exact: true })).toBeEnabled();
+  await expect(signup).not.toBeChecked();
+  expect(stored.signup_enabled).toBe(true);
+  await card.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect.poll(() => sent).toEqual([{ signup_enabled: true }, { signup_enabled: false }]);
+  await expect(card.getByRole('button', { name: 'Save', exact: true })).toBeEnabled();
+  await page.reload();
+  await expect(signup).not.toBeChecked();
+
+  stored = { ...stored, signup_enabled: true };
+  await expect(async () => {
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await expect(signup).toBeChecked({ timeout: 1500 });
+  }).toPass();
+  await card.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.getByText('No changes to save')).toBeVisible();
+  expect(sent).toHaveLength(2);
+});
+
+test('sign-up save errors use inline field validation and form alerts', async ({ page, instance, runtimeErrors }) => {
+  const message = 'Invalid signup_enabled: expected true or false';
+  const missingMail = 'Sign-up needs TOKKL_SMTP_FROM';
+  let attempts = 0;
+  runtimeErrors.allowResponse({
+    status: 400,
+    method: 'PUT',
+    path: /^\/api\/app\/admin\/settings$/,
+    reason: 'the server rejects a setting value and then reports missing mail configuration',
+  });
+  await page.route('**/api/app/admin/settings', async route => {
+    if (route.request().method() === 'PUT') {
+      expect(route.request().postDataJSON()).toEqual({ signup_enabled: true });
+      await route.fulfill({ status: 400, json: attempts++ === 0 ? message : missingMail });
+    } else {
+      await route.fulfill({
+        json: { ...instance, signup_enabled: false, mail_configured: { configured: true, missing: [] } },
+      });
+    }
+  });
+  await login(page);
+  await openAdmin(page);
+  const card = page.locator('#instance');
+  const signup = card.getByRole('checkbox', { name: 'Allow email sign-up' });
+  await signup.check();
+  await card.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(await describedError(signup)).toHaveText(message);
+  await expect(signup).toBeFocused();
+  await signup.uncheck();
+  await expect(signup).not.toHaveAttribute('aria-invalid', 'true');
+  await card.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.getByText('No changes to save')).toBeVisible();
+  await signup.check();
+  await card.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.getByRole('alert').filter({ hasText: missingMail })).toBeVisible();
+});
 
 test('an admin changes a role, disables and enables an account, revokes its sessions and deletes it', async ({
   page,
@@ -116,6 +234,36 @@ test('an admin creates an invite, sees its link once, and revokes it', async ({ 
   expect(await data.inviteList()).toEqual([]);
 });
 
+test('sign-up invites show the target email and label, and both invite kinds can be revoked', async ({
+  page,
+  data,
+}) => {
+  const email = 'new-member@e2e.example';
+  const id = await data.createInvite({ role: 'user', note: 'Original note' });
+  await data.createInvite({ role: 'admin', note: 'For Sam in finance' });
+  await mockSignupInvite(page, id, email);
+  await login(page);
+  await openAdmin(page);
+  const signup = inviteRow(page, email);
+  await expect(signup).toBeVisible();
+  await expect(signup.getByRole('cell').first()).toHaveText('Sign-up');
+  await expect(signup.getByRole('cell', { name: email, exact: true })).toHaveAttribute('title', email);
+  await expect(signup).not.toContainText('Original note');
+  const admin = inviteRow(page, 'For Sam in finance');
+  await expect(admin.getByRole('cell').first()).toHaveText('Admin');
+  await expect(page.locator('#invites')).toContainText(
+    'Admin invite links are shared by hand; sign-up links are emailed.',
+  );
+
+  await signup.getByRole('button', { name: `Revoke sign-up invite for ${email}`, exact: true }).click();
+  await expect(signup).toHaveCount(0);
+  expect((await data.inviteList()).map(invite => invite.id)).not.toContain(id);
+  await expect(admin).toBeVisible();
+  await admin.getByRole('button', { name: 'Revoke invite "For Sam in finance"', exact: true }).click();
+  await expect(admin).toHaveCount(0);
+  expect(await data.inviteList()).toEqual([]);
+});
+
 test('an admin issues a password reset link, sees it once, and a new one replaces it', async ({
   page,
   data,
@@ -194,7 +342,7 @@ test('an admin updates the instance settings, and an out-of-range value shows th
   await inviteDays.fill('3');
   await card.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByText('Instance settings saved')).toBeVisible();
-  expect(await data.instanceSettings()).toEqual({ session_days: 14, invite_days: 3, time_resolution_minutes: 5 });
+  expect(await data.instanceSettings()).toMatchObject({ session_days: 14, invite_days: 3, time_resolution_minutes: 5 });
 
   runtimeErrors.allowResponse({
     status: 400,
@@ -207,7 +355,7 @@ test('an admin updates the instance settings, and an out-of-range value shows th
   await expect(await describedError(inviteDays)).toHaveText('Invalid invite_days: expected an integer from 1 to 90');
   await expect(inviteDays).toBeFocused();
   await expect(sessionDays).not.toHaveAttribute('aria-invalid', 'true');
-  expect(await data.instanceSettings()).toEqual({ session_days: 14, invite_days: 3, time_resolution_minutes: 5 });
+  expect(await data.instanceSettings()).toMatchObject({ session_days: 14, invite_days: 3, time_resolution_minutes: 5 });
 
   await inviteDays.fill('');
   await expect(inviteDays).not.toHaveAttribute('aria-invalid', 'true');
@@ -237,7 +385,11 @@ test('an admin saves the time resolution, every account reads it on /me, and a v
   await resolution.fill('15');
   await card.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByText('Instance settings saved')).toBeVisible();
-  expect(await data.instanceSettings()).toEqual({ session_days: 30, invite_days: 7, time_resolution_minutes: 15 });
+  expect(await data.instanceSettings()).toMatchObject({
+    session_days: 30,
+    invite_days: 7,
+    time_resolution_minutes: 15,
+  });
   expect(await rita.me()).toMatchObject({ role: 'user', time_resolution_minutes: 15 });
   expect(await data.me()).toMatchObject({ role: 'admin', time_resolution_minutes: 15 });
   await page.reload();
@@ -287,7 +439,7 @@ test('a refetch keeps an unsaved instance setting and its focus, and updates the
 
   await card.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByText('Instance settings saved')).toBeVisible();
-  expect(await data.instanceSettings()).toEqual({ session_days: 21, invite_days: 5, time_resolution_minutes: 5 });
+  expect(await data.instanceSettings()).toMatchObject({ session_days: 21, invite_days: 5, time_resolution_minutes: 5 });
   await expect(sessionDays).toHaveValue('21');
   await expect(inviteDays).toHaveValue('5');
 });
@@ -475,7 +627,7 @@ test('an instance setting restored to the server value follows refetches, and sa
     await data.saveInstanceSettings({ session_days: 90, invite_days: before.invite_days });
     await card.getByRole('button', { name: 'Save' }).click();
     await expect(page.getByText('Instance settings saved')).toBeVisible();
-    expect(await data.instanceSettings()).toEqual({
+    expect(await data.instanceSettings()).toMatchObject({
       session_days: 90,
       invite_days: invite,
       time_resolution_minutes: before.time_resolution_minutes,
@@ -621,6 +773,36 @@ test('every admin control is reachable by keyboard and shows a focus ring', asyn
 
 test.describe('on a phone', () => {
   test.use(PHONE);
+
+  test('a long sign-up email stays on one line inside the invite table without widening the page', async ({
+    page,
+    data,
+  }) => {
+    const email = `signup-${'a'.repeat(56)}@${'b'.repeat(63)}.${'c'.repeat(63)}.example`;
+    const id = await data.createInvite({ role: 'user' });
+    await mockSignupInvite(page, id, email);
+    await login(page);
+    const sheet = await openMore(page);
+    await tap(sheet.getByRole('link', { name: 'Admin', exact: true }));
+    const row = inviteRow(page, email);
+    await expect(row).toBeVisible();
+    const cell = row.getByRole('cell', { name: email, exact: true });
+    await expect(cell).toHaveAttribute('title', email);
+    const size = await cell.evaluate(element => ({
+      width: element.getBoundingClientRect().width,
+      height: element.parentElement!.getBoundingClientRect().height,
+      whiteSpace: getComputedStyle(element).whiteSpace,
+    }));
+    expect(size.width).toBeLessThanOrEqual(320);
+    expect(size.height).toBeLessThanOrEqual(66);
+    expect(size.whiteSpace).toBe('nowrap');
+    await expectNoPageOverflow(page);
+    await tap(row.getByRole('button', { name: `Revoke sign-up invite for ${email}`, exact: true }));
+    await expect(row).toHaveCount(0);
+    expect(await data.inviteList()).toEqual([]);
+    await expectFits(page.locator('#instance').getByRole('checkbox', { name: 'Allow email sign-up' }));
+    await expectNoPageOverflow(page);
+  });
 
   test('the Admin entry sits in More, and the admin page fits the screen', async ({ page, users }) => {
     const rita = await users.create();

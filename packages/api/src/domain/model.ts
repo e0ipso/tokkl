@@ -51,10 +51,11 @@ export interface InstanceSettings {
   sessionDays: number;
   inviteDays: number;
   timeResolutionMinutes: number;
+  signupEnabled: boolean;
 }
 export interface SettingChange {
   key: keyof InstanceSettings;
-  value: number;
+  value: number | boolean;
   updatedAt: UtcInstant;
   updatedBy: Id | null;
 }
@@ -64,6 +65,7 @@ export interface AccountToken {
   kind: 'invite' | 'password_reset';
   role: UserRole | null;
   note: string | null;
+  email: string | null;
   userId: Id | null;
   createdBy: Id | null;
   createdAt: UtcInstant;

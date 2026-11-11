@@ -55,6 +55,8 @@ export interface Invite {
   id: number;
   role: UserRole;
   note: string | null;
+  email: string | null;
+  source: 'admin' | 'signup';
   created_by: number | null;
   created_at: string;
   expires_at: string;
@@ -71,6 +73,9 @@ export interface InstanceSettings {
   invite_days: number;
   /** A divisor of 60; 5 by default. */
   time_resolution_minutes: number;
+  signup_enabled: boolean;
+  /** Read-only environment state; contains variable names only. */
+  mail_configured: { configured: boolean; missing: string[] };
 }
 
 export type DurationFormat = 'improved' | 'classic' | 'decimal';
@@ -408,6 +413,7 @@ export interface JsonRestoreResult {
 /** An older server sends only `setup_required`. */
 export interface AppStatus extends ServerApi {
   setup_required: boolean;
+  signup_enabled: boolean;
   /** The Pomodoro session lengths `POST /api/app/pomodoro` and the preferences accept. */
   pomodoro_limits: PomodoroLimits;
 }

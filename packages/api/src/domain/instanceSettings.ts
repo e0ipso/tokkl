@@ -14,7 +14,8 @@ const range = (min: number, max: number): SettingRule => ({
   valid: value => value >= min && value <= max,
   expected: `an integer from ${min} to ${max}`,
 });
-const SETTING_RULES: Readonly<Record<keyof InstanceSettings, SettingRule>> = {
+type NumericSetting = Exclude<keyof InstanceSettings, 'signupEnabled'>;
+const SETTING_RULES: Readonly<Record<NumericSetting, SettingRule>> = {
   sessionDays: range(1, 365),
   inviteDays: range(1, 90),
   timeResolutionMinutes: { valid: isTimeResolution, expected: `one of ${TIME_RESOLUTIONS.join(', ')}` },
@@ -23,14 +24,17 @@ export const SETTING_NAMES = {
   session_days: 'sessionDays',
   invite_days: 'inviteDays',
   time_resolution_minutes: 'timeResolutionMinutes',
+  signup_enabled: 'signupEnabled',
 } as const satisfies Record<string, keyof InstanceSettings>;
 
-export function validSetting(key: keyof InstanceSettings, value: unknown): value is number {
-  return typeof value === 'number' && Number.isSafeInteger(value) && SETTING_RULES[key].valid(value);
+export function validSetting<K extends keyof InstanceSettings>(key: K, value: unknown): value is InstanceSettings[K] {
+  if (key === 'signupEnabled') return typeof value === 'boolean';
+  return typeof value === 'number' && Number.isSafeInteger(value) && SETTING_RULES[key as NumericSetting].valid(value);
 }
 
 /** For the 400 message. */
-export const settingExpectation = (key: keyof InstanceSettings) => SETTING_RULES[key].expected;
+export const settingExpectation = (key: keyof InstanceSettings) =>
+  key === 'signupEnabled' ? 'true or false' : SETTING_RULES[key].expected;
 
 export function timeResolutionOf(stored: Partial<InstanceSettings>): number {
   return validSetting('timeResolutionMinutes', stored.timeResolutionMinutes)
@@ -48,5 +52,11 @@ export async function getInstanceSettings(
     sessionDays: validSetting('sessionDays', stored.sessionDays) ? stored.sessionDays : deploymentSessionDays,
     inviteDays: validSetting('inviteDays', stored.inviteDays) ? stored.inviteDays : DEFAULT_INVITE_DAYS,
     timeResolutionMinutes: timeResolutionOf(stored),
+    signupEnabled: validSetting('signupEnabled', stored.signupEnabled) ? stored.signupEnabled : false,
   };
+}
+
+/** Mail must still be available after an admin enabled sign-up. */
+export function signupEffective(settings: Pick<InstanceSettings, 'signupEnabled'>, mailConfigured: boolean): boolean {
+  return settings.signupEnabled && mailConfigured;
 }

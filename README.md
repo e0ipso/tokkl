@@ -55,7 +55,18 @@ The container runs as UID 1000 and writes only to `/data`, its default `TOKKL_DA
 | `TOKKL_LOG_LEVEL` | `info` | Least severe log line written: `debug`, `info`, `warn`, `error` or `silent`, in any letter case. Logs are JSON lines; `warn` and `error` go to stderr, the rest to stdout. Any other value fails startup. |
 | `TOKKL_SESSION_DAYS` | `30` | New-session lifetime until overridden on the Admin page; existing expiries stay unchanged. |
 | `TOKKL_SETUP_CODE` | random | Fixed first-admin setup code for scripted installs. Several instances need the same value on each; see [Running several instances](#running-several-instances). |
+| `TOKKL_PUBLIC_URL` | absent | Public HTTP(S) origin for emailed links; no credentials, path, query or fragment. |
+| `TOKKL_SMTP_HOST` | absent | SMTP server host. |
+| `TOKKL_SMTP_PORT` | `587` | SMTP server port. |
+| `TOKKL_SMTP_TLS` | `starttls` | Transport security: `starttls`, `tls` or `none`. |
+| `TOKKL_SMTP_FROM` | absent | Sender address for sign-up email. |
+| `TOKKL_SMTP_USER` | absent | SMTP username. |
+| `TOKKL_SMTP_PASSWORD` | absent | SMTP password. |
 | `TOKKL_WEB_ROOT` | `dist/web` | Built web app folder |
+
+### Enabling sign-up
+
+Sign-up is off by default. Set the public URL, SMTP host and sender, configure the transport and enable sign-up on the Admin page. Sign-up is available only when mail is configured and the setting is enabled. SMTP connection, greeting and socket timeouts are ten seconds.
 
 ## Database selection
 
@@ -133,6 +144,8 @@ Each user may hold 10 streams on each instance. Opening an 11th on the same inst
 ## Running several instances
 
 Set `TOKKL_SETUP_CODE` to the same value on every instance before the first start. Without it, each instance makes up its own setup code and accepts only that one, so the load balancer can send the setup request to an instance that rejects the code from the log you read. Wrong codes count against the setup-code limit on every instance.
+
+The public URL and SMTP variables must match on every instance.
 
 Each instance needs:
 

@@ -1,10 +1,11 @@
 import { memberships } from './fixtures/observations.ts';
 import { tokenRows, corruptRecord, failMembershipInsert } from './fixtures/physical.ts';
-import { storageFor } from './fixtures/database.ts';
+import { servicesFor, storageFor } from './fixtures/database.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ADDRESS_LIMIT } from '../src/auth/rateLimit.ts';
 import { INVITE_NOT_FOUND } from '../src/domain/accountLinks.ts';
+import { createSessionAccountOperations } from '../src/services/application.ts';
 import { addUser, anonymous, CSRF, setup, type TestContext } from './helpers.ts';
 
 const DAY_MS = 86_400_000;
@@ -60,13 +61,24 @@ test('an admin creates an invite, sees its URL once, and lists it without the to
   assert.ok(!text.includes(String(stored.token_hash)), 'nor its hash');
   const listed = JSON.parse(text) as Array<Record<string, unknown>>;
   assert.equal(listed.length, 2);
-  assert.deepEqual(Object.keys(listed[0]!).sort(), ['created_at', 'created_by', 'expires_at', 'id', 'note', 'role']);
+  assert.deepEqual(Object.keys(listed[0]!).sort(), [
+    'created_at',
+    'created_by',
+    'email',
+    'expires_at',
+    'id',
+    'note',
+    'role',
+    'source',
+  ]);
   assert.deepEqual(
     { ...listed[0], created_at: undefined, expires_at: undefined },
     {
       id: created.id,
       role: 'admin',
       note: 'For Ana',
+      email: null,
+      source: 'admin',
       created_by: admin.user.id,
       created_at: undefined,
       expires_at: undefined,
@@ -89,6 +101,176 @@ test('a new invite expires after the stored invite_days', async () => {
   assert.ok(Math.abs(lifetime(created) - 3 * DAY_MS) <= 1000);
   const row = (await tokenRows(admin.db)).find(row => row.id === created.id)!;
   assert.equal(Date.parse(row.expires_at!) - Date.parse(row.created_at!), 3 * DAY_MS);
+});
+
+test('signup requests replace the normalized email link and can undo an unsent invite', async () => {
+  const admin = await setup();
+  const operations = servicesFor(admin.db).signupInvites;
+  const adminInvite = await invite(admin);
+  assert.equal((await admin.json('PUT', '/api/app/admin/settings', { invite_days: 3 })).status, 200);
+
+  const first = await operations.createSignupInvite('  New.Person@Example.com  ');
+  assert.equal(first.existing, false);
+  assert.ok(!first.existing);
+  assert.equal(first.invite.email, 'new.person@example.com');
+  assert.equal(first.invite.role, 'user');
+  assert.equal(first.invite.note, null);
+  assert.equal(first.invite.createdBy, null);
+  assert.equal(first.invite.userId, null);
+  assert.equal(first.invite.usedAt, null);
+  assert.equal(Date.parse(first.invite.expiresAt) - Date.parse(first.invite.createdAt), 3 * DAY_MS);
+  assert.match(first.token, /^[A-Za-z0-9_-]{43}$/);
+  const stored = (await tokenRows(admin.db)).find(row => row.id === first.invite.id)!;
+  assert.notEqual(stored.token_hash, first.token);
+  assert.ok(!JSON.stringify(await tokenRows(admin.db)).includes(first.token), 'only the hash is stored');
+
+  const other = await operations.createSignupInvite('other@example.com');
+  assert.ok(!other.existing);
+  const second = await operations.createSignupInvite('NEW.PERSON@example.COM');
+  assert.ok(!second.existing);
+  assert.notEqual(second.token, first.token);
+  for (const response of [
+    await anonymous(admin, 'GET', `/api/app/invites/${first.token}`),
+    await accept(admin, first.token, { email: 'new.person@example.com' }),
+  ]) {
+    assert.equal(response.status, 404);
+    assert.equal(await response.json(), INVITE_NOT_FOUND);
+  }
+  for (const token of [second.token, other.token, adminInvite.token])
+    assert.equal((await anonymous(admin, 'GET', `/api/app/invites/${token}`)).status, 200);
+
+  assert.equal((await accept(admin, second.token, {})).status, 200, 'the replacement link can be accepted');
+  assert.ok(await storageFor(admin.db).users.findByEmail('new.person@example.com'));
+  await operations.deleteSignupInvite(second.invite.id);
+  assert.ok(
+    (await tokenRows(admin.db)).some(row => row.id === second.invite.id),
+    'used links are kept',
+  );
+
+  const unsent = await operations.createSignupInvite('unsent@example.com');
+  assert.ok(!unsent.existing);
+  await operations.deleteSignupInvite(unsent.invite.id);
+  await operations.deleteSignupInvite(unsent.invite.id);
+  const removed = await anonymous(admin, 'GET', `/api/app/invites/${unsent.token}`);
+  assert.equal(removed.status, 404);
+  assert.equal(await removed.json(), INVITE_NOT_FOUND);
+  assert.ok(!(await tokenRows(admin.db)).some(row => row.id === unsent.invite.id), 'the unsent row is deleted');
+  assert.equal((await anonymous(admin, 'GET', `/api/app/invites/${other.token}`)).status, 200);
+});
+
+test('signup requests for active and disabled accounts create no invite', async () => {
+  const admin = await setup();
+  const bob = await addUser(admin, { email: 'bob@example.com', role: 'user' });
+  const before = await tokenRows(admin.db);
+  const operations = servicesFor(admin.db).signupInvites;
+  for (const email of [' ME@EXAMPLE.COM ', 'BOB@example.com'])
+    assert.deepEqual(await operations.createSignupInvite(email), { existing: true });
+  assert.equal((await admin.json('PATCH', `/api/app/admin/users/${bob.user.id}`, { disabled: true })).status, 200);
+  assert.deepEqual(await operations.createSignupInvite(' Bob@example.com '), { existing: true });
+  assert.deepEqual(await tokenRows(admin.db), before);
+});
+
+test('signup invite acceptance ignores different, absent and invalid body emails', async () => {
+  const admin = await setup();
+  const operations = servicesFor(admin.db).signupInvites;
+  const attackerEmails = ['me@example.com', undefined, 'not-an-email', null, { email: 'attacker@example.com' }];
+  for (const [index, email] of attackerEmails.entries()) {
+    const lockedEmail = `locked-${index}@example.com`;
+    const created = await operations.createSignupInvite(lockedEmail);
+    assert.ok(!created.existing);
+    const response = await accept(admin, created.token, { email, role: 'admin', fullname: 'New Person' });
+    assert.equal(response.status, 200, await response.clone().text());
+    assert.deepEqual(await response.json(), { ok: true });
+    const cookie = response.headers.get('set-cookie')!.split(';')[0]!;
+    const me = await anonymous(admin, 'GET', '/api/v9/me', undefined, { cookie });
+    assert.equal(me.status, 200);
+    const account = (await me.json()) as { email: string; role: string };
+    assert.equal(account.email, lockedEmail);
+    assert.equal(account.role, 'user');
+    const user = (await storageFor(admin.db).users.findByEmail(lockedEmail))!;
+    assert.equal((await storageFor(admin.db).workspaces.get(user.defaultWorkspaceId))!.name, 'New Person workspace');
+    assert.deepEqual(
+      (await memberships(admin.db)).filter(row => row.user_id === user.id).map(row => row.role),
+      ['owner'],
+    );
+    for (const reused of [
+      await anonymous(admin, 'GET', `/api/app/invites/${created.token}`),
+      await accept(admin, created.token, {}),
+    ]) {
+      assert.equal(reused.status, 404);
+      assert.equal(await reused.json(), INVITE_NOT_FOUND);
+    }
+  }
+});
+
+test('domain acceptance uses the signup email even when the caller supplies another account email', async () => {
+  const admin = await setup();
+  const services = servicesFor(admin.db);
+  const created = await services.signupInvites.createSignupInvite('domain@example.com');
+  assert.ok(!created.existing);
+  const user = await createSessionAccountOperations(storageFor(admin.db), services).acceptInvite(created.token, {
+    email: 'me@example.com',
+    fullname: 'Domain',
+    timezone: 'UTC',
+    password: NEW_PASSWORD,
+  });
+  assert.equal(user.email, 'domain@example.com');
+  assert.equal(user.role, 'user');
+});
+
+test('signup invites retain validation and detect an account created after the invite', async () => {
+  const admin = await setup();
+  const created = await servicesFor(admin.db).signupInvites.createSignupInvite('later@example.com');
+  assert.ok(!created.existing);
+  const before = await counts(admin);
+  for (const body of [{ password: 'short' }, { password: 'x'.repeat(1025) }, { timezone: '+02:00' }]) {
+    const response = await accept(admin, created.token, { email: 'attacker@example.com', ...body });
+    assert.equal(response.status, 400);
+    assert.equal(response.headers.get('set-cookie'), null);
+  }
+  assert.deepEqual(await counts(admin), before);
+  await addUser(admin, { email: 'LATER@example.com', role: 'user' });
+  const after = await counts(admin);
+  const duplicate = await accept(admin, created.token, { email: 'attacker@example.com' });
+  assert.equal(duplicate.status, 400);
+  assert.equal(await duplicate.json(), 'An account with this email already exists');
+  assert.equal(duplicate.headers.get('set-cookie'), null);
+  assert.deepEqual(await counts(admin), after);
+  assert.equal((await anonymous(admin, 'GET', `/api/app/invites/${created.token}`)).status, 200);
+});
+
+test('signup invite info and the admin list show the locked email and admins can revoke the link', async () => {
+  const admin = await setup();
+  const created = await servicesFor(admin.db).signupInvites.createSignupInvite('listed@example.com');
+  assert.ok(!created.existing);
+  const info = await anonymous(admin, 'GET', `/api/app/invites/${created.token}`);
+  assert.equal(info.status, 200);
+  assert.deepEqual(await info.json(), { role: 'user', email: 'listed@example.com' });
+  const list = await admin.json('GET', '/api/app/admin/invites');
+  assert.equal(list.status, 200);
+  assert.deepEqual(list.body, [
+    {
+      id: created.invite.id,
+      role: 'user',
+      note: null,
+      email: 'listed@example.com',
+      source: 'signup',
+      created_by: null,
+      created_at: created.invite.createdAt.replace(/\.\d{3}Z$/, '+00:00'),
+      expires_at: created.invite.expiresAt.replace(/\.\d{3}Z$/, '+00:00'),
+    },
+  ]);
+  assert.ok(!JSON.stringify(list.body).includes(created.token));
+  assert.ok(!JSON.stringify(list.body).includes(created.invite.tokenHash));
+  assert.equal((await admin.json('DELETE', `/api/app/admin/invites/${created.invite.id}`)).status, 200);
+  assert.deepEqual((await admin.json('GET', '/api/app/admin/invites')).body, []);
+  for (const response of [
+    await anonymous(admin, 'GET', `/api/app/invites/${created.token}`),
+    await accept(admin, created.token, {}),
+  ]) {
+    assert.equal(response.status, 404);
+    assert.equal(await response.json(), INVITE_NOT_FOUND);
+  }
 });
 
 test('a regular user gets 403 from every admin invite route', async () => {

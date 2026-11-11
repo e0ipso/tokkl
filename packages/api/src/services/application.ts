@@ -15,6 +15,7 @@ import {
   type AccountPasswordAttempt,
 } from '../domain/accounts.ts';
 import type { AccountSecurityEffects } from '../domain/accountGuards.ts';
+import { createInviteOperations } from '../domain/accountLinks.ts';
 import { authenticatedUser, isActiveAdmin, type Authentication } from '../domain/credentials.ts';
 import { createReadQueries, type ReadQueries } from '../domain/queries.ts';
 import { createAccountEntryEffects } from '../domain/timerEffects.ts';
@@ -131,6 +132,7 @@ export function createApplicationServices({
     streamLimits: settings.timerStreams,
   });
   const security = accountSecurity(timerStreams);
+  const invites = createInviteOperations(storage);
   const streamCredentials = { check: (authentication: Authentication) => credentialCheck(storage, authentication) };
   const { publish } = push;
   const entryEffects = createAccountEntryEffects<Repositories>(push);
@@ -149,6 +151,11 @@ export function createApplicationServices({
   }
   return {
     timerStreams,
+    /** Public signup requests create links before a credential exists. */
+    signupInvites: {
+      createSignupInvite: (email: string) => invites.createSignupInvite(email, sessionDays),
+      deleteSignupInvite: (id: Id, token?: string) => invites.deleteSignupInvite(id, token),
+    },
     push,
     reports,
     streamCredentials,

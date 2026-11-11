@@ -10,6 +10,13 @@ export const auth = {
   password: 'Password',
   logIn: 'Log in',
   createAdmin: 'Create admin account',
+  signupTitle: 'Create an account',
+  signupIntro: 'Enter your email to receive a link to create your account.',
+  sendSignupLink: 'Send sign-up link',
+  checkInbox: 'Check your inbox',
+  checkInboxBody: 'Check your email for the next steps.',
+  signupUnavailable: 'Sign-up is not available on this server.',
+  signupRetryAfter: 'Too many sign-up requests. Try again in {seconds} seconds.',
 
   /** A link check that failed for another reason than the link, such as the server being down. */
   checkFailed: '{prefix}: {message}',

@@ -24,6 +24,7 @@ import { chooseJson, transferFixture } from './transfer-tests-helpers.ts';
 
 const FRESH_STATUS = {
   setup_required: true,
+  signup_enabled: false,
   api_version: 1,
   capabilities: [
     'app-preferences',

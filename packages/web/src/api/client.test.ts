@@ -20,6 +20,21 @@ const hang = (signal: AbortSignal) =>
 
 const request = { method: 'POST', path: '/api/app/timer/resume' } as const;
 
+test('a refused signup preserves Retry-After alongside the server message', async t => {
+  t.mock.method(globalThis, 'fetch', () =>
+    Promise.resolve(
+      new Response(JSON.stringify('Too many sign-up requests'), { status: 429, headers: { 'Retry-After': '123' } }),
+    ),
+  );
+  await assert.rejects(api.post('/api/app/signup', { email: 'visitor@example.com' }), (error: unknown) => {
+    assert.ok(error instanceof ApiError);
+    assert.equal(error.status, 429);
+    assert.equal(error.message, 'Too many sign-up requests');
+    assert.equal(error.retryAfter, '123');
+    return true;
+  });
+});
+
 test('a request with no reply by its deadline fails as timed out, naming the request', async () => {
   await assert.rejects(
     withDeadline(10, request, undefined, hang),

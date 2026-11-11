@@ -45,7 +45,11 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         return value as T;
       }
       assert.deepEqual(await json('GET', '/healthz', undefined, false), { ok: true });
-      assert.deepEqual(await json('GET', '/api/app/status', undefined, false), { setup_required: true, ...SERVER_API });
+      assert.deepEqual(await json('GET', '/api/app/status', undefined, false), {
+        setup_required: true,
+        signup_enabled: false,
+        ...SERVER_API,
+      });
       const setup = await request(
         'POST',
         '/api/app/setup',
@@ -165,6 +169,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       app = await startApi(databaseUrl(fixture.config), dir);
       assert.deepEqual(await json('GET', '/api/app/status', undefined, false), {
         setup_required: false,
+        signup_enabled: false,
         ...SERVER_API,
       });
       assert.equal((await json<TimerState>('GET', '/api/app/timer')).running_entry!.description, 'persist');

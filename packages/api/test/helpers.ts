@@ -95,6 +95,9 @@ export function testConfig(db?: FixtureDatabase): Config {
     trustProxy: false,
     sessionDays: 30,
     setupCode: undefined,
+    publicUrl: undefined,
+    smtp: undefined,
+    mail: { configured: false, missing: ['TOKKL_SMTP_HOST', 'TOKKL_SMTP_FROM', 'TOKKL_PUBLIC_URL'] },
     // Request lines would drown the test output; failures still print.
     logLevel: 'warn',
   };

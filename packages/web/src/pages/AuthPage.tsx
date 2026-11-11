@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { Link } from 'wouter';
 import { authRequests } from '../api/auth.ts';
 import { Brand } from '../components/Brand.tsx';
 import { FormError, errorMessage } from '../components/FormError.tsx';
 import { browserTimeZone } from '../lib/browserTimeZone.ts';
 import { t } from '../i18n/messages.ts';
 
-export function AuthPage({ mode }: { mode: 'login' | 'setup' }) {
+export function AuthPage({ mode, signupEnabled = false }: { mode: 'login' | 'setup'; signupEnabled?: boolean }) {
   const qc = useQueryClient();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -91,6 +92,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'setup' }) {
         <button type="submit" className="button button-primary button-block" disabled={busy}>
           {mode === 'setup' ? t('auth.createAdmin') : t('auth.logIn')}
         </button>
+        {mode === 'login' && signupEnabled && <Link href="/signup">{t('auth.signupTitle')}</Link>}
       </form>
     </div>
   );

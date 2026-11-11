@@ -14,6 +14,7 @@ import { endSession } from './lib/session.ts';
 import { AuthPage } from './pages/AuthPage.tsx';
 import { InvitePage } from './pages/InvitePage.tsx';
 import { ResetPasswordPage } from './pages/ResetPasswordPage.tsx';
+import { SignupPage } from './pages/SignupPage.tsx';
 
 /**
  * Ends the session once per 403 from /me; the clear re-renders App, and the second 403 does nothing.
@@ -49,11 +50,13 @@ export function App() {
   useEndSessionOnForbidden(forbidden, me.isSuccess);
   const [isInvite, invite] = useRoute('/invite/:token');
   const [isReset, reset] = useRoute('/reset/:token');
+  const [isSignup] = useRoute('/signup');
 
   // Reachable signed in or not: accepting an invite starts the new account's session.
   if (isInvite) return <InvitePage key={invite.token} token={invite.token} />;
   // Reachable signed in or not: the person resetting has usually lost access to the account.
   if (isReset) return <ResetPasswordPage key={reset.token} token={reset.token} />;
+  if (isSignup) return <SignupPage />;
   if (status.isLoading || (me.isLoading && !status.data?.setup_required)) {
     return (
       <Splash>
@@ -62,7 +65,7 @@ export function App() {
     );
   }
   if (status.data?.setup_required) return <AuthPage mode="setup" />;
-  if (forbidden) return <AuthPage mode="login" />;
+  if (forbidden) return <AuthPage mode="login" signupEnabled={status.data?.signup_enabled === true} />;
   if (me.error) {
     const retry = () => {
       if (status.error) void status.refetch();

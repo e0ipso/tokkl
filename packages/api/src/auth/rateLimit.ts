@@ -20,6 +20,10 @@ const ACCOUNT_LIMIT = 50;
 /** Spraying from one host, without locking out a shared NAT. */
 export const ADDRESS_LIMIT = 100;
 export const SETUP_CODE_LIMIT = 10;
+export const SIGNUP_ADDRESS_LIMIT = 5;
+export const SIGNUP_ADDRESS_WINDOW_MS = 15 * 60 * 1000;
+export const SIGNUP_EMAIL_LIMIT = 3;
+export const SIGNUP_EMAIL_WINDOW_MS = 60 * 60 * 1000;
 
 /** Cleared by a successful login. Accounts count by normalized email. */
 export function accountCounters(email: string, address: string): Counter[] {
@@ -41,7 +45,7 @@ export function passwordCounters(email: string, address: string): Counter[] {
 }
 
 /** Part of the stored key, so equal keys never collide. */
-type LimiterNamespace = 'password' | 'setup-code';
+type LimiterNamespace = 'password' | 'setup-code' | 'signup-address' | 'signup-email';
 
 export type { AttemptResult };
 

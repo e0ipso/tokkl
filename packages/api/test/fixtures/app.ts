@@ -2,6 +2,7 @@ import type { Express } from 'express';
 import { createHttpApp, type HttpApp } from '../../src/app.ts';
 import type { SetupState } from '../../src/auth/sessions.ts';
 import type { Config } from '../../src/config.ts';
+import type { Mailer } from '../../src/mail.ts';
 import type { Clock, Storage, TimerBus } from '../../src/domain/ports.ts';
 import { systemClock } from '../../src/lib/clock.ts';
 import { createLogger, type Logger } from '../../src/lib/logger.ts';
@@ -20,6 +21,7 @@ export interface TestAppOptions {
   storage: Storage;
   config: Config;
   setup: SetupState;
+  mailer?: Mailer;
   /** Defaults to the single-process bus. The test owns its lifetime. */
   timerBus?: TimerBus;
   logger?: Logger;
@@ -42,6 +44,7 @@ export function composeApp({
   storage,
   config,
   setup,
+  mailer,
   timerBus = createLocalTimerBus(),
   logger = createLogger({ level: config.logLevel }),
   reports = createReportRunner(config.storage, storage, { logger }),
@@ -57,7 +60,7 @@ export function composeApp({
     logger,
     sessionDays: config.sessionDays,
   });
-  return { ...createHttpApp(services, { storage, config, setup, logger }), services };
+  return { ...createHttpApp(services, { storage, config, setup, logger, mailer }), services };
 }
 
 export function createApp(options: TestAppOptions): Express {

@@ -125,12 +125,16 @@ export async function insertTrashedEntries(
       .values(rows.slice(i, i + 100))
       .execute();
 }
-export async function corruptSetting(handle: FixtureDatabase, value: string): Promise<void> {
+export async function corruptSetting(
+  handle: FixtureDatabase,
+  value: string,
+  key = 'time_resolution_minutes',
+): Promise<void> {
   const db = physical(handle);
-  await db.deleteFrom('instance_settings').where('key', '=', 'time_resolution_minutes').execute();
+  await db.deleteFrom('instance_settings').where('key', '=', key).execute();
   await db
     .insertInto('instance_settings')
-    .values({ key: 'time_resolution_minutes', value, updated_at: '2026-01-01T00:00:00.000Z', updated_by: null })
+    .values({ key, value, updated_at: '2026-01-01T00:00:00.000Z', updated_by: null })
     .execute();
 }
 export async function failMembershipInsert(handle: FixtureDatabase): Promise<() => Promise<void>> {

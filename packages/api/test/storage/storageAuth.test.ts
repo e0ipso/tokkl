@@ -88,6 +88,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         loginLimiter,
         setupLimiter,
         sessionDays: 30,
+        mailConfigured: false,
         setup,
       });
       const auth = createAuthMiddleware(runner, loginLimiter);
@@ -95,7 +96,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
       app.set('trust proxy', true);
       app.use(express.text({ type: () => true }));
       app.get('/status', async (_req, res) => {
-        res.json({ setup_required: await sessions.setupRequired() });
+        res.json(await sessions.status());
       });
       app.post('/setup', sessions.firstAdmin);
       app.post('/login', sessions.login);
@@ -186,7 +187,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           await expectError(path, 403, 'Missing CSRF header', { method: 'POST', body: 'invalid JSON' });
         }
         assert.equal(await blocked(setupLimiter, '192.0.2.1'), false);
-        assert.deepEqual((await request('/status')).body, { setup_required: true });
+        assert.deepEqual((await request('/status')).body, { setup_required: true, signup_enabled: false });
         for (let n = 0; n < 10; n++)
           await expectError('/setup', 403, 'Invalid setup code. It is printed in the server log on startup.', {
             method: 'POST',

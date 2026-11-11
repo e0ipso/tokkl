@@ -13,7 +13,7 @@ import { addUser, CSRF, PASSWORD, sessionCookie, setup, testConfig, testServer, 
 
 test('a fresh database has no memberships until setup creates the first admin, who owns its workspace', async () => {
   const db = await openDatabase();
-  assert.equal(await completedMigrations(db), 8);
+  assert.equal(await completedMigrations(db), 9);
   assert.deepEqual(await memberships(db), []);
 
   const app = testServer(

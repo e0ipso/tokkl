@@ -5,7 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { ConfigurationError, loadConfig } from '../src/config.ts';
+import { inspect } from 'node:util';
+import { ConfigurationError, loadConfig, mailConfigured } from '../src/config.ts';
 function tempDir() {
   const dir = mkdtempSync(join(tmpdir(), 'tokkl-config-'));
   after(() => rmSync(dir, { recursive: true, force: true }));
@@ -169,4 +170,108 @@ test('database selection errors are configuration errors, so startup prints them
   writeFileSync(join(dir, 'timetrack.sqlite'), 'keep');
   assert.throws(() => loadConfig({ TOKKL_DATA_DIR: dir }), ConfigurationError);
   assert.throws(() => loadConfig({ TOKKL_DATA_DIR: tempDir(), TOKKL_DATABASE_URL: 'bad://x' }), ConfigurationError);
+});
+
+test('mail configuration normalizes its public origin and uses SMTP defaults', () => {
+  const { config } = loadConfig({
+    TOKKL_DATABASE_URL: 'sqlite::memory:',
+    TOKKL_PUBLIC_URL: 'https://Tokkl.Example:8443/',
+    TOKKL_SMTP_HOST: 'smtp.example.com',
+    TOKKL_SMTP_FROM: 'Tokkl <sender@example.com>',
+  });
+  assert.equal(config.publicUrl, 'https://tokkl.example:8443');
+  assert.deepEqual(config.smtp, {
+    host: 'smtp.example.com',
+    from: 'Tokkl <sender@example.com>',
+    port: 587,
+    tls: 'starttls',
+  });
+  assert.deepEqual(config.mail, { configured: true, missing: [] });
+});
+
+test('mail reports precisely which required variables are missing, including partial configuration', () => {
+  const names = ['TOKKL_SMTP_HOST', 'TOKKL_SMTP_FROM', 'TOKKL_PUBLIC_URL'];
+  const values = ['smtp.example.com', 'sender@example.com', 'http://localhost:8080'];
+  for (let mask = 0; mask < 8; mask++) {
+    const env: NodeJS.ProcessEnv = { TOKKL_DATABASE_URL: 'sqlite::memory:' };
+    const missing: string[] = [];
+    names.forEach((name, index) => {
+      if (mask & (1 << index)) env[name] = values[index];
+      else missing.push(name);
+    });
+    const { config } = loadConfig(env);
+    assert.deepEqual(config.mail, { configured: missing.length === 0, missing });
+    assert.deepEqual(mailConfigured(env), config.mail);
+    if (!(mask & 1)) assert.equal(config.smtp, undefined);
+  }
+  const { config, notices } = loadConfig({
+    TOKKL_DATABASE_URL: 'sqlite::memory:',
+    TOKKL_SMTP_HOST: '  ',
+    TOKKL_PUBLIC_URL: ' ',
+    TIMETRACK_PUBLIC_URL: 'https://old.example.com',
+    TIMETRACK_SMTP_HOST: 'old.example.com',
+    TIMETRACK_SMTP_FROM: 'old@example.com',
+  });
+  assert.equal(config.publicUrl, undefined);
+  assert.equal(config.smtp, undefined);
+  assert.deepEqual(config.mail.missing, names);
+  assert.deepEqual(notices, []);
+});
+
+test('mail rejects malformed public origins and SMTP options with safe configuration errors', () => {
+  const invalidOrigins = [
+    'smtp://example.com',
+    'example.com',
+    'https://example.com/invite',
+    'https://example.com/path/..',
+    'https://example.com/?q=1',
+    'https://example.com/#fragment',
+    'https://example.com/?',
+    'https://example.com/#',
+    'https://user:password@example.com',
+    'http://[bad',
+  ];
+  const invalid: Array<[string, string]> = invalidOrigins.map(value => ['TOKKL_PUBLIC_URL', value]);
+  invalid.push(
+    ...['1.5', '0', '65536', '-1', 'smtp', '1e2'].map(value => ['TOKKL_SMTP_PORT', value] as [string, string]),
+  );
+  invalid.push(['TOKKL_SMTP_TLS', 'optional']);
+  for (const [name, value] of invalid) {
+    assert.throws(
+      () =>
+        loadConfig({
+          TOKKL_DATABASE_URL: 'sqlite::memory:',
+          TOKKL_SMTP_HOST: 'smtp.example.com',
+          TOKKL_SMTP_USER: 'private-user',
+          TOKKL_SMTP_PASSWORD: 'private-password',
+          [name]: value,
+        }),
+      (error: Error) =>
+        error instanceof ConfigurationError &&
+        error.message.startsWith(`Invalid ${name}`) &&
+        !/private-user|private-password/.test(inspect(error)),
+      name,
+    );
+  }
+});
+
+test('SMTP supports explicit TLS modes and keeps usable credentials out of diagnostics and JSON', () => {
+  for (const tls of ['starttls', 'tls', 'none']) {
+    const loaded = loadConfig({
+      TOKKL_DATABASE_URL: 'sqlite::memory:',
+      TOKKL_PUBLIC_URL: 'http://localhost:8080/',
+      TOKKL_SMTP_HOST: 'smtp.example.com',
+      TOKKL_SMTP_FROM: 'sender@example.com',
+      TOKKL_SMTP_PORT: '465',
+      TOKKL_SMTP_TLS: tls,
+      TOKKL_SMTP_USER: 'private-user',
+      TOKKL_SMTP_PASSWORD: 'private-password',
+    });
+    assert.equal(loaded.config.smtp?.tls, tls);
+    assert.equal(loaded.config.smtp?.port, 465);
+    assert.equal(loaded.config.smtp?.user, 'private-user');
+    assert.equal(loaded.config.smtp?.password, 'private-password');
+    assert.doesNotMatch(JSON.stringify(loaded), /private-user|private-password/);
+    assert.doesNotMatch(inspect(loaded), /private-user|private-password/);
+  }
 });

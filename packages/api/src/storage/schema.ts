@@ -378,6 +378,7 @@ export const addedColumns: Record<string, Record<string, Column>> = {
   timer_states: { session_entry_id: optional(integer) },
   // Counts the writes that change the workspace's v9 project list; see `catalogRevisionDDL`.
   workspaces: { catalog_revision: def(integer, '0') },
+  account_tokens: { email: optional(name) },
 };
 /** Filled from the stored fingerprints' `session.entryId`; a non-JSON fingerprint or non-integer id leaves null. */
 export function timerSessionEntryDDL(backend: Backend): string[] {
@@ -399,6 +400,11 @@ export function catalogRevisionDDL(backend: Backend): string[] {
   const column = 'catalog_revision';
   return [
     `ALTER TABLE ${quote(backend, 'workspaces')} ADD COLUMN ${columnDDL(backend, column, addedColumns.workspaces![column]!)}`,
+  ];
+}
+export function accountTokenEmailDDL(backend: Backend): string[] {
+  return [
+    `ALTER TABLE ${quote(backend, 'account_tokens')} ADD COLUMN ${columnDDL(backend, 'email', addedColumns.account_tokens!.email!)}`,
   ];
 }
 export function rateLimitDDL(backend: Backend): string[] {

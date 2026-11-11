@@ -18,20 +18,25 @@ import { t } from '../../i18n/messages.ts';
 const MAX_NOTE_LENGTH = 255;
 
 function InviteRow({ invite, settings, onRevoked }: { invite: Invite; settings: Settings; onRevoked: () => void }) {
+  const signup = invite.source === 'signup';
+  const detail = signup ? invite.email : invite.note;
   const revoke = useAction({
     mutationFn: () => adminRequests.revokeInvite(invite.id),
     invalidate: stale.adminInvites,
     success: t('admin.inviteRevoked'),
     onSuccess: onRevoked,
   });
-  const revokeLabel = invite.note
-    ? t('admin.revokeNoteInvite', { note: invite.note })
-    : t(invite.role === 'admin' ? 'admin.revokeAdminInvite' : 'admin.revokeUserInvite');
+  const revokeLabel =
+    signup && invite.email
+      ? t('admin.revokeSignupInvite', { email: invite.email })
+      : invite.note
+        ? t('admin.revokeNoteInvite', { note: invite.note })
+        : t(invite.role === 'admin' ? 'admin.revokeAdminInvite' : 'admin.revokeUserInvite');
   return (
     <tr data-id={invite.id}>
-      <td>{invite.role === 'admin' ? t('admin.roleAdmin') : t('admin.roleUser')}</td>
-      <td className="manage-notes" title={invite.note ?? undefined}>
-        {invite.note ?? <span className="muted">{t('admin.none')}</span>}
+      <td>{signup ? t('admin.signupInvite') : t(invite.role === 'admin' ? 'admin.roleAdmin' : 'admin.roleUser')}</td>
+      <td className="manage-notes" title={detail ?? undefined}>
+        {detail ?? <span className="muted">{t('admin.none')}</span>}
       </td>
       <td className="num admin-date">{formatDay(invite.created_at, settings)}</td>
       <td className="num admin-date">{formatDateTime(invite.expires_at, settings)}</td>
@@ -153,7 +158,7 @@ export function InvitesSection({ settings }: { settings: Settings }) {
             <thead>
               <tr>
                 <th>{t('admin.role')}</th>
-                <th>{t('admin.note')}</th>
+                <th>{t('admin.noteOrEmail')}</th>
                 <th className="num">{t('admin.created')}</th>
                 <th className="num">{t('admin.expires')}</th>
                 <th>

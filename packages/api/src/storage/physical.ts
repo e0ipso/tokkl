@@ -136,6 +136,7 @@ interface InstanceSettingsRow {
 export interface AccountTokensRow {
   id: DefaultInt;
   token_hash: string;
+  email: string | null;
   kind: string;
   role: string | null;
   note: string | null;

@@ -3,6 +3,7 @@ import type { Server } from 'node:http';
 import { createHttpApp, type HttpApp } from './app.ts';
 import { ConfigurationError, loadConfig, type Config } from './config.ts';
 import { systemClock } from './lib/clock.ts';
+import { createMailer } from './mail.ts';
 import { createReportRunner } from './reportRunners.ts';
 import { createApplicationServices, DEFAULT_SERVICE_SETTINGS } from './services/application.ts';
 import { initializeDatabase } from './storage/migrations.ts';
@@ -102,7 +103,8 @@ async function main(): Promise<void> {
       logger,
       sessionDays: config.sessionDays,
     });
-    const http = createHttpApp(services, { storage, config, setup, logger });
+    const mailer = config.mail.configured && config.smtp ? createMailer(config.smtp) : undefined;
+    const http = createHttpApp(services, { storage, config, setup, logger, mailer });
     const server = http.app.listen(config.port, config.host);
     superviseServer({ server, http, timerBus, storage }, config, setup, logger);
   } catch (error) {

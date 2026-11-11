@@ -11,13 +11,21 @@ export class ApiError extends Error {
   readonly body: unknown;
   /** Set when the error came from `send`. */
   readonly request: { readonly method: Method; readonly path: string } | null;
+  readonly retryAfter: string | null;
 
-  constructor(status: number, message: string, body?: unknown, request?: { method: Method; path: string }) {
+  constructor(
+    status: number,
+    message: string,
+    body?: unknown,
+    request?: { method: Method; path: string },
+    retryAfter: string | null = null,
+  ) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.body = body;
     this.request = request ?? null;
+    this.retryAfter = retryAfter;
   }
 }
 
@@ -124,10 +132,11 @@ export async function withDeadline<T>(
 async function apiError(response: Response, method: Method, path: string): Promise<ApiError> {
   const text = await response.text();
   const request = { method, path };
+  const retryAfter = response.headers.get('Retry-After');
   let body: unknown;
   try {
     const parsed: unknown = JSON.parse(text);
-    if (typeof parsed === 'string') return new ApiError(response.status, parsed, undefined, request);
+    if (typeof parsed === 'string') return new ApiError(response.status, parsed, undefined, request, retryAfter);
     body = parsed;
   } catch {
     // Plain-text body.
@@ -137,6 +146,7 @@ async function apiError(response: Response, method: Method, path: string): Promi
     text || response.statusText || t('api.requestFailed', { status: response.status }),
     body,
     request,
+    retryAfter,
   );
 }
 
