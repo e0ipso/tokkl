@@ -36,7 +36,6 @@ test('signup rejects address metadata that SMTP would interpret as another mailb
 });
 
 test('a cleanup failure still returns a safe 503 and logs fixed messages without SMTP or storage details', async t => {
-  const logs = recordLogs(t);
   const { signup, services } = await signupApp(t, {
     mailer: {
       send: async () => {
@@ -44,6 +43,7 @@ test('a cleanup failure still returns a safe 503 and logs fixed messages without
       },
     },
   });
+  const logs = recordLogs(t);
   t.mock.method(services.signupInvites, 'deleteSignupInvite', async () => {
     throw new Error('storage-secret');
   });
@@ -57,7 +57,6 @@ test('a cleanup failure still returns a safe 503 and logs fixed messages without
 });
 
 test('failed sends return a safe 503, remove only unsent invites, and count toward both limits', async t => {
-  const logs = recordLogs(t);
   const attempted: Message[] = [];
   const { signup, services, adminRequest, server } = await signupApp(t, {
     mailer: {
@@ -67,6 +66,7 @@ test('failed sends return a safe 503, remove only unsent invites, and count towa
       },
     },
   });
+  const logs = recordLogs(t);
   const other = await services.signupInvites.createSignupInvite('other@example.com');
   assert.ok(!other.existing);
   const adminInvite = await adminRequest('POST', '/api/app/admin/invites', { role: 'user' });
@@ -108,7 +108,6 @@ test('failed sends return a safe 503, remove only unsent invites, and count towa
 });
 
 test('a failed overlapping send compensates its own invite and preserves the newer delivered link', async t => {
-  recordLogs(t);
   let failSend!: () => void;
   let started!: () => void;
   const sending = new Promise<void>(resolve => {
@@ -130,6 +129,7 @@ test('a failed overlapping send compensates its own invite and preserves the new
       },
     },
   });
+  recordLogs(t);
   const first = signup({ email: 'overlap@example.com' });
   try {
     await sending;
