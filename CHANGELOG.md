@@ -1,3 +1,9 @@
+## [2.4.0](https://github.com/e0ipso/tokkl/compare/v2.3.0...v2.4.0) (2026-11-11)
+
+### Features
+
+* link source and Android app from login ([#80](https://github.com/e0ipso/tokkl/issues/80)) ([663de47](https://github.com/e0ipso/tokkl/commit/663de470cc171332514f9cebbeb5b7405b142824))
+
 ## [2.3.0](https://github.com/e0ipso/tokkl/compare/v2.2.0...v2.3.0) (2026-11-11)
 
 ### Features
