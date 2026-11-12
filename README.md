@@ -44,7 +44,9 @@ The [documentation index](docs/README.md) links to all guides by task:
 - [Server configuration](docs/hosting/configuration.md),
   [database selection](docs/hosting/databases.md) and
   [server operations](docs/hosting/operations.md).
-- [Development and testing](docs/development.md).
+- [Development and testing](docs/development.md). Run `npm run check:tracker-refs`
+  before committing to keep ticket and plan references out of source files and
+  documentation.
 
 Desktop companions ship separately on
 [GitHub releases](https://github.com/e0ipso/tokkl/releases):
