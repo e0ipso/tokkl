@@ -1,3 +1,9 @@
+## [2.5.0](https://github.com/e0ipso/tokkl/compare/v2.4.0...v2.5.0) (2026-11-12)
+
+### Features
+
+* add VPS updater and hosting guides ([#81](https://github.com/e0ipso/tokkl/issues/81)) ([cc8d1d6](https://github.com/e0ipso/tokkl/commit/cc8d1d68d30fb36417f27487d5cfe88cf4c1e8ce))
+
 ## [2.4.0](https://github.com/e0ipso/tokkl/compare/v2.3.0...v2.4.0) (2026-11-11)
 
 ### Features
