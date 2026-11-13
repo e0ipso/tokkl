@@ -100,4 +100,10 @@ test('the parser gives the event loop a turn while it reads a large file', async
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(finished, false);
   assert.equal((await parsing).length, 200_000);
+
+  // A signal that aborts while the parser yields stops it at its next turn.
+  const controller = new AbortController();
+  const stopped = parseCsv(text, {}, controller.signal);
+  controller.abort(new Error('stop'));
+  await assert.rejects(stopped, /stop/);
 });

@@ -13,12 +13,16 @@ import type { ImportPlace } from '../services/importAdmission.ts';
 const IMPORT_LIMIT_BYTES = 8 * 1024 * 1024;
 /** From admission to the file's last byte. */
 const IMPORT_UPLOAD_DEADLINE_MS = 60_000;
+/** From the file's last byte to the reply. */
+const IMPORT_PROCESSING_DEADLINE_MS = 5_000;
 
 type ImportRouteDeps = Pick<Deps, 'auth' | 'importsFor' | 'importAdmission' | 'importLimiter'>;
 
 interface ImportRouteOptions {
   /** One minute unless a test shortens it. */
   uploadDeadlineMs?: number;
+  /** Five seconds unless a test shortens it. */
+  processingDeadlineMs?: number;
 }
 
 /** None for a chunked body or a header that is not a plain number. */
@@ -73,6 +77,21 @@ function receiveWithin(deadlineMs: number, place: (res: Response) => ImportPlace
   };
 }
 
+/**
+ * Aborts when the client leaves, the server stops, or `deadlineMs` after the whole file arrived, on the monotonic
+ * clock; a deadline that already passed aborts at once. The import checks it between steps and answers 503 for the
+ * deadline. It never interrupts a running query or rollback, which can outlast the deadline.
+ */
+function importSignal(res: Response, deadlineMs: number): AbortSignal {
+  // `AbortSignal.timeout` takes whole milliseconds.
+  const left = Math.ceil(deadlineMs - (performance.now() - res.locals.importBodyReceivedAt!));
+  const deadline =
+    left > 0
+      ? AbortSignal.timeout(left)
+      : AbortSignal.abort(new DOMException('Import deadline passed', 'TimeoutError'));
+  return AbortSignal.any([res.locals.workSignal, deadline]);
+}
+
 /** So the request no longer holds it. */
 function takeText(req: Request): string {
   const text = readText(req);
@@ -90,18 +109,20 @@ function parseImportFile(text: string): unknown {
 }
 
 /* Started in a plain function so no request or suspended handler keeps the file's text during the import. */
-function startCsvImport(deps: ImportRouteDeps, req: Request, res: Response) {
+function startCsvImport(deps: ImportRouteDeps, req: Request, res: Response, deadlineMs: number) {
+  const signal = importSignal(res, deadlineMs);
   const text = takeText(req);
   if (!text.trim()) throw invalidInput('The file is empty');
   // One `user=<key>` per selected Toggl user; keys may hold commas, so they are never joined.
   const users = queryList(req, 'user');
   if (users?.length === 0) throw invalidInput('Invalid user selection');
-  const options = { dryRun: query(req, 'dry_run') === 'true', users, signal: res.locals.workSignal };
+  const options = { dryRun: query(req, 'dry_run') === 'true', users, signal };
   return deps.importsFor(res.locals.auth).importTogglCsv(text, options);
 }
-function startJsonImport(deps: ImportRouteDeps, req: Request, res: Response) {
+function startJsonImport(deps: ImportRouteDeps, req: Request, res: Response, deadlineMs: number) {
+  // Built after the synchronous parse, so a parse that took the whole deadline already aborted it.
   const data = parseImportFile(takeText(req));
-  const options = { dryRun: query(req, 'dry_run') === 'true', signal: res.locals.workSignal };
+  const options = { dryRun: query(req, 'dry_run') === 'true', signal: importSignal(res, deadlineMs) };
   return deps.importsFor(res.locals.auth).importJsonExport(data, options);
 }
 
@@ -138,8 +159,9 @@ export function importRoutes(deps: ImportRouteDeps, options: ImportRouteOptions 
     res.once('close', () => place.release());
     next();
   };
-  /** The place stays taken until the work settled. */
+  /** The place stays taken until the work settled, a rollback after the deadline included. */
   const inPlace = <T>(res: Response, work: Promise<T>) => placeOf(res).during(work);
+  const processingDeadlineMs = options.processingDeadlineMs ?? IMPORT_PROCESSING_DEADLINE_MS;
   const receive = receiveWithin(options.uploadDeadlineMs ?? IMPORT_UPLOAD_DEADLINE_MS, placeOf);
   const signedInWithBody = [
     noStore,
@@ -151,10 +173,10 @@ export function importRoutes(deps: ImportRouteDeps, options: ImportRouteOptions 
     receive,
   ];
   api.post('/import/toggl-csv', ...signedInWithBody, async (req, res) => {
-    res.json(await inPlace(res, startCsvImport(deps, req, res)));
+    res.json(await inPlace(res, startCsvImport(deps, req, res, processingDeadlineMs)));
   });
   api.post('/import/json', ...signedInWithBody, async (req, res) => {
-    res.json(await inPlace(res, startJsonImport(deps, req, res)));
+    res.json(await inPlace(res, startJsonImport(deps, req, res, processingDeadlineMs)));
   });
   return api;
 }

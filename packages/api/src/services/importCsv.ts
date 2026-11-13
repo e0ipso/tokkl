@@ -13,7 +13,14 @@ import { withExactEntryImport, type ExactEntryImport } from '../domain/entryImpo
 import { noTimeSpan } from '../domain/entrySpans.ts';
 import type { User } from '../domain/model.ts';
 import type { TimerPublication } from '../domain/timerSettlement.ts';
-import { MAX_IMPORT_ERRORS, cancelBeforeCommit, checkCancelled, importError, protectImport } from './importGuards.ts';
+import {
+  MAX_IMPORT_ERRORS,
+  cancelBeforeCommit,
+  checkCancelled,
+  importError,
+  protectImport,
+  recordBoundary,
+} from './importGuards.ts';
 import { MAX_IMPORT_RECORDS, MAX_IMPORT_VALUES, importLimit } from './importPolicy.ts';
 const HEADER_ALIASES: Record<string, string[]> = {
   user: ['user'],
@@ -140,19 +147,20 @@ interface TogglCsvTable {
   hasUsers: boolean;
 }
 
-/** Yields to the event loop as it reads. */
-async function parseLimited(text: string): Promise<string[][]> {
+/** Yields to the event loop as it reads, and checks `signal` after each turn. */
+async function parseLimited(text: string, signal: AbortSignal | undefined): Promise<string[][]> {
   try {
-    return await parseCsv(text, LIMITS);
+    return await parseCsv(text, LIMITS, signal);
   } catch (error) {
+    checkCancelled(signal);
     if (error instanceof CsvLimitError) throw importLimit(LIMIT_MESSAGES[error.limit]);
     throw error;
   }
 }
 
 /** Run before the import's transaction, so a large file is read without holding the database. */
-export async function readTogglCsv(text: string): Promise<TogglCsvTable> {
-  const rows = await parseLimited(text),
+export async function readTogglCsv(text: string, signal?: AbortSignal): Promise<TogglCsvTable> {
+  const rows = await parseLimited(text, signal),
     header = rows.shift();
   if (!header) throw invalidInput('The file is empty');
   const col = columnIndex(header);
@@ -320,8 +328,11 @@ export async function importTogglCsv(
   const { rows, cell, hasUsers } = table;
   const { rowUsers, users } = tableUsers(rows, cell, hasUsers);
   const selected = selection(users, options);
+  // Opening the transaction and taking its locks can wait.
+  checkCancelled(signal);
   const user = await protectImport(ctx, userId),
     wid = user.defaultWorkspaceId;
+  checkCancelled(signal);
   const result = emptyResult(options.dryRun, rows.length, users, selected);
   const names = catalogNames(ctx, wid, result);
   async function importRow(writer: ExactEntryImport, row: string[]): Promise<void> {
@@ -337,11 +348,11 @@ export async function importTogglCsv(
     await writer.create(parseNewEntry(rowEntry(row, cell, span, pid, taskId)));
     result.created++;
   }
+  const boundary = recordBoundary(signal);
   await withExactEntryImport(ctx, userId, wid, publish, async writer => {
     for (const [index, row] of rows.entries()) {
       if (selected && !selected.has(rowUsers[index]!)) continue;
-      // Outside the row's savepoint, which would report the cancellation as the row's failure.
-      checkCancelled(signal);
+      await boundary();
       const projectsBefore = result.created_projects.length,
         clientsBefore = result.created_clients.length;
       try {
