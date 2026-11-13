@@ -6,7 +6,6 @@ import { formatDate, formatTime } from '../../../lib/format.ts';
 import { isTwelveHour } from '../../../lib/settings.ts';
 import {
   DURATION_FORMATS,
-  POMODORO_NUMBERS,
   THEMES,
   TIME_FORMATS,
   dateFormatOptions,
@@ -14,6 +13,7 @@ import {
   type NumberKey,
 } from './preferencesForm.ts';
 import { t } from '../../../i18n/messages.ts';
+import { POMODORO_FIELDS } from '../../../components/pomodoroFields.ts';
 
 /** The example Toggl uses for its duration formats. */
 const SAMPLE_SECONDS = 47 * 60 + 6;
@@ -160,12 +160,12 @@ export function PomodoroDefaults({
         {t('settings.pomodoroDefaults')}
       </h3>
       <LengthStepperGrid aria-labelledby="pomodoro-title">
-        {POMODORO_NUMBERS.map(({ key, label, shortUnit, unit, limit }) => (
+        {POMODORO_FIELDS.map(({ preference: key, label, unit, spokenUnit, limit }) => (
           <LengthStepper
             key={key}
             label={t(label)}
-            unit={t(shortUnit)}
-            spokenUnit={t(unit)}
+            unit={t(unit)}
+            spokenUnit={t(spokenUnit)}
             range={limits[limit]}
             value={draft[key]}
             onChange={text => {

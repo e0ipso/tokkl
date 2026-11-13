@@ -1,7 +1,8 @@
+import { POMODORO_FIELDS } from '../../components/pomodoroFields.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { PomodoroLimits, Preferences } from '@tokkl/types';
-import { LENGTH_FIELDS, lengthText, sessionConfig } from './sessionLengths.ts';
+import { lengthText, sessionConfig } from './sessionLengths.ts';
 
 const preferences: Preferences = {
   date_format: 'YYYY-MM-DD',
@@ -28,14 +29,14 @@ const limits: PomodoroLimits = {
 };
 
 test('a card shows the typed text, else the saved preference', () => {
-  const [work] = LENGTH_FIELDS;
+  const [work] = POMODORO_FIELDS;
   assert.equal(lengthText({}, preferences, limits, work), '50');
   assert.equal(lengthText({ workMinutes: '4' }, preferences, limits, work), '4');
 });
 
 test("an account that never saved a length starts from the server's default", () => {
   const { pomodoro_focus_interval_in_minutes: _unsaved, ...older } = preferences;
-  const [work] = LENGTH_FIELDS;
+  const [work] = POMODORO_FIELDS;
   assert.equal(lengthText({}, { ...older } as Preferences, limits, work), '45');
 });
 

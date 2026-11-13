@@ -1,26 +1,17 @@
-import { useState } from 'react';
 import { transferRequests } from '../../../api/transfer.ts';
 import { Icon } from '../../../components/Icon.tsx';
 import { useToast } from '../../../components/Toast.tsx';
-import { reportUnlessCancelled, useCancellable } from '../../../components/useUnmountSignal.ts';
+import { useDownload } from '../../../components/useDownload.ts';
 import { exportFilename } from './transferForm.ts';
 import { t } from '../../../i18n/messages.ts';
 
 /** One export at a time; Cancel and leaving the page both stop it without an error. */
 export function ExportData() {
   const toast = useToast();
-  const [exporting, setExporting] = useState<'json' | 'csv' | null>(null);
-  const exports = useCancellable(exporting !== null);
+  const exports = useDownload(toast.error);
 
-  const exportFile = async (kind: 'json' | 'csv', origin: HTMLElement) => {
-    setExporting(kind);
-    await reportUnlessCancelled(
-      exports.start(origin),
-      signal => transferRequests.export(kind, exportFilename(kind, new Date()), signal),
-      toast.error,
-    );
-    setExporting(null);
-  };
+  const exportFile = (kind: 'json' | 'csv', origin: HTMLElement) =>
+    exports.run(origin, signal => transferRequests.export(kind, exportFilename(kind, new Date()), signal));
 
   return (
     <>
@@ -30,7 +21,7 @@ export function ExportData() {
         <button
           type="button"
           className="button button-ghost"
-          disabled={exporting !== null}
+          disabled={exports.isPending}
           onClick={event => void exportFile('json', event.currentTarget)}
         >
           <Icon name="download" size={16} /> {t('settings.exportJson')}
@@ -38,12 +29,12 @@ export function ExportData() {
         <button
           type="button"
           className="button button-ghost"
-          disabled={exporting !== null}
+          disabled={exports.isPending}
           onClick={event => void exportFile('csv', event.currentTarget)}
         >
           <Icon name="download" size={16} /> {t('settings.exportCsv')}
         </button>
-        {exporting !== null ? (
+        {exports.isPending ? (
           <button
             type="button"
             className="button button-ghost"

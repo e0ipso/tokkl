@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 /** For work that should stop with the view. Call the returned function when the work starts. */
-export function useUnmountSignal(): () => AbortSignal {
+function useUnmountSignal(): () => AbortSignal {
   const controller = useRef<AbortController | null>(null);
   useEffect(() => {
     const current = new AbortController();
@@ -22,34 +22,37 @@ export function startCancellable(parent: AbortSignal): Cancellable {
   return { signal: AbortSignal.any([parent, controller.signal]), cancel: () => controller.abort() };
 }
 
-/** `cancel` aborts the latest run; when `running` turns false after a cancel, focus returns to `origin`. */
-export function useCancellable(running: boolean): {
-  start: (origin: HTMLElement) => AbortSignal;
+/** Tracks a download, suppresses cancellation errors and returns focus to its button after Cancel. */
+export function useDownload(report: (error: unknown) => void): {
+  isPending: boolean;
+  run: (origin: HTMLElement, work: (signal: AbortSignal) => Promise<unknown>) => Promise<void>;
   cancel: () => void;
 } {
+  const [isPending, setPending] = useState(false);
   const unmountSignal = useUnmountSignal();
   const current = useRef<Cancellable | null>(null);
   const origin = useRef<HTMLElement | null>(null);
   const refocus = useRef(false);
   useEffect(() => {
-    if (running || !refocus.current) return;
+    if (isPending || !refocus.current) return;
     refocus.current = false;
     origin.current?.focus();
-  }, [running]);
-  return useMemo(
-    () => ({
-      start: from => {
-        origin.current = from;
-        current.current = startCancellable(unmountSignal());
-        return current.current.signal;
-      },
-      cancel: () => {
-        refocus.current = true;
-        current.current?.cancel();
-      },
-    }),
-    [unmountSignal],
-  );
+  }, [isPending]);
+  return {
+    isPending,
+    async run(from, work) {
+      origin.current = from;
+      const download = startCancellable(unmountSignal());
+      current.current = download;
+      setPending(true);
+      await reportUnlessCancelled(download.signal, work, report);
+      setPending(false);
+    },
+    cancel() {
+      refocus.current = true;
+      current.current?.cancel();
+    },
+  };
 }
 
 /** A cancel by the user or the view going away is not an error to show. */

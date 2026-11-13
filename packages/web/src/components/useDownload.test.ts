@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { reportUnlessCancelled, startCancellable } from './useUnmountSignal.ts';
+import { reportUnlessCancelled, startCancellable } from './useDownload.ts';
 
 test('a failure of work the view cancelled is not reported', async () => {
   const controller = new AbortController();

@@ -1,4 +1,5 @@
 import type { DurationFormat, PomodoroLimits, Preferences } from '@tokkl/types';
+import { POMODORO_FIELDS } from '../../../components/pomodoroFields.ts';
 import { t, type MessageKey } from '../../../i18n/messages.ts';
 
 const DATE_FORMATS = ['YYYY-MM-DD', 'DD/MM/YYYY', 'MM/DD/YYYY', 'DD.MM.YYYY', 'DD-MM-YYYY', 'MM-DD-YYYY'] as const;
@@ -20,46 +21,8 @@ export const THEMES: ReadonlyArray<{ value: Preferences['theme']; label: Message
   { value: 'dark', label: 'settings.themeDark' },
 ];
 
-/** Labels and units are catalog keys; `limit` names the server's `pomodoro_limits` entry with the range and default. */
-export const POMODORO_NUMBERS = [
-  {
-    key: 'pomodoro_focus_interval_in_minutes',
-    label: 'pomodoro.lengthWork',
-    shortUnit: 'pomodoro.unitMinutes',
-    unit: 'pomodoro.spokenMinutes',
-    limit: 'work_minutes',
-  },
-  {
-    key: 'pomodoro_break_interval_in_minutes',
-    label: 'pomodoro.lengthShortRest',
-    shortUnit: 'pomodoro.unitMinutes',
-    unit: 'pomodoro.spokenMinutes',
-    limit: 'short_rest_minutes',
-  },
-  {
-    key: 'pomodoro_long_break_interval_in_minutes',
-    label: 'pomodoro.lengthLongRest',
-    shortUnit: 'pomodoro.unitMinutes',
-    unit: 'pomodoro.spokenMinutes',
-    limit: 'long_rest_minutes',
-  },
-  {
-    key: 'pomodoro_long_break_every',
-    label: 'pomodoro.lengthLongRestEvery',
-    shortUnit: 'pomodoro.unitPomodoros',
-    unit: 'pomodoro.spokenPomodoros',
-    limit: 'long_rest_every',
-  },
-] as const satisfies ReadonlyArray<{
-  key: keyof Preferences;
-  label: MessageKey;
-  shortUnit: MessageKey;
-  unit: MessageKey;
-  limit: keyof PomodoroLimits;
-}>;
-
 const NUMBER_FIELDS = [
-  ...POMODORO_NUMBERS,
+  ...POMODORO_FIELDS.map(({ preference: key, spokenUnit: unit }) => ({ key, unit })),
   { key: 'long_timer_reminder_hours', unit: 'settings.spokenHours' },
 ] as const;
 export type NumberKey = (typeof NUMBER_FIELDS)[number]['key'];
