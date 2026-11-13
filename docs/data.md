@@ -81,11 +81,12 @@ A body without a length counts as 8 MiB against the combined size.
 | 429 | The account used its five starts. `Retry-After` gives the seconds left. |
 | 503 | Too many imports run (`Retry-After: 5`), or processing passed five seconds (`Retry-After: 60`). |
 
-Previews count as starts. The CSV page sends a preview each time you change the
-user selection, so a few changes can use the five starts. A failed or refused
-import also counts, and a success does not reset the count. The count is stored
-in the database, so every instance that shares it applies one limit. When you
-reach it, wait for the time in `Retry-After`.
+Previews count as starts. The CSV page sends one preview when you choose a file.
+For a file with several Toggl users, it sends one more each time you click Check
+selection, not when you tick a user. A typical import uses three starts. A
+failed or refused import also counts, and a success does not reset the count.
+The count is stored in the database, so every instance that shares it applies
+one limit. When you reach it, wait for the time in `Retry-After`.
 
 Each import runs in one transaction. If the client disconnects, or processing
 passes five seconds, the import stops at the next record and rolls back, keeping
