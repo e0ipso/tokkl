@@ -56,31 +56,42 @@ export class ImportDeadlineExceeded extends ApplicationError {
   }
 }
 
+/**
+ * What ends an import early. `deadline` is an instant on the `performance.now()` clock; checks compare it directly,
+ * because synchronous work and promise chains can pass it before the signal's timer gets a turn to abort.
+ */
+export interface ImportStop {
+  signal?: AbortSignal;
+  deadline?: number;
+}
+
 /** A signal that timed out ends the import at its deadline; any other abort means the client or server went away. */
-export function checkCancelled(signal: AbortSignal | undefined): void {
-  if (!signal?.aborted) return;
-  const reason: unknown = signal.reason;
-  if (reason instanceof DOMException && reason.name === 'TimeoutError') throw new ImportDeadlineExceeded();
-  throw new RequestCancelled('Import cancelled');
+export function checkCancelled({ signal, deadline }: ImportStop): void {
+  if (signal?.aborted) {
+    const reason: unknown = signal.reason;
+    if (reason instanceof DOMException && reason.name === 'TimeoutError') throw new ImportDeadlineExceeded();
+    throw new RequestCancelled('Import cancelled');
+  }
+  if (deadline !== undefined && performance.now() >= deadline) throw new ImportDeadlineExceeded();
 }
 
 /**
  * Checks before each record, outside its savepoint, which would report the failure as the record's. Every
  * `RECORDS_PER_TURN` records it first yields to the event loop, so timers, other requests and the deadline run.
  */
-export function recordBoundary(signal: AbortSignal | undefined): () => Promise<void> {
+export function recordBoundary(stop: ImportStop): () => Promise<void> {
   let records = 0;
   return async () => {
     if (++records % RECORDS_PER_TURN === 0) await nextTurn();
-    checkCancelled(signal);
+    checkCancelled(stop);
   };
 }
 
 /** Checks before the hooks and again just before COMMIT, so a cancelled import rolls back whole. */
-export function cancelBeforeCommit(ctx: OperationContext<EntryRepositories>, signal: AbortSignal | undefined): void {
-  if (!signal) return;
-  checkCancelled(signal);
-  ctx.readAtCommit(async () => checkCancelled(signal));
+export function cancelBeforeCommit(ctx: OperationContext<EntryRepositories>, stop: ImportStop): void {
+  if (!stop.signal && stop.deadline === undefined) return;
+  checkCancelled(stop);
+  ctx.readAtCommit(async () => checkCancelled(stop));
 }
 
 /** Failures that end the whole import: a cancellation, the deadline, a work limit, or a transaction to rerun. */

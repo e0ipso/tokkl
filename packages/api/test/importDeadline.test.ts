@@ -57,8 +57,15 @@ interface ImportRun {
 
 type RecordHook = () => void | Promise<void>;
 
-/** Runs `record` inside each record's savepoint, before its duplicate check: JSON entries and CSV rows. */
-function slowedRunner(storage: Storage, record: { hook?: RecordHook; calls: number }) {
+interface RecordHooks {
+  /** Runs inside each record's savepoint, before its duplicate check: JSON entries and CSV rows. */
+  hook?: RecordHook;
+  /** Runs before each read at commit, after every before-commit hook. */
+  commit?: RecordHook;
+  calls: number;
+}
+
+function slowedRunner(storage: Storage, record: RecordHooks) {
   return {
     transaction<T>(work: (ctx: TransactionContext) => Promise<T>, options?: { dryRun?: boolean }) {
       return storage.transaction(ctx => {
@@ -67,7 +74,12 @@ function slowedRunner(storage: Storage, record: { hook?: RecordHook; calls: numb
           await record.hook?.();
           return ctx.entries.findDuplicate(key);
         };
-        return work({ ...ctx, entries: { ...ctx.entries, findDuplicate } });
+        const readAtCommit: TransactionContext['readAtCommit'] = read =>
+          ctx.readAtCommit(async () => {
+            await record.commit?.();
+            await read();
+          });
+        return work({ ...ctx, entries: { ...ctx.entries, findDuplicate }, readAtCommit });
       }, options);
     },
   };
@@ -79,7 +91,7 @@ const unlimited = { attempt: async () => ({ refused: false, valid: false }) };
 /** The import routes over real storage, one place in all, and the account named in `x-user`. */
 async function importServer(t: NodeTestContext, db: FixtureDatabase, options: { processingDeadlineMs?: number } = {}) {
   const storage = storageFor(db);
-  const record: { hook?: RecordHook; calls: number } = { calls: 0 };
+  const record: RecordHooks = { calls: 0 };
   const runner = slowedRunner(storage, record);
   const publish = createTimerPublication(async () => {}).publish;
   const admission = createImportAdmission({ maxImports: 1, maxPerUser: 1 });
@@ -210,6 +222,30 @@ test('an import past its processing deadline answers 503 with Retry-After and ch
     assert.ok(record.calls < 150, `${path} stopped after ${record.calls} records`);
     assert.deepEqual(await importTableRows(db), before, path);
   }
+});
+
+test('work that runs past the deadline without yielding to the event loop still rolls back', async t => {
+  const db = await openDatabase();
+  const { port, record, runs } = await importServer(t, db, { processingDeadlineMs: 20 });
+  // Synchronous work outlasts the deadline, and no timer can fire before the next check.
+  const late = () => busy(120);
+  const stages = [
+    ['record', () => (record.hook = late)],
+    ['commit', () => (record.commit = late)],
+  ] as const;
+  for (const [stage, slow] of stages)
+    for (const [path, file] of KINDS)
+      await t.test(`${path}, slow ${stage}`, async () => {
+        const user = await account(db, `overrun-${path.slice(8)}-${stage}`);
+        const before = await importTableRows(db);
+        record.hook = record.commit = undefined;
+        slow();
+        const reply = await post(port, path, file(1), user).response;
+        assert.deepEqual([reply.status, reply.body, reply.headers['retry-after']], [503, DEADLINE_MESSAGE, '60']);
+        const { error } = await runs.at(-1)!.settled;
+        assert.ok(error instanceof ImportDeadlineExceeded);
+        assert.deepEqual(await importTableRows(db), before);
+      });
 });
 
 test('a client that leaves mid-import gets no reply, and the import rolls back whole', async t => {

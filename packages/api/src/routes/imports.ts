@@ -8,6 +8,7 @@ import { noStore } from '../http/security.ts';
 import { RequestCancelled, invalidInput, requestTimeout, tooLarge, tooManyAttempts } from '../lib/errors.ts';
 import type { User } from '../domain/model.ts';
 import type { ImportPlace } from '../services/importAdmission.ts';
+import type { ImportStop } from '../services/importGuards.ts';
 
 /** An import file may be larger than any other request body: 8 MiB. */
 const IMPORT_LIMIT_BYTES = 8 * 1024 * 1024;
@@ -78,18 +79,20 @@ function receiveWithin(deadlineMs: number, place: (res: Response) => ImportPlace
 }
 
 /**
- * Aborts when the client leaves, the server stops, or `deadlineMs` after the whole file arrived, on the monotonic
- * clock; a deadline that already passed aborts at once. The import checks it between steps and answers 503 for the
- * deadline. It never interrupts a running query or rollback, which can outlast the deadline.
+ * The signal aborts when the client leaves, the server stops, or `deadlineMs` after the whole file arrived; a
+ * deadline that already passed aborts it at once. The deadline is also given as an instant on the monotonic clock,
+ * which the import compares at each check, since its timer fires only when the event loop gets a turn. The import
+ * answers 503 for the deadline. It never interrupts a running query or rollback, which can outlast the deadline.
  */
-function importSignal(res: Response, deadlineMs: number): AbortSignal {
+function importStop(res: Response, deadlineMs: number): ImportStop {
+  const deadline = res.locals.importBodyReceivedAt! + deadlineMs;
   // `AbortSignal.timeout` takes whole milliseconds.
-  const left = Math.ceil(deadlineMs - (performance.now() - res.locals.importBodyReceivedAt!));
-  const deadline =
+  const left = Math.ceil(deadline - performance.now());
+  const timeout =
     left > 0
       ? AbortSignal.timeout(left)
       : AbortSignal.abort(new DOMException('Import deadline passed', 'TimeoutError'));
-  return AbortSignal.any([res.locals.workSignal, deadline]);
+  return { signal: AbortSignal.any([res.locals.workSignal, timeout]), deadline };
 }
 
 /** So the request no longer holds it. */
@@ -110,19 +113,19 @@ function parseImportFile(text: string): unknown {
 
 /* Started in a plain function so no request or suspended handler keeps the file's text during the import. */
 function startCsvImport(deps: ImportRouteDeps, req: Request, res: Response, deadlineMs: number) {
-  const signal = importSignal(res, deadlineMs);
+  const stop = importStop(res, deadlineMs);
   const text = takeText(req);
   if (!text.trim()) throw invalidInput('The file is empty');
   // One `user=<key>` per selected Toggl user; keys may hold commas, so they are never joined.
   const users = queryList(req, 'user');
   if (users?.length === 0) throw invalidInput('Invalid user selection');
-  const options = { dryRun: query(req, 'dry_run') === 'true', users, signal };
+  const options = { dryRun: query(req, 'dry_run') === 'true', users, ...stop };
   return deps.importsFor(res.locals.auth).importTogglCsv(text, options);
 }
 function startJsonImport(deps: ImportRouteDeps, req: Request, res: Response, deadlineMs: number) {
   // Built after the synchronous parse, so a parse that took the whole deadline already aborted it.
   const data = parseImportFile(takeText(req));
-  const options = { dryRun: query(req, 'dry_run') === 'true', signal: importSignal(res, deadlineMs) };
+  const options = { dryRun: query(req, 'dry_run') === 'true', ...importStop(res, deadlineMs) };
   return deps.importsFor(res.locals.auth).importJsonExport(data, options);
 }
 

@@ -148,3 +148,46 @@ test('CSV imports take 10,000 data rows, counting unselected users, and refuse o
     await refused(await postCsv(account, query, dense), 'At most 250000 cells per import', label);
   }
 });
+
+test('CSV imports count each tag name in a Tags cell, from every row, against the 250,000 cells', async () => {
+  const ctx = await setup();
+  const message = 'At most 250000 cells per import, counting each tag name';
+  const header = 'User,Email,Description,Start date,Start time,Duration,Tags\n';
+  const ann = 'Ann,ann@example.com,Ann,2026-01-05,08:00:00,00:10:00,\n';
+  // Bob's rows are not imported, yet their tag names still count: the three rows hold 20 cells besides them.
+  const csv = (names: number) =>
+    header + ann + `Bob,bob@example.com,Bob,2026-01-05,09:00:00,00:10:00,"${Array(names).fill('x').join(',')}"\n`;
+  const preview = await accepted(await postCsv(ctx, '?dry_run=true', csv(1)), 'users');
+  const key = preview.users.find((user: any) => user.user === 'Ann').key as string;
+  const accounts = await importingAccounts(ctx);
+  const before = await catalogCounts(ctx);
+  for (const [label, dryRun] of MODES) {
+    const account = accounts[label];
+    const query = `?user=${encodeURIComponent(key)}${dryRun.replace('?', '&')}`;
+    assert.equal((await accepted(await postCsv(account, query, csv(249_980)), label)).created, 1, label);
+    await refused(await postCsv(account, query, csv(249_981)), message, label);
+  }
+  // Only Ann's row was imported, without tags.
+  assert.deepEqual(await catalogCounts(ctx), { ...before, time_entries: (before.time_entries ?? 0) + 1 });
+});
+
+test('a CSV Tags cell with 250,001 names is refused before a transaction opens', async () => {
+  let transactions = 0;
+  const imports = createImportOperations(
+    {
+      transaction: async () => {
+        transactions++;
+        throw new Error('A transaction opened');
+      },
+    },
+    1,
+    async () => {},
+  );
+  const csv = `Description,Start date,Start time,Duration,Tags\nx,2026-01-05,08:00:00,00:10:00,"${Array(250_001).fill('x').join(',')}"\n`;
+  await assert.rejects(imports.importTogglCsv(csv, { dryRun: false }), error => {
+    assert.ok(isImportLimit(error), String(error));
+    assert.equal((error as Error).message, 'At most 250000 cells per import, counting each tag name');
+    return true;
+  });
+  assert.equal(transactions, 0);
+});

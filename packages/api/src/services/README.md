@@ -27,5 +27,6 @@ maintenance use the supplied clock.
 
 `importAdmission.ts` limits running imports: four per instance, one per account and 8 MiB of file bytes in
 total, with a place held until the work settled, a rollback included. `importPolicy.ts` caps a file at 10,000
-records, 250,000 values or cells and 32 levels of JSON nesting, and `importGuards.ts` stops an import at its
-signal, whether a disconnect or the processing deadline.
+records, 250,000 values or cells (a CSV Tags cell counts once per tag name) and 32 levels of JSON nesting, and
+`importGuards.ts` stops an import at a disconnect or at the processing deadline, which it reads from the monotonic
+clock as well as from its signal.

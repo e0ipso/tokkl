@@ -68,7 +68,8 @@ only unencoded request bodies: a body with any `Content-Encoding` other than
 
 A record is a JSON record in `clients`, `projects`, `tasks`, `tags` or
 `time_entries`, or a CSV data row. A CSV file counts the rows of users you did
-not select. The cell count includes the header.
+not select. The cell count includes the header, and a Tags cell counts once per
+tag name.
 
 A body without a length counts as 8 MiB against the combined size.
 
@@ -89,8 +90,9 @@ reach it, wait for the time in `Retry-After`.
 Each import runs in one transaction. If the client disconnects, or processing
 passes five seconds, the import stops at the next record and rolls back, keeping
 none of the imported records. The deadline is cooperative: a query or a rollback
-that is already running finishes, so a reply can arrive later than five seconds.
-An import keeps its place until the rollback ends.
+that is already running finishes, so a reply can arrive later than five seconds,
+but work that ends after the deadline never commits. An import keeps its place
+until the rollback ends.
 
 ### Split a large export
 
