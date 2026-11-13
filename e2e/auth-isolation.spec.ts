@@ -77,6 +77,11 @@ test("after A logs out, B logs in on the same browser and sees none of A's data,
   await page.getByRole('link', { name: 'Settings' }).click();
   await expect(page.getByLabel('Email')).toHaveValue(b.account.email);
   await expect(page.getByLabel('Full name')).toHaveValue('Second Person');
+  await expectAbsent(page, data.account.email, A_PROJECT);
+  await page
+    .getByRole('navigation', { name: 'Settings sections' })
+    .getByRole('link', { name: 'Preferences', exact: true })
+    .click();
   await expect(page.getByLabel('Theme')).toHaveValue('system');
   await expect(page.getByLabel('Time format')).toHaveValue('H:mm');
   await expectAbsent(page, data.account.email, A_PROJECT);

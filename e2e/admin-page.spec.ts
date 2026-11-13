@@ -15,6 +15,44 @@ import { PHONE, expectFits, expectNoPageOverflow, openMore, tap } from './mobile
 
 const LAST_ADMIN = 'At least one active admin must remain';
 
+test('admin sections are separate pages with direct links, reload and browser history', async ({ page }) => {
+  await login(page);
+  await page.goto('/admin');
+  await expect(page).toHaveURL(/\/admin\/users$/);
+  const nav = page.getByRole('navigation', { name: 'Admin sections' });
+  const cards = page.locator('.settings-card');
+  for (const [id, label] of [
+    ['users', 'Users'],
+    ['invites', 'Invites'],
+    ['instance', 'Instance settings'],
+  ] as const) {
+    const link = nav.getByRole('link', { name: label, exact: true });
+    await expect(link).toHaveAttribute('href', `/admin/${id}`);
+    await link.click();
+    await expect(page).toHaveURL(new RegExp(`/admin/${id}$`));
+    await expect(link).toHaveAttribute('aria-current', 'page');
+    await expect(nav.locator('[aria-current]')).toHaveCount(1);
+    await expect(cards).toHaveCount(1);
+    await expect(cards).toHaveAttribute('id', id);
+    await expect(cards.getByRole('heading', { level: 2, name: label, exact: true })).toBeVisible();
+    await expect(
+      page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Admin', exact: true }),
+    ).toHaveAttribute('aria-current', 'page');
+    await page.reload();
+    await expect(cards).toHaveAttribute('id', id);
+  }
+  await page.goBack();
+  await expect(page).toHaveURL(/\/admin\/invites$/);
+  await expect(cards).toHaveAttribute('id', 'invites');
+  await page.goForward();
+  await expect(cards).toHaveAttribute('id', 'instance');
+  await page.goto('/admin#invites');
+  await expect(page).toHaveURL(/\/admin\/invites$/);
+  await expect(cards).toHaveAttribute('id', 'invites');
+  await page.goto('/admin/unknown');
+  await expect(page).toHaveURL(/\/admin\/users$/);
+});
+
 test('sign-up is disabled with an accessible description naming the missing mail settings', async ({ page }) => {
   await page.route('**/api/app/admin/settings', async route => {
     const response = await route.fetch();
@@ -27,7 +65,7 @@ test('sign-up is disabled with an accessible description naming the missing mail
     });
   });
   await login(page);
-  await openAdmin(page);
+  await openAdmin(page, 'Instance settings');
   const signup = page.locator('#instance').getByRole('checkbox', { name: 'Allow email sign-up' });
   await expect(signup).toBeDisabled();
   await expect(signup).not.toBeChecked();
@@ -54,7 +92,7 @@ test('sign-up saves only the changed boolean and keeps a toggle made while savin
     await route.fulfill({ json: stored });
   });
   await login(page);
-  await openAdmin(page);
+  await openAdmin(page, 'Instance settings');
   const card = page.locator('#instance');
   const signup = card.getByRole('checkbox', { name: 'Allow email sign-up' });
   await expect(signup).toBeEnabled();
@@ -109,7 +147,7 @@ test('sign-up save errors use inline field validation and form alerts', async ({
     }
   });
   await login(page);
-  await openAdmin(page);
+  await openAdmin(page, 'Instance settings');
   const card = page.locator('#instance');
   const signup = card.getByRole('checkbox', { name: 'Allow email sign-up' });
   await signup.check();
@@ -201,7 +239,7 @@ test('an admin changes a role, disables and enables an account, revokes its sess
 
 test('an admin creates an invite, sees its link once, and revokes it', async ({ page, data }) => {
   await login(page);
-  await openAdmin(page);
+  await openAdmin(page, 'Invites');
   const invites = page.locator('#invites');
   await expect(invites.getByText('No pending invites')).toBeVisible();
 
@@ -243,7 +281,7 @@ test('sign-up invites show the target email and label, and both invite kinds can
   await data.createInvite({ role: 'admin', note: 'For Sam in finance' });
   await mockSignupInvite(page, id, email);
   await login(page);
-  await openAdmin(page);
+  await openAdmin(page, 'Invites');
   const signup = inviteRow(page, email);
   await expect(signup).toBeVisible();
   await expect(signup.getByRole('cell').first()).toHaveText('Sign-up');
@@ -303,7 +341,7 @@ test('Copy link puts the invite link and the reset link on the clipboard', async
   const rita = await users.create();
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: baseURL });
   await login(page);
-  await openAdmin(page);
+  await openAdmin(page, 'Invites');
   const clipboard = () => page.evaluate(() => navigator.clipboard.readText());
 
   const invites = page.locator('#invites');
@@ -313,6 +351,10 @@ test('Copy link puts the invite link and the reset link on the clipboard', async
   await expect(page.getByRole('status').filter({ hasText: 'Invite link copied' })).toBeVisible();
   expect(await clipboard()).toBe(invite);
 
+  await page
+    .getByRole('navigation', { name: 'Admin sections' })
+    .getByRole('link', { name: 'Users', exact: true })
+    .click();
   const usersCard = page.locator('#users');
   await userRow(page, rita.account.email)
     .getByRole('button', { name: `Reset password of ${rita.account.email}` })
@@ -331,7 +373,7 @@ test('an admin updates the instance settings, and an out-of-range value shows th
   runtimeErrors,
 }) => {
   await login(page);
-  await openAdmin(page);
+  await openAdmin(page, 'Instance settings');
   const card = page.locator('#instance');
   const sessionDays = card.getByLabel('Session length (days)');
   const inviteDays = card.getByLabel('Invite link lifetime (days)');
@@ -372,7 +414,7 @@ test('an admin saves the time resolution, every account reads it on /me, and a v
   const rita = await users.create();
   expect(await rita.me()).toMatchObject({ role: 'user', time_resolution_minutes: 5 });
   await login(page);
-  await openAdmin(page);
+  await openAdmin(page, 'Instance settings');
   const card = page.locator('#instance');
   const resolution = card.getByLabel('Time resolution (minutes)');
   await expect(resolution).toHaveValue('5');
@@ -421,7 +463,7 @@ test('a refetch keeps an unsaved instance setting and its focus, and updates the
   data,
 }) => {
   await login(page);
-  await openAdmin(page);
+  await openAdmin(page, 'Instance settings');
   const card = page.locator('#instance');
   const sessionDays = card.getByLabel('Session length (days)');
   const inviteDays = card.getByLabel('Invite link lifetime (days)');
@@ -497,18 +539,20 @@ test("a regular user sees no Admin entry, and opening /admin shows the server's 
   await expect(nav.getByRole('link', { name: 'Settings' })).toBeVisible();
   await expect(nav.getByRole('link', { name: 'Admin' })).toHaveCount(0);
 
-  const refused = page.waitForResponse(response => response.url().endsWith('/api/app/admin/users'));
-  await page.goto('/admin');
-  expect((await refused).status()).toBe(403);
-  await expect(page.getByRole('heading', { level: 1, name: 'Admin' })).toBeVisible();
-  await expect(page.getByRole('alert')).toContainText('Admin access required');
-  await expect(page.locator('#users')).toHaveCount(0);
+  for (const path of ['/admin', '/admin/users', '/admin/invites', '/admin/instance']) {
+    const refused = page.waitForResponse(response => response.url().endsWith('/api/app/admin/users'));
+    await page.goto(path);
+    expect((await refused).status()).toBe(403);
+    await expect(page.getByRole('heading', { level: 1, name: 'Admin' })).toBeVisible();
+    await expect(page.getByRole('alert')).toContainText('Admin access required');
+    await expect(page.locator('.settings-card')).toHaveCount(0);
+  }
 });
 
 test('revoking invites by keyboard keeps focus in the invites section', async ({ page, data }) => {
   for (const note of ['Invite A', 'Invite B', 'Invite C']) await data.createInvite({ role: 'user', note });
   await login(page);
-  await openAdmin(page);
+  await openAdmin(page, 'Invites');
   const revoke = (note: string) => inviteRow(page, note).getByRole('button', { name: `Revoke invite "${note}"` });
 
   await revoke('Invite B').focus();
@@ -604,7 +648,7 @@ test('an instance setting restored to the server value follows refetches, and sa
   const before = await data.instanceSettings();
   try {
     await login(page);
-    await openAdmin(page);
+    await openAdmin(page, 'Instance settings');
     const card = page.locator('#instance');
     const sessionDays = card.getByLabel('Session length (days)');
     const inviteDays = card.getByLabel('Invite link lifetime (days)');
@@ -654,7 +698,7 @@ test('a value typed while a save is pending stays after the response, and Save s
     await route.fallback();
   });
   await login(page);
-  await openAdmin(page);
+  await openAdmin(page, 'Instance settings');
   const card = page.locator('#instance');
   const sessionDays = card.getByLabel('Session length (days)');
   await expect(sessionDays).toHaveValue(String(before.session_days));
@@ -701,7 +745,7 @@ test('after a failed save, a value typed back to the server value is no longer a
     await route.fulfill({ status: 503, contentType: 'text/plain', body: 'Server unavailable' });
   });
   await login(page);
-  await openAdmin(page);
+  await openAdmin(page, 'Instance settings');
   const card = page.locator('#instance');
   const sessionDays = card.getByLabel('Session length (days)');
   const inviteDays = card.getByLabel('Invite link lifetime (days)');
@@ -732,44 +776,46 @@ test('after a failed save, a value typed back to the server value is no longer a
   }
 });
 
-test('every admin control is reachable by keyboard and shows a focus ring', async ({ page, data, users }) => {
-  await users.create();
-  await data.createInvite({ role: 'user', note: 'Keyboard check' });
-  await login(page);
-  await openAdmin(page);
-  await expect(inviteRow(page, 'Keyboard check')).toBeVisible();
+for (const section of ['Users', 'Invites', 'Instance settings'] as const) {
+  test(`every ${section} control is reachable by keyboard and shows a focus ring`, async ({ page, data, users }) => {
+    await users.create();
+    await data.createInvite({ role: 'user', note: 'Keyboard check' });
+    await login(page);
+    await openAdmin(page, section);
+    await expect(page.locator('.settings-card')).toBeVisible();
 
-  const total = await page.getByRole('main').evaluate(main => {
-    const controls = [...main.querySelectorAll<HTMLElement>('a[href], button, select, input, textarea')].filter(
-      control => !(control as HTMLButtonElement).disabled,
-    );
-    controls.forEach((control, index) => control.setAttribute('data-keyboard-check', String(index)));
-    return controls.length;
-  });
-  expect(total).toBeGreaterThan(10);
-
-  await page.getByRole('heading', { level: 1, name: 'Admin' }).click();
-  const reached = new Set<string>();
-  for (let press = 0; press < total + 20 && reached.size < total; press++) {
-    await page.keyboard.press('Tab');
-    const focused = await page.evaluate(() => {
-      const element = document.activeElement as HTMLElement | null;
-      if (!element) return null;
-      const style = getComputedStyle(element);
-      return {
-        id: element.getAttribute('data-keyboard-check'),
-        name: element.getAttribute('aria-label') ?? element.textContent?.trim() ?? element.tagName,
-        outline: style.outlineStyle,
-        width: parseFloat(style.outlineWidth),
-      };
+    const total = await page.getByRole('main').evaluate(main => {
+      const controls = [...main.querySelectorAll<HTMLElement>('a[href], button, select, input, textarea')].filter(
+        control => !(control as HTMLButtonElement).disabled,
+      );
+      controls.forEach((control, index) => control.setAttribute('data-keyboard-check', String(index)));
+      return controls.length;
     });
-    if (!focused?.id) continue;
-    expect(focused.outline, `${focused.name} shows a focus ring`).not.toBe('none');
-    expect(focused.width, `${focused.name} has a 2px ring`).toBeGreaterThanOrEqual(2);
-    reached.add(focused.id);
-  }
-  expect(reached.size, 'Tab reaches every control on the page').toBe(total);
-});
+    expect(total).toBeGreaterThan(5);
+
+    await page.getByRole('heading', { level: 1, name: 'Admin' }).click();
+    const reached = new Set<string>();
+    for (let press = 0; press < total + 20 && reached.size < total; press++) {
+      await page.keyboard.press('Tab');
+      const focused = await page.evaluate(() => {
+        const element = document.activeElement as HTMLElement | null;
+        if (!element) return null;
+        const style = getComputedStyle(element);
+        return {
+          id: element.getAttribute('data-keyboard-check'),
+          name: element.getAttribute('aria-label') ?? element.textContent?.trim() ?? element.tagName,
+          outline: style.outlineStyle,
+          width: parseFloat(style.outlineWidth),
+        };
+      });
+      if (!focused?.id) continue;
+      expect(focused.outline, `${focused.name} shows a focus ring`).not.toBe('none');
+      expect(focused.width, `${focused.name} has a 2px ring`).toBeGreaterThanOrEqual(2);
+      reached.add(focused.id);
+    }
+    expect(reached.size, 'Tab reaches every control on the page').toBe(total);
+  });
+}
 
 test.describe('on a phone', () => {
   test.use(PHONE);
@@ -784,6 +830,9 @@ test.describe('on a phone', () => {
     await login(page);
     const sheet = await openMore(page);
     await tap(sheet.getByRole('link', { name: 'Admin', exact: true }));
+    await tap(
+      page.getByRole('navigation', { name: 'Admin sections' }).getByRole('link', { name: 'Invites', exact: true }),
+    );
     const row = inviteRow(page, email);
     await expect(row).toBeVisible();
     const cell = row.getByRole('cell', { name: email, exact: true });
@@ -800,6 +849,11 @@ test.describe('on a phone', () => {
     await tap(row.getByRole('button', { name: `Revoke sign-up invite for ${email}`, exact: true }));
     await expect(row).toHaveCount(0);
     expect(await data.inviteList()).toEqual([]);
+    await tap(
+      page
+        .getByRole('navigation', { name: 'Admin sections' })
+        .getByRole('link', { name: 'Instance settings', exact: true }),
+    );
     await expectFits(page.locator('#instance').getByRole('checkbox', { name: 'Allow email sign-up' }));
     await expectNoPageOverflow(page);
   });
@@ -816,10 +870,21 @@ test.describe('on a phone', () => {
     await expect(userRow(page, rita.account.email)).toBeVisible();
     await expectNoPageOverflow(page);
 
+    await tap(
+      page.getByRole('navigation', { name: 'Admin sections' }).getByRole('link', { name: 'Invites', exact: true }),
+    );
     await tap(page.locator('#invites').getByRole('button', { name: 'Create invite' }));
     await expectFits(page.getByLabel('Invite link', { exact: true }));
     await expectFits(page.getByRole('button', { name: 'Copy link' }));
+    await tap(
+      page
+        .getByRole('navigation', { name: 'Admin sections' })
+        .getByRole('link', { name: 'Instance settings', exact: true }),
+    );
     await expectFits(page.locator('#instance').getByRole('button', { name: 'Save' }));
+    await tap(
+      page.getByRole('navigation', { name: 'Admin sections' }).getByRole('link', { name: 'Users', exact: true }),
+    );
     await expectFits(userRow(page, rita.account.email).getByRole('button', { name: `Delete ${rita.account.email}` }));
     await expectNoPageOverflow(page);
   });

@@ -46,6 +46,9 @@ test('Toggl CSV import, JSON export and JSON restore finish by touch on a phone 
   const recent = recentDate();
   await login(page);
   await tapNav(page, 'Settings');
+  await tap(
+    page.getByRole('navigation', { name: 'Settings sections' }).getByRole('link', { name: 'Data', exact: true }),
+  );
   const csvSummary = page.locator('.import-summary').first();
 
   await tapUpload(
@@ -77,6 +80,9 @@ test('Toggl CSV import, JSON export and JSON restore finish by touch on a phone 
   await expect(row.locator('.project-label')).toContainText('Website');
 
   await tapNav(page, 'Settings');
+  await tap(
+    page.getByRole('navigation', { name: 'Settings sections' }).getByRole('link', { name: 'Data', exact: true }),
+  );
   const exported = await tapDownload(page, page.getByRole('button', { name: 'Export JSON' }));
   expect(exported.filename).toMatch(/^tokkl-\d{4}-\d{2}-\d{2}\.json$/);
   expect((JSON.parse(exported.text) as { time_entries: unknown[] }).time_entries).toHaveLength(5);

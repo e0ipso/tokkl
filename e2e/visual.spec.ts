@@ -71,19 +71,14 @@ const PAGES: readonly Capture[] = [
   { name: 'projects', path: '/projects', ready: page => page.getByRole('main').getByText('Website').first() },
   {
     name: 'settings',
-    path: '/settings',
-    ready: page => page.getByRole('main').getByText('API token').first(),
+    path: '/settings/profile',
+    ready: page => page.getByRole('form', { name: 'Profile' }),
     regularUser: { email: 'e2e-user@example.com', fullname: 'E2E User' },
-    settle: async page => {
-      // Chromium's first full-page render reflows the offscreen API URL paragraph. Its
-      // two-pixel growth otherwise leaves the first screenshot clipped to the old height.
-      await page.screenshot({ fullPage: true, animations: 'disabled', caret: 'hide' });
-    },
   },
   {
     name: 'admin',
-    path: '/admin',
-    ready: page => page.locator('#invites').getByText('For the design team'),
+    path: '/admin/users',
+    ready: page => page.locator('#users').getByText('Regular Rita'),
     prepare: async (data, users) => {
       await users.create({ email: 'rita@example.com', fullname: 'Regular Rita' });
       await data.createInvite({ role: 'user', note: 'For the design team' });

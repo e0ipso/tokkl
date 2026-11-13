@@ -307,7 +307,8 @@
   font-weight: 700;
   text-decoration: none;
 }
-.settings-nav a:hover {
+.settings-nav a:hover,
+.settings-nav a[aria-current='page'] {
   background: var(--state-selected);
   border-color: var(--primary);
 }

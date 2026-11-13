@@ -1,10 +1,75 @@
 import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
 import { loginAs } from './helpers.ts';
+import { PHONE, expectNoPageOverflow, tap } from './mobile-tests-helpers.ts';
 
 // The browser is in Europe/Madrid (playwright.config.ts); an API-set zone is stored canonically and matches it.
 
 const CSRF = { 'X-Tokkl-CSRF': '1' };
+
+const SETTINGS_PAGES = [
+  ['profile', 'Profile'],
+  ['password', 'Password'],
+  ['preferences', 'Preferences'],
+  ['workspace', 'Workspace'],
+  ['api-token', 'API token'],
+  ['data', 'Data'],
+  ['session', 'Session'],
+] as const;
+
+for (const [device, options] of [
+  ['desktop', {}],
+  ['phone', PHONE],
+] as const) {
+  test.describe(`settings navigation on ${device}`, () => {
+    test.use(options);
+
+    test('each section has its own URL and content, with reload and history support', async ({ page, users }) => {
+      const user = await users.create();
+      await loginAs(page, user.account);
+      await page.goto('/settings');
+      await expect(page).toHaveURL(/\/settings\/profile$/);
+      const nav = page.getByRole('navigation', { name: 'Settings sections' });
+      const cards = page.locator('.settings-card');
+
+      for (const [id, label] of SETTINGS_PAGES) {
+        const link = nav.getByRole('link', { name: label, exact: true });
+        await expect(link).toHaveAttribute('href', `/settings/${id}`);
+        if (device === 'phone') await tap(link);
+        else await link.click();
+        await expect(page).toHaveURL(new RegExp(`/settings/${id}$`));
+        await expect(link).toHaveAttribute('aria-current', 'page');
+        await expect(nav.locator('[aria-current]')).toHaveCount(1);
+        await expect(cards).toHaveCount(1);
+        await expect(cards).toHaveAttribute('id', id);
+        await expect(cards.getByRole('heading', { level: 2, name: label, exact: true })).toBeVisible();
+        await expect(
+          page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Settings' }),
+        ).toHaveAttribute('aria-current', 'page');
+        if (device === 'phone') await expectNoPageOverflow(page);
+      }
+
+      await page.reload();
+      await expect(cards).toHaveAttribute('id', 'session');
+      await page.goBack();
+      await expect(page).toHaveURL(/\/settings\/data$/);
+      await expect(cards).toHaveAttribute('id', 'data');
+      await page.goForward();
+      await expect(cards).toHaveAttribute('id', 'session');
+
+      for (const [id] of SETTINGS_PAGES) {
+        await page.goto(`/settings/${id}`);
+        await expect(cards).toHaveCount(1);
+        await expect(cards).toHaveAttribute('id', id);
+      }
+      await page.goto('/settings#preferences');
+      await expect(page).toHaveURL(/\/settings\/preferences$/);
+      await expect(cards).toHaveAttribute('id', 'preferences');
+      await page.goto('/settings/unknown');
+      await expect(page).toHaveURL(/\/settings\/profile$/);
+    });
+  });
+}
 
 async function setZoneThroughApi(page: Page, timezone: string): Promise<void> {
   expect((await page.request.put('/api/v9/me', { headers: CSRF, data: { timezone } })).status()).toBe(200);

@@ -131,6 +131,10 @@ export async function expectEmptyAccount(page: Page, workspaceId: number): Promi
 /** Through the app's own navigation, so cached queries survive. */
 export async function openSettings(page: Page): Promise<void> {
   await page.getByRole('link', { name: 'Settings' }).click();
+  await page
+    .getByRole('navigation', { name: 'Settings sections' })
+    .getByRole('link', { name: 'Data', exact: true })
+    .click();
   await expect(page.getByRole('heading', { name: 'Data' })).toBeVisible();
 }
 

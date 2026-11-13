@@ -69,6 +69,10 @@ test('changing the password keeps this browser logged in and logs the other one 
     expect(await meWithSession(server.baseURL, otherSession)).toBe(200);
 
     await page.getByRole('link', { name: 'Settings' }).click();
+    await page
+      .getByRole('navigation', { name: 'Settings sections' })
+      .getByRole('link', { name: 'Password', exact: true })
+      .click();
     const card = page.locator('#password');
     await card.getByLabel('Current password').fill(ACCOUNT.password);
     await card.getByLabel('New password', { exact: true }).fill(NEW_PASSWORD);
@@ -77,6 +81,10 @@ test('changing the password keeps this browser logged in and logs the other one 
     await expect(page.getByRole('status')).toContainText('Password changed. Other browsers were logged out.');
     const replacement = (await (await page.request.get(`${server.baseURL}/api/v9/me`)).json()).api_token;
     expect(replacement).not.toBe(apiToken);
+    await page
+      .getByRole('navigation', { name: 'Settings sections' })
+      .getByRole('link', { name: 'API token', exact: true })
+      .click();
     const tokenCard = page.locator('#api-token');
     await tokenCard.getByRole('button', { name: 'Show' }).click();
     await expect(tokenCard.getByLabel('API token', { exact: true })).toHaveText(replacement);

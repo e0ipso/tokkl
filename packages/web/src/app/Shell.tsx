@@ -77,8 +77,8 @@ function Routes() {
         <Route path="/clients" component={ClientsPage} />
         <Route path="/tags" component={TagsPage} />
         <Route path="/trash" component={TrashPage} />
-        <Route path="/settings" component={SettingsPage} />
-        <Route path="/admin" component={AdminPage} />
+        <Route path="/settings/:section?" component={SettingsPage} />
+        <Route path="/admin/:section?" component={AdminPage} />
         <Route>
           <Redirect to="/" />
         </Route>

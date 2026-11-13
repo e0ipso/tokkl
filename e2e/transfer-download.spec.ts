@@ -2,7 +2,7 @@ import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
 
 for (const [surface, pagePath, downloadPath, buttonName, otherButton] of [
-  ['account', '/settings', '/api/app/export.json', 'Export JSON', 'Export CSV'],
+  ['account', '/settings/data', '/api/app/export.json', 'Export JSON', 'Export CSV'],
   [
     'report',
     '/reports?from=2026-06-01&to=2026-06-30',

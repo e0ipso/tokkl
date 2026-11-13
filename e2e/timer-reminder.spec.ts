@@ -102,7 +102,7 @@ test('changing a confirmed timer start time asks for confirmation again', async 
 
 test('the threshold and switch save in Preferences and apply to the current timer', async ({ page }) => {
   await open(page);
-  await page.goto('/settings');
+  await page.goto('/settings/preferences');
   const card = page.getByRole('form', { name: 'Preferences' });
   const group = card.getByRole('group', { name: 'Long-running timers' });
   const hours = group.getByLabel('Remind me after (hours)');
