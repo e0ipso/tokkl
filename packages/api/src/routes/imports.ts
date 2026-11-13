@@ -5,7 +5,8 @@ import { createRouter } from '../http/router.ts';
 import { readText, refuseEncodedBody, textBody } from '../http/request.ts';
 import { query, queryList } from '../http/params.ts';
 import { noStore } from '../http/security.ts';
-import { invalidInput, requestTimeout, tooLarge } from '../lib/errors.ts';
+import { RequestCancelled, invalidInput, requestTimeout, tooLarge, tooManyAttempts } from '../lib/errors.ts';
+import type { User } from '../domain/model.ts';
 import type { ImportPlace } from '../services/importAdmission.ts';
 
 /** An import file may be larger than any other request body: 8 MiB. */
@@ -13,7 +14,7 @@ const IMPORT_LIMIT_BYTES = 8 * 1024 * 1024;
 /** From admission to the file's last byte. */
 const IMPORT_UPLOAD_DEADLINE_MS = 60_000;
 
-type ImportRouteDeps = Pick<Deps, 'auth' | 'importsFor' | 'importAdmission'>;
+type ImportRouteDeps = Pick<Deps, 'auth' | 'importsFor' | 'importAdmission' | 'importLimiter'>;
 
 interface ImportRouteOptions {
   /** One minute unless a test shortens it. */
@@ -104,9 +105,25 @@ function startJsonImport(deps: ImportRouteDeps, req: Request, res: Response) {
   return deps.importsFor(res.locals.auth).importJsonExport(data, options);
 }
 
+/** SQLite can give a deleted account's id to the next one; the creation instant keeps their counters apart. */
+function importStartKey({ id, createdAt }: User): string {
+  return JSON.stringify([id, createdAt]);
+}
+
 /**
- * Mounted before the 1 MB parser: routes authenticate, refuse an encoded or oversized body, and take an import
- * place before reading the body.
+ * Counts the start whatever happens next, a busy refusal included, so the check always fails. The reservation is
+ * released before this returns, so none stays open while the body is read or the import runs.
+ */
+function chargeStart(deps: Pick<ImportRouteDeps, 'importLimiter'>): RequestHandler {
+  return async (_req, res, next) => {
+    const start = await deps.importLimiter.attempt(importStartKey(res.locals.auth.user), async () => false);
+    next(start.refused ? tooManyAttempts('Too many imports; try again later', start.retryAfter) : undefined);
+  };
+}
+
+/**
+ * Mounted before the 1 MB parser: routes authenticate, refuse an encoded or oversized body, charge the account's
+ * import starts, and take an import place before reading the body.
  */
 export function importRoutes(deps: ImportRouteDeps, options: ImportRouteOptions = {}): Router {
   const api = createRouter();
@@ -114,6 +131,8 @@ export function importRoutes(deps: ImportRouteDeps, options: ImportRouteOptions 
   const placeOf = (res: Response) => places.get(res)!;
   /** Answers 503 with `Retry-After` before the body is read. */
   const admit: RequestHandler = (req, res, next) => {
+    // The client can leave while its start is charged; a response that already closed would never give a place back.
+    if (res.locals.workSignal.aborted) return next(new RequestCancelled('Import cancelled'));
     const place = deps.importAdmission.admit(res.locals.auth.user.id, reservedBytes(req));
     places.set(res, place);
     res.once('close', () => place.release());
@@ -127,6 +146,7 @@ export function importRoutes(deps: ImportRouteDeps, options: ImportRouteOptions 
     deps.auth.requireAuth,
     refuseEncodedBody,
     refuseOversizedDeclaration,
+    chargeStart(deps),
     admit,
     receive,
   ];

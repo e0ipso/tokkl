@@ -24,6 +24,9 @@ export const SIGNUP_ADDRESS_LIMIT = 5;
 export const SIGNUP_ADDRESS_WINDOW_MS = 15 * 60 * 1000;
 export const SIGNUP_EMAIL_LIMIT = 3;
 export const SIGNUP_EMAIL_WINDOW_MS = 60 * 60 * 1000;
+/** Import starts per account, previews and refused or failed imports included. */
+export const IMPORT_START_LIMIT = 5;
+export const IMPORT_START_WINDOW_MS = 15 * 60 * 1000;
 
 /** Cleared by a successful login. Accounts count by normalized email. */
 export function accountCounters(email: string, address: string): Counter[] {
@@ -45,7 +48,7 @@ export function passwordCounters(email: string, address: string): Counter[] {
 }
 
 /** Part of the stored key, so equal keys never collide. */
-type LimiterNamespace = 'password' | 'setup-code' | 'signup-address' | 'signup-email';
+type LimiterNamespace = 'password' | 'setup-code' | 'signup-address' | 'signup-email' | 'import';
 
 export type { AttemptResult };
 

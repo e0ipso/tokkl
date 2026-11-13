@@ -37,6 +37,14 @@ async function refused(response: Response, message: string, label: string): Prom
   assert.equal(await response.json(), message, label);
 }
 
+/** One account per mode, since an account may start only five imports in 15 minutes. */
+async function importingAccounts(ctx: TestContext): Promise<Record<(typeof MODES)[number][0], TestContext>> {
+  return {
+    preview: await addUser(ctx, { email: 'preview@example.com', role: 'user' }),
+    import: await addUser(ctx, { email: 'import@example.com', role: 'user' }),
+  };
+}
+
 async function observed(ctx: TestContext) {
   return {
     counts: await catalogCounts(ctx),
@@ -81,13 +89,15 @@ test('JSON imports count every parsed value, tag references included, and limit 
       { id: 1, start: '2026-10-01T09:00:00Z', stop: '2026-10-01T10:00:00Z', tag_ids: Array(250_000).fill(1) },
     ],
   });
+  const accounts = await importingAccounts(ctx);
   const before = await catalogCounts(ctx);
   for (const [label, query] of MODES) {
-    await accepted(await postJson(ctx, query, padding(249_996)), label);
-    await refused(await postJson(ctx, query, padding(249_997)), values, label);
-    await refused(await postJson(ctx, query, tagged), values, label);
-    await accepted(await postJson(ctx, query, nested(32)), label);
-    await refused(await postJson(ctx, query, nested(33)), 'At most 32 levels of nesting per import', label);
+    const account = accounts[label];
+    await accepted(await postJson(account, query, padding(249_996)), label);
+    await refused(await postJson(account, query, padding(249_997)), values, label);
+    await refused(await postJson(account, query, tagged), values, label);
+    await accepted(await postJson(account, query, nested(32)), label);
+    await refused(await postJson(account, query, nested(33)), 'At most 32 levels of nesting per import', label);
   }
   assert.deepEqual(await catalogCounts(ctx), before);
 });
@@ -128,11 +138,13 @@ test('CSV imports take 10,000 data rows, counting unselected users, and refuse o
   const preview = await accepted(await postCsv(ctx, '?dry_run=true', csv(1)), 'users');
   const key = preview.users.find((user: any) => user.user === 'Ann').key as string;
   const dense = header + `Row,,,,${','.repeat(995)}\n`.repeat(250);
+  const accounts = await importingAccounts(ctx);
   for (const [label, dryRun] of MODES) {
+    const account = accounts[label];
     const query = `?user=${encodeURIComponent(key)}${dryRun.replace('?', '&')}`;
-    const result = await accepted(await postCsv(ctx, query, csv(9_999)), label);
+    const result = await accepted(await postCsv(account, query, csv(9_999)), label);
     assert.equal(result.skipped[0].rows, 9_999, label);
-    await refused(await postCsv(ctx, query, csv(10_000)), 'At most 10000 rows per import', label);
-    await refused(await postCsv(ctx, query, dense), 'At most 250000 cells per import', label);
+    await refused(await postCsv(account, query, csv(10_000)), 'At most 10000 rows per import', label);
+    await refused(await postCsv(account, query, dense), 'At most 250000 cells per import', label);
   }
 });

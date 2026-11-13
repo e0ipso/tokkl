@@ -1,5 +1,5 @@
 import type { Locator, Page } from '@playwright/test';
-import { expect, test, type Account, type ExtraUsers, type TestData } from './fixtures.ts';
+import { ADMIN_ACCOUNT, expect, test, type Account, type ExtraUsers, type TestData } from './fixtures.ts';
 import { login, loginAs } from './helpers.ts';
 import { PHONE } from './mobile-tests-helpers.ts';
 import { transferFixture } from './transfer-tests-helpers.ts';
@@ -20,6 +20,8 @@ interface Capture {
   timerView?: 'list' | 'calendar';
   ready: (page: Page) => Locator;
   regularUser?: { email: string; fullname: string };
+  /** The users list shows every account, so it keeps the setup admin; the others sign in as a new admin. */
+  setupAdmin?: true;
   prepare?: (data: TestData, users: ExtraUsers) => Promise<void>;
   /** Parts that follow the server's real clock. */
   mask?: (page: Page) => Locator[];
@@ -78,6 +80,7 @@ const PAGES: readonly Capture[] = [
   {
     name: 'admin',
     path: '/admin/users',
+    setupAdmin: true,
     ready: page => page.locator('#users').getByText('Regular Rita'),
     prepare: async (data, users) => {
       await users.create({ email: 'rita@example.com', fullname: 'Regular Rita' });
@@ -120,9 +123,12 @@ for (const [device, deviceOptions] of Object.entries(DEVICES)) {
 
       for (const capture of PAGES) {
         test(`${capture.name} matches its baseline`, async ({ page, data, users }) => {
-          const regular = capture.regularUser ? await users.create(capture.regularUser) : null;
+          // Each seed is an import, and an account may start only five in 15 minutes.
+          const own = capture.setupAdmin
+            ? null
+            : await users.create(capture.regularUser ?? { role: 'admin', fullname: ADMIN_ACCOUNT.fullname });
           await capture.prepare?.(data, users);
-          await seed(page, capture.timerView, regular?.account);
+          await seed(page, capture.timerView, own?.account);
           await page.goto(capture.path);
           await capture.act?.(page);
           await expect(capture.ready(page)).toBeVisible();

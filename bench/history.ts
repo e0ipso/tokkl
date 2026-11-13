@@ -232,13 +232,15 @@ class Client {
   readonly base: string;
   readonly workspaceId: number;
   readonly userId: number;
+  readonly timeResolutionMinutes: number;
   private readonly auth: string;
 
-  constructor(base: string, auth: string, workspaceId: number, userId: number) {
+  constructor(base: string, auth: string, workspaceId: number, userId: number, timeResolutionMinutes: number) {
     this.base = base;
     this.auth = auth;
     this.workspaceId = workspaceId;
     this.userId = userId;
+    this.timeResolutionMinutes = timeResolutionMinutes;
   }
 
   static async create(server: Server): Promise<Client> {
@@ -254,19 +256,38 @@ class Client {
       }),
     });
     check(setup.ok, `account setup answered ${setup.status}`);
-    const cookie = setup.headers.get('set-cookie')?.split(';')[0] ?? '';
-    const me = (await (await fetch(`${server.base}/api/v9/me`, { headers: { cookie } })).json()) as {
+    const client = await Client.signedIn(server.base, setup);
+    equal(client.timeResolutionMinutes, 5, 'unchanged default five-minute time resolution');
+    return client;
+  }
+
+  /** An account this admin invites, with its own empty workspace. */
+  async invite(email: string): Promise<Client> {
+    const invite = await this.ok('POST', '/api/app/admin/invites', { role: 'user' });
+    const accepted = await fetch(`${this.base}${String(invite.data.url).replace(/^\/invite\//, '/api/app/invites/')}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Tokkl-CSRF': '1' },
+      body: JSON.stringify({ email, password: 'bench password', fullname: 'Bench', timezone: TIMEZONE }),
+    });
+    check(accepted.ok, `invite acceptance answered ${accepted.status}`);
+    return Client.signedIn(this.base, accepted);
+  }
+
+  /** From the session cookie a setup or an invite acceptance set. */
+  private static async signedIn(base: string, response: Response): Promise<Client> {
+    const cookie = response.headers.get('set-cookie')?.split(';')[0] ?? '';
+    const me = (await (await fetch(`${base}/api/v9/me`, { headers: { cookie } })).json()) as {
       id: number;
       api_token: string;
       default_workspace_id: number;
       time_resolution_minutes: number;
     };
-    equal(me.time_resolution_minutes, 5, 'unchanged default five-minute time resolution');
     return new Client(
-      server.base,
+      base,
       `Basic ${Buffer.from(`${me.api_token}:api_token`).toString('base64')}`,
       me.default_workspace_id,
       me.id,
+      me.time_resolution_minutes,
     );
   }
 
@@ -557,14 +578,27 @@ async function runFixture(spec: FixtureSpec) {
             `CSV row ${i},Project ${String((i % spec.projects) + 1).padStart(2, '0')},Client ${(i % 5) + 1},,,${date},${String(hour).padStart(2, '0')}:00:00,${date},${String(hour).padStart(2, '0')}:45:00`,
           );
         }
-        await measure(results, 'Toggl CSV import preview, 1000 rows', iterations, async () => {
-          const result = await client.ok('POST', '/api/app/import/toggl-csv?dry_run=true', csv.join('\n'), true);
-          equal(result.data.rows, 1000, `${spec.name}: CSV preview rows`);
-          equal(result.data.errors.length, 0, `${spec.name}: CSV preview errors`);
-          return result;
-        });
-        {
-          const before = await client.ok(
+        // The restore used up to four of the five import starts an account gets in 15 minutes, so each preview runs
+        // as its own invited account, with an empty workspace.
+        const previewers: Client[] = [];
+        for (let i = 0; i < iterations; i++) previewers.push(await client.invite(`csv-preview-${i}@example.com`));
+        const pending = [...previewers];
+        await measure(
+          results,
+          'Toggl CSV import preview, 1000 rows',
+          iterations,
+          async () => {
+            const result = await pending
+              .shift()!
+              .ok('POST', '/api/app/import/toggl-csv?dry_run=true', csv.join('\n'), true);
+            equal(result.data.rows, 1000, `${spec.name}: CSV preview rows`);
+            equal(result.data.errors.length, 0, `${spec.name}: CSV preview errors`);
+            return result;
+          },
+          'each sample is a new account with no history',
+        );
+        for (const previewer of [client, ...previewers]) {
+          const before = await previewer.ok(
             'GET',
             `/api/v9/me/time_entries?start_date=${addDays(expected.startDate, -120)}&end_date=${expected.startDate}`,
           );

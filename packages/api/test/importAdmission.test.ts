@@ -1,4 +1,7 @@
-import { test, type TestContext as NodeTestContext } from 'node:test';
+import { after, test, type TestContext as NodeTestContext } from 'node:test';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import assert from 'node:assert/strict';
 import { request as httpRequest, type IncomingHttpHeaders, type IncomingMessage } from 'node:http';
 import { once } from 'node:events';
@@ -15,7 +18,10 @@ import { createTimerPublication } from '../src/services/timerDelivery.ts';
 import { initializeDatabase } from '../src/storage/migrations.ts';
 import { createTransactionRunner } from '../src/storage/transactions.ts';
 import { entryAccount, entryTimerFactory } from './storage/support/entry-timer.ts';
-import { setup, type TestContext } from './helpers.ts';
+import { addUser, login, PASSWORD, setup, testConfig, testServer, type TestContext } from './helpers.ts';
+import { composeApp } from './fixtures/app.ts';
+import { openDatabase, reopenDatabase, servicesFor, storageFor } from './fixtures/database.ts';
+import { createFirstAdmin } from './fixtures/domain.ts';
 import { entryCount } from './fixtures/observations.ts';
 
 const BUSY_RETRY_SECONDS = 5;
@@ -62,13 +68,27 @@ test('import admission never lets the running files pass the byte budget', () =>
   assert.throws(() => defaults.admit(2, 1), busy, 'the default budget is one full upload');
 });
 
+/** Never refuses: these tests start far more than five imports per account, and the start limit has its own. */
+const unlimited = { attempt: async () => ({ refused: false, valid: false }) };
+
 /** The import routes with a real admission, stand-in imports, and the account named in `x-user`. */
-async function importServer(t: NodeTestContext, options: { uploadDeadlineMs?: number } = {}) {
+async function importServer(
+  t: NodeTestContext,
+  options: { uploadDeadlineMs?: number } = {},
+  importLimiter: { attempt: () => Promise<unknown> } = unlimited,
+) {
   const admission = createImportAdmission();
   const reserved: number[] = [];
+  let closed = 0;
   const app = express();
+  // As in app.ts: the signal aborts when the response closes.
   app.use((_req, res, next) => {
-    res.locals.workSignal = new AbortController().signal;
+    const controller = new AbortController();
+    res.locals.workSignal = controller.signal;
+    res.once('close', () => {
+      controller.abort();
+      closed++;
+    });
     next();
   });
   const requireAuth: express.RequestHandler = (req, res, next) => {
@@ -90,6 +110,7 @@ async function importServer(t: NodeTestContext, options: { uploadDeadlineMs?: nu
       importJsonExport: async () => ({ imported: 'json' }),
       importTogglCsv: async () => ({ imported: 'csv' }),
     }),
+    importLimiter,
   } as unknown as Parameters<typeof importRoutes>[0];
   app.use(importRoutes(deps, options));
   app.use(errorHandler(silentLogger));
@@ -99,7 +120,7 @@ async function importServer(t: NodeTestContext, options: { uploadDeadlineMs?: nu
     server.closeAllConnections();
     return new Promise<void>(resolve => server.close(() => resolve()));
   });
-  return { port: (server.address() as AddressInfo).port, reserved };
+  return { port: (server.address() as AddressInfo).port, reserved, closed: () => closed };
 }
 
 interface Reply {
@@ -229,6 +250,27 @@ test('a place comes back after a parser failure, a client disconnect and an uplo
   }
 });
 
+test('a client that leaves while its start is charged takes no place', async t => {
+  let charged!: () => void;
+  const charging = new Promise<void>(resolve => (charged = resolve));
+  let attempts = 0;
+  const holding = {
+    attempt: async () => {
+      if (++attempts === 1) await charging;
+      return { refused: false, valid: false };
+    },
+  };
+  const { port, reserved, closed } = await importServer(t, {}, holding);
+  const gone = upload(port, '/import/json', { 'x-user': 1, 'content-length': 2 });
+  await until(() => attempts === 1);
+  gone.req.destroy();
+  await until(() => closed() === 1);
+  charged();
+  const next = await send(port, '/import/json', '""', 1);
+  assert.deepEqual([next.status, next.body], [200, { imported: 'json' }]);
+  assert.deepEqual(reserved, [2], 'only the second request took a place');
+});
+
 test('a place lent to work stays taken until the work settles', async () => {
   const admission = createImportAdmission({ maxImports: 1, maxPerUser: 1 });
   const place = admission.admit(1, 1);
@@ -267,7 +309,7 @@ function slowImport(ctx: TestContext, port: number, body: string) {
   };
 }
 
-test('a second import from one account gets 503 with Retry-After while the first runs', async () => {
+test('a second import from one account gets 503 with Retry-After while the first runs', async t => {
   const ctx = await setup();
   const file = JSON.stringify({
     format: 'tokkl-export',
@@ -275,13 +317,22 @@ test('a second import from one account gets 503 with Retry-After while the first
   });
   const probe = await ctx.request('GET', '/api/app/status');
   const port = Number(new URL(probe.url).port);
+  const admission = servicesFor(ctx.db).importAdmission;
+  const takePlace = admission.admit.bind(admission);
+  // Waits on the admission itself: a retried request would spend one of the account's five import starts.
+  const placeIsFree = (userId: number) => {
+    try {
+      takePlace(userId, 0).release();
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  const admit = t.mock.method(admission, 'admit');
 
   const first = slowImport(ctx, port, file);
-  let second = await ctx.json('POST', '/api/app/import/json', file);
-  for (let tries = 0; second.status !== 503 && tries < 50; tries++) {
-    await sleep(20);
-    second = await ctx.json('POST', '/api/app/import/json', file);
-  }
+  await until(() => admit.mock.callCount() === 1);
+  const second = await ctx.json('POST', '/api/app/import/json', file);
   assert.equal(second.status, 503);
   assert.equal(second.body, 'Too many imports are running');
   assert.equal(second.headers.get('retry-after'), String(BUSY_RETRY_SECONDS));
@@ -293,25 +344,21 @@ test('a second import from one account gets 503 with Retry-After while the first
   done.resume();
   assert.equal(done.statusCode, 200);
   await once(done, 'end');
-  let third = await ctx.json('POST', '/api/app/import/json', file);
-  for (let tries = 0; third.status === 503 && tries < 50; tries++) {
-    await sleep(20);
-    third = await ctx.json('POST', '/api/app/import/json', file);
-  }
+  await until(() => placeIsFree(ctx.user.id));
+  const third = await ctx.json('POST', '/api/app/import/json', file);
   assert.equal(third.status, 200);
   assert.equal(third.body.skipped_duplicates, 1);
   assert.equal(await entryCount(ctx), 1);
 
-  const abandoned = slowImport(ctx, port, file);
+  // Another account, whose starts are not used up yet.
+  const other = await addUser(ctx, { email: 'other@example.com', role: 'user' });
+  const admitted = admit.mock.callCount();
+  const abandoned = slowImport(other, port, file);
   abandoned.response.catch(() => {});
-  await sleep(50);
+  await until(() => admit.mock.callCount() > admitted);
   abandoned.req.destroy();
-  let after = await ctx.json('POST', '/api/app/import/json', file);
-  for (let tries = 0; after.status === 503 && tries < 50; tries++) {
-    await sleep(20);
-    after = await ctx.json('POST', '/api/app/import/json', file);
-  }
-  assert.equal(after.status, 200);
+  await until(() => placeIsFree(other.user.id));
+  assert.equal((await other.json('POST', '/api/app/import/json', file)).status, 200);
 });
 
 /** Reads as aborted from its `at`-th check on, counting every check. */
@@ -384,4 +431,94 @@ test('a cancelled import stops between records and before commit, and rolls back
       assert.deepEqual(await stored(user.id), { entries: 0, clients: 0 }, `${kind} at ${at}`);
     }
   }
+});
+
+/** Sends one import file as the account's API token user. */
+const startImport = (ctx: TestContext, path: string, body: string, type = 'application/json') =>
+  ctx.request('POST', `/api/app${path}`, body, { 'content-type': type });
+
+test('an account gets five import starts per window, whatever their outcome; the sixth is refused with 429', async t => {
+  const ctx = await setup();
+  const other = await addUser(ctx, { email: 'other@example.com', role: 'user' });
+  const admit = t.mock.method(servicesFor(ctx.db).importAdmission, 'admit');
+  const probe = await ctx.request('GET', '/api/app/status');
+  const port = Number(new URL(probe.url).port);
+  const json = JSON.stringify(JSON_FILE);
+
+  // A real JSON import holds the account's place while a CSV preview is refused as busy: two starts.
+  const held = slowImport(ctx, port, json);
+  await until(() => admit.mock.callCount() === 1);
+  const busyCsv = await startImport(ctx, '/import/toggl-csv?dry_run=true', CSV_FILE, 'text/csv');
+  assert.equal(busyCsv.status, 503);
+  held.finish();
+  const done = await held.response;
+  done.resume();
+  await once(done, 'end');
+  assert.equal(done.statusCode, 200);
+  // A JSON preview, a real CSV import and a file that fails to parse: three more.
+  assert.equal((await startImport(ctx, '/import/json?dry_run=true', json)).status, 200);
+  assert.equal((await startImport(ctx, '/import/toggl-csv', CSV_FILE, 'text/csv')).status, 200);
+  assert.equal((await startImport(ctx, '/import/json', '{')).status, 400);
+  const entries = await entryCount(ctx);
+
+  const refused = await startImport(ctx, '/import/json?dry_run=true', json);
+  assert.equal(refused.status, 429);
+  assert.equal(await refused.json(), 'Too many imports; try again later');
+  const retryAfter = Number(refused.headers.get('retry-after'));
+  assert.ok(Number.isInteger(retryAfter) && retryAfter > 800 && retryAfter <= 900, `Retry-After ${retryAfter}`);
+  assert.equal((await startImport(ctx, '/import/toggl-csv', CSV_FILE, 'text/csv')).status, 429);
+  assert.equal(admit.mock.callCount(), 5, 'a refused start takes no place');
+  assert.equal(await entryCount(ctx), entries);
+
+  assert.equal((await login(ctx, ctx.user.email)).status, 200, 'password counters are separate');
+  assert.equal((await login(ctx, ctx.user.email, 'wrong password')).status, 403);
+  assert.equal((await startImport(other, '/import/json?dry_run=true', json)).status, 200, 'accounts count apart');
+});
+
+test('two instances on one database share the account import start counter', async t => {
+  const dir = mkdtempSync(join(tmpdir(), 'tokkl-import-starts-'));
+  after(() => rmSync(dir, { recursive: true, force: true }));
+  const sqlite = (process.env.TOKKL_TEST_BACKEND ?? 'sqlite') === 'sqlite';
+  const first = await openDatabase(sqlite ? join(dir, 'tokkl.sqlite') : undefined);
+  const second = await reopenDatabase(first);
+  const owner = await createFirstAdmin(first, {
+    email: 'owner@example.com',
+    password: PASSWORD,
+    fullname: '',
+    timezone: 'UTC',
+  });
+  const instances = [first, second].map(db => {
+    const application = composeApp({ storage: storageFor(db), config: testConfig(db), setup: { code: null } });
+    t.after(() => application.close());
+    return testServer(application.app);
+  });
+  const authorization = `Basic ${Buffer.from(`${owner.apiToken}:api_token`).toString('base64')}`;
+  const preview = (instance: number) =>
+    instances[instance]!.request('/api/app/import/json?dry_run=true', {
+      method: 'POST',
+      headers: { authorization, 'content-type': 'application/json' },
+      body: JSON.stringify(JSON_FILE),
+    });
+  const statuses: number[] = [];
+  for (const instance of [0, 1, 0, 1, 1]) statuses.push((await preview(instance)).status);
+  assert.deepEqual(statuses, [200, 200, 200, 200, 200]);
+  for (const instance of [0, 1]) {
+    const refused = await preview(instance);
+    assert.equal(refused.status, 429, `instance ${instance}`);
+    const retryAfter = Number(refused.headers.get('retry-after'));
+    assert.ok(retryAfter > 800 && retryAfter <= 900, `Retry-After ${retryAfter}`);
+  }
+});
+
+test("a new account that gets a deleted account's SQLite id starts with no import starts counted", async () => {
+  const admin = await setup({ sqlite: true });
+  const json = JSON.stringify(JSON_FILE);
+  const first = await addUser(admin, { email: 'first@example.com', role: 'user' });
+  for (let i = 0; i < 5; i++) assert.equal((await startImport(first, '/import/json?dry_run=true', json)).status, 200);
+  assert.equal((await startImport(first, '/import/json?dry_run=true', json)).status, 429);
+  const deleted = await admin.json('DELETE', `/api/app/admin/users/${first.user.id}`, { email: first.user.email });
+  assert.equal(deleted.status, 200);
+  const next = await addUser(admin, { email: 'next@example.com', role: 'user' });
+  assert.equal(next.user.id, first.user.id, 'SQLite gives the deleted maximum id to the next account');
+  assert.equal((await startImport(next, '/import/json?dry_run=true', json)).status, 200);
 });
