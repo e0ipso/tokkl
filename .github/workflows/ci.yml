@@ -92,6 +92,8 @@ jobs:
       - run: docker buildx build --platform linux/amd64,linux/arm64 --output type=oci,dest=${{ runner.temp }}/tokkl.oci.tar --metadata-file ${{ runner.temp }}/tokkl-multiarch.json .
       - run: docker buildx build --platform linux/amd64 --load -t tokkl:ci .
       - run: npm run test:container -- --image tokkl:ci
+      # The same image under the restrictions docs/hosting/README.md documents: SQLite only, as the database services are third-party images.
+      - run: npm run test:container -- --image tokkl:ci --backend sqlite --hardened
 
   # The KDE companion on each supported target, in the pinned images of
   # desktop/kde/ci: CTest (desktop/core's tests included), the DEB or RPM

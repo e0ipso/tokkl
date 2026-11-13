@@ -3,7 +3,9 @@ export type FailureKind =
   | 'invalid'
   | 'forbidden'
   | 'not-found'
+  | 'timed-out'
   | 'conflict'
+  | 'too-large'
   | 'unsupported-media'
   | 'unprocessable'
   | 'rate-limited'
@@ -65,6 +67,10 @@ export const invalidInput = (message: string, validation: ValidationDetail = { c
 export const forbidden = (message = 'Forbidden') => new ApplicationError('forbidden', message);
 export const notFound = (message = 'Not found') => new ApplicationError('not-found', message);
 export const conflict = (message: string) => new ApplicationError('conflict', message);
+/** The client took too long to send its request. */
+export const requestTimeout = (message: string) => new ApplicationError('timed-out', message);
+/** Refused by its declared size, before any byte is read. */
+export const tooLarge = (message: string) => new ApplicationError('too-large', message);
 /** The body comes in a form the server refuses to read, such as a compressed encoding. */
 export const unsupportedMedia = (message: string) => new ApplicationError('unsupported-media', message);
 /** Well formed, but contradicts a request the server already handled. */

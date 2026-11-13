@@ -25,6 +25,8 @@ declare module 'express-serve-static-core' {
   interface Locals {
     /** Aborted when the client goes away or the server shuts down. */
     workSignal: AbortSignal;
+    /** `performance.now()` when an import's whole file arrived; later import limits count from it. */
+    importBodyReceivedAt?: number;
   }
 }
 

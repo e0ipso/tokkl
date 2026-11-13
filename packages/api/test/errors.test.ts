@@ -11,7 +11,9 @@ import {
   forbidden,
   invalidInput,
   notFound,
+  requestTimeout,
   StateConflict,
+  tooLarge,
   tooManyAttempts,
   unavailable,
   unsupportedMedia,
@@ -27,6 +29,8 @@ test('each application failure kind answers its status, message and retry delay'
     headers: {},
     body: { revision: 3 },
   });
+  assert.deepEqual(errorReply(requestTimeout('Too slow')), { status: 408, headers: {}, body: 'Too slow' });
+  assert.deepEqual(errorReply(tooLarge('Too big')), { status: 413, headers: {}, body: 'Too big' });
   assert.deepEqual(errorReply(unsupportedMedia('Compressed')), { status: 415, headers: {}, body: 'Compressed' });
   assert.deepEqual(errorReply(tooManyAttempts('Slow down', 17)), {
     status: 429,

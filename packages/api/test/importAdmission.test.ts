@@ -1,12 +1,12 @@
-import { test } from 'node:test';
+import { test, type TestContext as NodeTestContext } from 'node:test';
 import assert from 'node:assert/strict';
-import { request as httpRequest } from 'node:http';
+import { request as httpRequest, type IncomingHttpHeaders, type IncomingMessage } from 'node:http';
 import { once } from 'node:events';
 import { setTimeout as sleep } from 'node:timers/promises';
 import type { AddressInfo } from 'node:net';
 import express from 'express';
 import { errorHandler } from '../src/http/errors.ts';
-import { ApplicationError, RequestCancelled, unavailable } from '../src/lib/errors.ts';
+import { ApplicationError, RequestCancelled, forbidden } from '../src/lib/errors.ts';
 import { silentLogger } from '../src/lib/logger.ts';
 import { importRoutes } from '../src/routes/imports.ts';
 import { createImportAdmission } from '../src/services/importAdmission.ts';
@@ -19,6 +19,9 @@ import { setup, type TestContext } from './helpers.ts';
 import { entryCount } from './fixtures/observations.ts';
 
 const BUSY_RETRY_SECONDS = 5;
+const MiB = 1024 * 1024;
+/** The import body limit, which is also the whole byte budget of an instance. */
+const LIMIT = 8 * MiB;
 
 const busy = (error: unknown) =>
   error instanceof ApplicationError &&
@@ -43,69 +46,187 @@ test('import admission bounds imports in all and per account', () => {
   assert.throws(() => createImportAdmission({ maxImports: 0 }), /Invalid import limit/);
 });
 
-test('import admission counts file bytes as well as imports', () => {
-  const MB = 1024 * 1024;
-  const admission = createImportAdmission({ maxImports: 4, maxPerUser: 1, maxBytes: 64 * MB });
-  const large = admission.admit(1, 50 * MB);
-  assert.throws(() => admission.admit(2, 40 * MB), busy, 'two large files never run together');
-  const small = admission.admit(2, 10 * MB);
-  assert.throws(() => admission.admit(3, 5 * MB), busy, 'the running files fill the byte budget');
-  admission.admit(3, 4 * MB).release();
-  large.release();
-  const next = admission.admit(4, 40 * MB);
+test('import admission never lets the running files pass the byte budget', () => {
+  const admission = createImportAdmission({ maxImports: 4, maxPerUser: 1, maxBytes: LIMIT });
+  const first = admission.admit(1, 5 * MiB);
+  assert.throws(() => admission.admit(2, 5 * MiB), busy, 'two 5 MiB files never run together');
+  const small = admission.admit(2, 3 * MiB);
+  assert.throws(() => admission.admit(3, 1), busy, 'the running files fill the byte budget');
+  first.release();
   small.release();
-  next.release();
-  // Alone, a file larger than the budget still gets in, so every file within the body limit can run.
-  const alone = admission.admit(5, 80 * MB);
-  assert.throws(() => admission.admit(6, 1), busy);
-  alone.release();
+  assert.throws(() => admission.admit(4, LIMIT + 1), busy, 'a file over the budget is refused even when alone');
   assert.throws(() => admission.admit(1, -1), /Invalid import size/);
   assert.throws(() => createImportAdmission({ maxBytes: 0 }), /Invalid import byte limit/);
+  const defaults = createImportAdmission();
+  defaults.admit(1, LIMIT);
+  assert.throws(() => defaults.admit(2, 1), busy, 'the default budget is one full upload');
 });
 
-test('an import is admitted with its declared length, or the body limit when it declares none', async t => {
-  const admitted: number[] = [];
+/** The import routes with a real admission, stand-in imports, and the account named in `x-user`. */
+async function importServer(t: NodeTestContext, options: { uploadDeadlineMs?: number } = {}) {
+  const admission = createImportAdmission();
+  const reserved: number[] = [];
   const app = express();
   app.use((_req, res, next) => {
-    res.locals.auth = { user: { id: 1 } } as never;
     res.locals.workSignal = new AbortController().signal;
     next();
   });
-  app.use(
-    importRoutes({
-      auth: { requireAuth: (_req: express.Request, _res: express.Response, next: express.NextFunction) => next() },
-      importAdmission: {
-        admit: (_userId: number, bytes: number) => {
-          admitted.push(bytes);
-          throw unavailable('Too many imports are running', BUSY_RETRY_SECONDS);
-        },
+  const requireAuth: express.RequestHandler = (req, res, next) => {
+    const id = Number(req.headers['x-user']);
+    if (!id) return next(forbidden('Incorrect username and/or password'));
+    res.locals.auth = { user: { id } } as never;
+    next();
+  };
+  const deps = {
+    auth: { requireAuth },
+    importAdmission: {
+      admit: (userId: number, bytes: number) => {
+        const place = admission.admit(userId, bytes);
+        reserved.push(bytes);
+        return place;
       },
-      importsFor: () => {
-        throw new Error('unused');
-      },
-    } as unknown as Parameters<typeof importRoutes>[0]),
-  );
+    },
+    importsFor: () => ({
+      importJsonExport: async () => ({ imported: 'json' }),
+      importTogglCsv: async () => ({ imported: 'csv' }),
+    }),
+  } as unknown as Parameters<typeof importRoutes>[0];
+  app.use(importRoutes(deps, options));
   app.use(errorHandler(silentLogger));
   const server = app.listen(0, '127.0.0.1');
   await once(server, 'listening');
-  t.after(() => new Promise<void>(resolve => server.close(() => resolve())));
-  const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/import/json`;
-  const sized = await fetch(url, { method: 'POST', body: '{"format":"tokkl-export"}' });
-  assert.equal(sized.status, 503);
-  assert.equal(sized.headers.get('retry-after'), String(BUSY_RETRY_SECONDS));
-  // A streamed body is sent chunked, without a length.
-  const chunked = await fetch(url, {
-    method: 'POST',
-    body: new ReadableStream({
-      start(controller) {
-        controller.enqueue(new TextEncoder().encode('{}'));
-        controller.close();
-      },
-    }),
-    duplex: 'half',
-  } as RequestInit);
-  assert.equal(chunked.status, 503);
-  assert.deepEqual(admitted, [Buffer.byteLength('{"format":"tokkl-export"}'), 50 * 1024 * 1024]);
+  t.after(() => {
+    server.closeAllConnections();
+    return new Promise<void>(resolve => server.close(() => resolve()));
+  });
+  return { port: (server.address() as AddressInfo).port, reserved };
+}
+
+interface Reply {
+  status: number;
+  body: unknown;
+  headers: IncomingHttpHeaders;
+}
+
+/** Sends the headers and `sent`, then keeps the request open; without a length the body is chunked. */
+function upload(port: number, path: string, headers: Record<string, string | number>, sent = '') {
+  const req = httpRequest({ host: '127.0.0.1', port, method: 'POST', path, headers });
+  const response = new Promise<Reply>((resolve, reject) => {
+    req.once('response', (res: IncomingMessage) => {
+      let text = '';
+      res.setEncoding('utf8');
+      res.on('data', chunk => (text += chunk));
+      res.once('end', () => resolve({ status: res.statusCode!, body: JSON.parse(text), headers: res.headers }));
+      res.once('error', reject);
+    });
+    req.on('error', reject);
+  });
+  response.catch(() => {});
+  req.flushHeaders();
+  if (sent) req.write(sent);
+  return { req, response };
+}
+
+function send(port: number, path: string, body: string, user: number): Promise<Reply> {
+  const request = upload(port, path, { 'x-user': user, 'content-length': Buffer.byteLength(body) });
+  request.req.end(body);
+  return request.response;
+}
+
+async function until(done: () => boolean) {
+  for (let tries = 0; !done(); tries++) {
+    if (tries > 200) throw new Error('Timed out waiting');
+    await sleep(10);
+  }
+}
+
+const IMPORT_PATHS = [
+  '/import/json',
+  '/import/json?dry_run=true',
+  '/import/toggl-csv',
+  '/import/toggl-csv?dry_run=true',
+];
+
+test('an import is refused before it takes a place when unsigned, encoded or declared too large', async t => {
+  const { port, reserved } = await importServer(t);
+  for (const path of IMPORT_PATHS) {
+    // No body byte is sent in any of these.
+    const anonymous = upload(port, path, { 'content-length': 5 * MiB });
+    const gzip = upload(port, path, { 'x-user': 1, 'content-length': 5 * MiB, 'content-encoding': 'gzip' });
+    const oversized = upload(port, path, { 'x-user': 2, 'content-length': LIMIT + 1 });
+    const replies = await Promise.all([anonymous.response, gzip.response, oversized.response]);
+    assert.deepEqual(
+      replies.map(reply => [reply.status, reply.body, reply.headers['cache-control']]),
+      [
+        [403, 'Incorrect username and/or password', 'no-store'],
+        [415, 'Unsupported content encoding', 'no-store'],
+        [413, 'Request body too large', 'no-store'],
+      ],
+      path,
+    );
+    for (const { req } of [anonymous, gzip, oversized]) req.destroy();
+  }
+  assert.deepEqual(reserved, []);
+});
+
+test('an upload without a length reserves the whole budget, and two 5 MiB uploads never run together', async t => {
+  const { port, reserved } = await importServer(t);
+  for (const path of IMPORT_PATHS) {
+    const chunked = upload(port, path, { 'x-user': 1, 'transfer-encoding': 'chunked' }, '"x');
+    await until(() => reserved.length === 1);
+    assert.deepEqual(reserved, [LIMIT], path);
+    const small = await send(port, path, '""', 2);
+    assert.deepEqual([small.status, small.headers['retry-after']], [503, String(BUSY_RETRY_SECONDS)], path);
+    chunked.req.end('"');
+    assert.equal((await chunked.response).status, 200, path);
+    reserved.length = 0;
+  }
+  const file = `"${'x'.repeat(5 * MiB - 2)}"`;
+  const first = upload(port, '/import/json', { 'x-user': 1, 'content-length': file.length }, file.slice(0, 10));
+  await until(() => reserved.length === 1);
+  const second = await send(port, '/import/toggl-csv?dry_run=true', file, 2);
+  assert.deepEqual([second.status, second.headers['retry-after']], [503, String(BUSY_RETRY_SECONDS)]);
+  first.req.end(file.slice(10));
+  assert.deepEqual((await first.response).body, { imported: 'json' });
+  assert.deepEqual((await send(port, '/import/toggl-csv?dry_run=true', file, 2)).body, { imported: 'csv' });
+  assert.deepEqual(reserved, [5 * MiB, 5 * MiB]);
+});
+
+test('a place comes back after a parser failure, a client disconnect and an upload past its deadline', async t => {
+  const { port, reserved } = await importServer(t, { uploadDeadlineMs: 300 });
+  const chunked = (path: string, sent: string) =>
+    upload(port, path, { 'x-user': 1, 'transfer-encoding': 'chunked' }, sent);
+  /** A full-budget upload from the same account fits only once the last one gave its place back. */
+  const placeIsFree = async (path: string) => {
+    let reply: Reply | undefined;
+    for (let tries = 0; reply?.status !== 200 && tries < 50; tries++) {
+      if (reply) await sleep(20);
+      const probe = chunked(path, '""');
+      probe.req.end();
+      reply = await probe.response;
+    }
+    assert.equal(reply?.status, 200, path);
+  };
+  for (const path of IMPORT_PATHS) {
+    const overflowing = chunked(path, 'x'.repeat(LIMIT + 1));
+    overflowing.req.end();
+    assert.deepEqual((await overflowing.response).body, 'Request body too large', path);
+    await placeIsFree(path);
+
+    const admitted = reserved.length;
+    const abandoned = chunked(path, '"x');
+    await until(() => reserved.length > admitted);
+    abandoned.req.destroy();
+    await placeIsFree(path);
+
+    // Bytes that keep coming do not extend the deadline; it counts from admission.
+    const stalled = chunked(path, '"');
+    const trickle = setInterval(() => stalled.req.write('x'), 50);
+    const timedOut = await stalled.response.finally(() => clearInterval(trickle));
+    assert.deepEqual([timedOut.status, timedOut.body], [408, 'The upload took too long'], path);
+    if (!stalled.req.destroyed) await once(stalled.req, 'close');
+    await placeIsFree(path);
+  }
 });
 
 test('a place lent to work stays taken until the work settles', async () => {
