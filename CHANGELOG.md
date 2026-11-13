@@ -1,3 +1,5 @@
+## [2.5.1](https://github.com/e0ipso/tokkl/compare/v2.5.0...v2.5.1) (2026-11-13)
+
 ## [2.5.0](https://github.com/e0ipso/tokkl/compare/v2.4.0...v2.5.0) (2026-11-12)
 
 ### Features
