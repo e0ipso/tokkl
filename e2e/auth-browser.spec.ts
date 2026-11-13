@@ -145,7 +145,7 @@ test('account preferences persist across restart and a legacy backup leaves its 
   expect(exported.status()).toBe(200);
   expect((await exported.json()).preferences).toEqual(retained);
 
-  await page.goto(`${upgraded.baseURL}/settings`);
+  await page.goto(`${upgraded.baseURL}/settings/preferences`);
   const defaults = page.getByRole('group', { name: 'Pomodoro session defaults' });
   await expect(defaults.getByRole('spinbutton', { name: 'Work', exact: true })).toHaveValue('42');
   const backup = transferFixture('restore-full.json');
@@ -155,6 +155,10 @@ test('account preferences persist across restart and a legacy backup leaves its 
       preferences: { ...legacy, pomodoro_focus_interval_in_minutes: 10 },
     }),
   );
+  await page
+    .getByRole('navigation', { name: 'Settings sections' })
+    .getByRole('link', { name: 'Data', exact: true })
+    .click();
   await chooseJson(page, backup);
   const summary = page.locator('.import-summary').last();
   await expect(summary).toContainText('3 entries to add');
@@ -165,6 +169,10 @@ test('account preferences persist across restart and a legacy backup leaves its 
   const restored = await page.request.get(`${upgraded.baseURL}/api/v9/me/preferences`);
   expect(restored.status()).toBe(200);
   expect(await restored.json()).toEqual(retained);
+  await page
+    .getByRole('navigation', { name: 'Settings sections' })
+    .getByRole('link', { name: 'Preferences', exact: true })
+    .click();
   await page.reload();
   await expect(defaults.getByRole('spinbutton', { name: 'Work', exact: true })).toHaveValue('42');
 
@@ -285,7 +293,7 @@ test('after logout the old session is refused, and reload or back shows no priva
   await page.reload();
   await expectNoPrivateData();
   await page.goBack();
-  await expect(page).toHaveURL(`${baseURL}/settings`);
+  await expect(page).toHaveURL(`${baseURL}/settings/profile`);
   await expectNoPrivateData();
   await page.goBack();
   await expect(page).toHaveURL(`${baseURL}/`);

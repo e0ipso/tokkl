@@ -240,6 +240,10 @@ test('the settings forms show password, workspace and profile errors inline', as
   await login(page);
   await page.getByRole('link', { name: 'Settings' }).click();
 
+  await page
+    .getByRole('navigation', { name: 'Settings sections' })
+    .getByRole('link', { name: 'Password', exact: true })
+    .click();
   const password = page.locator('#password');
   const current = password.getByLabel('Current password');
   const next = password.getByLabel('New password', { exact: true });
@@ -259,6 +263,10 @@ test('the settings forms show password, workspace and profile errors inline', as
   await expectValid(next);
   await expect(repeat).toBeFocused();
 
+  await page
+    .getByRole('navigation', { name: 'Settings sections' })
+    .getByRole('link', { name: 'Workspace', exact: true })
+    .click();
   const workspace = page.locator('#workspace');
   const currency = workspace.getByLabel('Default currency');
   await currency.fill('E');
@@ -272,6 +280,10 @@ test('the settings forms show password, workspace and profile errors inline', as
   );
   await expect(currency).toBeFocused();
 
+  await page
+    .getByRole('navigation', { name: 'Settings sections' })
+    .getByRole('link', { name: 'Profile', exact: true })
+    .click();
   const profile = page.locator('#profile');
   const email = profile.getByLabel('Email');
   await email.fill('not an address');

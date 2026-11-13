@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { Route, Switch } from 'wouter';
 import { useMe, usePreferences, useWorkspace } from '../api/account.ts';
 import { usePomodoroLimits } from '../api/auth.ts';
 import { Icon } from '../components/Icon.tsx';
@@ -11,6 +12,7 @@ import { PasswordSection } from './manage/settings/PasswordSection.tsx';
 import { PreferencesSection } from './manage/settings/PreferencesSection.tsx';
 import { ProfileSection } from './manage/settings/ProfileSection.tsx';
 import { SettingsCard } from './manage/settings/SettingsCard.tsx';
+import { SettingsNav, SettingsRedirect } from './manage/settings/SettingsNav.tsx';
 import { WorkspaceSection } from './manage/settings/WorkspaceSection.tsx';
 import { t } from '../i18n/messages.ts';
 
@@ -43,65 +45,68 @@ function SessionSection() {
   );
 }
 
-export function SettingsPage() {
-  const { data: me } = useMe();
+function PreferencesPage() {
   const { data: prefs, error: prefsError, refetch: refetchPrefs } = usePreferences();
   const { data: limits, error: limitsError, refetch: refetchLimits } = usePomodoroLimits();
-  const preferencesError = prefsError ?? limitsError;
-  const retryPreferences = () => {
+  const error = prefsError ?? limitsError;
+  const retry = () => {
     if (prefsError) void refetchPrefs();
     if (limitsError) void refetchLimits();
   };
-  const { data: workspace, error: workspaceError, refetch: refetchWorkspace } = useWorkspace();
+  if (prefs && limits) return <PreferencesSection prefs={prefs} limits={limits} />;
+  return (
+    <SettingsCard id="preferences" title={t('settings.sectionPreferences')}>
+      {error ? (
+        <LoadError
+          message={t('settings.preferencesLoadFailed', { message: error.message })}
+          onRetry={retry}
+          className="is-compact"
+        />
+      ) : (
+        <Loading label={t('settings.loadingPreferences')} className="is-compact" />
+      )}
+    </SettingsCard>
+  );
+}
 
+function WorkspacePage() {
+  const { data: workspace, error, refetch } = useWorkspace();
+  if (workspace) return <WorkspaceSection workspace={workspace} />;
+  return (
+    <SettingsCard id="workspace" title={t('settings.sectionWorkspace')}>
+      {error ? (
+        <LoadError
+          message={t('settings.workspaceLoadFailed', { message: error.message })}
+          onRetry={() => void refetch()}
+          className="is-compact"
+        />
+      ) : (
+        <Loading label={t('settings.loadingWorkspace')} className="is-compact" />
+      )}
+    </SettingsCard>
+  );
+}
+
+export function SettingsPage() {
+  const { data: me } = useMe();
   return (
     <div className="page manage-page settings-page">
       <header className="page-header">
         <h1>{t('settings.title')}</h1>
       </header>
-      <nav className="settings-nav" aria-label={t('settings.sectionsLabel')}>
-        {SECTIONS.map(([id, label]) => (
-          <a key={id} href={`#${id}`}>
-            {t(label)}
-          </a>
-        ))}
-      </nav>
-
-      {me ? <ProfileSection me={me} /> : null}
-      <PasswordSection />
-      {prefs && limits ? (
-        <PreferencesSection prefs={prefs} limits={limits} />
-      ) : (
-        <SettingsCard id="preferences" title={t('settings.sectionPreferences')}>
-          {preferencesError ? (
-            <LoadError
-              message={t('settings.preferencesLoadFailed', { message: preferencesError.message })}
-              onRetry={retryPreferences}
-              className="is-compact"
-            />
-          ) : (
-            <Loading label={t('settings.loadingPreferences')} className="is-compact" />
-          )}
-        </SettingsCard>
-      )}
-      {workspace ? (
-        <WorkspaceSection workspace={workspace} />
-      ) : (
-        <SettingsCard id="workspace" title={t('settings.sectionWorkspace')}>
-          {workspaceError ? (
-            <LoadError
-              message={t('settings.workspaceLoadFailed', { message: workspaceError.message })}
-              onRetry={() => void refetchWorkspace()}
-              className="is-compact"
-            />
-          ) : (
-            <Loading label={t('settings.loadingWorkspace')} className="is-compact" />
-          )}
-        </SettingsCard>
-      )}
-      {me ? <ApiTokenSection me={me} /> : null}
-      {me ? <DataSection timeZone={me.timezone} /> : null}
-      <SessionSection />
+      <SettingsNav base="/settings" sections={SECTIONS} label={t('settings.sectionsLabel')} />
+      <Switch>
+        <Route path="/settings/profile">{me ? <ProfileSection me={me} /> : null}</Route>
+        <Route path="/settings/password" component={PasswordSection} />
+        <Route path="/settings/preferences" component={PreferencesPage} />
+        <Route path="/settings/workspace" component={WorkspacePage} />
+        <Route path="/settings/api-token">{me ? <ApiTokenSection me={me} /> : null}</Route>
+        <Route path="/settings/data">{me ? <DataSection timeZone={me.timezone} /> : null}</Route>
+        <Route path="/settings/session" component={SessionSection} />
+        <Route>
+          <SettingsRedirect base="/settings" sections={SECTIONS} />
+        </Route>
+      </Switch>
     </div>
   );
 }

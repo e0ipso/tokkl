@@ -48,7 +48,7 @@ async function saveFromAnotherDevice(page: Page, changes: Partial<typeof DEFAULT
 async function openSettings(page: Page, users: ExtraUsers) {
   const user = await users.create();
   await loginAs(page, user.account);
-  await page.goto('/settings');
+  await page.goto('/settings/preferences');
   await expect(group(page).pomodoro).toBeVisible();
   return group(page);
 }

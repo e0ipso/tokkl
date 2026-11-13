@@ -27,6 +27,10 @@ test('every page renders without errors and core management flows work', async (
   const exported = await (await page.request.get('/api/app/export.json')).body();
   await page.getByRole('link', { name: 'Settings' }).click();
   await page
+    .getByRole('navigation', { name: 'Settings sections' })
+    .getByRole('link', { name: 'Data', exact: true })
+    .click();
+  await page
     .locator('input[type=file][accept*="json"]')
     .setInputFiles({ name: 'backup.json', mimeType: 'application/json', buffer: exported });
   await expect(page.getByText('0 entries to add')).toBeVisible();
@@ -131,6 +135,10 @@ test('logging out from the menu and from settings ends the session', async ({ pa
 
   await login(page);
   await page.getByRole('link', { name: 'Settings' }).click();
+  await page
+    .getByRole('navigation', { name: 'Settings sections' })
+    .getByRole('link', { name: 'Session', exact: true })
+    .click();
   await page.locator('#session').getByRole('button', { name: 'Log out' }).click();
   await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible();
   expect((await page.request.get('/api/v9/me')).status()).toBe(403);
@@ -161,6 +169,10 @@ test('JSON restore reports what it cannot import and takes a running entry once 
   const summary = page.locator('.import-summary');
   const upload = async () => {
     await page.getByRole('link', { name: 'Settings' }).click();
+    await page
+      .getByRole('navigation', { name: 'Settings sections' })
+      .getByRole('link', { name: 'Data', exact: true })
+      .click();
     await page.locator('input[type=file][accept*="json"]').setInputFiles(file);
   };
 

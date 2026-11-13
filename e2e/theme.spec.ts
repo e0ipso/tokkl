@@ -186,6 +186,10 @@ test('both log out buttons clear the cached theme', async ({ page }) => {
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   expect(await cachedTheme(page)).toBe('dark');
   await page.getByRole('link', { name: 'Settings' }).click();
+  await page
+    .getByRole('navigation', { name: 'Settings sections' })
+    .getByRole('link', { name: 'Session', exact: true })
+    .click();
   await page.getByRole('region', { name: 'Session' }).getByRole('button', { name: 'Log out' }).click();
   await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible();
   expect(await cachedTheme(page)).toBeNull();
@@ -248,7 +252,13 @@ test('a logout the server never carries out clears the cache, then says the user
   };
 
   for (const [where, button] of Object.entries(buttons)) {
-    if (where === 'Settings') await page.getByRole('link', { name: 'Settings' }).click();
+    if (where === 'Settings') {
+      await page.getByRole('link', { name: 'Settings' }).click();
+      await page
+        .getByRole('navigation', { name: 'Settings sections' })
+        .getByRole('link', { name: 'Session', exact: true })
+        .click();
+    }
     // Hold the reloaded page's preferences, so the cleared theme cannot be cached again before the check.
     let release = () => {};
     const held = new Promise<void>(resolve => {
@@ -413,6 +423,10 @@ async function seedBillableEntry(page: Page) {
 
 async function chooseTheme(page: Page, label: 'Match the system' | 'Light' | 'Dark') {
   await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Settings' }).click();
+  await page
+    .getByRole('navigation', { name: 'Settings sections' })
+    .getByRole('link', { name: 'Preferences', exact: true })
+    .click();
   const preferences = page.getByRole('form', { name: 'Preferences' });
   await preferences.getByLabel('Theme').selectOption({ label });
   await preferences.getByRole('button', { name: 'Save' }).click();

@@ -19,9 +19,16 @@ export const test = base.extend<{ instance: InstanceSettings }>({
 
 export { expect };
 
-export async function openAdmin(page: Page): Promise<void> {
+export async function openAdmin(
+  page: Page,
+  section: 'Users' | 'Invites' | 'Instance settings' = 'Users',
+): Promise<void> {
   await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Admin', exact: true }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Admin' })).toBeVisible();
+  await page
+    .getByRole('navigation', { name: 'Admin sections' })
+    .getByRole('link', { name: section, exact: true })
+    .click();
 }
 
 export function userRow(page: Page, email: string): Locator {

@@ -5,6 +5,10 @@ import { basic, createAccount, expect, logInThroughForm, test } from './auth-tes
 
 async function openTokenCard(page: Page) {
   await page.getByRole('link', { name: 'Settings' }).click();
+  await page
+    .getByRole('navigation', { name: 'Settings sections' })
+    .getByRole('link', { name: 'API token', exact: true })
+    .click();
   return page.locator('#api-token');
 }
 
