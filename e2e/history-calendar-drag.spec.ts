@@ -5,6 +5,7 @@ import {
   HOUR,
   calendarBodyBox,
   dragBy,
+  entryUpdated,
   entryWrites,
   expectBrowserTimeZone,
   openCalendar,
@@ -44,7 +45,9 @@ test('moving keeps the duration and resizing stops at the minimum, saved and rel
   await expect(move).toHaveCSS('top', px(9 * 60));
   await expect(move).toHaveCSS('height', px(80));
   await scrollCalendarTo(page, 8);
+  const moveSaved = entryUpdated(page, moved.id);
   await dragBy(page, move, 2);
+  await moveSaved;
   await expect
     .poll(() => savedTimes(page, moved.id))
     .toEqual({ start: '2026-06-17T09:00:00+00:00', stop: '2026-06-17T10:20:00+00:00' });
@@ -52,7 +55,9 @@ test('moving keeps the duration and resizing stops at the minimum, saved and rel
   const resize = todayBlock(page, 'Resize me');
   await expect(resize).toHaveCSS('top', px(14 * 60));
   await scrollCalendarTo(page, 12);
+  const resizeSaved = entryUpdated(page, resized.id);
   await dragBy(page, resize.locator('.calendar-resize'), -2);
+  await resizeSaved;
   await expect
     .poll(() => savedTimes(page, resized.id))
     .toEqual({ start: '2026-06-17T12:00:00+00:00', stop: '2026-06-17T12:15:00+00:00' });
@@ -84,7 +89,9 @@ test('a move on the Madrid spring clock change lands on the dropped clock slot a
   const block = todayBlock(page, 'Spring move');
   await expect(block).toHaveCSS('top', `${HOUR}px`);
   await scrollCalendarTo(page, 0);
+  const saved = entryUpdated(page, entry.id);
   await dragBy(page, block, 2);
+  await saved;
   // Dropped at 03:00 CEST: one hour of elapsed time later, with the same 30-minute duration.
   await expect
     .poll(() => savedTimes(page, entry.id))
@@ -116,7 +123,9 @@ test('a move and a resize on the Madrid autumn clock change follow the clock aft
 
   const move = todayBlock(page, 'Autumn move');
   await expect(move).toHaveCSS('top', `${HOUR}px`);
+  const moveSaved = entryUpdated(page, moved.id);
   await dragBy(page, move, 3);
+  await moveSaved;
   // Dropped at 04:00 CET, four hours of elapsed time later; the move keeps its hour.
   await expect
     .poll(() => savedTimes(page, moved.id))
@@ -124,7 +133,9 @@ test('a move and a resize on the Madrid autumn clock change follow the clock aft
 
   const resize = todayBlock(page, 'Autumn resize');
   await expect(resize).toHaveCSS('top', px(30));
+  const resizeSaved = entryUpdated(page, resized.id);
   await dragBy(page, resize.locator('.calendar-resize'), 2);
+  await resizeSaved;
   // The stop dropped on the 03:00 CET slot: 3.5 hours of elapsed time, 2.5 hours on the clock.
   await expect
     .poll(() => savedTimes(page, resized.id))
@@ -196,7 +207,9 @@ test.describe('on a phone', () => {
 
     const move = todayBlock(page, 'Spring move');
     await expect(move).toHaveCSS('top', px(5 * 60));
+    const moveSaved = entryUpdated(page, moved.id);
     await longPressDragBy(page, move, 2);
+    await moveSaved;
     await expect
       .poll(() => savedTimes(page, moved.id))
       .toEqual({ start: '2026-03-29T05:00:00+00:00', stop: '2026-03-29T06:00:00+00:00' });
@@ -204,7 +217,9 @@ test.describe('on a phone', () => {
 
     const resize = todayBlock(page, 'Spring resize');
     await expect(resize).toHaveCSS('top', px(9 * 60));
+    const resizeSaved = entryUpdated(page, resized.id);
     await longPressDragBy(page, resize.locator('.calendar-resize'), 1);
+    await resizeSaved;
     await expect
       .poll(() => savedTimes(page, resized.id))
       .toEqual({ start: '2026-03-29T07:00:00+00:00', stop: '2026-03-29T08:30:00+00:00' });
@@ -249,7 +264,9 @@ test.describe('on a phone', () => {
     const lateBlock = todayBlock(page, 'Late block');
     await expect(lateBlock).toHaveCSS('top', px(22.5 * 60));
     await scrollCalendarTo(page, 24);
+    const lateSaved = entryUpdated(page, late.id);
     await longPressDragBy(page, lateBlock, 3);
+    await lateSaved;
     await expect
       .poll(() => savedTimes(page, late.id))
       .toEqual({ start: '2026-10-25T22:00:00+00:00', stop: '2026-10-25T23:00:00+00:00' });
