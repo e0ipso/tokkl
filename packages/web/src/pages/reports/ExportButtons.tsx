@@ -1,9 +1,8 @@
-import { useState } from 'react';
 import { downloadReportCsv, type ReportFilterBody } from '../../api/reports.ts';
 import type { DurationFormat, Grouping } from '@tokkl/types';
 import { Icon } from '../../components/Icon.tsx';
 import { useToast } from '../../components/Toast.tsx';
-import { reportUnlessCancelled, useCancellable } from '../../components/useUnmountSignal.ts';
+import { useDownload } from '../../components/useDownload.ts';
 import type { DateRange } from './range.ts';
 import type { SortDir, SortKey, SubGrouping } from './urlState.ts';
 import { t } from '../../i18n/messages.ts';
@@ -29,11 +28,9 @@ export function ExportButtons({
   durationFormat: DurationFormat;
 }) {
   const toast = useToast();
-  const [busy, setBusy] = useState<Kind | null>(null);
-  const downloads = useCancellable(busy !== null);
+  const downloads = useDownload(toast.error);
 
-  const run = async (kind: Kind, origin: HTMLElement) => {
-    setBusy(kind);
+  const run = (kind: Kind, origin: HTMLElement) => {
     const body = {
       ...filters,
       duration_format: durationFormat,
@@ -41,12 +38,9 @@ export function ExportButtons({
         ? { grouping, sub_grouping: subGrouping === 'none' ? grouping : subGrouping }
         : { sort, dir }),
     };
-    await reportUnlessCancelled(
-      downloads.start(origin),
-      signal => downloadReportCsv(kind, body, `tokkl-${kind}-${range.from}-to-${range.to}.csv`, signal),
-      toast.error,
+    return downloads.run(origin, signal =>
+      downloadReportCsv(kind, body, `tokkl-${kind}-${range.from}-to-${range.to}.csv`, signal),
     );
-    setBusy(null);
   };
 
   return (
@@ -56,14 +50,14 @@ export function ExportButtons({
           key={kind}
           type="button"
           className="button button-ghost"
-          disabled={busy !== null}
+          disabled={downloads.isPending}
           onClick={event => void run(kind, event.currentTarget)}
         >
           <Icon name="download" size={16} />
           {kind === 'detailed' ? t('reports.csvDetailed') : t('reports.csvSummary')}
         </button>
       ))}
-      {busy !== null ? (
+      {downloads.isPending ? (
         <button
           type="button"
           className="button button-ghost"

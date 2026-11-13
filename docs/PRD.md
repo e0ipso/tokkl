@@ -90,8 +90,52 @@ Priority follows MoSCoW. Status is the state of this repository on 2026-10-16: *
 | T10 | Discard a running entry, with undo. | SHOULD | Done |
 | T11 | Favorites: pin up to 9 entries, start them by click or number keys `1` to `9`. | SHOULD | Done (stored in preferences) |
 | T12 | Pause and resume. Toggl has none; continue plus grouping covers it. | COULD | Done: the timer bar and the KDE, macOS and GNOME companions pause, resume and stop. Pause stops the entry and Resume starts a clone of it with the same description, project, task, tags and billable flag. The display adds up the chain until Stop, and the next start begins at 0:00. The server keeps the chain, one per user, so a pause shows on every device and survives a reload or a restart of any client. Pause, Resume and Stop while paused need a connection. Project, Billable and the other fields are read-only while paused. See `GET /api/app/timer` in section 6.2. |
-| T13 | Idle detection, long-running timer reminders and a Pomodoro session. Idle detection and reminders need a native app or notifications permission. Pomodoro is an intentional mode on its own page, separate from the regular timer, and has no on/off preference. Each session sets its own work, short rest and long rest minutes and long-rest-every N. The start form begins from the four shared preference keys (section 6.2). Phases run work, then a short rest or, after every Nth work phase, a long rest, then work again. A phase changes only when the user confirms Next phase. Confirming before the planned end is a skip. After the planned end the phase counts overtime until the user confirms. Every ended work phase counts toward N, skipped ones too, and the count restarts after a long rest. End session works at any time. At each planned phase end, the sound for that transition loops until the user confirms the next phase or ends the session. There are four sounds, for work to short rest, short rest to work, work to long rest and long rest to work, and no control that only silences them. Each pomodoro, a work phase plus the rest after it, is one entry. It runs from the start of the work phase and stops when the user confirms the next work phase or ends the session. The next pomodoro starts at the instant of that confirmation with the same fields, so edits made to the running entry carry over. A stop snaps both ends to the time resolution. A pomodoro whose ends snap to the same point goes to the trash, the timer state names it in `discarded_pomodoro`, and the user is told. One thing runs at a time. Starting a session stops the running timer, and starting a timer ends the session. The server owns the session: it keeps one per user, with the open pomodoro as the running entry, and times the phases on its own clock. A session started, advanced or ended on one device shows on all of them. Any stop of the pomodoro's entry, through any client or a plain Toggl client, ends the session. Starting, advancing and ending a session need a connection. A running session keeps counting down and ringing from the last state a client holds while the connection is down. | COULD | Partial: session Pomodoro and long-running timer reminders are done; idle detection is planned. Once a running timer passes `long_timer_reminder_hours` and `long_timer_reminder_enabled` is on, the web app shows a banner and, in a background tab with notifications allowed, a browser notification. The user keeps the timer running or reviews it. The session start form and running view are available at `/pomodoro`, with editable entry fields, session lengths, countdown, overtime and notification permission controls. The web app follows the timer state over one event stream per tab and reads it every 30 seconds only while the stream is down; it keeps nothing about sessions or pauses in the browser. A confirm that another device beat to it is refused with the current state, which the page then shows. Session alarms loop until Next phase or End session, and the session banner stays available on every page. Starting a session stops the running timer; starting a timer ends the session. Pomodoro follows Timer in the sidebar and phone bar, with Reports under More on phones. The KDE, GNOME and macOS companions run the same sessions from a Pomodoro mode item in their menus. They use the account's shared four defaults with no per-session override, edited in each app's settings, and let the user pick one of the four sounds for each transition, stored on the device. |
+| T13 | Idle detection, long-running timer reminders and [Pomodoro sessions](#pomodoro-sessions). Idle detection and reminders need a native app or notifications permission. | COULD | Partial: Pomodoro sessions and long-running timer reminders are implemented; idle detection is planned. |
 | T14 | Start links (a URL that starts a specific timer, for iOS Shortcuts and bookmarks). | COULD | Planned |
+
+#### Long-running timer reminders
+
+With `long_timer_reminder_enabled` on, a running timer past
+`long_timer_reminder_hours` shows a banner. A background tab also sends a browser
+notification if permission is granted. The user can keep the timer running or
+review it.
+
+#### Pomodoro sessions
+
+Pomodoro is a separate mode at `/pomodoro`, without an on/off preference. Its page
+follows Timer in the sidebar and phone bar; Reports is under More on phones. The
+start form and running view offer entry fields, session lengths, countdown,
+overtime and notification permission controls. A session banner is available on
+every page.
+
+- Each session sets work, short-rest and long-rest minutes and a long rest every N
+  work phases. The start form uses the four shared preference keys in section 6.2.
+  Desktop companions use those defaults without per-session overrides, edit them
+  in their settings and store transition sound choices on the device.
+- Phases run work, then short rest or, after every Nth work phase, long rest, then
+  work again. Only Next phase advances the session. Confirming early skips the
+  phase; after the planned end, overtime counts until confirmation. Every ended
+  work phase counts toward N, including skipped phases. A long rest resets the
+  count. End session works at any time.
+- At each planned phase end, its transition sound loops until Next phase or End
+  session. There are four sounds: work to short rest, short rest to work, work to
+  long rest and long rest to work. There is no control that only silences them.
+- One pomodoro, work plus the following rest, is one entry. It starts with work and
+  stops on confirmation of the next work phase or End session. The next pomodoro
+  starts at that confirmation with the same fields, including edits to the running
+  entry. Stopping snaps both ends to the time resolution. If they snap to the same
+  point, the entry goes to trash, `discarded_pomodoro` names it in the timer state
+  and the user is told.
+- The server owns one session per user, with its open pomodoro as the running
+  entry, and times phases on its clock. Starting a session stops the running timer;
+  starting a timer ends the session. Any client that stops the pomodoro entry,
+  including a plain Toggl client, ends the session.
+- Starting, advancing and ending a session require a connection. State changes
+  appear on every device. The web app uses one timer event stream per tab and
+  polls every 30 seconds only while it is down. It stores no pause or session state
+  in the browser. While disconnected, clients keep counting down and ringing
+  from their last state. A confirmation another device completed first is refused
+  with the current state, which the page adopts.
 
 ### 5.2 Manual entry and parsing
 
@@ -191,6 +235,14 @@ Priority follows MoSCoW. Status is the state of this repository on 2026-10-16: *
 
 ### 5.8 Clients and devices
 
+The KDE, macOS and GNOME companions start and stop timers, show elapsed time,
+set project and billable fields, and run Pomodoro sessions from a Pomodoro mode
+menu item. Each uses only the signed-in account's workspace and accepts an API
+token by default or email and password, stored in the platform's credential store.
+Timers, pauses and sessions belong to the server and appear on every device.
+Starting, pausing, resuming and ending them requires a connection. Companions
+share the server's release version.
+
 | ID | Requirement | Priority | Status |
 |---|---|---|---|
 | C1 | Responsive web app usable on a phone: bottom navigation, timer and list on small screens. | MUST | Done |
@@ -198,9 +250,9 @@ Priority follows MoSCoW. Status is the state of this repository on 2026-10-16: *
 | C3 | Cross-device freshness: the running timer refreshes every 30 s and on window focus, entries every 60 s. | MUST | Done |
 | C4 | Offline outbox for timer start/stop/edit in the PWA, with an unsynced marker. Matters more here than for Toggl because a phone off the home network loses the server. | SHOULD | Planned |
 | C5 | Browser extension, desktop tray app. The KDE (C6), macOS (C7) and GNOME (C8) companions are the exceptions; the browser extension stays out. | WON'T (v1) | n/a |
-| C6 | KDE Plasma 6 panel widget for Debian 13 (amd64) and Fedora KDE 44 (x86_64), packaged as a DEB and an RPM. It starts and stops the timer, shows the elapsed time, sets the project and billable flag, runs Pomodoro sessions in a Pomodoro mode, and signs in with the API token (default) or email and password, kept in KDE Wallet. The timer, its pauses and its sessions belong to the server, so they are shared with every other device, and starting, pausing, resuming and ending them needs a connection. It works only in the signed-in account's workspace and is released with the server under one version ([guide](../desktop/kde/README.md)). Publication to app stores is out of scope. | COULD | Partial: CTest, real-server and package checks run in CI; the manual Plasma Wayland and KWallet checklist has not been run yet |
-| C7 | macOS menu bar app for Macs with Apple silicon and macOS 13 or later, shipped as a DMG signed ad hoc and not notarized. It starts and stops the timer, shows the elapsed time, sets the project and billable flag, runs Pomodoro sessions in a Pomodoro mode, and signs in with the API token (default) or email and password, kept in the macOS Keychain. The timer, its pauses and its sessions belong to the server, so they are shared with every other device, and starting, pausing, resuming and ending them needs a connection. It works only in the signed-in account's workspace and is released with the server under one version ([guide](../desktop/macos/README.md)). Publication to app stores is out of scope. | COULD | Partial: the `macos` CI job is set up to build, test and package it, but the app has not been built or run on a Mac by hand |
-| C8 | GNOME top bar extension for GNOME Shell 46 to 51 and `tokkl-timerd`, the session service it drives, packaged as a DEB for Debian 13 (amd64), an RPM for Fedora 44 (x86_64) and an extension zip. It starts and stops the timer, shows the elapsed time, sets the project and billable flag, runs Pomodoro sessions in a Pomodoro mode, and signs in with the API token (default) or email and password, kept in the keyring. The timer, its pauses and its sessions belong to the server, so they are shared with every other device, and starting, pausing, resuming and ending them needs a connection. It works only in the signed-in account's workspace and is released with the server under one version ([guide](../desktop/gnome/README.md)). Publication to extensions.gnome.org is manual. | COULD | Partial: the `gnome` and `gnome-extension` CI jobs build, test and package it and drive the extension in a headless GNOME Shell per supported version; no manual check on a desktop session is recorded |
+| C6 | KDE Plasma 6 panel widget for Debian 13 (amd64) and Fedora KDE 44 (x86_64), packaged as a DEB and an RPM. Credentials use KDE Wallet ([guide](../desktop/kde/README.md)). Publication to app stores is out of scope. | COULD | Partial: CTest, real-server and package checks run in CI; the manual Plasma Wayland and KWallet checklist has not been run yet |
+| C7 | macOS menu bar app for Macs with Apple silicon and macOS 13 or later, shipped as a DMG signed ad hoc and not notarized. Credentials use the macOS Keychain ([guide](../desktop/macos/README.md)). Publication to app stores is out of scope. | COULD | Partial: the `macos` CI job is set up to build, test and package it, but the app has not been built or run on a Mac by hand |
+| C8 | GNOME top bar extension for GNOME Shell 46 to 51 and `tokkl-timerd`, the session service it drives, packaged as a DEB for Debian 13 (amd64), an RPM for Fedora 44 (x86_64) and an extension zip. Credentials use the keyring ([guide](../desktop/gnome/README.md)). Publication to extensions.gnome.org is manual. | COULD | Partial: the `gnome` and `gnome-extension` CI jobs build, test and package it and drive the extension in a headless GNOME Shell per supported version; no manual check on a desktop session is recorded |
 
 ## 6. Toggl API compatibility
 

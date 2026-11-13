@@ -4,8 +4,9 @@ import { EntryFields } from '../../components/EntryFields.tsx';
 import { LengthStepper, LengthStepperGrid } from '../../components/LengthStepper.tsx';
 import { usePomodoroSession } from '../../components/PomodoroSessionProvider.tsx';
 import { EMPTY_DRAFT, type EntryDraft } from '../../components/useEntryFields.ts';
-import { LENGTH_FIELDS, lengthText, sessionConfig, type LengthEdits, type LengthKey } from './sessionLengths.ts';
+import { lengthText, sessionConfig, type LengthEdits, type LengthKey } from './sessionLengths.ts';
 import { t } from '../../i18n/messages.ts';
+import { POMODORO_FIELDS } from '../../components/pomodoroFields.ts';
 
 /** The lengths apply to this session only, within the server's `limits`. */
 export function StartForm({
@@ -49,7 +50,7 @@ export function StartForm({
       <h2>{t('pomodoro.startHeading')}</h2>
       <p className="hint">{t('pomodoro.startHint')}</p>
       <LengthStepperGrid>
-        {LENGTH_FIELDS.map(field => (
+        {POMODORO_FIELDS.map(field => (
           <LengthStepper
             key={field.key}
             label={t(field.label)}
