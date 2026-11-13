@@ -41,8 +41,15 @@ The script downloads source and builds the web app as the invoking user, with a
 384 MiB Node heap limit. The current service keeps running during the build. It
 assembles API production dependencies with workspace symlinks preserved, applies
 compatible `body-parser` and `qs` dependency updates, and refuses activation when
-the production audit reports a high or critical vulnerability. The installed
+the production audit reports a moderate, high or critical vulnerability. The installed
 `package-lock.json` records the resolved dependencies.
+
+The updater changes the release only. It does not edit `tokkl.service` or the
+nginx site, so a revised unit or site from the install guide takes effect only
+after you apply it yourself. For an installation from an earlier guide, follow
+[Harden an existing installation](native-vps.md#harden-an-existing-installation),
+then run the
+[limit checks](native-vps.md#check-the-limits-before-you-open-public-access).
 
 Activation stops only Tokkl, switches the current symlink, starts the selected
 release and checks its storage health endpoint. Builds that fail before activation

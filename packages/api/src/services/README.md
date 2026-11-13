@@ -24,3 +24,8 @@ the full history in memory.
 `maintenance.ts` runs housekeeping outside requests, including expired idempotency
 key cleanup. Services stop maintenance during shutdown. Timer operations and
 maintenance use the supplied clock.
+
+`importAdmission.ts` limits running imports: four per instance, one per account and 8 MiB of file bytes in
+total, with a place held until the work settled, a rollback included. `importPolicy.ts` caps a file at 10,000
+records, 250,000 values or cells and 32 levels of JSON nesting, and `importGuards.ts` stops an import at its
+signal, whether a disconnect or the processing deadline.

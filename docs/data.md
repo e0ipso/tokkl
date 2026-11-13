@@ -49,20 +49,62 @@ the connection, so a partial file is not presented as complete.
 
 ## Import limits
 
-These limits apply to JSON restore and Toggl CSV import:
+These limits apply to JSON restore and Toggl CSV import. Every API route accepts
+only unencoded request bodies: a body with any `Content-Encoding` other than
+`identity` gets 415 before the server reads it.
 
 | Limit | Value |
 | --- | --- |
+| Maximum file size | 8 MiB |
+| Combined size of running imports, per instance | 8 MiB |
 | Concurrent imports per instance | 4 |
 | Concurrent imports per account | 1 |
-| Maximum file size | 50 MB |
-| Combined file size of running imports | 64 MiB |
+| Records per file | 10,000 |
+| JSON values or CSV cells per file | 250,000 |
+| JSON nesting depth | 32 |
+| Import starts per account | 5 per 15 minutes |
+| Upload time, from admission | 60 seconds |
+| Processing time, from the last byte | 5 seconds |
 
-The combined size uses each request's `Content-Length`. An upload without that
-header counts as 50 MB. Two large files cannot run together; a single file within
-the limit is accepted when no other import runs.
+A record is a JSON record in `clients`, `projects`, `tasks`, `tags` or
+`time_entries`, or a CSV data row. A CSV file counts the rows of users you did
+not select. The cell count includes the header.
 
-An import exceeding those concurrency or combined-size limits is refused before
-upload with 503 `Too many imports are running` and `Retry-After: 5`. Each import
-runs in one transaction. If the client disconnects, it stops at the next record
-and rolls back, keeping none of the imported records.
+A body without a length counts as 8 MiB against the combined size.
+
+| Status | Cause |
+| --- | --- |
+| 413 | The declared or received body is over 8 MiB. |
+| 400 | The file passes the record, value or depth limit. |
+| 408 | The upload is not complete 60 seconds after admission. |
+| 429 | The account used its five starts. `Retry-After` gives the seconds left. |
+| 503 | Too many imports run (`Retry-After: 5`), or processing passed five seconds (`Retry-After: 60`). |
+
+Previews count as starts. The CSV page sends a preview each time you change the
+user selection, so a few changes can use the five starts. A failed or refused
+import also counts, and a success does not reset the count. The count is stored
+in the database, so every instance that shares it applies one limit. When you
+reach it, wait for the time in `Retry-After`.
+
+Each import runs in one transaction. If the client disconnects, or processing
+passes five seconds, the import stops at the next record and rolls back, keeping
+none of the imported records. The deadline is cooperative: a query or a rollback
+that is already running finishes, so a reply can arrive later than five seconds.
+An import keeps its place until the rollback ends.
+
+### Split a large export
+
+Split the file offline, then import the parts one at a time. Wait for
+`Retry-After` when you reach the start limit.
+
+- A Toggl CSV: keep the header row in every part and split the data rows. Each
+  part can hold at most 10,000 rows and 8 MiB.
+- A Tokkl JSON export: keep `format` and the other top-level fields, and split
+  `time_entries` across parts. Repeat in every part the `clients`, `projects`,
+  `tasks` and `tags` that its entries reference. An entry whose project is not in
+  the same file is skipped. Restoring matches catalogs by name, so repeated
+  catalogs create nothing twice.
+
+For limits that your server applies in front of Tokkl, see the
+[nginx import location](hosting/native-vps.md#enable-https)
+and [Check the limits before you open public access](hosting/native-vps.md#check-the-limits-before-you-open-public-access).

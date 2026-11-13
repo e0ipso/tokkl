@@ -405,7 +405,7 @@ the [backup guidance](operations.md#backups-and-restore).
 ## Harden an existing installation
 
 An installation made from an earlier version of this guide has no sandbox, no
-resource limits and a single 50 MiB nginx limit. Change both files, check them,
+resource limits and one request body limit for the whole site. Change both files, check them,
 then apply them:
 
 1. Edit the unit with `sudo systemctl edit --full tokkl.service`. Add the
