@@ -5,7 +5,7 @@ export const MAX_IMPORT_RECORDS = 10_000;
 /** Per upload: JSON values at any depth, or CSV cells including the header's. */
 export const MAX_IMPORT_VALUES = 250_000;
 /** JSON containers, the root included. */
-export const MAX_IMPORT_DEPTH = 32;
+const MAX_IMPORT_DEPTH = 32;
 
 const RECORDS_MESSAGE = `At most ${MAX_IMPORT_RECORDS} records per import`;
 const VALUES_MESSAGE = `At most ${MAX_IMPORT_VALUES} values per import`;

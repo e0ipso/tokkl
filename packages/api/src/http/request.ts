@@ -4,7 +4,7 @@ import { IDEMPOTENCY_KEY_HEADER, idempotencyClaim, type IdempotencyClaim } from 
 import type { JsonBody } from '../lib/values.ts';
 
 /** No header, or `identity` in any case, means the body arrives as sent. */
-export function isIdentityEncoded(req: Request): boolean {
+function isIdentityEncoded(req: Request): boolean {
   const encoding = (req.headers['content-encoding'] ?? '').trim().toLowerCase();
   return encoding === '' || encoding === 'identity';
 }
