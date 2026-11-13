@@ -73,7 +73,7 @@ tokkl_version=$(node -p 'require("./package.json").version')
   cd "$tokkl_runtime"
   npm ci --omit=dev --ignore-scripts --engine-strict --workspace @tokkl/api --no-fund
   npm update body-parser qs --omit=dev --ignore-scripts --engine-strict --workspace @tokkl/api --no-fund
-  npm audit --omit=dev --workspace @tokkl/api --audit-level=high
+  npm audit --omit=dev --workspace @tokkl/api --audit-level=moderate
   find packages -type f \( -name '*.test.ts' -o -name tsconfig.json \) -delete
   node --input-type=module -e 'await import("@tokkl/common/time")'
 )

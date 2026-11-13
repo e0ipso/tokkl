@@ -22,6 +22,8 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci --ignore-scripts
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --workspace @tokkl/api --audit-level=moderate
 
       # The PR's commits, or the pushed ones. After a force push the old tip is
       # gone, so only the last commit is linted.

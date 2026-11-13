@@ -15,6 +15,7 @@ import { formatDuration } from '@tokkl/common/duration';
 import { historyBackend } from './history-options.ts';
 import { Server } from './history-server.ts';
 import { REPORT_BATCH_SIZE } from '../packages/api/src/services/reports.ts';
+import { MAX_IMPORT_RECORDS } from '../packages/api/src/services/importPolicy.ts';
 import { inspectHistory } from './history-inspection.ts';
 import { HistoryFailure, historyFailure, safeHistoryError, withHistoryCleanup } from './history-errors.ts';
 
@@ -132,11 +133,30 @@ interface Expected {
   recentStart: string;
 }
 
+interface HistoryFile {
+  format: string;
+  version: number;
+  clients: unknown[];
+  projects: unknown[];
+  tasks: unknown[];
+  tags: unknown[];
+  time_entries: unknown[];
+}
+
+/** Each repeats the catalogs, which the restore matches by name, so every upload stays within the record limit. */
+function uploads(file: HistoryFile): HistoryFile[] {
+  const size = MAX_IMPORT_RECORDS - file.clients.length - file.projects.length - file.tasks.length - file.tags.length;
+  const parts: HistoryFile[] = [];
+  for (let start = 0; start < file.time_entries.length; start += size)
+    parts.push({ ...file, time_entries: file.time_entries.slice(start, start + size) });
+  return parts;
+}
+
 /**
  * Entries sit in 75-minute slots from 07:00 UTC (at most 9 a day), so they never overlap and stay
  * inside one Europe/Madrid day. Durations are 15 to 70 minutes.
  */
-function generate(spec: FixtureSpec): { file: unknown; expected: Expected } {
+function generate(spec: FixtureSpec): { file: HistoryFile; expected: Expected } {
   const next = random(spec.entries * 31 + spec.days);
   const startDate = addDays(endDate, -(spec.days - 1));
   const projects = Array.from({ length: spec.projects }, (_, i) => ({
@@ -388,18 +408,34 @@ async function runFixture(spec: FixtureSpec) {
         const range = { start_date: expected.startDate, end_date: expected.endDate, rounding: 0 };
         const light = iterations * 3;
 
-        // Import: the generated history goes in through the JSON restore, once.
-        const imported = await client.ok('POST', '/api/app/import/json', JSON.stringify(file), true);
+        // Import: the generated history goes in through the JSON restore, once, in uploads the server accepts.
+        const bodies = uploads(file).map(part => JSON.stringify(part));
+        const imported: Array<{ ms: number; data: any }> = [];
+        for (const body of bodies) imported.push(await client.ok('POST', '/api/app/import/json', body, true));
+        const importMs = imported.reduce((sum, part) => sum + part.ms, 0);
         results.push({
           name: 'import JSON restore (whole history, once)',
-          ms: stats([imported.ms]),
-          samples_ms: [imported.ms],
-          bytes: Buffer.byteLength(JSON.stringify(file)),
-          note: 'bytes = request size',
+          ms: stats([importMs]),
+          samples_ms: [importMs],
+          bytes: bodies.reduce((sum, body) => sum + Buffer.byteLength(body), 0),
+          note: `bytes = request size; ${bodies.length} uploads of at most ${MAX_IMPORT_RECORDS} records`,
         });
-        equal(imported.data.time_entries, expected.entries, `${spec.name}: imported entries`);
-        equal(imported.data.projects, spec.projects, `${spec.name}: imported projects`);
-        equal(imported.data.errors.length, 0, `${spec.name}: import errors`);
+        const total = (count: (data: any) => number) => imported.reduce((sum, part) => sum + count(part.data), 0);
+        equal(
+          total(data => data.time_entries),
+          expected.entries,
+          `${spec.name}: imported entries`,
+        );
+        equal(
+          total(data => data.projects),
+          spec.projects,
+          `${spec.name}: imported projects`,
+        );
+        equal(
+          total(data => data.errors.length),
+          0,
+          `${spec.name}: import errors`,
+        );
 
         // Lists the app and Toggl clients use.
         await measure(results, 'list entries, last 9 days (timer page)', light, async () => {

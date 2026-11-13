@@ -28,6 +28,7 @@ import {
   type ImportRunner,
 } from './importGuards.ts';
 import { importTogglCsv, readTogglCsv } from './importCsv.ts';
+import { checkJsonImport } from './importPolicy.ts';
 interface JsonImportResult {
   dry_run: boolean;
   clients: number;
@@ -39,6 +40,8 @@ interface JsonImportResult {
   errors: Array<{ entity: string; id: unknown; message: string }>;
 }
 type Item = Record<string, unknown>;
+/** Each holds records, which count toward the import's record limit. */
+const RECORD_FIELDS = ['clients', 'projects', 'tasks', 'tags', 'time_entries'] as const;
 /** Once `signal` aborts, the import stops and rolls back. */
 export interface ImportOptions {
   dryRun: boolean;
@@ -280,9 +283,10 @@ export function createImportOperations<R extends EntryRepositories>(
   publish: TimerPublication,
 ) {
   return {
-    /** The format is checked before the transaction opens. */
+    /** The format and the import limits are checked before the transaction opens. */
     async importJsonExport(data: unknown, options: ImportOptions) {
       const file = exportFile(data);
+      checkJsonImport(file, RECORD_FIELDS);
       checkCancelled(options.signal);
       return runner.transaction(ctx => importJsonExport(ctx, userId, file, options, publish), {
         dryRun: options.dryRun,

@@ -17,6 +17,7 @@ const STATUS: Readonly<Record<FailureKind, number>> = {
   forbidden: 403,
   'not-found': 404,
   conflict: 409,
+  'unsupported-media': 415,
   unprocessable: 422,
   'rate-limited': 429,
   unavailable: 503,

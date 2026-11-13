@@ -1,10 +1,25 @@
 import express, { type Request, type RequestHandler } from 'express';
-import { invalidInput } from '../lib/errors.ts';
+import { invalidInput, unsupportedMedia } from '../lib/errors.ts';
 import { IDEMPOTENCY_KEY_HEADER, idempotencyClaim, type IdempotencyClaim } from '../lib/idempotency.ts';
 import type { JsonBody } from '../lib/values.ts';
 
-/** Toggl clients may omit `Content-Type: application/json`, and imports send raw CSV or JSON. Over `limit`: 413. */
-export const textBody = (limit: string | number): RequestHandler => express.text({ type: () => true, limit });
+/** No header, or `identity` in any case, means the body arrives as sent. */
+export function isIdentityEncoded(req: Request): boolean {
+  const encoding = (req.headers['content-encoding'] ?? '').trim().toLowerCase();
+  return encoding === '' || encoding === 'identity';
+}
+
+/**
+ * Toggl clients may omit `Content-Type: application/json`, and imports send raw CSV or JSON. Over `limit`: 413.
+ * Compressed bodies get a 415 before any byte is read, so no decompression stream ever exists.
+ */
+export function textBody(limit: string | number): RequestHandler {
+  const parse = express.text({ type: () => true, limit, inflate: false });
+  return (req, res, next) => {
+    if (!isIdentityEncoded(req)) return next(unsupportedMedia('Unsupported content encoding'));
+    parse(req, res, next);
+  };
+}
 
 function parseBody(req: Request): unknown {
   const text = typeof req.body === 'string' ? req.body : '';

@@ -14,6 +14,7 @@ import { noTimeSpan } from '../domain/entrySpans.ts';
 import type { User } from '../domain/model.ts';
 import type { TimerPublication } from '../domain/timerSettlement.ts';
 import { MAX_IMPORT_ERRORS, cancelBeforeCommit, checkCancelled, importError, protectImport } from './importGuards.ts';
+import { MAX_IMPORT_RECORDS, MAX_IMPORT_VALUES, importLimit } from './importPolicy.ts';
 const HEADER_ALIASES: Record<string, string[]> = {
   user: ['user'],
   email: ['email'],
@@ -30,15 +31,21 @@ const HEADER_ALIASES: Record<string, string[]> = {
   tags: ['tags'],
 };
 
-const MAX_ROWS = 100_000;
 /** Far beyond a Toggl export, which has about twenty columns. */
 const MAX_COLUMNS = 1000;
 const MAX_VALUE_LENGTH = 1_000_000;
-const LIMITS: CsvLimits = { maxRows: MAX_ROWS + 1, maxFieldsPerRow: MAX_COLUMNS, maxFieldLength: MAX_VALUE_LENGTH };
+/** The header is one of the rows. */
+const LIMITS: CsvLimits = {
+  maxRows: MAX_IMPORT_RECORDS + 1,
+  maxFieldsPerRow: MAX_COLUMNS,
+  maxFieldLength: MAX_VALUE_LENGTH,
+  maxCells: MAX_IMPORT_VALUES,
+};
 const LIMIT_MESSAGES: Readonly<Record<keyof CsvLimits, string>> = {
-  maxRows: `At most ${MAX_ROWS} rows per import`,
+  maxRows: `At most ${MAX_IMPORT_RECORDS} rows per import`,
   maxFieldsPerRow: `At most ${MAX_COLUMNS} columns per row`,
   maxFieldLength: `A value is longer than ${MAX_VALUE_LENGTH} characters`,
+  maxCells: `At most ${MAX_IMPORT_VALUES} cells per import`,
 };
 /** A failed row clears the cache. */
 const NAME_CACHE = 256;
@@ -138,7 +145,7 @@ async function parseLimited(text: string): Promise<string[][]> {
   try {
     return await parseCsv(text, LIMITS);
   } catch (error) {
-    if (error instanceof CsvLimitError) throw invalidInput(LIMIT_MESSAGES[error.limit]);
+    if (error instanceof CsvLimitError) throw importLimit(LIMIT_MESSAGES[error.limit]);
     throw error;
   }
 }

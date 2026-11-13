@@ -14,6 +14,7 @@ import {
   StateConflict,
   tooManyAttempts,
   unavailable,
+  unsupportedMedia,
 } from '../src/lib/errors.ts';
 
 test('each application failure kind answers its status, message and retry delay', () => {
@@ -26,6 +27,7 @@ test('each application failure kind answers its status, message and retry delay'
     headers: {},
     body: { revision: 3 },
   });
+  assert.deepEqual(errorReply(unsupportedMedia('Compressed')), { status: 415, headers: {}, body: 'Compressed' });
   assert.deepEqual(errorReply(tooManyAttempts('Slow down', 17)), {
     status: 429,
     headers: { 'Retry-After': '17' },

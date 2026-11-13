@@ -6,6 +6,8 @@ export interface CsvLimits {
   maxRows: number;
   maxFieldsPerRow: number;
   maxFieldLength: number;
+  /** Every cell read, blank rows' included. */
+  maxCells: number;
 }
 
 export class CsvLimitError extends Error {
@@ -17,18 +19,24 @@ export class CsvLimitError extends Error {
   }
 }
 
-const UNLIMITED: CsvLimits = { maxRows: Infinity, maxFieldsPerRow: Infinity, maxFieldLength: Infinity };
+const UNLIMITED: CsvLimits = {
+  maxRows: Infinity,
+  maxFieldsPerRow: Infinity,
+  maxFieldLength: Infinity,
+  maxCells: Infinity,
+};
 const BATCH_CHARACTERS = 1 << 16;
 const SPECIAL = /[",\r\n]/g;
 
 /** Drops blank rows and a BOM; quotes open only at a value's start. Yields as it reads; throws `CsvLimitError`. */
 export async function parseCsv(text: string, limits: Partial<CsvLimits> = {}): Promise<string[][]> {
-  const { maxRows, maxFieldsPerRow, maxFieldLength } = { ...UNLIMITED, ...limits };
+  const { maxRows, maxFieldsPerRow, maxFieldLength, maxCells } = { ...UNLIMITED, ...limits };
   const input = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
   const rows: string[][] = [];
   let row: string[] = [];
   let field = '';
   let quoted = false;
+  let cells = 0;
   let nextYield = BATCH_CHARACTERS;
 
   const append = (part: string) => {
@@ -37,6 +45,8 @@ export async function parseCsv(text: string, limits: Partial<CsvLimits> = {}): P
   };
   const endField = () => {
     if (row.length >= maxFieldsPerRow) throw new CsvLimitError('maxFieldsPerRow');
+    if (cells >= maxCells) throw new CsvLimitError('maxCells');
+    cells++;
     row.push(field);
     field = '';
   };
