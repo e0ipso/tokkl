@@ -57,7 +57,9 @@ export function App() {
   // Reachable signed in or not: the person resetting has usually lost access to the account.
   if (isReset) return <ResetPasswordPage key={reset.token} token={reset.token} />;
   if (isSignup) return <SignupPage />;
-  if (status.isLoading || (me.isLoading && !status.data?.setup_required)) {
+  // isPending, not isLoading: a retry pauses while the tab is hidden or offline, and a paused query has no data.
+  // The signed-in app below needs /me, so it must wait for it.
+  if (status.isPending || (me.isPending && !status.data?.setup_required)) {
     return (
       <Splash>
         <Loading />

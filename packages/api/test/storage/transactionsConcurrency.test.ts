@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
-import { sql, type Kysely } from 'kysely';
+import { sql, type Kysely, type QueryId } from 'kysely';
 import { initializeDatabase } from '../../src/storage/migrations.ts';
 import { openConnection } from '../../src/storage/connections.ts';
 import type { PhysicalDatabase } from '../../src/storage/physical.ts';
@@ -385,15 +385,20 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         });
       await t.test('ambiguous commit acknowledgement never retries or publishes', async () => {
         let attempts = 0,
-          published = 0;
+          published = 0,
+          armed = false;
+        // Match COMMIT by its statement, not by its result: drivers differ in what they return for it.
+        const commits = new WeakSet<QueryId>();
         const uncertain = {
           ...c,
           db: c.db.withPlugin({
             transformQuery(args) {
+              if (args.node.kind === 'RawNode' && args.node.sqlFragments.join('') === 'COMMIT')
+                commits.add(args.queryId);
               return args.node;
             },
             async transformResult(args) {
-              if (attempts && (args.result as { rows: unknown[] }).rows.length === 0 && armed) {
+              if (armed && commits.has(args.queryId)) {
                 armed = false;
                 throw Object.assign(new Error('lost commit response'), { code: '40001', errno: 1213 });
               }
@@ -401,7 +406,6 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
             },
           }),
         };
-        let armed = false;
         await assert.rejects(
           createTransactionRunner(uncertain, factory).transaction(async ctx => {
             attempts++;
