@@ -242,10 +242,12 @@ test('a place comes back after a parser failure, a client disconnect and an uplo
 
     // Bytes that keep coming do not extend the deadline; it counts from admission.
     const stalled = chunked(path, '"');
+    // A reset after the complete 408 is expected; events.once would reject it instead of waiting for close.
+    const closed = new Promise<void>(resolve => stalled.req.once('close', () => resolve()));
     const trickle = setInterval(() => stalled.req.write('x'), 50);
     const timedOut = await stalled.response.finally(() => clearInterval(trickle));
     assert.deepEqual([timedOut.status, timedOut.body], [408, 'The upload took too long'], path);
-    if (!stalled.req.destroyed) await once(stalled.req, 'close');
+    await closed;
     await placeIsFree(path);
   }
 });
