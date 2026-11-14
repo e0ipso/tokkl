@@ -1,3 +1,13 @@
+## [2.6.0](https://github.com/e0ipso/tokkl/compare/v2.5.1...v2.6.0) (2026-11-14)
+
+### Features
+
+* give settings and admin sections pages ([#90](https://github.com/e0ipso/tokkl/issues/90)) ([1e8b627](https://github.com/e0ipso/tokkl/commit/1e8b627feefaa49784a57037b3c79abf8a9e08ab)), closes [#89](https://github.com/e0ipso/tokkl/issues/89)
+
+### Bug Fixes
+
+* repair the failing CI checks ([#91](https://github.com/e0ipso/tokkl/issues/91)) ([bf37842](https://github.com/e0ipso/tokkl/commit/bf3784292d5d094e2850c8414ea6ca104d31368f))
+
 ## [2.5.1](https://github.com/e0ipso/tokkl/compare/v2.5.0...v2.5.1) (2026-11-13)
 
 ## [2.5.0](https://github.com/e0ipso/tokkl/compare/v2.4.0...v2.5.0) (2026-11-12)
