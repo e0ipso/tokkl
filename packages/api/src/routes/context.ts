@@ -16,6 +16,8 @@ export interface Deps extends ApplicationServices {
   loginLimiter: FailureLimiter;
   signupAddressLimiter: FailureLimiter;
   signupEmailLimiter: FailureLimiter;
+  /** Charged once per import start by account; every start counts, whatever its outcome. */
+  importLimiter: FailureLimiter;
   auth: AuthMiddleware;
   sessions: SessionHandlers;
   signup: RequestHandler;
@@ -25,6 +27,8 @@ declare module 'express-serve-static-core' {
   interface Locals {
     /** Aborted when the client goes away or the server shuts down. */
     workSignal: AbortSignal;
+    /** `performance.now()` when an import's whole file arrived; later import limits count from it. */
+    importBodyReceivedAt?: number;
   }
 }
 

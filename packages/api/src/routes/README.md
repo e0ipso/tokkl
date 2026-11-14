@@ -8,3 +8,9 @@ calls in `services/application.ts` do that. Each of those operations acts for th
 it was built for, so a route never passes `res.locals.auth.user.id` to it again. `context.ts` holds `Deps`, which `app.ts` builds once.
 Each router takes `Pick<Deps, …>` of the parts it uses, so none of them sees storage or the
 configuration.
+
+`imports.ts` mounts ahead of the 1 MB body reader. For each import it authenticates, refuses an encoded (415)
+or oversized (413) body, charges the account's import start limit (429), and takes an import place (503) before
+it reads the body. The 8 MiB upload has 60 seconds from admission (408), and the import has five seconds from
+the last byte. A disconnect or the deadline (503) rolls the import back whole. The deadline is cooperative: a
+running query or rollback can outlast it.

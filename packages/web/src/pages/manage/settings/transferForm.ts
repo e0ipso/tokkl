@@ -23,6 +23,11 @@ export function toggledUsers(
   return users.map(user => user.key).filter(candidate => (candidate === key ? checked : selected.includes(candidate)));
 }
 
+/** Both come from `toggledUsers`, so they share the file's order. */
+export function sameUsers(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((key, index) => key === b[index]);
+}
+
 /** The server echoes any JSON value; non-strings show as JSON, since `String` throws on `{"toString": 1}`. */
 export function restoreErrorId(id: unknown): string {
   return typeof id === 'string' ? id : (JSON.stringify(id) ?? '');

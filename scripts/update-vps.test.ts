@@ -165,6 +165,7 @@ describe('native VPS updater', { skip: process.platform !== 'linux' }, () => {
       assert.equal(events.includes('/releases/latest'), args.length === 0 || args[0] === 'latest');
       assert.ok(events.indexOf('npm run build') < events.indexOf('systemctl stop'));
       assert.ok(events.includes('npm update body-parser qs'));
+      assert.match(events, /npm audit .*--audit-level=moderate$/m);
       box.preserved();
     });
   }

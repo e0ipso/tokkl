@@ -64,6 +64,31 @@ test('production smoke refuses operator targets before creating a container', ()
   assert.doesNotMatch(result.stdout, /namespace-created|docker-command/);
 });
 
+test('the containers job runs the restricted smoke run after the plain one', () => {
+  const steps = job('containers').match(/run: npm run test:container -- .*/g) ?? [];
+  assert.deepEqual(steps, [
+    'run: npm run test:container -- --image tokkl:ci',
+    'run: npm run test:container -- --image tokkl:ci --backend sqlite --hardened',
+  ]);
+});
+
+test('production smoke accepts --hardened with a backend and refuses it anywhere else', () => {
+  const run = (args: string[]) =>
+    spawnSync(process.execPath, ['scripts/production-image-smoke.ts', '--image', 'never-start', ...args], {
+      env: { ...process.env, TOKKL_DATABASE_URL: 'postgres://operator:private@127.0.0.1/production' },
+      encoding: 'utf8',
+      timeout: 5000,
+    });
+  for (const args of [['--hardened'], ['--backend', 'sqlite', '--hardened'], ['--hardened', '--backend', 'sqlite']])
+    assert.match(run(args).stderr, /Operator database targets are forbidden/, args.join(' '));
+  for (const args of [
+    ['--hardened', '--hardened'],
+    ['--hardened', '--backend'],
+    ['--backend', 'sqlite', '--privileged'],
+  ])
+    assert.match(run(args).stderr, /Usage: npm run test:container/, args.join(' '));
+});
+
 test('root backend entrypoint forwards CI suite arguments to the API runner', () => {
   const result = spawnSync('npm', ['run', 'test:backends', '--', '--suite', 'invalid'], {
     env: { ...process.env, TOKKL_DATABASE_URL: 'postgres://operator:private@127.0.0.1/production' },

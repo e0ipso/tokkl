@@ -15,6 +15,9 @@ installation:
 4. [Create the administrator](#4-create-the-administrator).
 5. [Check the installation and clean up](#5-check-the-installation-and-clean-up).
 
+To add the sandbox, resource limits and import limits to a service and site that
+already exist, see [Harden an existing installation](#harden-an-existing-installation).
+
 ## Before you start
 
 Use a regular account with sudo access. Install Node 24 or newer and npm before
@@ -73,7 +76,7 @@ tokkl_version=$(node -p 'require("./package.json").version')
   cd "$tokkl_runtime"
   npm ci --omit=dev --ignore-scripts --engine-strict --workspace @tokkl/api --no-fund
   npm update body-parser qs --omit=dev --ignore-scripts --engine-strict --workspace @tokkl/api --no-fund
-  npm audit --omit=dev --workspace @tokkl/api --audit-level=high
+  npm audit --omit=dev --workspace @tokkl/api --audit-level=moderate
   find packages -type f \( -name '*.test.ts' -o -name tsconfig.json \) -delete
   node --input-type=module -e 'await import("@tokkl/common/time")'
 )
@@ -152,6 +155,19 @@ RestartSec=5s
 TimeoutStopSec=30s
 UMask=0077
 NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+CapabilityBoundingSet=
+ReadWritePaths=/var/lib/tokkl
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+MemoryHigh=384M
+MemoryMax=512M
+CPUQuota=50%
+TasksMax=64
 
 [Install]
 WantedBy=multi-user.target
@@ -169,6 +185,28 @@ curl --fail --silent --show-error http://127.0.0.1:8080/healthz
 
 If it fails, inspect `sudo journalctl -u tokkl.service -n 50 --no-pager` before
 continuing.
+
+The sandbox makes the whole file system read-only for the service, except
+`/var/lib/tokkl`, and hides `/home`, `/root` and the other users' temporary
+files. The service has no Linux capabilities and cannot gain any. Releases stay
+root-owned, so a compromised process cannot change the code it runs. The unit
+sets no `SystemCallFilter` and no `MemoryDenyWriteExecute`: Node needs
+executable memory for its JIT compiler.
+
+The limits suit a small VPS and you can change them to fit your host:
+
+| Setting | Effect |
+| --- | --- |
+| `MemoryHigh=384M` | The kernel slows the service down above this size. |
+| `MemoryMax=512M` | The kernel stops the service above this size. systemd restarts it. |
+| `CPUQuota=50%` | The service gets at most half of one CPU core. |
+| `TasksMax=64` | The service can run at most 64 threads and processes. |
+
+Report and download workers run as threads inside the service. They use the same
+limits, so a large report can use up to the memory and thread budget. Raise
+`MemoryHigh`, `MemoryMax` and `TasksMax` together if reports of large accounts
+fail, and keep `MemoryHigh` below `MemoryMax`. The environment file stays in
+`/etc/tokkl`, outside the writable path, with mode 600 and root as owner.
 
 ## 3. Configure DNS and HTTPS
 
@@ -237,8 +275,17 @@ sudo certbot certonly --webroot --webroot-path /var/www/letsencrypt \
 ### Enable HTTPS
 
 After issuance succeeds, replace the site's HTTP `location /` block with
-`location / { return 308 https://$host$request_uri; }`, then append this HTTPS
-server block:
+`location / { return 308 https://$host$request_uri; }`. Then add these two lines
+at the very top of the site file, before the first `server` block:
+
+```nginx
+limit_req_zone $binary_remote_addr zone=tokkl_import:10m rate=2r/m;
+limit_conn_zone $binary_remote_addr zone=tokkl_import_conn:10m;
+```
+
+Files in `sites-enabled` load inside nginx's `http` context, which is where these
+directives must be. If another site already uses the zone names, pick other
+names. Then append this HTTPS server block:
 
 ```nginx
 server {
@@ -249,7 +296,28 @@ server {
     ssl_certificate /etc/letsencrypt/live/tokkl.example.com/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/tokkl.example.com/privkey.pem;
     ssl_protocols TLSv1.2 TLSv1.3;
-    client_max_body_size 50m;
+    client_max_body_size 1m;
+
+    # Import uploads: 8 MiB, rate limited, two at a time per client address.
+    location ~* ^/api/app/import/(json|toggl-csv)/?$ {
+        client_max_body_size 8m;
+        client_body_timeout 60s;
+        limit_req zone=tokkl_import burst=2 nodelay;
+        limit_req_status 429;
+        limit_conn tokkl_import_conn 2;
+        limit_conn_status 429;
+
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Connection "";
+        proxy_buffering off;
+        proxy_request_buffering off;
+        proxy_read_timeout 120s;
+    }
 
     location / {
         proxy_pass http://127.0.0.1:8080;
@@ -269,6 +337,28 @@ server {
 Keep the HTTP ACME challenge location so renewals can use it. Forwarded headers
 come from nginx, and Tokkl trusts only this loopback proxy. Disabling response
 buffering lets timer updates and report downloads stream to clients.
+
+The import location handles `POST /api/app/import/json` and
+`POST /api/app/import/toggl-csv`. Only these two paths get the import settings.
+The timer event stream (`/api/app/timer/events`) and the static files use
+`location /`, so they keep the one-hour read timeout and have no request or
+connection limit.
+
+- **Size.** Imports can be up to 8 MiB. The rest of the site accepts 1 MiB, the
+  same as Tokkl's other request bodies. nginx answers `413` for a larger body.
+- **Time.** `client_body_timeout` ends an upload that stalls for 60 seconds
+  between two reads. It does not cap the total upload time. Tokkl itself refuses
+  an upload that is still running 60 seconds after it started.
+- **Rate.** `rate=2r/m` allows two starts a minute and refills one every 30
+  seconds. With `burst=2` a client address can make three quick starts; nginx
+  answers `429` to a fourth until a slot refills.
+- **Active uploads.** `limit_conn` allows two import requests at a time per client
+  address. A third gets `429`.
+- **Shared addresses.** Users behind one address, such as an office network, share
+  these limits and can see `429`. Account limits in Tokkl are separate.
+- **Repeated directives.** nginx does not merge `proxy_set_header`, buffering or
+  timeout directives into a location that sets its own. Keep every one of them in
+  both locations, and copy any change you make to one into the other.
 
 ```bash
 sudo nginx -t && sudo systemctl reload nginx
@@ -311,3 +401,79 @@ rm -rf -- "$tokkl_runtime"
 Keep the repository checkout if you want to update the installed updater later.
 The updater does not create database backups; configure those separately using
 the [backup guidance](operations.md#backups-and-restore).
+
+## Harden an existing installation
+
+An installation made from an earlier version of this guide has no sandbox, no
+resource limits and one request body limit for the whole site. Change both files, check them,
+then apply them:
+
+1. Edit the unit with `sudo systemctl edit --full tokkl.service`. Add the
+   sandbox and resource lines from [step 2](#2-install-and-configure-the-service)
+   to the `[Service]` section. Keep your `ExecStart` path.
+2. Edit `/etc/nginx/sites-available/tokkl`. Add the two zone lines at the top,
+   set the server-level `client_max_body_size` to `1m`, and add the import
+   location from [Enable HTTPS](#enable-https) above `location /`.
+3. Check both files before you apply them:
+
+   ```bash
+   sudo systemd-analyze verify /etc/systemd/system/tokkl.service
+   sudo nginx -t
+   ```
+
+4. Apply them. The service restarts for a moment:
+
+   ```bash
+   sudo systemctl daemon-reload
+   sudo systemctl restart tokkl.service
+   sudo systemctl reload nginx
+   ```
+
+`tokkl-update` replaces releases only. It does not change the unit or the nginx
+site.
+
+## Check the limits before you open public access
+
+Run these checks on the server after each change to the unit or the site.
+
+1. The service runs and has its limits:
+
+   ```bash
+   curl --fail --silent --show-error http://127.0.0.1:8080/healthz
+   systemctl show tokkl.service -p MemoryHigh -p MemoryMax -p CPUQuotaPerSecUSec -p TasksMax
+   ```
+
+   The first command returns `{"ok":true}`. The second shows `MemoryHigh` and
+   `MemoryMax` as byte counts (402653184 and 536870912), `CPUQuotaPerSecUSec=500ms`
+   and `TasksMax=64`.
+2. The service writes only to its data directory. After a timer or an import,
+   `sudo ls -l /var/lib/tokkl` lists `tokkl.sqlite` with its `-wal` and `-shm`
+   files, owned by `tokkl`. Then run a CSV report, restart the service, and sign
+   in again.
+3. An import over 8 MiB gets `413` from nginx. Wait 60 seconds first if you ran
+   another import check:
+
+   ```bash
+   head -c 9437184 /dev/zero > "$HOME/big.bin"
+   curl -s -o /dev/null -w '%{http_code}\n' -X POST \
+     --data-binary @"$HOME/big.bin" https://tokkl.example.com/api/app/import/json
+   rm -f -- "$HOME/big.bin"
+   ```
+4. Four quick import starts get three answers from Tokkl and then `429`. The
+   first three return `403` from Tokkl, because the requests are not signed in:
+
+   ```bash
+   for i in 1 2 3 4; do
+     curl -s -o /dev/null -w '%{http_code}\n' -X POST \
+       https://tokkl.example.com/api/app/import/json
+   done
+   ```
+5. Sign in over HTTPS. The session cookie keeps its `Secure` flag, and the timer
+   stays live: leave the app open for several minutes and change a timer from
+   another tab. The change appears without a reload.
+6. If you configured email, follow the steps in
+   [enable public sign-up](configuration.md#enable-public-sign-up) to register a
+   separate account and receive its verification email. If delivery fails, read
+   the service log with `sudo journalctl -u tokkl.service -n 50 --no-pager`.
+
+Do not open public access until all six checks pass.

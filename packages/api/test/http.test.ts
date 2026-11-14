@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import zlib from 'node:zlib';
 import { storageFor } from './fixtures/database.ts';
 import { createApp } from './fixtures/app.ts';
 import { openDatabase } from './fixtures/database.ts';
@@ -15,6 +16,42 @@ test('JSON bodies work without a Content-Type header, as some Toggl clients send
     { 'content-type': '' },
   );
   assert.equal(response.status, 200);
+  const identity = await ctx.request(
+    'POST',
+    `/api/v9/workspaces/${ctx.wid}/time_entries`,
+    { start: '2026-10-01T09:00:00Z', duration: 600 },
+    { 'content-type': '', 'content-encoding': 'Identity' },
+  );
+  assert.equal(identity.status, 200);
+});
+
+test('encoded bodies get a 415 before any decompression stream exists', async t => {
+  const decompressors = [
+    'createGunzip',
+    'createInflate',
+    'createInflateRaw',
+    'createUnzip',
+    'createBrotliDecompress',
+    'createZstdDecompress',
+  ] as const;
+  const created = decompressors.map(name => t.mock.method(zlib, name));
+  const db = await openDatabase();
+  const app = testServer(createApp({ storage: storageFor(db), config: testConfig(db), setup: { code: null } }));
+  const post = (encoding: string, body: Uint8Array | string) =>
+    app.request('/api/v9/does-not-exist', { method: 'POST', headers: { 'content-encoding': encoding }, body });
+  const payload = Buffer.from('{"description":"x"}');
+  // A gzip frame followed by null bytes once made the inflating parser throw outside the request.
+  const crash = await post('gzip', Buffer.concat([zlib.gzipSync(payload), Buffer.alloc(32)]));
+  assert.equal(crash.status, 415);
+  assert.equal(await crash.json(), 'Unsupported content encoding');
+  for (const [encoding, body] of [
+    ['deflate', zlib.deflateSync(payload)],
+    ['br', zlib.brotliCompressSync(payload)],
+    ['x-unknown', 'plain'],
+  ] as const)
+    assert.equal((await post(encoding, body)).status, 415, encoding);
+  for (const mock of created) assert.equal(mock.mock.callCount(), 0);
+  assert.equal((await app.request('/healthz')).status, 200);
 });
 
 test('oversized bodies get a 413 with a Toggl-style string error', async () => {

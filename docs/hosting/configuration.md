@@ -41,6 +41,14 @@ See [reverse proxy requirements](operations.md#behind-a-reverse-proxy) for timer
 streams, buffering and timeouts. The native nginx setup uses
 `TOKKL_TRUST_PROXY=127.0.0.1` and binds Tokkl to loopback.
 
+## Request and import limits
+
+The request body, import size, record, rate and deadline limits are fixed in
+Tokkl and have no environment variables. The values are in
+[import limits](../data.md#import-limits). Memory, CPU and process limits belong
+to the unit or the container; see
+[Diagnose resource limits](operations.md#diagnose-resource-limits).
+
 ## Accounts and sessions
 
 | Variable | Default | Meaning |

@@ -82,6 +82,12 @@ test('the parser refuses a file at the first row, value or column past its limit
   assert.deepEqual(await parseCsv('"ab""c",d\n', { maxFieldLength: 4 }), [['ab"c', 'd']]);
   await assert.rejects(parseCsv('abcde\n', { maxFieldLength: 4 }), limited('maxFieldLength'));
   await assert.rejects(parseCsv('"ab""cd"\n', { maxFieldLength: 4 }), limited('maxFieldLength'));
+  // Cells of blank rows count, since they were read.
+  assert.deepEqual(await parseCsv('a,b\nc,d\n', { maxCells: 4 }), [
+    ['a', 'b'],
+    ['c', 'd'],
+  ]);
+  await assert.rejects(parseCsv('a,b\n,\nc,d\n', { maxCells: 4 }), limited('maxCells'));
 });
 
 test('the parser gives the event loop a turn while it reads a large file', async () => {
@@ -94,4 +100,10 @@ test('the parser gives the event loop a turn while it reads a large file', async
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(finished, false);
   assert.equal((await parsing).length, 200_000);
+
+  // A signal that aborts while the parser yields stops it at its next turn.
+  const controller = new AbortController();
+  const stopped = parseCsv(text, {}, controller.signal);
+  controller.abort(new Error('stop'));
+  await assert.rejects(stopped, /stop/);
 });

@@ -1,6 +1,15 @@
 /** Each carries a message safe to show the client; `http/errors.ts` alone maps a kind to a status. */
 export type FailureKind =
-  'invalid' | 'forbidden' | 'not-found' | 'conflict' | 'unprocessable' | 'rate-limited' | 'unavailable';
+  | 'invalid'
+  | 'forbidden'
+  | 'not-found'
+  | 'timed-out'
+  | 'conflict'
+  | 'too-large'
+  | 'unsupported-media'
+  | 'unprocessable'
+  | 'rate-limited'
+  | 'unavailable';
 
 /** Codes and field names are stable; the human message may change wording at any time. */
 type ValidationCode =
@@ -9,7 +18,9 @@ type ValidationCode =
   | 'invalid_preference'
   /** `field` is the setting name. */
   | 'invalid_setting'
-  | 'unknown_setting';
+  | 'unknown_setting'
+  /** An import file passes a record, size or nesting limit. */
+  | 'import_limit';
 export interface ValidationDetail {
   code: ValidationCode;
   /** Always a name the server defines, never client text. */
@@ -56,6 +67,12 @@ export const invalidInput = (message: string, validation: ValidationDetail = { c
 export const forbidden = (message = 'Forbidden') => new ApplicationError('forbidden', message);
 export const notFound = (message = 'Not found') => new ApplicationError('not-found', message);
 export const conflict = (message: string) => new ApplicationError('conflict', message);
+/** The client took too long to send its request. */
+export const requestTimeout = (message: string) => new ApplicationError('timed-out', message);
+/** Refused by its declared size, before any byte is read. */
+export const tooLarge = (message: string) => new ApplicationError('too-large', message);
+/** The body comes in a form the server refuses to read, such as a compressed encoding. */
+export const unsupportedMedia = (message: string) => new ApplicationError('unsupported-media', message);
 /** Well formed, but contradicts a request the server already handled. */
 export const unprocessable = (message: string) => new ApplicationError('unprocessable', message);
 export const tooManyAttempts = (message: string, retryAfterSeconds: number) =>
