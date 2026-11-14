@@ -1,3 +1,9 @@
+## [2.6.1](https://github.com/e0ipso/tokkl/compare/v2.6.0...v2.6.1) (2026-11-14)
+
+### Bug Fixes
+
+* harden imports and public deployments ([#92](https://github.com/e0ipso/tokkl/issues/92)) ([f026968](https://github.com/e0ipso/tokkl/commit/f026968b2c24cdb5dc1da556feecedff376da80f))
+
 ## [2.6.0](https://github.com/e0ipso/tokkl/compare/v2.5.1...v2.6.0) (2026-11-14)
 
 ### Features
