@@ -124,6 +124,32 @@ export function metadataOf(entry: Metadata): Metadata {
   return { description, project_id, task_id, tags: [...entry.tags].sort(), billable };
 }
 
+/** "Suggest me" with every field set; billable on a non-billable project, so a pick changes each field. */
+export const SUGGESTION = {
+  description: 'Suggest me',
+  project: 'Client work',
+  task: 'Planning',
+  /** What ProjectLabel shows for the project and task. */
+  label: 'Client work: Planning',
+  tag: 'deep-work',
+} as const;
+
+/** Seeds the SUGGESTION entry on `day` (09:00-10:00 UTC) and returns the fields a pick should copy. */
+export async function seedSuggestion(api: TimerApi, day: string): Promise<Metadata> {
+  const project_id = await api.createProject(SUGGESTION.project);
+  const task_id = await api.createTask(project_id, SUGGESTION.task);
+  const source = await api.createEntry({
+    description: SUGGESTION.description,
+    project_id,
+    task_id,
+    tags: [SUGGESTION.tag],
+    billable: true,
+    start: `${day}T09:00:00Z`,
+    stop: `${day}T10:00:00Z`,
+  });
+  return metadataOf(source);
+}
+
 export async function nextRunning(api: TimerApi, previousId: number | null): Promise<EntryView> {
   let running: EntryView | null = null;
   await expect
