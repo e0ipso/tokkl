@@ -64,7 +64,7 @@ for (const scheme of ['light', 'dark'] as const) {
         stop: new Date(now - 2 * 3_600_000).toISOString(),
       });
       await login(page);
-      const button = page.locator('.entry-line').first().getByRole('button', { name: 'Project' });
+      const button = page.locator('.entry-line').first().getByRole('button', { name: 'Project', exact: true });
       const label = button.locator('.add-project');
       await expect(label).toHaveCSS('opacity', '0');
       await tabTo(page, button);
