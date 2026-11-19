@@ -48,12 +48,15 @@ export function EntryList({
   onContinue,
   onStartTimer,
   onManualMode,
+  recentEntries,
 }: {
   entries: TimeEntry[];
   onContinue: (entry: TimeEntry) => void;
   /** Manual mode is left out when it is already on. */
   onStartTimer: () => void;
   onManualMode?: () => void;
+  /** Newest first; the rows suggest descriptions from these. */
+  recentEntries: TimeEntry[];
 }) {
   const settings = useSettings();
   // Checked entries can go away (deleted elsewhere, out of range), so everything below reads `selected`.
@@ -107,6 +110,7 @@ export function EntryList({
                   overlaps={overlaps}
                   onToggle={toggle}
                   onContinue={onContinue}
+                  recentEntries={recentEntries}
                 />
               ))}
             </ul>
@@ -123,12 +127,14 @@ function EntryRow({
   overlaps,
   onToggle,
   onContinue,
+  recentEntries,
 }: {
   row: EntryRowGroup;
   selected: ReadonlySet<number>;
   overlaps: ReadonlySet<number>;
   onToggle: Toggle;
   onContinue: (entry: TimeEntry) => void;
+  recentEntries: TimeEntry[];
 }) {
   const settings = useSettings();
   const [expanded, setExpanded] = useState(false);
@@ -160,6 +166,7 @@ function EntryRow({
           ) : null
         }
         onContinue={() => onContinue(entry)}
+        recentEntries={recentEntries}
       />
       {grouped && expanded ? (
         <ul className="entries nested">
@@ -173,6 +180,7 @@ function EntryRow({
                 overlap={overlaps.has(member.id)}
                 timeRange={rangeLabel([member], format)}
                 onContinue={() => onContinue(member)}
+                recentEntries={recentEntries}
               />
             </li>
           ))}

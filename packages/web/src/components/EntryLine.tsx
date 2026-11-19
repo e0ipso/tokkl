@@ -2,11 +2,12 @@ import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from 'rea
 import { usePreferences, useSavePreferences } from '../api/account.ts';
 import { useCreateEntry, useUpdateEntry } from '../api/entries.ts';
 import { useSettings } from '../api/settings.ts';
-import type { PatchOperation } from '@tokkl/types';
+import type { PatchOperation, TimeEntry } from '@tokkl/types';
 import { duplicateInput } from '../lib/duplicateEntry.ts';
 import { MAX_FAVORITES, entryPatch, withFavorite } from '../lib/entryPatches.ts';
 import type { NonEmpty, StoppedEntry } from '../lib/entryRows.ts';
 import { duration } from '../lib/format.ts';
+import { DescriptionCombobox, type DescriptionComboboxHandle } from './DescriptionCombobox.tsx';
 import { DurationField } from './DurationField.tsx';
 import { EntryEditor } from './EntryEditor.tsx';
 import { Icon } from './Icon.tsx';
@@ -15,7 +16,7 @@ import { ProjectLabel, projectColorStyle } from './ProjectLabel.tsx';
 import { ProjectPicker } from './ProjectPicker.tsx';
 import { TagPicker } from './TagPicker.tsx';
 import { useToast } from './Toast.tsx';
-import { draftOf } from './useEntryFields.ts';
+import { draftOf, suggestedDraft, type Suggestion } from './useEntryFields.ts';
 import { useBulkEdit, useDeleteEntries } from './useEntryListActions.ts';
 import { t } from '../i18n/messages.ts';
 
@@ -29,6 +30,7 @@ export function EntryLine({
   timeRange,
   countBadge,
   onContinue,
+  recentEntries,
 }: {
   entries: NonEmpty<StoppedEntry>;
   selected: boolean;
@@ -38,11 +40,13 @@ export function EntryLine({
   timeRange: string;
   countBadge?: ReactNode;
   onContinue: () => void;
+  /** Newest first; the description suggestions come from these. */
+  recentEntries: TimeEntry[];
 }) {
   const settings = useSettings();
   const [entry] = entries;
   const single = entries.length === 1;
-  const { description, setDescription, input } = useRowDescription(entry.description);
+  const { description, setDescription, combo, pickedRef } = useRowDescription(entry.description);
   const [picker, setPicker] = useState<'project' | 'tags' | 'menu' | null>(null);
   const [editing, setEditing] = useState(false);
   const projectRef = useRef<HTMLButtonElement>(null);
@@ -63,7 +67,17 @@ export function EntryLine({
     );
 
   const commitDescription = () => {
-    if (description !== entry.description) patch(entryPatch.description(description));
+    if (description !== entry.description && description !== pickedRef.current) {
+      patch(entryPatch.description(description));
+    }
+  };
+
+  // One request for every field. `pickedRef` keeps the blur that follows from sending the description again.
+  const pickSuggestion = (suggestion: Suggestion) => {
+    const draft = suggestedDraft(suggestion);
+    setDescription(draft.description);
+    pickedRef.current = draft.description;
+    patch(entryPatch.suggestion(draft));
   };
 
   const duplicate = async () => {
@@ -95,17 +109,17 @@ export function EntryLine({
         onChange={event => onSelect(event.target.checked)}
       />
       {countBadge}
-      <input
-        ref={input}
-        className="entry-description"
+      <DescriptionCombobox
+        ref={combo}
+        className="description-combobox entry-description-cell"
+        inputClassName="entry-description"
         value={description}
+        recentEntries={recentEntries}
         placeholder={t('entries.addDescription')}
-        aria-label={t('entries.description')}
-        onChange={event => setDescription(event.target.value)}
+        onType={setDescription}
+        onPick={pickSuggestion}
         onBlur={commitDescription}
-        onKeyDown={event => {
-          if (event.key === 'Enter') event.currentTarget.blur();
-        }}
+        onEnter={event => event.currentTarget.blur()}
       />
       <button
         ref={projectRef}
@@ -230,7 +244,7 @@ export function EntryLine({
           onDelete={() => void deleteEntries(entries.map(e => e.id))}
         />
       ) : null}
-      {editing ? <EntryEditor entry={entry} onClose={() => setEditing(false)} /> : null}
+      {editing ? <EntryEditor entry={entry} recentEntries={recentEntries} onClose={() => setEditing(false)} /> : null}
     </div>
   );
 }
@@ -238,13 +252,16 @@ export function EntryLine({
 /** Follows the stored description unless the user is typing a change, which a refresh must not throw away. */
 function useRowDescription(stored: string) {
   const [description, setDescription] = useState(stored);
-  const input = useRef<HTMLInputElement>(null);
+  const combo = useRef<DescriptionComboboxHandle>(null);
   const lastStored = useRef(stored);
+  // The description a suggestion pick sent: `stored` stays stale until the refetch after the pick lands.
+  const pickedRef = useRef<string | null>(null);
   const follow = useEffectEvent((next: string) => {
-    const typing = document.activeElement === input.current && description !== lastStored.current;
+    const typing = combo.current?.hasFocus() === true && description !== lastStored.current;
     lastStored.current = next;
+    pickedRef.current = null;
     if (!typing) setDescription(next);
   });
   useEffect(() => follow(stored), [stored]);
-  return { description, setDescription, input };
+  return { description, setDescription, combo, pickedRef };
 }
