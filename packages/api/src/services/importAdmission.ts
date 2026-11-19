@@ -4,15 +4,15 @@ import { unavailable } from '../lib/errors.ts';
 const IMPORT_BUSY_RETRY_SECONDS = 5;
 const DEFAULT_MAX_IMPORTS = 4;
 const DEFAULT_MAX_IMPORTS_PER_USER = 1;
-/** Room for one 50 MB file and a few small ones; two large files never run together. */
-const DEFAULT_MAX_IMPORT_BYTES = 64 * 1024 * 1024;
+/** Room for one upload at the import body limit; files that together pass it never run together. */
+const DEFAULT_MAX_IMPORT_BYTES = 8 * 1024 * 1024;
 
 interface ImportAdmissionOptions {
   /** Default 4. */
   maxImports?: number;
   /** Default 1; at most `maxImports`. */
   maxPerUser?: number;
-  /** Exceeded only when no other import runs, so any file within the body limit imports. Default 64 MiB. */
+  /** The running files' bytes never pass it, even for a file that would run alone. Default 8 MiB. */
   maxBytes?: number;
 }
 
@@ -42,7 +42,7 @@ export function createImportAdmission(options: ImportAdmissionOptions = {}): Imp
   return {
     admit(userId, bytes) {
       if (!Number.isSafeInteger(bytes) || bytes < 0) throw new Error('Invalid import size');
-      if (running >= maxImports || (perUser.get(userId) ?? 0) >= maxPerUser || (running > 0 && held + bytes > maxBytes))
+      if (running >= maxImports || (perUser.get(userId) ?? 0) >= maxPerUser || held + bytes > maxBytes)
         throw unavailable('Too many imports are running', IMPORT_BUSY_RETRY_SECONDS);
       running++;
       held += bytes;

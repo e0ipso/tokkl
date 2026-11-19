@@ -1,7 +1,14 @@
 import type { Page } from '@playwright/test';
 import { expect, test } from './admin-tests-helpers.ts';
 import { login } from './helpers.ts';
-import { dragBy, openCalendar, savedTimes, scrollCalendarTo, todayBlock } from './history-calendar-tests-helpers.ts';
+import {
+  dragBy,
+  entryUpdated,
+  openCalendar,
+  savedTimes,
+  scrollCalendarTo,
+  todayBlock,
+} from './history-calendar-tests-helpers.ts';
 
 // Instance project: the `instance` fixture restores settings. Drags step in multiples of the resolution and
 // drop on its grid, so the server stores what the drag showed.
@@ -38,7 +45,9 @@ for (const { resolution, step, end, next, travel, joined } of RESIZES) {
     await openCalendar(page);
     await scrollCalendarTo(page, 8);
 
+    const saved = entryUpdated(page, before.id);
     await dragBy(page, todayBlock(page, 'Before').locator('.calendar-resize'), travel / 60);
+    await saved;
     await expect.poll(() => savedTimes(page, before.id)).toEqual({ start: at(0), stop: at(next) });
     expect(await savedTimes(page, after.id)).toEqual({ start: at(next), stop: at(next + 60) });
 
@@ -71,14 +80,18 @@ test('at a 12-minute resolution a moved or resized entry with an off-grid start 
 
   // Two 24-minute steps take 09:07 to 09:55, dropping on 10:00; the entry stores as 09:12-09:48 and moves as that.
   const move = sentUpdate(page, moved.id);
+  const moveSaved = entryUpdated(page, moved.id);
   await dragBy(page, todayBlock(page, 'Moved'), 48 / 60);
   expect(await move).toEqual({ start: sent(60), stop: sent(96) });
+  await moveSaved;
   await expect.poll(() => savedTimes(page, moved.id)).toEqual({ start: at(60), stop: at(96) });
 
   // One step takes the 11:50 stop to 12:14, dropping on 12:12; the server moves the 11:07 start to 11:12.
   const resize = sentUpdate(page, resized.id);
+  const resizeSaved = entryUpdated(page, resized.id);
   await dragBy(page, todayBlock(page, 'Resized').locator('.calendar-resize'), 24 / 60);
   expect(await resize).toEqual({ stop: sent(192) });
+  await resizeSaved;
   await expect.poll(() => savedTimes(page, resized.id)).toEqual({ start: at(132), stop: at(192) });
 
   await page.reload();

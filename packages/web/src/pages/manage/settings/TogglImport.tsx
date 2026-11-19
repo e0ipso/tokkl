@@ -8,7 +8,7 @@ import { Icon } from '../../../components/Icon.tsx';
 import { useToast } from '../../../components/Toast.tsx';
 import { useAction } from '../../../components/useAction.ts';
 import { t } from '../../../i18n/messages.ts';
-import { importCounts, toggledUsers } from './transferForm.ts';
+import { importCounts, sameUsers, toggledUsers } from './transferForm.ts';
 
 function ImportSummary({ result }: { result: ImportResult }) {
   const { otherUsers, failed } = importCounts(result);
@@ -83,7 +83,10 @@ function ImportUsers({
   );
 }
 
-/** Every file and user choice is previewed before the import. */
+/**
+ * Every file is previewed before the import. Choosing users changes nothing on the server until the user checks the
+ * selection, because each preview counts toward the account's import limit.
+ */
 export function TogglImport({ timeZone }: { timeZone: string }) {
   const toast = useToast();
   const qc = useQueryClient();
@@ -91,19 +94,22 @@ export function TogglImport({ timeZone }: { timeZone: string }) {
   const [file, setFile] = useState<{ name: string; text: string } | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
+  // The users the shown preview counted; empty for the first preview of a file.
+  const [previewed, setPreviewed] = useState<string[]>([]);
   // Only the newest request may show its result, so a slow preview can't overwrite a newer one.
   const latest = useRef(0);
 
   const runImport = useAction<{ text: string; dryRun: boolean; users: string[]; request: number }, ImportResult>({
     mutationFn: ({ text, dryRun, users }) => transferRequests.importTogglCsv(text, dryRun, users),
     movesTimer: true,
-    onSuccess: (imported, { dryRun, request }) => {
+    onSuccess: (imported, { dryRun, users, request }) => {
       if (!dryRun) {
         void invalidate(qc, stale.imported);
         toast.show(t('settings.imported', { count: imported.created }));
       }
       if (request !== latest.current) return;
       setResult(imported);
+      setPreviewed(users);
       if (!dryRun) {
         // Clear the file so a second click can't import the same rows again.
         setFile(null);
@@ -121,6 +127,7 @@ export function TogglImport({ timeZone }: { timeZone: string }) {
     const chosen = event.target.files?.[0];
     setResult(null);
     setSelected([]);
+    setPreviewed([]);
     if (!chosen) return setFile(null);
     try {
       const text = await chosen.text();
@@ -136,17 +143,17 @@ export function TogglImport({ timeZone }: { timeZone: string }) {
     setFile(null);
     setResult(null);
     setSelected([]);
+    setPreviewed([]);
     if (fileInput.current) fileInput.current.value = '';
   };
 
-  // Each change previews again, so the counts describe the chosen users' rows only.
   const toggleUser = (key: string, checked: boolean) => {
-    if (!file || !result) return;
-    const next = toggledUsers(result.users, selected, key, checked);
-    setSelected(next);
-    send(file.text, true, next);
+    if (!result) return;
+    setSelected(toggledUsers(result.users, selected, key, checked));
   };
   const mustChoose = (result?.users.length ?? 0) > 1;
+  // The shown counts describe other users' rows until the selection is checked again.
+  const unchecked = mustChoose && !sameUsers(selected, previewed);
 
   return (
     <>
@@ -167,17 +174,29 @@ export function TogglImport({ timeZone }: { timeZone: string }) {
         <ImportUsers users={result.users} selected={selected} onToggle={toggleUser} />
       ) : null}
       {result ? <ImportSummary result={result} /> : null}
+      {file && result?.dry_run && unchecked ? <p className="hint">{t('settings.selectionChanged')}</p> : null}
 
       {file && result?.dry_run ? (
         <div className="inline-controls settings-row">
-          <button
-            type="button"
-            className="button button-primary"
-            disabled={runImport.isPending || result.created === 0 || (mustChoose && selected.length === 0)}
-            onClick={() => send(file.text, false, selected)}
-          >
-            <Icon name="upload" size={16} /> {t('settings.importCount', { count: result.created })}
-          </button>
+          {unchecked ? (
+            <button
+              type="button"
+              className="button button-primary"
+              disabled={runImport.isPending || selected.length === 0}
+              onClick={() => send(file.text, true, selected)}
+            >
+              {t('settings.checkSelection')}
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="button button-primary"
+              disabled={runImport.isPending || result.created === 0 || (mustChoose && selected.length === 0)}
+              onClick={() => send(file.text, false, selected)}
+            >
+              <Icon name="upload" size={16} /> {t('settings.importCount', { count: result.created })}
+            </button>
+          )}
           <button type="button" className="button button-ghost" onClick={reset}>
             {t('common.cancel')}
           </button>

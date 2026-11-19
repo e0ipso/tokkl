@@ -236,10 +236,17 @@ test('a Toggl CSV from several users imports only the users picked in the previe
   await expect(summary).toContainText('4 entries to import');
   await expect(page.getByRole('button', { name: 'Import 4 entries' })).toBeDisabled();
 
+  // Choosing users sends nothing; the counts change only when the selection is checked.
+  const checkSelection = page.getByRole('button', { name: 'Check selection' });
   await sam.check();
+  await expect(page.getByText('These counts are for the earlier selection.')).toBeVisible();
+  await expect(summary).toContainText('4 entries to import');
+  await expect(page.getByRole('button', { name: /^Import \d+ entr/ })).toHaveCount(0);
+  await checkSelection.click();
   await expect(summary).toContainText('2 entries to import');
   await expect(summary).toContainText('2 rows from other Toggl users, skipped');
   await aliceByEmail.check();
+  await checkSelection.click();
   await expect(summary).toContainText('3 entries to import');
   await expect(summary).toContainText('1 row from other Toggl users, skipped');
   await expectEmptyAccount(page, data.workspaceId);

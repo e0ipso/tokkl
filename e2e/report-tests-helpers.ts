@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { request, type APIRequestContext, type APIResponse, type Page } from '@playwright/test';
 import { screenshotExport } from '../scripts/screenshots-data.ts';
-import { currentAccount, expect, test as base } from './fixtures.ts';
+import { expect, test as base, type Account } from './fixtures.ts';
 
 // Cookie-authenticated writes must carry this header (packages/api/src/auth/middleware.ts).
 const CSRF = { 'X-Tokkl-CSRF': '1' };
@@ -38,9 +38,8 @@ export class ReportApi {
     this.workspaceId = workspaceId;
   }
 
-  static async open(baseURL: string): Promise<ReportApi> {
+  static async open(baseURL: string, { email, password }: Account): Promise<ReportApi> {
     const api = await request.newContext({ baseURL });
-    const { email, password } = currentAccount();
     await ok(await api.post('/api/app/login', { headers: CSRF, data: { email, password } }));
     const me = (await (await ok(await api.get('/api/v9/me'))).json()) as { default_workspace_id: number };
     return new ReportApi(api, me.default_workspace_id);
@@ -129,8 +128,8 @@ export class ReportApi {
 
 /** `api` puts the report settings back after every scenario. */
 export const test = base.extend<{ api: ReportApi }>({
-  api: async ({ baseURL }, use) => {
-    const api = await ReportApi.open(baseURL!);
+  api: async ({ baseURL, account }, use) => {
+    const api = await ReportApi.open(baseURL!, account);
     const saved = await api.settings();
     try {
       await use(api);

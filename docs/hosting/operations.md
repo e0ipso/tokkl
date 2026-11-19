@@ -8,6 +8,7 @@
 - [Behind a reverse proxy](#behind-a-reverse-proxy)
 - [Running several instances](#running-several-instances)
 - [Troubleshooting a native installation](#troubleshooting-a-native-installation)
+- [Diagnose resource limits](#diagnose-resource-limits)
 
 ## Health checks and shutdown
 
@@ -94,3 +95,41 @@ curl --fail --silent --show-error http://127.0.0.1:8080/healthz
 If local health succeeds but the public URL fails, check `sudo nginx -t`, the
 site's proxy target and your DNS records. For failures during an update, follow
 [updater troubleshooting](vps-updates.md#when-an-update-fails).
+
+## Diagnose resource limits
+
+A process that hits its memory, CPU or task limit slows down, restarts or fails
+to start threads. Check the limits before you raise them. The
+[native VPS guide](native-vps.md#2-install-and-configure-the-service) sets them
+and [Check the limits before you open public access](native-vps.md#check-the-limits-before-you-open-public-access)
+shows the expected values.
+
+On a native installation, read the unit's limits and its live use from the
+cgroup:
+
+```bash
+systemctl show tokkl.service -p MemoryCurrent -p MemoryHigh -p MemoryMax -p TasksCurrent -p TasksMax -p CPUUsageNSec
+cat /sys/fs/cgroup/system.slice/tokkl.service/memory.events
+cat /sys/fs/cgroup/system.slice/tokkl.service/cpu.stat
+cat /sys/fs/cgroup/system.slice/tokkl.service/pids.events
+```
+
+A rising `high` count in `memory.events` means the service ran above
+`MemoryHigh` and the kernel slowed it. A nonzero `oom_kill` means it passed
+`MemoryMax`. A rising `nr_throttled` in `cpu.stat` means the CPU quota held it
+back. A nonzero `max` in `pids.events` means it reached `TasksMax`. Compare the
+times with the journal from `journalctl -u tokkl.service`.
+
+With Docker, `docker stats tokkl` shows memory, CPU and process counts against the
+limits of the [restricted run](README.md#run-with-restrictions).
+`docker inspect tokkl --format '{{.State.OOMKilled}}'` tells you whether the
+kernel stopped the container for memory.
+
+An import that answers 503 with `Retry-After: 60` passed its five-second
+processing deadline. That deadline is cooperative: Tokkl checks it between
+records, so a query or a rollback that is already running finishes first. It is
+not a database query timeout. The database engine applies its own statement and
+lock timeouts, set in the database and not in Tokkl, and a failure from those is
+a storage error, not this 503. If imports often pass the deadline while the
+service sits at its memory or CPU limit, raise the limits or
+[split the file](../data.md#split-a-large-export).

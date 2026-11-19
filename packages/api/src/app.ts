@@ -8,6 +8,8 @@ import type { Deps } from './routes/context.ts';
 import {
   ADDRESS_LIMIT,
   FailureLimiter,
+  IMPORT_START_LIMIT,
+  IMPORT_START_WINDOW_MS,
   PASSWORD_WINDOW_MS,
   SETUP_CODE_LIMIT,
   SIGNUP_ADDRESS_LIMIT,
@@ -68,6 +70,7 @@ export function createHttpApp(
     publicUrl: config.publicUrl,
     loginLimiter,
     ...signupLimiters,
+    importLimiter: new FailureLimiter(rateLimits, 'import', IMPORT_START_LIMIT, IMPORT_START_WINDOW_MS),
     signup: createSignupHandler(storage, services.signupInvites, {
       ...signupLimiters,
       sessionDays: config.sessionDays,

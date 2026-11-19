@@ -29,6 +29,8 @@ COPY packages/common/package.json packages/common/
 COPY packages/types/package.json packages/types/
 RUN --mount=type=cache,target=/root/.npm \
     npm ci --omit=dev --ignore-scripts --workspace @tokkl/api
+# Fail the build on a known production advisory. It runs here, on the build host, and not at container start.
+RUN npm audit --omit=dev --workspace @tokkl/api --audit-level=moderate
 COPY packages/api/src packages/api/src
 COPY packages/common packages/common
 COPY packages/types packages/types

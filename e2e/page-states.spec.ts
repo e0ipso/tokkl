@@ -2,6 +2,7 @@ import type { Locator, Page } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
 import { EntityApi } from './entity-tests-helpers.ts';
+import { setHidden, stubNotifications } from './notification-tests-helpers.ts';
 import { ACCOUNT_TIME_ZONE, accountTime, recentDate } from './transfer-tests-helpers.ts';
 
 /** TanStack Query tries three times, waiting 1 s and then 2 s. */
@@ -61,6 +62,45 @@ test('the app shows a busy splash while it starts and a Try again alert when the
   await alert.getByRole('button', { name: 'Try again' }).click();
   await expect(page.getByRole('region', { name: 'Timer' })).toBeVisible();
   await expect(splash).toHaveCount(0);
+});
+
+test('in a hidden tab a failed /me keeps the splash until the tab is shown, then the app starts', async ({
+  page,
+  runtimeErrors,
+}) => {
+  runtimeErrors.allowResponse({
+    status: 503,
+    method: 'GET',
+    path: /^\/api\/v9\/me$/,
+    reason: 'the scenario fails the first /me while the tab is hidden',
+  });
+  await login(page);
+  await stubNotifications(page);
+  let requests = 0;
+  await page.route('**/api/v9/me', route => {
+    if (route.request().method() !== 'GET') return route.fallback();
+    requests++;
+    if (requests > 1) return route.fallback();
+    return route.fulfill({ status: 503, contentType: 'application/json', body: '"Server unavailable"' });
+  });
+  const failed = page.waitForResponse(
+    response => new URL(response.url()).pathname === '/api/v9/me' && response.status() === 503,
+  );
+  await page.reload();
+  await setHidden(page, true);
+  await failed;
+
+  // TanStack Query waits 1 s before the retry, then pauses it while the tab is hidden. A paused /me has no
+  // data and is not loading, and the signed-in app must not start without it.
+  await page.waitForTimeout(1_500);
+  expect(requests).toBe(1);
+  const splash = page.locator('.splash');
+  await expect(splash.locator('[aria-busy="true"]').getByRole('status')).toHaveText('Loading…');
+
+  await setHidden(page, false);
+  await expect(page.getByRole('region', { name: 'Timer' })).toBeVisible();
+  await expect(splash).toHaveCount(0);
+  expect(requests).toBe(2);
 });
 
 interface FailedLoad {

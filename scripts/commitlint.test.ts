@@ -27,6 +27,7 @@ const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const ticket = (n: string) => ['TT', n].join('-');
 const ID = ticket('0001');
 const CO_AUTHOR = 'Co-authored-by: Jane <jane@example.com>';
+const DEPENDABOT_CO_AUTHOR = 'Co-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>';
 const AI_CREDIT = '🤖 Generated with [Claude Code](https://claude.com/claude-code)';
 
 type Config = Awaited<ReturnType<typeof load>>;
@@ -101,6 +102,22 @@ describe('commitlint.config.js', () => {
     test('rejects a co-author or AI credit trailer', async () => {
       for (const message of [`feat: add x\n\n${CO_AUTHOR}`, `feat: add x\n\n${AI_CREDIT}`]) {
         assert.deepEqual(failedRules(await lintMessage(message)), ['no-ai-generated'], message);
+      }
+    });
+
+    test('accepts the co-author trailer GitHub adds to a squash-merged Dependabot PR', async () => {
+      await assertPasses(`build: bump x from 1.0.0 to 1.1.0 (#1)\n\n${DEPENDABOT_CO_AUTHOR}`);
+      await assertPasses(`build: bump x from 1.0.0 to 1.1.0 (#1)\r\n\r\n${DEPENDABOT_CO_AUTHOR}\r\n`);
+    });
+
+    test('rejects a co-author that only looks like Dependabot', async () => {
+      for (const trailer of [
+        'Co-authored-by: dependabot[bot] <jane@example.com>',
+        'Co-authored-by: Jane <49699333+dependabot[bot]@users.noreply.github.com>',
+        `${DEPENDABOT_CO_AUTHOR} and Jane`,
+        `${DEPENDABOT_CO_AUTHOR}\n${CO_AUTHOR}`,
+      ]) {
+        assert.deepEqual(failedRules(await lintMessage(`build: bump x\n\n${trailer}`)), ['no-ai-generated'], trailer);
       }
     });
 

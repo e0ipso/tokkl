@@ -1,4 +1,4 @@
-import type { CDPSession, Locator, Page } from '@playwright/test';
+import type { CDPSession, Locator, Page, Request } from '@playwright/test';
 import { expect } from './fixtures.ts';
 
 /** HOUR_HEIGHT in packages/web/src/lib/calendarLayout.ts. */
@@ -19,6 +19,8 @@ export async function openCalendar(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Calendar' }).click();
   await saved;
   await expect(page.locator('.calendar-column.today')).toBeVisible();
+  // The columns render under the loading state, which covers the grid and takes every pointer until the week loads.
+  await expect(page.locator('.calendar-state')).toHaveCount(0);
 }
 
 export function todayBlock(page: Page, description: string): Locator {
@@ -48,6 +50,17 @@ export function entryWrites(page: Page): string[] {
     }
   });
   return writes;
+}
+
+/**
+ * Resolves when the browser has the whole response to its update of the entry. The server commits before that,
+ * so `savedTimes` can already show the change while a reload would still abort the request.
+ */
+export function entryUpdated(page: Page, id: number): Promise<Request> {
+  return page.waitForEvent(
+    'requestfinished',
+    request => request.method() === 'PUT' && new URL(request.url()).pathname.endsWith(`/time_entries/${id}`),
+  );
 }
 
 export async function savedTimes(page: Page, id: number): Promise<{ start: string; stop: string | null }> {

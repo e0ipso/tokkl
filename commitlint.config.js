@@ -21,9 +21,12 @@ const aiTools = [
 // Unicode-aware word boundaries, so "Ampère" or "OpenCoder" don't match.
 const tool = `(?<![\\p{L}\\p{N}])(?:${aiTools})(?![\\p{L}\\p{N}])`;
 
+// GitHub adds this exact trailer when it squash-merges a Dependabot PR. Only this address passes.
+const DEPENDABOT_CO_AUTHOR = String.raw`dependabot\[bot\] <49699333\+dependabot\[bot\]@users\.noreply\.github\.com>`;
+
 const forbiddenPatterns = [
-  // Any co-author, human or not.
-  /^Co-authored-by:.*/im,
+  // Any co-author, human or not, except Dependabot.
+  new RegExp(String.raw`^Co-authored-by:(?![ \t]*${DEPENDABOT_CO_AUTHOR}[ \t\r]*$).*`, 'im'),
   // Made-with: Cursor, Assisted-by: Claude:claude-opus-5-5, ...
   new RegExp(`^(?:Assisted-by|Generated-by|Made-with|Signed-off-by):.*${tool}`, 'imu'),
   // Tool-specific trailers: Copilot-Session: ..., Amp-Thread: ...

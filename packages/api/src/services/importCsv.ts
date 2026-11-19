@@ -13,7 +13,16 @@ import { withExactEntryImport, type ExactEntryImport } from '../domain/entryImpo
 import { noTimeSpan } from '../domain/entrySpans.ts';
 import type { User } from '../domain/model.ts';
 import type { TimerPublication } from '../domain/timerSettlement.ts';
-import { MAX_IMPORT_ERRORS, cancelBeforeCommit, checkCancelled, importError, protectImport } from './importGuards.ts';
+import {
+  MAX_IMPORT_ERRORS,
+  cancelBeforeCommit,
+  checkCancelled,
+  importError,
+  protectImport,
+  recordBoundary,
+  type ImportStop,
+} from './importGuards.ts';
+import { MAX_IMPORT_RECORDS, MAX_IMPORT_VALUES, importLimit } from './importPolicy.ts';
 const HEADER_ALIASES: Record<string, string[]> = {
   user: ['user'],
   email: ['email'],
@@ -30,16 +39,23 @@ const HEADER_ALIASES: Record<string, string[]> = {
   tags: ['tags'],
 };
 
-const MAX_ROWS = 100_000;
 /** Far beyond a Toggl export, which has about twenty columns. */
 const MAX_COLUMNS = 1000;
 const MAX_VALUE_LENGTH = 1_000_000;
-const LIMITS: CsvLimits = { maxRows: MAX_ROWS + 1, maxFieldsPerRow: MAX_COLUMNS, maxFieldLength: MAX_VALUE_LENGTH };
+/** The header is one of the rows. */
+const LIMITS: CsvLimits = {
+  maxRows: MAX_IMPORT_RECORDS + 1,
+  maxFieldsPerRow: MAX_COLUMNS,
+  maxFieldLength: MAX_VALUE_LENGTH,
+  maxCells: MAX_IMPORT_VALUES,
+};
 const LIMIT_MESSAGES: Readonly<Record<keyof CsvLimits, string>> = {
-  maxRows: `At most ${MAX_ROWS} rows per import`,
+  maxRows: `At most ${MAX_IMPORT_RECORDS} rows per import`,
   maxFieldsPerRow: `At most ${MAX_COLUMNS} columns per row`,
   maxFieldLength: `A value is longer than ${MAX_VALUE_LENGTH} characters`,
+  maxCells: `At most ${MAX_IMPORT_VALUES} cells per import`,
 };
+const EXPANDED_CELLS_MESSAGE = `At most ${MAX_IMPORT_VALUES} cells per import, counting each tag name`;
 /** A failed row clears the cache. */
 const NAME_CACHE = 256;
 
@@ -127,25 +143,43 @@ function skippedReason(found: ImportUser): string {
 
 type Cell = (row: string[], key: string) => string;
 
+function tagNames(value: string): string[] {
+  return value
+    .split(',')
+    .map(t => t.trim())
+    .filter(Boolean);
+}
+
+/**
+ * A Tags cell counts once per tag name, as each name is looked up in the import. Every row counts, selected or
+ * not; blank rows hold no work and were counted only by the parser.
+ */
+function checkExpandedCells(header: string[], rows: string[][], cell: Cell): void {
+  let cells = header.length;
+  for (const row of rows) cells += row.length + Math.max(0, tagNames(cell(row, 'tags')).length - 1);
+  if (cells > MAX_IMPORT_VALUES) throw importLimit(EXPANDED_CELLS_MESSAGE);
+}
+
 interface TogglCsvTable {
   rows: string[][];
   cell: Cell;
   hasUsers: boolean;
 }
 
-/** Yields to the event loop as it reads. */
-async function parseLimited(text: string): Promise<string[][]> {
+/** Yields to the event loop as it reads, and checks the signal after each turn. */
+async function parseLimited(text: string, stop: ImportStop): Promise<string[][]> {
   try {
-    return await parseCsv(text, LIMITS);
+    return await parseCsv(text, LIMITS, stop.signal);
   } catch (error) {
-    if (error instanceof CsvLimitError) throw invalidInput(LIMIT_MESSAGES[error.limit]);
+    checkCancelled(stop);
+    if (error instanceof CsvLimitError) throw importLimit(LIMIT_MESSAGES[error.limit]);
     throw error;
   }
 }
 
 /** Run before the import's transaction, so a large file is read without holding the database. */
-export async function readTogglCsv(text: string): Promise<TogglCsvTable> {
-  const rows = await parseLimited(text),
+export async function readTogglCsv(text: string, stop: ImportStop = {}): Promise<TogglCsvTable> {
+  const rows = await parseLimited(text, stop),
     header = rows.shift();
   if (!header) throw invalidInput('The file is empty');
   const col = columnIndex(header);
@@ -156,6 +190,7 @@ export async function readTogglCsv(text: string): Promise<TogglCsvTable> {
   if (col.duration === undefined && (col.endDate === undefined || col.endTime === undefined))
     throw invalidInput('Missing "End date"/"End time" or "Duration" columns.');
   const cell: Cell = (row, key) => (col[key] === undefined ? '' : unescapeCell((row[col[key]!] ?? '').trim()));
+  checkExpandedCells(header, rows, cell);
   return { rows, cell, hasUsers: col.user !== undefined || col.email !== undefined };
 }
 
@@ -222,10 +257,7 @@ function rowEntry(row: string[], cell: Cell, span: RowSpan, projectId: number | 
     project_id: projectId,
     task_id: taskId,
     billable: ['yes', 'y', 'true', '1'].includes(cell(row, 'billable').toLowerCase()),
-    tags: cell(row, 'tags')
-      .split(',')
-      .map(t => t.trim())
-      .filter(Boolean),
+    tags: tagNames(cell(row, 'tags')),
     created_with: 'tokkl-csv-import',
   };
 }
@@ -306,15 +338,17 @@ export async function importTogglCsv(
   ctx: OperationContext<EntryRepositories>,
   userId: number,
   table: TogglCsvTable,
-  options: { dryRun: boolean; users?: string[]; signal?: AbortSignal },
+  options: ImportStop & { dryRun: boolean; users?: string[] },
   publish: TimerPublication,
 ): Promise<ImportResult> {
-  const { signal } = options;
   const { rows, cell, hasUsers } = table;
   const { rowUsers, users } = tableUsers(rows, cell, hasUsers);
   const selected = selection(users, options);
+  // Opening the transaction and taking its locks can wait.
+  checkCancelled(options);
   const user = await protectImport(ctx, userId),
     wid = user.defaultWorkspaceId;
+  checkCancelled(options);
   const result = emptyResult(options.dryRun, rows.length, users, selected);
   const names = catalogNames(ctx, wid, result);
   async function importRow(writer: ExactEntryImport, row: string[]): Promise<void> {
@@ -330,11 +364,11 @@ export async function importTogglCsv(
     await writer.create(parseNewEntry(rowEntry(row, cell, span, pid, taskId)));
     result.created++;
   }
+  const boundary = recordBoundary(options);
   await withExactEntryImport(ctx, userId, wid, publish, async writer => {
     for (const [index, row] of rows.entries()) {
       if (selected && !selected.has(rowUsers[index]!)) continue;
-      // Outside the row's savepoint, which would report the cancellation as the row's failure.
-      checkCancelled(signal);
+      await boundary();
       const projectsBefore = result.created_projects.length,
         clientsBefore = result.created_clients.length;
       try {
@@ -348,6 +382,6 @@ export async function importTogglCsv(
       }
     }
   });
-  cancelBeforeCommit(ctx, signal);
+  cancelBeforeCommit(ctx, options);
   return result;
 }

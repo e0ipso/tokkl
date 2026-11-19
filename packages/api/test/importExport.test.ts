@@ -357,7 +357,7 @@ test('CSV import refuses a file past its row or column limit while reading it, a
     assert.equal(response.status, 400);
     assert.equal(await response.json(), message);
   };
-  await refused(header + 'Row,2026-01-05,08:00:00,00:10:00\n'.repeat(100_001), 'At most 100000 rows per import');
+  await refused(header + 'Row,2026-01-05,08:00:00,00:10:00\n'.repeat(10_001), 'At most 10000 rows per import');
   await refused(`${header.trimEnd()}${',x'.repeat(997)}\n`, 'At most 1000 columns per row');
   await refused(
     `${header}"${'d'.repeat(1_000_001)}",2026-01-05,08:00:00,00:10:00\n`,

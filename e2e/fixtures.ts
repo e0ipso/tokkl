@@ -26,24 +26,27 @@ export interface Account {
 /** The first admin of each e2e server. Specs in the instance project sign in as it. */
 export const ADMIN_ACCOUNT: Account = { email: EMAIL, password: PASSWORD, fullname: 'E2E User' };
 
-// Global setup deletes worker accounts left by earlier runs, so a run never invites an existing address.
+// Global setup deletes scenario accounts left by earlier runs, so a run never invites an existing address.
 const WORKER_EMAIL = /^worker-[^@]*@e2e\.example$/;
 
 /** Global setup sets this before any worker starts; workers inherit it. */
 export const RUN_ID_VARIABLE = 'TOKKL_E2E_RUN_ID';
 
-function workerEmail(workerIndex: number): string {
+// Counts the scenarios of this worker process, so each gets its own address.
+let scenarios = 0;
+
+function scenarioEmail(workerIndex: number): string {
   const runId = process.env[RUN_ID_VARIABLE];
   if (!runId) throw new Error(`${RUN_ID_VARIABLE} is not set; e2e/global-setup.ts sets it`);
-  return `worker-${runId}-${workerIndex}@e2e.example`;
+  return `worker-${runId}-${workerIndex}-${++scenarios}@e2e.example`;
 }
 
-// Each Playwright worker is its own process; the worker-scoped `account` fixture sets this first.
-let workerAccount: Account = ADMIN_ACCOUNT;
+// Each Playwright worker is its own process and runs one scenario at a time; the `account` fixture sets this first.
+let scenarioAccount: Account = ADMIN_ACCOUNT;
 
-/** Its own invited user in the parallel project, or the setup admin in the instance project. */
+/** The scenario's own invited admin in the parallel project, or the setup admin in the instance project. */
 export function currentAccount(): Account {
-  return workerAccount;
+  return scenarioAccount;
 }
 
 export interface NewUser {
@@ -375,39 +378,57 @@ export class ExtraUsers {
 interface WorkerFixtures {
   /** The instance project's specs sign in as the setup admin and may change instance settings. */
   instanceWide: boolean;
-  account: Account;
+  /** The setup admin's session that invites each scenario's account; none in the instance project. */
+  inviter: TestData | undefined;
 }
 
-export const test = base.extend<{ data: TestData; users: ExtraUsers; runtimeErrors: RuntimeErrors }, WorkerFixtures>({
+interface ScenarioFixtures {
+  account: Account;
+  data: TestData;
+  users: ExtraUsers;
+  runtimeErrors: RuntimeErrors;
+}
+
+export const test = base.extend<ScenarioFixtures, WorkerFixtures>({
   instanceWide: [false, { scope: 'worker', option: true }],
-  // A worker restarted after a failure gets a new workerIndex, so a new account.
-  account: [
+  inviter: [
     async ({ instanceWide }, use, workerInfo) => {
       if (instanceWide) {
-        workerAccount = ADMIN_ACCOUNT;
-        await use(ADMIN_ACCOUNT);
+        await use(undefined);
         return;
       }
-      const baseURL = workerInfo.project.use.baseURL!;
-      const setupAdmin = await TestData.open(baseURL);
+      const setupAdmin = await TestData.open(workerInfo.project.use.baseURL!);
       try {
-        const user = await setupAdmin.inviteUser({
-          role: 'admin',
-          email: workerEmail(workerInfo.workerIndex),
-          fullname: 'E2E User',
-        });
-        await user.close();
-        workerAccount = user.account;
-        try {
-          await use(user.account);
-        } finally {
-          await setupAdmin.deleteUsers([user]);
-        }
+        await use(setupAdmin);
       } finally {
         await setupAdmin.close();
       }
     },
-    { scope: 'worker', auto: true },
+    { scope: 'worker' },
+  ],
+  // A new admin for each scenario, so per-account limits such as the five import starts per 15 minutes never carry
+  // over from an earlier scenario.
+  account: [
+    async ({ inviter }, use, testInfo) => {
+      if (!inviter) {
+        scenarioAccount = ADMIN_ACCOUNT;
+        await use(ADMIN_ACCOUNT);
+        return;
+      }
+      const user = await inviter.inviteUser({
+        role: 'admin',
+        email: scenarioEmail(testInfo.workerIndex),
+        fullname: 'E2E User',
+      });
+      await user.close();
+      scenarioAccount = user.account;
+      try {
+        await use(user.account);
+      } finally {
+        await inviter.deleteUsers([user]);
+      }
+    },
+    { auto: true },
   ],
   // Automatic. In the instance project it also deletes other accounts and pending invites left by a failure.
   data: [

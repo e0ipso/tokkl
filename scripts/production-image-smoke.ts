@@ -7,11 +7,8 @@ import { images } from '../packages/api/test/storage/support/images.ts';
 
 const exec = promisify(execFile);
 const args = process.argv.slice(2);
-assert.equal(
-  args[0],
-  '--image',
-  'Usage: npm run test:container -- --image IMAGE [--backend sqlite|postgres|mysql|mariadb]',
-);
+const usage = 'Usage: npm run test:container -- --image IMAGE [--backend sqlite|postgres|mysql|mariadb] [--hardened]';
+assert.equal(args[0], '--image', usage);
 const image = args[1];
 assert.ok(image && !image.startsWith('-'), 'A built production image is required');
 const backends = ['sqlite', 'postgres', 'mysql', 'mariadb'] as const;
@@ -22,10 +19,31 @@ const POMODORO_LIMITS = {
   long_rest_minutes: { min: 1, max: 60, default: 15 },
   long_rest_every: { min: 1, max: 12, default: 4 },
 };
+/** The application container's restrictions in `--hardened` mode: the ones the hosting guide documents. */
+const HARDENED_FLAGS = [
+  '--cap-drop=ALL',
+  '--security-opt',
+  'no-new-privileges',
+  '--read-only',
+  '--tmpfs',
+  '/tmp:rw,noexec,nosuid,size=64m',
+  '--memory',
+  '512m',
+  '--cpus',
+  '0.5',
+  '--pids-limit',
+  '64',
+];
+const selection = args.slice(2);
+const hardenedAt = selection.indexOf('--hardened');
+const hardened = hardenedAt !== -1;
+if (hardened) selection.splice(hardenedAt, 1);
 assert.ok(
-  args.length === 2 || (args.length === 4 && args[2] === '--backend' && backends.some(b => b === args[3])),
-  'Invalid backend selection',
+  selection.length === 0 ||
+    (selection.length === 2 && selection[0] === '--backend' && backends.some(b => b === selection[1])),
+  usage,
 );
+const selectedBackend = selection[1];
 assert.equal(process.env.TOKKL_DATABASE_URL, undefined, 'Operator database targets are forbidden');
 assert.equal(process.env.TOKKL_TEST_DATABASE_URL, undefined, 'Operator database targets are forbidden');
 
@@ -66,7 +84,7 @@ async function until(check: () => Promise<boolean>, label: string, timeout = 120
   }
 }
 
-for (const backend of backends.filter(b => !args[3] || b === args[3])) {
+for (const backend of backends.filter(b => !selectedBackend || b === selectedBackend)) {
   const namespace = `tokkl-image-${backend}-${randomBytes(8).toString('hex')}`;
   const password = randomBytes(24).toString('hex');
   const setupCode = randomBytes(12).toString('hex');
@@ -188,12 +206,24 @@ for (const backend of backends.filter(b => !args[3] || b === args[3])) {
         `type=volume,src=${volume},dst=/data`,
         '--health-interval=1s',
         '--health-start-period=1s',
+        ...(hardened ? HARDENED_FLAGS : []),
         ...Object.keys(environment).flatMap(key => ['-e', key]),
         image,
       ],
       environment,
     );
-    event('container-created', { namespace, role: 'application', id: app, image });
+    event('container-created', { namespace, role: 'application', id: app, image, hardened });
+    if (hardened) {
+      // A flag that Docker silently ignored would make the run prove nothing.
+      const host = JSON.parse(await docker(['inspect', '--format', '{{json .HostConfig}}', app]));
+      assert.equal(host.ReadonlyRootfs, true);
+      assert.deepEqual(host.CapDrop, ['ALL']);
+      assert.ok(host.SecurityOpt.includes('no-new-privileges'));
+      assert.equal(host.Memory, 512 * 1024 * 1024);
+      assert.equal(host.NanoCpus, 500_000_000);
+      assert.equal(host.PidsLimit, 64);
+      assert.match(host.Tmpfs['/tmp'], /size=64m/);
+    }
     await docker(['start', app]);
     let base = '';
     async function healthy(): Promise<void> {

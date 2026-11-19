@@ -25,9 +25,12 @@ import {
   checkCancelled,
   importError,
   protectImport,
+  recordBoundary,
   type ImportRunner,
+  type ImportStop,
 } from './importGuards.ts';
 import { importTogglCsv, readTogglCsv } from './importCsv.ts';
+import { checkJsonImport } from './importPolicy.ts';
 interface JsonImportResult {
   dry_run: boolean;
   clients: number;
@@ -39,10 +42,15 @@ interface JsonImportResult {
   errors: Array<{ entity: string; id: unknown; message: string }>;
 }
 type Item = Record<string, unknown>;
-/** Once `signal` aborts, the import stops and rolls back. */
-export interface ImportOptions {
+/** Each holds records, which count toward the import's record limit. */
+const RECORD_FIELDS = ['clients', 'projects', 'tasks', 'tags', 'time_entries'] as const;
+/**
+ * Once `signal` aborts or `deadline` passes, the import stops at its next check and rolls back. The checks are
+ * cooperative: a query or a rollback that is running at that moment runs to its end, so the import can outlast
+ * a deadline, but it never commits after one.
+ */
+export interface ImportOptions extends ImportStop {
   dryRun: boolean;
-  signal?: AbortSignal;
 }
 function list(value: unknown, field: string): Item[] {
   if (value === undefined) return [];
@@ -232,8 +240,10 @@ async function importJsonExport(
   options: ImportOptions,
   publish: TimerPublication,
 ): Promise<JsonImportResult> {
-  const { signal } = options;
+  // Opening the transaction and taking its locks can wait.
+  checkCancelled(options);
   const user = await protectImport(ctx, userId);
+  checkCancelled(options);
   const restore: Restore = {
     ctx,
     userId,
@@ -258,20 +268,20 @@ async function importJsonExport(
     ['tasks', 'task', restoreTask],
     ['tags', 'tag', restoreTag],
   ] as const;
-  // Each record checks the request before its savepoint, which would report a failure as the record's.
+  const boundary = recordBoundary(options);
   for (const [field, entity, step] of catalogs)
     for (const item of list(file[field], field)) {
-      checkCancelled(signal);
+      await boundary();
       await unit(restore, entity, item, () => step(restore, item));
     }
   const zone = exporterZone(file, user);
   await withExactEntryImport(ctx, userId, restore.wid, publish, async writer => {
     for (const item of list(file.time_entries, 'time_entries')) {
-      checkCancelled(signal);
+      await boundary();
       await unit(restore, 'time_entry', item, () => restoreEntry(restore, writer, zone, item), writer.savepoint);
     }
   });
-  cancelBeforeCommit(ctx, signal);
+  cancelBeforeCommit(ctx, options);
   return restore.result;
 }
 export function createImportOperations<R extends EntryRepositories>(
@@ -280,18 +290,21 @@ export function createImportOperations<R extends EntryRepositories>(
   publish: TimerPublication,
 ) {
   return {
-    /** The format is checked before the transaction opens. */
+    /** The format and the import limits are checked before the transaction opens. */
     async importJsonExport(data: unknown, options: ImportOptions) {
+      // `data` was parsed synchronously just before, which can take long for a large file.
+      checkCancelled(options);
       const file = exportFile(data);
-      checkCancelled(options.signal);
+      checkJsonImport(file, RECORD_FIELDS);
+      checkCancelled(options);
       return runner.transaction(ctx => importJsonExport(ctx, userId, file, options, publish), {
         dryRun: options.dryRun,
       });
     },
     /** Not async on purpose: only the parse holds `text`, so the file's text is released before the transaction. */
     importTogglCsv(text: string, options: ImportOptions & { users?: string[] }) {
-      return readTogglCsv(text).then(table => {
-        checkCancelled(options.signal);
+      return readTogglCsv(text, options).then(table => {
+        checkCancelled(options);
         return runner.transaction(ctx => importTogglCsv(ctx, userId, table, options, publish), {
           dryRun: options.dryRun,
         });

@@ -167,4 +167,6 @@ export const settings = {
     other: 'This file has entries from {count} Toggl users. Choose whose entries to import.',
   },
   noTogglUser: 'No Toggl user',
+  checkSelection: 'Check selection',
+  selectionChanged: 'These counts are for the earlier selection. Check the selection to update them.',
 } as const satisfies MessageGroup;

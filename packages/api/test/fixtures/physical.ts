@@ -186,3 +186,29 @@ export async function sqliteIndexes(handle: FixtureDatabase): Promise<string[]> 
     row => String(row.name),
   );
 }
+
+const IMPORT_TABLES = [
+  'users',
+  'workspaces',
+  'workspace_users',
+  'clients',
+  'projects',
+  'tasks',
+  'tags',
+  'time_entries',
+  'time_entry_tags',
+  'timer_states',
+  'pause_chains',
+] as const;
+/** Every row an import writes or touches, revisions and timestamps included, in a stable order. */
+export async function importTableRows(handle: FixtureDatabase): Promise<Record<string, Array<Record<string, any>>>> {
+  const rows: Record<string, Array<Record<string, any>>> = {};
+  for (const table of IMPORT_TABLES) {
+    const found = normalizeRows(await physical(handle).selectFrom(table).selectAll().execute());
+    rows[table] = found
+      .map(row => [JSON.stringify(row), row] as const)
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([, row]) => row);
+  }
+  return rows;
+}

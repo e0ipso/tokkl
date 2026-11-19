@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { ImportResult } from '@tokkl/types';
-import { exportFilename, importCounts, restoreErrorId, toggledUsers } from './transferForm.ts';
+import { exportFilename, importCounts, restoreErrorId, sameUsers, toggledUsers } from './transferForm.ts';
 
 const result: ImportResult = {
   dry_run: true,
@@ -33,6 +33,13 @@ test('rows not created, skipped or from other users are the failed ones', () => 
 test('the chosen users keep the file order', () => {
   assert.deepEqual(toggledUsers(result.users, ['c'], 'a', true), ['a', 'c']);
   assert.deepEqual(toggledUsers(result.users, ['a', 'c'], 'a', false), ['c']);
+});
+
+test('a selection matches the previewed one only with the same users', () => {
+  assert.equal(sameUsers(['a', 'c'], ['a', 'c']), true);
+  assert.equal(sameUsers([], []), true);
+  assert.equal(sameUsers(['a'], ['a', 'c']), false);
+  assert.equal(sameUsers(['a', 'b'], ['a', 'c']), false);
 });
 
 test("a restore problem names the file's id as text, whatever JSON value it was", () => {
