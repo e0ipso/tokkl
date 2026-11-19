@@ -156,7 +156,9 @@ export function TimerBar({ recentEntries, ref }: { recentEntries: TimeEntry[]; r
         {pauseAnnouncement(view)}
       </span>
 
-      {editing && current ? <EntryEditor entry={current} onClose={() => setEditing(false)} /> : null}
+      {editing && current ? (
+        <EntryEditor entry={current} onClose={() => setEditing(false)} recentEntries={recentEntries} />
+      ) : null}
     </section>
   );
 }

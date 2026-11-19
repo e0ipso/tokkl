@@ -158,7 +158,7 @@ export function TimerPage() {
         </div>
       ) : null}
       {view === 'calendar' ? (
-        <WeekCalendar />
+        <WeekCalendar recentEntries={entries} />
       ) : (
         <>
           {isLoading ? (

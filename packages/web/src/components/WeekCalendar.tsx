@@ -18,7 +18,8 @@ import { LoadError, Loading } from './PageState.tsx';
 import { useCalendarDrag } from './useCalendarDrag.ts';
 import { t } from '../i18n/messages.ts';
 
-export function WeekCalendar() {
+/** `recentEntries` feed the entry editor's description suggestions; the calendar loads its own week. */
+export function WeekCalendar({ recentEntries }: { recentEntries: TimeEntry[] }) {
   const settings = useSettings();
   const now = useNow(60_000);
   const todayKey = today(settings.timeZone);
@@ -231,7 +232,7 @@ export function WeekCalendar() {
           onClose={() => setCreatingDay(null)}
         />
       ) : null}
-      {editing ? <EntryEditor entry={editing} onClose={() => setEditing(null)} /> : null}
+      {editing ? <EntryEditor entry={editing} onClose={() => setEditing(null)} recentEntries={recentEntries} /> : null}
     </div>
   );
 }

@@ -245,3 +245,7 @@ input.entry-duration:is(:hover, :focus) {
 .description-combobox {
   position: relative;
 }
+/* In a form field the input fills the field, as a bare input does as a .field flex item. */
+.field > .description-combobox > input {
+  width: 100%;
+}
