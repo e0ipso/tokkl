@@ -167,6 +167,13 @@
   padding: 6px;
   font-weight: 500;
 }
+/* The description combobox wrapper takes the grid cell; its input fills it, as the bare input did
+   as a grid item. The wrapper positions the suggestions; .day-group keeps overflow visible so the
+   list is not clipped by the row or the day panel. */
+.entry-description-cell > .entry-description {
+  display: block;
+  width: 100%;
+}
 .entry-project,
 .entry-tags,
 .entry-times {
@@ -319,7 +326,7 @@
   .page:has(.bulk-bar) .timer-bar {
     position: relative;
   }
-  .entry-line .entry-description {
+  .entry-line .entry-description-cell {
     grid-column: 1 / -2;
   }
   .entry-line .entry-project {

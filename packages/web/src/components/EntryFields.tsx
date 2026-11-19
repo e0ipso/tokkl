@@ -1,11 +1,12 @@
-import { forwardRef, useId, useImperativeHandle, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { forwardRef, useImperativeHandle, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { useProjects } from '../api/projects.ts';
 import type { TimeEntry } from '@tokkl/types';
+import { DescriptionCombobox, type DescriptionComboboxHandle } from './DescriptionCombobox.tsx';
 import { Icon } from './Icon.tsx';
-import { ProjectDot, ProjectLabel, projectColorStyle } from './ProjectLabel.tsx';
+import { ProjectLabel, projectColorStyle } from './ProjectLabel.tsx';
 import { ProjectPicker } from './ProjectPicker.tsx';
 import { TagPicker } from './TagPicker.tsx';
-import { suggestedDraft, useEntryFields, type EntryDraft, type Suggestion } from './useEntryFields.ts';
+import { suggestedDraft, useEntryFields, type EntryDraft } from './useEntryFields.ts';
 import { t } from '../i18n/messages.ts';
 
 export interface EntryFieldsHandle {
@@ -36,116 +37,47 @@ export const EntryFields = forwardRef<
   ref,
 ) {
   const { data: projects = [] } = useProjects();
-  const { suggestions, setShowSuggestions, highlight, setHighlight, project, projectChanges } = useEntryFields({
-    draft,
-    recentEntries,
-    projects,
-  });
+  const { project, projectChanges } = useEntryFields({ draft, projects });
   const [picker, setPicker] = useState<'project' | 'tags' | null>(null);
-  const descriptionRef = useRef<HTMLInputElement>(null);
-  const listId = useId();
-  // Blur hides the suggestions after a delay so a click on one lands; a focus from a closing picker does not open them.
-  const hideSuggestionsTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const quietFocus = useRef(false);
-  const focusDescriptionQuietly = () => {
-    quietFocus.current = true;
-    descriptionRef.current?.focus();
-    quietFocus.current = false;
-  };
+  const combo = useRef<DescriptionComboboxHandle>(null);
   const projectButton = useRef<HTMLButtonElement>(null);
   const tagButton = useRef<HTMLButtonElement>(null);
 
   useImperativeHandle(ref, () => ({
-    focus: () => descriptionRef.current?.focus(),
-    hasFocus: () => document.activeElement === descriptionRef.current,
-    hideSuggestions: () => setShowSuggestions(false),
+    focus: () => combo.current?.focus(),
+    hasFocus: () => combo.current?.hasFocus() ?? false,
+    hideSuggestions: () => combo.current?.hideSuggestions(),
   }));
 
-  const pickSuggestion = (s: Suggestion) => {
-    setShowSuggestions(false);
-    setHighlight(-1);
-    onEdit(suggestedDraft(s));
+  // `@` and `#` in an empty description open the project and tag pickers.
+  const onPickerKey = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (draft.description !== '' || readOnly) return;
+    if (event.key === '@' || event.key === '#') {
+      event.preventDefault();
+      setPicker(event.key === '@' ? 'project' : 'tags');
+    }
+  };
+  // Closing a picker hands focus back without opening the suggestions.
+  const closePicker = () => {
+    setPicker(null);
+    combo.current?.focusQuietly();
   };
 
   return (
     <>
-      <div className="timer-description">
-        <input
-          ref={descriptionRef}
-          value={draft.description}
-          placeholder={placeholder}
-          aria-label={t('entries.description')}
-          // The suggestions are its popup listbox, as in the project picker's search field.
-          role="combobox"
-          aria-autocomplete="list"
-          aria-expanded={suggestions.length > 0}
-          aria-controls={suggestions.length > 0 ? listId : undefined}
-          aria-activedescendant={suggestions[highlight] ? `${listId}-${highlight}` : undefined}
-          maxLength={3000}
-          readOnly={readOnly}
-          onChange={event => {
-            onType(event.target.value);
-            setShowSuggestions(true);
-            setHighlight(-1);
-          }}
-          onFocus={() => {
-            clearTimeout(hideSuggestionsTimer.current);
-            setShowSuggestions(!quietFocus.current && !readOnly);
-          }}
-          onBlur={() => {
-            hideSuggestionsTimer.current = setTimeout(() => setShowSuggestions(false), 150);
-            onDescriptionBlur();
-          }}
-          onKeyDown={event => {
-            if (event.key === 'ArrowDown' && suggestions.length) {
-              event.preventDefault();
-              setHighlight(h => (h + 1) % suggestions.length);
-            } else if (event.key === 'ArrowUp' && suggestions.length) {
-              event.preventDefault();
-              setHighlight(h => (h <= 0 ? suggestions.length - 1 : h - 1));
-            } else if (event.key === 'Enter') {
-              event.preventDefault();
-              const suggestion = highlight >= 0 ? suggestions[highlight] : undefined;
-              if (suggestion) {
-                pickSuggestion(suggestion);
-              } else {
-                onEnter(event);
-              }
-            } else if (event.key === 'Escape') {
-              setShowSuggestions(false);
-            } else if (event.key === '@' && draft.description === '' && !readOnly) {
-              event.preventDefault();
-              setPicker('project');
-            } else if (event.key === '#' && draft.description === '' && !readOnly) {
-              event.preventDefault();
-              setPicker('tags');
-            }
-          }}
-        />
-        {suggestions.length > 0 ? (
-          <ul className="suggestions" role="listbox" id={listId} aria-label={t('entries.suggestions')}>
-            {suggestions.map((s, i) => (
-              <li key={s.key} id={`${listId}-${i}`} role="option" aria-selected={i === highlight}>
-                <button
-                  type="button"
-                  className={`suggestion${i === highlight ? ' highlighted' : ''}`}
-                  onMouseDown={event => {
-                    event.preventDefault();
-                    pickSuggestion(s);
-                  }}
-                >
-                  <span>{s.description || <em className="muted">{t('entries.noDescription')}</em>}</span>
-                  {s.project_id ? (
-                    <span className="suggestion-project">
-                      <ProjectDot color={s.project_color} /> {s.project_name}
-                    </span>
-                  ) : null}
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-      </div>
+      <DescriptionCombobox
+        ref={combo}
+        className="timer-description"
+        value={draft.description}
+        recentEntries={recentEntries}
+        placeholder={placeholder}
+        readOnly={readOnly}
+        onType={onType}
+        onPick={s => onEdit(suggestedDraft(s))}
+        onBlur={onDescriptionBlur}
+        onEnter={onEnter}
+        onExtraKeyDown={onPickerKey}
+      />
 
       <div className="timer-controls">
         <button
@@ -192,22 +124,11 @@ export const EntryFields = forwardRef<
           projectId={draft.project_id}
           taskId={draft.task_id}
           onChange={(pid, tid) => onEdit(projectChanges(pid, tid))}
-          onClose={() => {
-            setPicker(null);
-            focusDescriptionQuietly();
-          }}
+          onClose={closePicker}
         />
       ) : null}
       {picker === 'tags' ? (
-        <TagPicker
-          anchor={tagButton}
-          value={draft.tags}
-          onChange={tags => onEdit({ tags })}
-          onClose={() => {
-            setPicker(null);
-            focusDescriptionQuietly();
-          }}
-        />
+        <TagPicker anchor={tagButton} value={draft.tags} onChange={tags => onEdit({ tags })} onClose={closePicker} />
       ) : null}
     </>
   );

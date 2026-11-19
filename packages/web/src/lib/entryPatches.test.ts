@@ -26,3 +26,26 @@ test('a favorite is pinned last until every number key is taken', () => {
     null,
   );
 });
+
+test('a suggestion replaces every field, billable after the project that resets it', () => {
+  assert.deepEqual(
+    entryPatch.suggestion({ description: 'Review', project_id: 3, task_id: 7, tags: ['a', 'b'], billable: true }),
+    [
+      { op: 'replace', path: '/description', value: 'Review' },
+      { op: 'replace', path: '/project_id', value: 3 },
+      { op: 'replace', path: '/task_id', value: 7 },
+      { op: 'replace', path: '/tags', value: ['a', 'b'] },
+      { op: 'replace', path: '/billable', value: true },
+    ],
+  );
+  assert.deepEqual(
+    entryPatch.suggestion({ description: 'Solo', project_id: null, task_id: null, tags: [], billable: false }),
+    [
+      { op: 'replace', path: '/description', value: 'Solo' },
+      { op: 'replace', path: '/project_id', value: null },
+      { op: 'replace', path: '/task_id', value: null },
+      { op: 'replace', path: '/tags', value: [] },
+      { op: 'replace', path: '/billable', value: false },
+    ],
+  );
+});

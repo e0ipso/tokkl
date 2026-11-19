@@ -1,7 +1,9 @@
 import { useRef, useState } from 'react';
+import { addDays } from '@tokkl/common/time';
 import {
   useCreateEntry,
   useDeleteEntry,
+  useEntries,
   useRestoreEntry,
   useUpdateEntry,
   useUpdateRunningEntry,
@@ -12,6 +14,8 @@ import type { TimeEntry } from '@tokkl/types';
 import { useNow } from '../lib/clock.ts';
 import { duplicateInput } from '../lib/duplicateEntry.ts';
 import { localDay } from '../lib/entryTime.ts';
+import { today } from '../lib/format.ts';
+import { DescriptionCombobox } from './DescriptionCombobox.tsx';
 import { DurationField } from './DurationField.tsx';
 import { EntrySplitField } from './EntrySplitField.tsx';
 import { useFieldErrors } from './FieldError.tsx';
@@ -22,7 +26,7 @@ import { ProjectPicker } from './ProjectPicker.tsx';
 import { TagPicker } from './TagPicker.tsx';
 import { useToast } from './Toast.tsx';
 import { useExclusive } from './useExclusive.ts';
-import { draftOf, projectChanges, type EntryDraft } from './useEntryFields.ts';
+import { draftOf, projectChanges, suggestedDraft, type EntryDraft } from './useEntryFields.ts';
 import { useEntryTimes, type TimeFieldKey } from './useEntryTimes.ts';
 import { t } from '../i18n/messages.ts';
 
@@ -30,9 +34,23 @@ function isStopped(entry: TimeEntry): entry is TimeEntry & { stop: string } {
   return entry.stop !== null;
 }
 
-/** One of Save, Duplicate, Split and Delete runs at a time, so a double click never saves twice. */
-export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () => void }) {
+/**
+ * One of Save, Duplicate, Split and Delete runs at a time, so a double click never saves twice. The description
+ * suggests from `recentEntries`; without them the editor reads the last two weeks itself, as the timer page does.
+ */
+export function EntryEditor({
+  entry,
+  onClose,
+  recentEntries,
+}: {
+  entry: TimeEntry;
+  onClose: () => void;
+  recentEntries?: TimeEntry[];
+}) {
   const settings = useSettings();
+  const day = today(settings.timeZone);
+  const fallback = useEntries(addDays(day, -13), addDays(day, 2), { enabled: !recentEntries });
+  const recent = recentEntries ?? fallback.data ?? [];
   const now = useNow(entry.stop ? 60_000 : 1000);
   const times = useEntryTimes(entry, settings, now);
   const { running } = times;
@@ -132,10 +150,15 @@ export function EntryEditor({ entry, onClose }: { entry: TimeEntry; onClose: () 
       >
         <label className="field field-full">
           <span>{t('entries.description')}</span>
-          <input
+          {/* The dialog's autofocus lands here quietly; typing or a later focus opens the suggestions.
+              A pick fills the draft only; Save writes it. */}
+          <DescriptionCombobox
             value={draft.description}
-            onChange={event => edit({ description: event.target.value })}
-            maxLength={3000}
+            recentEntries={recent}
+            quietFirstFocus
+            onType={description => edit({ description })}
+            onPick={suggestion => setDraft(suggestedDraft(suggestion))}
+            onEnter={() => void save()}
           />
         </label>
         <div className="field">

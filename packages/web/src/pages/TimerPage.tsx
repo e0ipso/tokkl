@@ -158,7 +158,7 @@ export function TimerPage() {
         </div>
       ) : null}
       {view === 'calendar' ? (
-        <WeekCalendar />
+        <WeekCalendar recentEntries={entries} />
       ) : (
         <>
           {isLoading ? (
@@ -169,6 +169,7 @@ export function TimerPage() {
             <BusyRegion busy={isFetching}>
               <EntryList
                 entries={entries}
+                recentEntries={entries}
                 onContinue={continueEntry}
                 onStartTimer={() => timer.current?.startNew()}
                 onManualMode={prefs?.manualMode ? undefined : switchToManual}

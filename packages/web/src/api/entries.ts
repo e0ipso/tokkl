@@ -19,10 +19,14 @@ import type {
   TrashTotal,
 } from '@tokkl/types';
 
-/** A range that grows over the previous one keeps its rows as placeholder; any other change starts empty. */
-export function useEntries(startDate: string, endDate: string) {
+/**
+ * A range that grows over the previous one keeps its rows as placeholder; any other change starts empty.
+ * `enabled: false` skips the request, for a caller that already has the rows.
+ */
+export function useEntries(startDate: string, endDate: string, options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: [...keys.entries, startDate, endDate],
+    enabled: options.enabled ?? true,
     queryFn: ({ signal }) => entryRequests.list(startDate, endDate, signal),
     refetchInterval: 60_000,
     placeholderData: (previous, previousQuery) =>
