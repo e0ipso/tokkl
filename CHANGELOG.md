@@ -1,3 +1,9 @@
+## [2.7.0](https://github.com/e0ipso/tokkl/compare/v2.6.1...v2.7.0) (2026-11-19)
+
+### Features
+
+* show description suggestions in every description input ([#94](https://github.com/e0ipso/tokkl/issues/94)) ([ea315a9](https://github.com/e0ipso/tokkl/commit/ea315a97352d1db2c979b262e03a6ffc8d75d834)), closes [#93](https://github.com/e0ipso/tokkl/issues/93)
+
 ## [2.6.1](https://github.com/e0ipso/tokkl/compare/v2.6.0...v2.6.1) (2026-11-14)
 
 ### Bug Fixes
