@@ -72,12 +72,19 @@ export function EntryLine({
     }
   };
 
-  // One request for every field. `pickedRef` keeps the blur that follows from sending the description again.
-  const pickSuggestion = (suggestion: Suggestion) => {
+  // One request for every field. `pickedRef` keeps the blur that follows from sending the description again;
+  // a failed request drops it, so committing the same text later sends it.
+  const pickSuggestion = async (suggestion: Suggestion) => {
     const draft = suggestedDraft(suggestion);
     setDescription(draft.description);
     pickedRef.current = draft.description;
-    patch(entryPatch.suggestion(draft));
+    let saved = false;
+    await bulkEdit(
+      entries.map(e => e.id),
+      entryPatch.suggestion(draft),
+      { onDone: () => (saved = true) },
+    );
+    if (!saved && pickedRef.current === draft.description) pickedRef.current = null;
   };
 
   const duplicate = async () => {
@@ -117,7 +124,7 @@ export function EntryLine({
         recentEntries={recentEntries}
         placeholder={t('entries.addDescription')}
         onType={setDescription}
-        onPick={pickSuggestion}
+        onPick={suggestion => void pickSuggestion(suggestion)}
         onBlur={commitDescription}
         onEnter={event => event.currentTarget.blur()}
       />

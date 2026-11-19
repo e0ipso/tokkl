@@ -66,6 +66,8 @@ export const DescriptionCombobox = forwardRef<
   const hideSuggestionsTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const quietFocus = useRef(false);
   const firstFocus = useRef(true);
+  // The field holds a quiet focus: a click on it, which fires no focus event, opens the list.
+  const heldQuietly = useRef(false);
   useEffect(() => () => clearTimeout(hideSuggestionsTimer.current), []);
 
   useImperativeHandle(ref, () => ({
@@ -128,6 +130,7 @@ export const DescriptionCombobox = forwardRef<
         maxLength={maxLength}
         readOnly={readOnly}
         onChange={event => {
+          heldQuietly.current = false;
           onType(event.target.value);
           setShowSuggestions(true);
           setHighlight(-1);
@@ -136,9 +139,16 @@ export const DescriptionCombobox = forwardRef<
           clearTimeout(hideSuggestionsTimer.current);
           const quiet = quietFocus.current || (quietFirstFocus && firstFocus.current);
           firstFocus.current = false;
+          heldQuietly.current = quiet;
           setShowSuggestions(!quiet && !readOnly);
         }}
+        onClick={() => {
+          if (!heldQuietly.current) return;
+          heldQuietly.current = false;
+          setShowSuggestions(!readOnly);
+        }}
         onBlur={() => {
+          heldQuietly.current = false;
           hideSuggestionsTimer.current = setTimeout(() => setShowSuggestions(false), 150);
           onBlur?.();
         }}
@@ -150,9 +160,13 @@ export const DescriptionCombobox = forwardRef<
             <li key={s.key} id={`${listId}-${i}`} role="option" aria-selected={i === highlight}>
               <button
                 type="button"
+                // Options are not tab stops: Tab leaves the field for the next control, as in a combobox.
+                tabIndex={-1}
                 className={`suggestion${i === highlight ? ' highlighted' : ''}`}
                 onMouseDown={event => {
+                  // Keep focus in the field for any button; only the primary one picks, so a right click writes nothing.
                   event.preventDefault();
+                  if (event.button !== 0) return;
                   pickSuggestion(s);
                 }}
               >
