@@ -240,3 +240,8 @@ input.entry-duration:is(:hover, :focus) {
   border-radius: var(--radius-pill);
   padding: 0 5px;
 }
+/* Description combobox: its .suggestions list is placed absolutely below the field. The timer bar
+   uses .timer-description (timer.css) instead, which is positioned the same way. */
+.description-combobox {
+  position: relative;
+}

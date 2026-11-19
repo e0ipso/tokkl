@@ -9,6 +9,7 @@ import {
   projectChanges,
   suggestedDraft,
   suggestionsFrom,
+  useDescriptionSuggestions,
   useEntryFields,
   type EntryDraft,
 } from './useEntryFields.ts';
@@ -112,9 +113,12 @@ test('picking a non-billable project, no project or an unknown one leaves billab
 });
 
 function renderHook(draft: EntryDraft, recentEntries: TimeEntry[] = []) {
-  let result: ReturnType<typeof useEntryFields> | undefined;
+  let result: (ReturnType<typeof useEntryFields> & ReturnType<typeof useDescriptionSuggestions>) | undefined;
   function Probe() {
-    result = useEntryFields({ draft, recentEntries, projects: PROJECTS });
+    result = {
+      ...useEntryFields({ draft, projects: PROJECTS }),
+      ...useDescriptionSuggestions({ value: draft.description, recentEntries }),
+    };
     return null;
   }
   renderToStaticMarkup(createElement(Probe));

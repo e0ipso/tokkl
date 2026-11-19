@@ -90,26 +90,19 @@ export function projectChanges(
 }
 
 /** Suggestions show only while `showSuggestions` is set; `highlight` is -1 or the arrow-key target. */
-export function useEntryFields({
-  draft,
-  recentEntries,
-  projects,
-}: {
-  draft: EntryDraft;
-  recentEntries: TimeEntry[];
-  projects: Project[];
-}) {
+export function useDescriptionSuggestions({ value, recentEntries }: { value: string; recentEntries: TimeEntry[] }) {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [highlight, setHighlight] = useState(-1);
   const suggestions = useMemo(
-    () => (showSuggestions ? suggestionsFrom(recentEntries, draft.description) : []),
-    [showSuggestions, recentEntries, draft.description],
+    () => (showSuggestions ? suggestionsFrom(recentEntries, value) : []),
+    [showSuggestions, recentEntries, value],
   );
+  return { suggestions, setShowSuggestions, highlight, setHighlight };
+}
+
+/** The draft's project and the billable rule for a project pick; suggestions live in `useDescriptionSuggestions`. */
+export function useEntryFields({ draft, projects }: { draft: EntryDraft; projects: Project[] }) {
   return {
-    suggestions,
-    setShowSuggestions,
-    highlight,
-    setHighlight,
     project: projects.find(p => p.id === draft.project_id),
     projectChanges: (projectId: number | null, taskId: number | null) =>
       projectChanges(draft, projects, projectId, taskId),
