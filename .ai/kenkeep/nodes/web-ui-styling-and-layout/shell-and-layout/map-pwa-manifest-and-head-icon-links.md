@@ -39,5 +39,9 @@ The manifest lists five PNG icons in a fixed order, each with an explicit `purpo
 - Related: [map-app-icons-script → map-wordmark-crop-and-its-four-outputs](../../tooling-and-project/repo-and-scripts/app-icons-script/map-wordmark-crop-and-its-four-outputs.md)
 - Related: [practice-playwright-gotchas-in-the-e2e-specs](../../tooling-and-project/testing/e2e-suite/practice-playwright-gotchas-in-the-e2e-specs.md)
 - Related: [practice-theme-tokens-data-theme-and-cached-theme](../theme-and-tokens/practice-theme-tokens-data-theme-and-cached-theme.md)
-- Related: [map-app-shell-brand-and-navigation](map-app-shell-brand-and-navigation.md)
+- Related: [map-app-shell-brand-and-navigation → map-brand-component-and-the-png-wordmark-image](app-shell/map-brand-component-and-the-png-wordmark-image.md)
+- Related: [map-app-shell-brand-and-navigation → map-lazy-page-chunks-and-failed-load-recovery](app-shell/map-lazy-page-chunks-and-failed-load-recovery.md)
+- Related: [map-app-shell-brand-and-navigation → map-nav-list-phone-more-sheet-and-nav-running-dots](app-shell/map-nav-list-phone-more-sheet-and-nav-running-dots.md)
+- Related: [map-app-shell-brand-and-navigation → map-phone-e2e-navigation-helpers-tapnav-and-openmore](app-shell/map-phone-e2e-navigation-helpers-tapnav-and-openmore.md)
+- Related: [map-app-shell-brand-and-navigation → map-wordmark-dark-mode-halo-and-its-e2e-checks](app-shell/map-wordmark-dark-mode-halo-and-its-e2e-checks.md)
 <!-- kk:related:end -->

@@ -69,14 +69,25 @@ Project menu. `ProjectChoices` (`desktop/core/src/projectchoices.h`) is the proj
 <!-- kk:related:start -->
 # Related
 
-- Related: [map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types](plasma-companion/map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types.md)
+- Related: [map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types → map-desktop-kde-cmake-project-plasma-widget-package-and-minimum-versions](plasma-companion/desktop-cmake-projects/map-desktop-kde-cmake-project-plasma-widget-package-and-minimum-versions.md)
+- Related: [map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types → map-desktop-kde-readme-guide-prd-scope-and-release-assets](plasma-companion/desktop-cmake-projects/map-desktop-kde-readme-guide-prd-scope-and-release-assets.md)
+- Related: [map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types → map-desktop-version-resolution-and-plasma-metadata-stamping](plasma-companion/desktop-cmake-projects/map-desktop-version-resolution-and-plasma-metadata-stamping.md)
+- Related: [map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types → map-kde-qml-foreign-types-and-backend-module-linking](plasma-companion/desktop-cmake-projects/map-kde-qml-foreign-types-and-backend-module-linking.md)
+- Related: [map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types → map-tokklcore-static-library-and-its-ctest-suites-in-desktop-core](plasma-companion/desktop-cmake-projects/map-tokklcore-static-library-and-its-ctest-suites-in-desktop-core.md)
+- Related: [map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types → map-tokklkde-static-library-kwallet-store-and-tokkl-kde-client-name](plasma-companion/desktop-cmake-projects/map-tokklkde-static-library-kwallet-store-and-tokkl-kde-client-name.md)
 - Related: [map-kde-panel-button-menu-and-project-indicator](plasma-companion/map-kde-panel-button-menu-and-project-indicator.md)
 - Related: [practice-kde-companion-requests-basic-auth-access-kinds-and-stale-replies](connection-and-credentials/practice-kde-companion-requests-basic-auth-access-kinds-and-stale-replies.md)
 - Related: [practice-kde-companion-credential-stores-kwallet-only-message-and-reportwrite](connection-and-credentials/practice-kde-companion-credential-stores-kwallet-only-message-and-reportwrite.md)
 - Related: [practice-kde-configure-page-cfg-instanceurl-and-the-wallet-save-timing](connection-and-credentials/practice-kde-configure-page-cfg-instanceurl-and-the-wallet-save-timing.md)
 - Related: [map-users-roles-and-workspace-membership](../../api-and-data/users-and-admin/map-users-roles-and-workspace-membership.md)
-- Related: [map-timer-state-service-settlement-revision-and-discarded-pomodoro](../../api-and-data/timer-state/map-timer-state-service-settlement-revision-and-discarded-pomodoro.md)
+- Related: [map-timer-state-service-settlement-revision-and-discarded-pomodoro → map-server-api-capabilities-and-pomodoro-limits-in-api-app-status](../../api-and-data/timer-state/timer-state-service/map-server-api-capabilities-and-pomodoro-limits-in-api-app-status.md)
+- Related: [map-timer-state-service-settlement-revision-and-discarded-pomodoro → map-stoprunningentry-workspace-membership-check-on-every-stop](../../api-and-data/timer-state/timer-state-service/map-stoprunningentry-workspace-membership-check-on-every-stop.md)
+- Related: [map-timer-state-service-settlement-revision-and-discarded-pomodoro → map-timer-and-pomodoro-actions-revision-checks-and-optional-revision](../../api-and-data/timer-state/timer-state-service/map-timer-and-pomodoro-actions-revision-checks-and-optional-revision.md)
+- Related: [map-timer-state-service-settlement-revision-and-discarded-pomodoro → map-timer-settlement-and-revision-fingerprint](../../api-and-data/timer-state/timer-state-service/map-timer-settlement-and-revision-fingerprint.md)
+- Related: [map-timer-state-service-settlement-revision-and-discarded-pomodoro → map-timer-start-stop-and-edit-routes](../../api-and-data/timer-state/timer-state-service/map-timer-start-stop-and-edit-routes.md)
+- Related: [map-timer-state-service-settlement-revision-and-discarded-pomodoro → map-touchtimer-settled-reads-and-catalog-timer-effects](../../api-and-data/timer-state/timer-state-service/map-touchtimer-settled-reads-and-catalog-timer-effects.md)
 - Related: [map-desktop-timer-state-client-stream-poll-settling-and-revisions](plasma-companion/map-desktop-timer-state-client-stream-poll-settling-and-revisions.md)
+- Related: [map-catalog-revision-and-latest-entry-endpoints](../../api-and-data/reports-and-totals/map-catalog-revision-and-latest-entry-endpoints.md)
 <!-- kk:related:end -->
 
 <!-- kk:citations:start -->

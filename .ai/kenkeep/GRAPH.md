@@ -1,11 +1,19 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:c81e3511cfaaa1d682ac4241810ce558cc68911f86e98ce79dc3be729b043ad4'
-node_count: 116
+nodes_hash: 'sha256:e09ec75e55943e05651c23293baee56861bef24051393d8d20ba75ca8b0612a4'
+node_count: 160
 ---
 # kenkeep Graph
 
-Total nodes: 116
+Total nodes: 160
+
+## map-accepttimerstate-one-validated-entry-for-every-web-timer-state
+
+- **kind:** map
+- **title:** acceptTimerState: one validated entry for every web timer state
+- **path:** web-ui-behaviour/pomodoro/web-timer-state/map-accepttimerstate-one-validated-entry-for-every-web-timer-state.md
+- **tags:** web, timer, sse
+- **relates_to:** map-timer-state-service-settlement-revision-and-discarded-pomodoro, map-web-timer-event-stream-up-and-down-tracking-polling-fallback-and-backoff
 
 ## map-admin-user-management-api-and-the-last-active-admin-rule
 
@@ -25,21 +33,21 @@ Total nodes: 116
 - **relates_to:** practice-signed-in-operations-bind-the-authenticated-user, map-app-report-endpoints
 - **derived_from:** packages/api/src/index.ts, packages/api/src/app.ts, packages/api/src/services/application.ts, packages/api/test/fixtures/app.ts
 
-## map-app-report-endpoints
+## map-asynchronous-ordered-timer-delivery-after-commit
 
 - **kind:** map
-- **title:** Web app report endpoints under /api/app/report
-- **path:** api-and-data/reports-and-totals/map-app-report-endpoints.md
-- **tags:** server, reports, api, web
-- **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:map:6
+- **title:** Asynchronous ordered timer delivery after commit
+- **path:** api-and-data/timer-state/timer-event-stream/map-asynchronous-ordered-timer-delivery-after-commit.md
+- **tags:** api, timer, sse
+- **relates_to:** map-timerbus-cross-instance-timer-delivery-to-sse-streams, map-timer-settlement-and-revision-fingerprint, map-touchtimer-settled-reads-and-catalog-timer-effects
 
-## map-app-shell-brand-and-navigation
+## map-brand-component-and-the-png-wordmark-image
 
 - **kind:** map
-- **title:** App shell: Brand.tsx, the wordmark image and the NAV list
-- **path:** web-ui-styling-and-layout/shell-and-layout/map-app-shell-brand-and-navigation.md
-- **tags:** web, navigation, brand, mobile, wordmark
-- **relates_to:** practice-playwright-gotchas-in-the-e2e-specs, practice-contrast-tables-and-project-colours, practice-phone-layout-css-gotchas, practice-visual-screenshot-baselines, map-app-icons-script, practice-section-hues-data-section-maps-each-nav-section-to-a-hue
+- **title:** Brand component and the PNG wordmark image
+- **path:** web-ui-styling-and-layout/shell-and-layout/app-shell/map-brand-component-and-the-png-wordmark-image.md
+- **tags:** web, brand, wordmark
+- **relates_to:** map-wordmark-crop-and-its-four-outputs, map-npm-run-icons-inputs-and-web-icons, map-wordmark-dark-mode-halo-and-its-e2e-checks
 - **derived_from:** 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:map:0
 
 ## map-catalog-revision-and-latest-entry-endpoints
@@ -68,13 +76,22 @@ Total nodes: 116
 - **relates_to:** map-kde-companion-tests-build-commands-the-ctest-suite-and-its-fakes, practice-brand-packs-in-docs-brand-stay-as-the-owner-supplied-them, map-npm-run-icons-inputs-and-web-icons, map-icons-test-ts-checks-and-rerunning-the-script
 - **derived_from:** b647f585-ce8f-44a2-8bb9-fdf30d08dbe4:map:0
 
-## map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types
+## map-desktop-kde-cmake-project-plasma-widget-package-and-minimum-versions
 
 - **kind:** map
-- **title:** desktop/core and desktop/kde: CMake projects, libraries and QML types
-- **path:** tooling-and-project/kde-companion/plasma-companion/map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types.md
+- **title:** desktop/kde CMake project, Plasma widget package and minimum versions
+- **path:** tooling-and-project/kde-companion/plasma-companion/desktop-cmake-projects/map-desktop-kde-cmake-project-plasma-widget-package-and-minimum-versions.md
 - **tags:** kde, desktop, tooling
-- **relates_to:** practice-kde-companion-requests-basic-auth-access-kinds-and-stale-replies, practice-kde-companion-credential-stores-kwallet-only-message-and-reportwrite, practice-kde-configure-page-cfg-instanceurl-and-the-wallet-save-timing, map-npm-workspaces-package-layout, map-kde-native-packaging
+- **relates_to:** map-npm-workspaces-package-layout, map-kde-native-packaging, map-tokklcore-static-library-and-its-ctest-suites-in-desktop-core, map-kde-qml-foreign-types-and-backend-module-linking
+- **derived_from:** .ai/kenkeep/nodes/.redirects.json
+
+## map-desktop-kde-readme-guide-prd-scope-and-release-assets
+
+- **kind:** map
+- **title:** desktop/kde README guide, PRD scope and release assets
+- **path:** tooling-and-project/kde-companion/plasma-companion/desktop-cmake-projects/map-desktop-kde-readme-guide-prd-scope-and-release-assets.md
+- **tags:** kde, desktop
+- **relates_to:** map-kde-native-packaging, map-desktop-kde-cmake-project-plasma-widget-package-and-minimum-versions
 - **derived_from:** .ai/kenkeep/nodes/.redirects.json
 
 ## map-desktop-pomodoro-alarm-playback-one-backend-per-platform
@@ -93,6 +110,25 @@ Total nodes: 116
 - **path:** tooling-and-project/kde-companion/plasma-companion/map-desktop-timer-state-client-stream-poll-settling-and-revisions.md
 - **tags:** desktop, timer, sse, kde, gnome, macos
 - **relates_to:** map-timer-state-service-settlement-revision-and-discarded-pomodoro, map-timer-event-stream-keep-alive-auth-rechecks-and-stream-cap, practice-kde-timer-controller-rules, map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types
+
+## map-desktop-version-resolution-and-plasma-metadata-stamping
+
+- **kind:** map
+- **title:** Desktop version resolution and Plasma metadata stamping
+- **path:** tooling-and-project/kde-companion/plasma-companion/desktop-cmake-projects/map-desktop-version-resolution-and-plasma-metadata-stamping.md
+- **tags:** kde, desktop, tooling
+- **relates_to:** map-kde-native-packaging, map-tokklcore-static-library-and-its-ctest-suites-in-desktop-core
+- **derived_from:** .ai/kenkeep/nodes/.redirects.json
+
+## map-download-lane-for-account-exports-and-detailed-csvs
+
+- **kind:** map
+- **title:** Download lane for account exports and detailed CSVs
+- **path:** api-and-data/reports-and-totals/app-report-pipeline/map-download-lane-for-account-exports-and-detailed-csvs.md
+- **tags:** server, reports, api
+- **relates_to:** map-report-route-admission-to-the-reportrunner-report-lane, map-report-job-reads-in-sql-batches-and-golden-report-answers
+- **depends_on:** map-reportrunner-lanes-worker-placement-and-crash-handling
+- **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:map:6
 
 ## map-gnome-shell-extension-ci-harnesses-and-shell-version-matrix
 
@@ -134,14 +170,6 @@ Total nodes: 116
 - **tags:** desktop, gnome, ci, packaging
 - **relates_to:** map-kde-ci-and-release-pipeline, map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types
 
-## map-gnome-timer-service-and-d-bus-contract
-
-- **kind:** map
-- **title:** GNOME timer service and D-Bus contract
-- **path:** tooling-and-project/gnome-timer-service/map-gnome-timer-service-and-d-bus-contract.md
-- **tags:** desktop, gnome, dbus
-- **relates_to:** map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types, map-gnome-shell-extension-for-tokkl-timerd, map-desktop-timer-state-client-stream-poll-settling-and-revisions
-
 ## map-history-scale-bench
 
 - **kind:** map
@@ -166,8 +194,8 @@ Total nodes: 116
 - **title:** Instance settings: /api/app/admin/settings
 - **path:** api-and-data/users-and-admin/map-instance-settings-api-app-admin-settings-and-setting-rules.md
 - **tags:** server, admin, settings
-- **relates_to:** practice-stopped-entries-snap-to-the-time-resolution-on-write
-- **derived_from:** packages/api/src/domain/instanceSettings.ts
+- **relates_to:** practice-stopped-entries-snap-to-the-time-resolution-on-write, practice-preferences-validated-by-known-key
+- **derived_from:** packages/api/src/domain/instanceSettings.ts, 9ac1e335-c9fa-41b0-baa6-7595ca4c245b:map:0
 
 ## map-invites-and-password-reset-links-in-account-tokens
 
@@ -220,6 +248,15 @@ Total nodes: 116
 - **tags:** kde, desktop
 - **relates_to:** practice-kde-timer-controller-rules
 
+## map-kde-qml-foreign-types-and-backend-module-linking
+
+- **kind:** map
+- **title:** KDE QML_FOREIGN types and backend module linking
+- **path:** tooling-and-project/kde-companion/plasma-companion/desktop-cmake-projects/map-kde-qml-foreign-types-and-backend-module-linking.md
+- **tags:** kde, desktop, tooling
+- **relates_to:** practice-kde-configure-page-cfg-instanceurl-and-the-wallet-save-timing, map-kde-native-packaging, map-tokklkde-static-library-kwallet-store-and-tokkl-kde-client-name
+- **derived_from:** .ai/kenkeep/nodes/.redirects.json
+
 ## map-kde-real-server-test
 
 - **kind:** map
@@ -235,6 +272,15 @@ Total nodes: 116
 - **path:** tooling-and-project/kde-companion/map-kde-release-upgrade-check-from-the-published-predecessor.md
 - **tags:** tooling, kde, release, packaging
 - **relates_to:** map-kde-ci-and-release-pipeline, map-kde-native-packaging
+
+## map-lazy-page-chunks-and-failed-load-recovery
+
+- **kind:** map
+- **title:** Lazy page chunks and failed-load recovery
+- **path:** web-ui-styling-and-layout/shell-and-layout/app-shell/map-lazy-page-chunks-and-failed-load-recovery.md
+- **tags:** web, navigation
+- **relates_to:** map-nav-list-phone-more-sheet-and-nav-running-dots
+- **derived_from:** 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:map:0
 
 ## map-macos-app-layout-portable-qt-library-and-native-shims
 
@@ -268,6 +314,15 @@ Total nodes: 116
 - **tags:** desktop, macos
 - **relates_to:** map-desktop-timer-state-client-stream-poll-settling-and-revisions, map-macos-app-layout-portable-qt-library-and-native-shims
 
+## map-nav-list-phone-more-sheet-and-nav-running-dots
+
+- **kind:** map
+- **title:** NAV list, phone More sheet and nav running dots
+- **path:** web-ui-styling-and-layout/shell-and-layout/app-shell/map-nav-list-phone-more-sheet-and-nav-running-dots.md
+- **tags:** web, navigation, mobile
+- **relates_to:** practice-section-hues-data-section-maps-each-nav-section-to-a-hue, practice-phone-layout-css-gotchas, map-lazy-page-chunks-and-failed-load-recovery, map-phone-e2e-navigation-helpers-tapnav-and-openmore
+- **derived_from:** 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:map:0
+
 ## map-no-time-manual-entries-all-day
 
 - **kind:** map
@@ -294,6 +349,23 @@ Total nodes: 116
 - **tags:** monorepo, workspaces, layout, tooling, common, api, web, types
 - **relates_to:** map-test-and-static-analysis-layout
 
+## map-org-tokkl-timer1-interface-file-members-and-interfaceversion
+
+- **kind:** map
+- **title:** org.tokkl.Timer1 interface file, members and InterfaceVersion
+- **path:** tooling-and-project/gnome-timer-service/timer1-d-bus-contract/map-org-tokkl-timer1-interface-file-members-and-interfaceversion.md
+- **tags:** gnome, dbus
+- **relates_to:** map-gnome-shell-extension-packaging-and-preferences, map-gnome-shell-extension-ci-harnesses-and-shell-version-matrix, map-gnome-shell-extension-panel-button-and-menu, map-tokkl-timerd-daemon-composition-root-and-secret-storage
+
+## map-phone-e2e-navigation-helpers-tapnav-and-openmore
+
+- **kind:** map
+- **title:** Phone e2e navigation helpers tapNav and openMore
+- **path:** web-ui-styling-and-layout/shell-and-layout/app-shell/map-phone-e2e-navigation-helpers-tapnav-and-openmore.md
+- **tags:** web, navigation, mobile
+- **relates_to:** practice-playwright-gotchas-in-the-e2e-specs, map-nav-list-phone-more-sheet-and-nav-running-dots
+- **derived_from:** 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:map:0
+
 ## map-pomodoro-cycle-functions-in-packages-common
 
 - **kind:** map
@@ -311,6 +383,23 @@ Total nodes: 116
 - **tags:** common, pomodoro, timer, fixtures
 - **relates_to:** map-pomodoro-cycle-functions-in-packages-common, practice-parser-cases-live-in-shared-json-fixtures, practice-preferences-validated-by-known-key, practice-stopped-entries-snap-to-the-time-resolution-on-write, map-timer-state-service-settlement-revision-and-discarded-pomodoro
 - **derived_from:** b2225129-5ef2-4f05-a52f-c5e72c04d34c:map:1, 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:map:2, bff2d85c-6ffd-4b0a-8c4b-78f0be7d1099:map:1, d103ede7-f126-4851-968a-8b39f6b3f9b1:map:5
+
+## map-pomodorosessionprovider-a-tab-side-view-of-the-server-s-pomodoro-session
+
+- **kind:** map
+- **title:** PomodoroSessionProvider: a tab-side view of the server's Pomodoro session
+- **path:** web-ui-behaviour/pomodoro/web-timer-state/map-pomodorosessionprovider-a-tab-side-view-of-the-server-s-pomodoro-session.md
+- **tags:** web, pomodoro, timer
+- **relates_to:** map-pomodoro-session-model-in-packages-common-pomodorosession, map-pomodoro-cycle-functions-in-packages-common, map-web-pomodoro-driver-and-the-app-wide-pomodoroprovider, practice-end-sessions-through-lib-session, map-timer-state-service-settlement-revision-and-discarded-pomodoro, map-accepttimerstate-one-validated-entry-for-every-web-timer-state
+
+## map-production-image-smoke-test-scripts-production-image-smoke-ts
+
+- **kind:** map
+- **title:** Production image smoke test: scripts/production-image-smoke.ts
+- **path:** tooling-and-project/testing/map-production-image-smoke-test-scripts-production-image-smoke-ts.md
+- **tags:** container, testing, migrations, ci
+- **relates_to:** map-container-image-ghcr-io-e0ipso-tokkl, map-test-and-static-analysis-layout, practice-live-entry-indexes-back-project-and-task-totals
+- **derived_from:** 9ac1e335-c9fa-41b0-baa6-7595ca4c245b:map:1
 
 ## map-pwa-manifest-and-head-icon-links
 
@@ -337,6 +426,52 @@ Total nodes: 116
 - **tags:** tooling, kde, ci, release
 - **relates_to:** map-kde-release-upgrade-check-from-the-published-predecessor, map-kde-native-packaging, map-kde-and-core-ci-jobs, map-tests-for-release-only-ci-steps
 
+## map-report-job-reads-in-sql-batches-and-golden-report-answers
+
+- **kind:** map
+- **title:** Report job reads in SQL batches and golden report answers
+- **path:** api-and-data/reports-and-totals/app-report-pipeline/map-report-job-reads-in-sql-batches-and-golden-report-answers.md
+- **tags:** server, reports, storage
+- **relates_to:** map-reportrunner-lanes-worker-placement-and-crash-handling, map-download-lane-for-account-exports-and-detailed-csvs
+- **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:map:6
+
+## map-report-route-admission-to-the-reportrunner-report-lane
+
+- **kind:** map
+- **title:** Report route admission to the ReportRunner report lane
+- **path:** api-and-data/reports-and-totals/app-report-pipeline/map-report-route-admission-to-the-reportrunner-report-lane.md
+- **tags:** server, reports, api
+- **relates_to:** map-download-lane-for-account-exports-and-detailed-csvs, map-web-app-report-routes-range-limits-and-rounding
+- **depends_on:** map-reportrunner-lanes-worker-placement-and-crash-handling
+- **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:map:6
+
+## map-reportrunner-lanes-worker-placement-and-crash-handling
+
+- **kind:** map
+- **title:** ReportRunner lanes, worker placement and crash handling
+- **path:** api-and-data/reports-and-totals/app-report-pipeline/map-reportrunner-lanes-worker-placement-and-crash-handling.md
+- **tags:** server, reports
+- **relates_to:** map-report-route-admission-to-the-reportrunner-report-lane, map-download-lane-for-account-exports-and-detailed-csvs, map-report-job-reads-in-sql-batches-and-golden-report-answers
+- **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:map:6
+
+## map-reports-page-filter-state-in-url-params
+
+- **kind:** map
+- **title:** Reports page filter state in URL params
+- **path:** api-and-data/reports-and-totals/app-report-pipeline/map-reports-page-filter-state-in-url-params.md
+- **tags:** web, reports
+- **relates_to:** map-reports-page-query-body-caching-and-cancellation
+- **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:map:6
+
+## map-reports-page-query-body-caching-and-cancellation
+
+- **kind:** map
+- **title:** Reports page query body, caching and cancellation
+- **path:** api-and-data/reports-and-totals/app-report-pipeline/map-reports-page-query-body-caching-and-cancellation.md
+- **tags:** web, reports
+- **relates_to:** map-web-app-report-routes-range-limits-and-rounding, map-report-route-admission-to-the-reportrunner-report-lane
+- **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:map:6
+
 ## map-rewinddatabase-the-migration-upgrade-e2e-scenarios-in-auth-browser-spec-ts
 
 - **kind:** map
@@ -346,6 +481,15 @@ Total nodes: 116
 - **relates_to:** practice-writing-e2e-specs-areas-shared-helpers-and-extra-accounts, practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory
 - **derived_from:** 7ae0d82c-071d-4a10-822a-6d9631cf5b15:map:1, d103ede7-f126-4851-968a-8b39f6b3f9b1:map:4
 
+## map-server-api-capabilities-and-pomodoro-limits-in-api-app-status
+
+- **kind:** map
+- **title:** Server API capabilities and Pomodoro limits in /api/app/status
+- **path:** api-and-data/timer-state/timer-state-service/map-server-api-capabilities-and-pomodoro-limits-in-api-app-status.md
+- **tags:** api, pomodoro
+- **relates_to:** map-pomodoro-session-model-in-packages-common-pomodorosession, map-timer-start-stop-and-edit-routes
+- **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:map:9
+
 ## map-shared-list-controls-in-manage-ui
 
 - **kind:** map
@@ -354,6 +498,15 @@ Total nodes: 116
 - **tags:** web, components, css, reuse
 - **relates_to:** practice-phone-layout-css-gotchas
 
+## map-stoprunningentry-workspace-membership-check-on-every-stop
+
+- **kind:** map
+- **title:** stopRunningEntry: workspace membership check on every stop
+- **path:** api-and-data/timer-state/timer-state-service/map-stoprunningentry-workspace-membership-check-on-every-stop.md
+- **tags:** api, timer
+- **relates_to:** map-timer-start-stop-and-edit-routes, map-timer-and-pomodoro-actions-revision-checks-and-optional-revision
+- **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:map:9
+
 ## map-test-and-static-analysis-layout
 
 - **kind:** map
@@ -361,7 +514,7 @@ Total nodes: 116
 - **path:** tooling-and-project/testing/map-test-and-static-analysis-layout.md
 - **tags:** testing, typecheck, tooling, workflow
 - **relates_to:** practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory, map-npm-workspaces-package-layout
-- **derived_from:** package.json
+- **derived_from:** package.json, 67af81ef-1520-46b4-8ecc-cec8e46dc6ec:map:0
 
 ## map-tests-for-release-only-ci-steps
 
@@ -371,22 +524,105 @@ Total nodes: 116
 - **tags:** tooling, ci, release, testing
 - **relates_to:** map-test-and-static-analysis-layout, map-kde-release-upgrade-check-from-the-published-predecessor, map-release-stages-kde-semantic-release-plugin-and-gnome-assets
 
-## map-timer-event-stream-keep-alive-auth-rechecks-and-stream-cap
+## map-timer-and-pomodoro-actions-revision-checks-and-optional-revision
 
 - **kind:** map
-- **title:** Timer event stream: keep-alive, credential rechecks and the stream cap
-- **path:** api-and-data/timer-state/map-timer-event-stream-keep-alive-auth-rechecks-and-stream-cap.md
-- **tags:** api, timer, sse, auth
-- **relates_to:** map-timer-state-service-settlement-revision-and-discarded-pomodoro, practice-cookie-writes-and-session-starting-routes-need-the-csrf-header
-
-## map-timer-state-service-settlement-revision-and-discarded-pomodoro
-
-- **kind:** map
-- **title:** Timer state service: settlement, revision and the discarded pomodoro
-- **path:** api-and-data/timer-state/map-timer-state-service-settlement-revision-and-discarded-pomodoro.md
+- **title:** Timer and Pomodoro actions: revision checks and optional revision
+- **path:** api-and-data/timer-state/timer-state-service/map-timer-and-pomodoro-actions-revision-checks-and-optional-revision.md
 - **tags:** api, timer, pomodoro, pause
-- **relates_to:** practice-stopped-entries-snap-to-the-time-resolution-on-write, map-pomodoro-session-model-in-packages-common-pomodorosession, map-timer-event-stream-keep-alive-auth-rechecks-and-stream-cap, practice-creates-take-an-idempotency-key
+- **relates_to:** map-timer-settlement-and-revision-fingerprint, map-pomodoro-session-model-in-packages-common-pomodorosession
 - **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:map:9
+
+## map-timer-event-stream-protocol-keep-alive-and-proxy-requirements
+
+- **kind:** map
+- **title:** Timer event stream protocol, keep-alive and proxy requirements
+- **path:** api-and-data/timer-state/timer-event-stream/map-timer-event-stream-protocol-keep-alive-and-proxy-requirements.md
+- **tags:** api, timer, sse
+- **relates_to:** map-timer-stream-credential-checks-and-recheck-after-credential-changes, map-timer-stream-backpressure-for-slow-clients
+
+## map-timer-settlement-and-revision-fingerprint
+
+- **kind:** map
+- **title:** Timer settlement and revision fingerprint
+- **path:** api-and-data/timer-state/timer-state-service/map-timer-settlement-and-revision-fingerprint.md
+- **tags:** api, timer, pomodoro, pause
+- **relates_to:** practice-timer-stop-snapping-and-duration-limits, map-pomodoro-session-model-in-packages-common-pomodorosession, map-asynchronous-ordered-timer-delivery-after-commit
+- **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:map:9
+
+## map-timer-start-stop-and-edit-routes
+
+- **kind:** map
+- **title:** Timer start, stop and edit routes
+- **path:** api-and-data/timer-state/timer-state-service/map-timer-start-stop-and-edit-routes.md
+- **tags:** api, timer
+- **relates_to:** practice-creates-take-an-idempotency-key, map-timer-and-pomodoro-actions-revision-checks-and-optional-revision, map-stoprunningentry-workspace-membership-check-on-every-stop
+- **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:map:9
+
+## map-timer-stream-admission-caps-and-shared-publish
+
+- **kind:** map
+- **title:** Timer stream admission caps and shared publish
+- **path:** api-and-data/timer-state/timer-event-stream/map-timer-stream-admission-caps-and-shared-publish.md
+- **tags:** api, timer, sse
+- **relates_to:** map-timer-stream-credential-checks-and-recheck-after-credential-changes, map-asynchronous-ordered-timer-delivery-after-commit
+
+## map-timer-stream-backpressure-for-slow-clients
+
+- **kind:** map
+- **title:** Timer stream backpressure for slow clients
+- **path:** api-and-data/timer-state/timer-event-stream/map-timer-stream-backpressure-for-slow-clients.md
+- **tags:** api, timer, sse
+- **relates_to:** map-timer-event-stream-protocol-keep-alive-and-proxy-requirements
+
+## map-timer-stream-credential-checks-and-recheck-after-credential-changes
+
+- **kind:** map
+- **title:** Timer stream credential checks and recheck after credential changes
+- **path:** api-and-data/timer-state/timer-event-stream/map-timer-stream-credential-checks-and-recheck-after-credential-changes.md
+- **tags:** api, timer, sse, auth
+- **relates_to:** practice-cookie-writes-and-session-starting-routes-need-the-csrf-header, map-touchtimer-settled-reads-and-catalog-timer-effects
+
+## map-timer1-actions-presentation-status-and-alarmerror-properties
+
+- **kind:** map
+- **title:** Timer1 Actions, Presentation, Status and AlarmError properties
+- **path:** tooling-and-project/gnome-timer-service/timer1-d-bus-contract/map-timer1-actions-presentation-status-and-alarmerror-properties.md
+- **tags:** gnome, dbus, desktop
+- **relates_to:** map-gnome-shell-extension-panel-button-and-menu, map-tokklcore-static-library-and-its-ctest-suites-in-desktop-core, map-org-tokkl-timer1-interface-file-members-and-interfaceversion
+
+## map-timer1-methods-requests-refreshprojects-configure-and-activate
+
+- **kind:** map
+- **title:** Timer1 methods: requests, RefreshProjects, Configure and Activate
+- **path:** tooling-and-project/gnome-timer-service/timer1-d-bus-contract/map-timer1-methods-requests-refreshprojects-configure-and-activate.md
+- **tags:** gnome, dbus
+- **relates_to:** map-gnome-shell-extension-panel-button-and-menu, map-gnome-shell-extension-ci-harnesses-and-shell-version-matrix, map-gnome-shell-extension-packaging-and-preferences, map-org-tokkl-timer1-interface-file-members-and-interfaceversion
+
+## map-timer1-propertieschanged-publication-from-timerservice
+
+- **kind:** map
+- **title:** Timer1 PropertiesChanged publication from TimerService
+- **path:** tooling-and-project/gnome-timer-service/timer1-d-bus-contract/map-timer1-propertieschanged-publication-from-timerservice.md
+- **tags:** gnome, dbus
+- **relates_to:** map-desktop-timer-state-client-stream-poll-settling-and-revisions, map-timer1-timer-project-and-pomodoro-limit-properties, map-timer1-actions-presentation-status-and-alarmerror-properties
+
+## map-timer1-timer-project-and-pomodoro-limit-properties
+
+- **kind:** map
+- **title:** Timer1 timer, project and Pomodoro limit properties
+- **path:** tooling-and-project/gnome-timer-service/timer1-d-bus-contract/map-timer1-timer-project-and-pomodoro-limit-properties.md
+- **tags:** gnome, dbus, desktop
+- **relates_to:** map-desktop-timer-state-client-stream-poll-settling-and-revisions, map-gnome-shell-extension-project-indicator-and-chosen-project-label, map-org-tokkl-timer1-interface-file-members-and-interfaceversion
+
+## map-timerbus-cross-instance-timer-delivery-to-sse-streams
+
+- **kind:** map
+- **title:** TimerBus: cross-instance timer delivery to SSE streams
+- **path:** api-and-data/timer-state/map-timerbus-cross-instance-timer-delivery-to-sse-streams.md
+- **tags:** api, timer, sse, multi-instance, postgres
+- **relates_to:** map-timer-event-stream-keep-alive-auth-rechecks-and-stream-cap, map-timer-state-service-settlement-revision-and-discarded-pomodoro
+- **derived_from:** 89681365-91ec-41b0-a42d-a66a4f67ccf0:map:0
 
 ## map-tokkl-kde-live-widgets-reload-with-plasmashell
 
@@ -406,6 +642,50 @@ Total nodes: 116
 - **relates_to:** practice-cookie-writes-and-session-starting-routes-need-the-csrf-header, practice-theme-tokens-data-theme-and-cached-theme, practice-json-restore-rules, map-npm-workspaces-package-layout
 - **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:map:2
 
+## map-tokkl-timerd-daemon-composition-root-and-secret-storage
+
+- **kind:** map
+- **title:** tokkl-timerd daemon composition root and secret storage
+- **path:** tooling-and-project/gnome-timer-service/timer1-d-bus-contract/map-tokkl-timerd-daemon-composition-root-and-secret-storage.md
+- **tags:** desktop, gnome, dbus
+- **relates_to:** map-tokklcore-static-library-and-its-ctest-suites-in-desktop-core, map-desktop-timer-state-client-stream-poll-settling-and-revisions, map-org-tokkl-timer1-interface-file-members-and-interfaceversion
+
+## map-tokkl-trust-proxy-accepted-values
+
+- **kind:** map
+- **title:** TOKKL_TRUST_PROXY accepted values
+- **path:** api-and-data/map-tokkl-trust-proxy-accepted-values.md
+- **tags:** api, config, proxy, rate-limit, security
+- **relates_to:** map-api-composition-root-services-http-app-and-clock, practice-password-checks-go-through-failurelimiter-attempt, map-tokkl-rename-legacy-name-fallbacks
+- **derived_from:** c9834e60-a48f-4804-be35-a7d8ba5e20e1:map:0
+
+## map-tokklcore-static-library-and-its-ctest-suites-in-desktop-core
+
+- **kind:** map
+- **title:** tokklcore static library and its CTest suites in desktop/core
+- **path:** tooling-and-project/kde-companion/plasma-companion/desktop-cmake-projects/map-tokklcore-static-library-and-its-ctest-suites-in-desktop-core.md
+- **tags:** desktop, tooling, kde
+- **relates_to:** practice-kde-companion-requests-basic-auth-access-kinds-and-stale-replies, map-tokklkde-static-library-kwallet-store-and-tokkl-kde-client-name, map-tokkl-timerd-daemon-composition-root-and-secret-storage
+- **derived_from:** .ai/kenkeep/nodes/.redirects.json
+
+## map-tokklkde-static-library-kwallet-store-and-tokkl-kde-client-name
+
+- **kind:** map
+- **title:** tokklkde static library, KWallet store and tokkl-kde client name
+- **path:** tooling-and-project/kde-companion/plasma-companion/desktop-cmake-projects/map-tokklkde-static-library-kwallet-store-and-tokkl-kde-client-name.md
+- **tags:** kde, desktop
+- **relates_to:** practice-kde-companion-credential-stores-kwallet-only-message-and-reportwrite, practice-kde-companion-requests-basic-auth-access-kinds-and-stale-replies, map-tokklcore-static-library-and-its-ctest-suites-in-desktop-core, map-kde-qml-foreign-types-and-backend-module-linking
+- **derived_from:** .ai/kenkeep/nodes/.redirects.json
+
+## map-touchtimer-settled-reads-and-catalog-timer-effects
+
+- **kind:** map
+- **title:** touchTimer, settled reads and catalog timer effects
+- **path:** api-and-data/timer-state/timer-state-service/map-touchtimer-settled-reads-and-catalog-timer-effects.md
+- **tags:** api, timer
+- **relates_to:** map-timer-settlement-and-revision-fingerprint, map-asynchronous-ordered-timer-delivery-after-commit, map-timer-stream-credential-checks-and-recheck-after-credential-changes, map-timerbus-cross-instance-timer-delivery-to-sse-streams
+- **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:map:9
+
 ## map-users-roles-and-workspace-membership
 
 - **kind:** map
@@ -414,6 +694,15 @@ Total nodes: 116
 - **tags:** server, database, migrations, auth, workspaces
 - **relates_to:** practice-live-entry-indexes-back-project-and-task-totals, practice-password-checks-go-through-failurelimiter-attempt, map-admin-user-management-api-and-the-last-active-admin-rule, map-invites-and-password-reset-links-in-account-tokens, map-instance-settings-api-app-admin-settings-and-setting-rules
 - **derived_from:** .ai/kenkeep/nodes/.redirects.json, d103ede7-f126-4851-968a-8b39f6b3f9b1:map:8
+
+## map-web-app-report-routes-range-limits-and-rounding
+
+- **kind:** map
+- **title:** Web app report routes, range limits and rounding
+- **path:** api-and-data/reports-and-totals/app-report-pipeline/map-web-app-report-routes-range-limits-and-rounding.md
+- **tags:** server, reports, api
+- **relates_to:** map-report-route-admission-to-the-reportrunner-report-lane, map-reports-page-query-body-caching-and-cancellation
+- **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:map:6
 
 ## map-web-calendar-day-view-and-touch-gestures-in-weekcalendar
 
@@ -427,7 +716,7 @@ Total nodes: 116
 ## map-web-entry-fields-entryfields-tsx-and-useentryfields-ts
 
 - **kind:** map
-- **title:** Entry fields: EntryFields.tsx and useEntryFields.ts
+- **title:** Entry fields: EntryFields.tsx, DescriptionCombobox.tsx and useEntryFields.ts
 - **path:** web-ui-behaviour/interaction-and-state/map-web-entry-fields-entryfields-tsx-and-useentryfields-ts.md
 - **tags:** web, timer, components, react, focus
 - **relates_to:** practice-timer-bar-pickers-return-focus-without-opening-suggestions, practice-web-ui-survives-background-refetches, map-test-and-static-analysis-layout
@@ -457,13 +746,13 @@ Total nodes: 116
 - **relates_to:** map-web-timer-state-stream-and-pomodoro-session-views, practice-preferences-validated-by-known-key
 - **derived_from:** 6f25aa82-f4d8-4d4f-8bd6-90bbec1441c7:map:1, 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:map:3
 
-## map-web-timer-state-stream-and-pomodoro-session-views
+## map-web-timer-event-stream-up-and-down-tracking-polling-fallback-and-backoff
 
 - **kind:** map
-- **title:** Web timer state: one stream per tab, server-corrected clock and Pomodoro views
-- **path:** web-ui-behaviour/pomodoro/map-web-timer-state-stream-and-pomodoro-session-views.md
-- **tags:** web, pomodoro, timer, sse
-- **relates_to:** map-timer-state-service-settlement-revision-and-discarded-pomodoro, map-timer-event-stream-keep-alive-auth-rechecks-and-stream-cap, map-pomodoro-session-model-in-packages-common-pomodorosession, map-pomodoro-cycle-functions-in-packages-common, map-web-pomodoro-driver-and-the-app-wide-pomodoroprovider, practice-end-sessions-through-lib-session
+- **title:** Web timer event stream: up and down tracking, polling fallback and backoff
+- **path:** web-ui-behaviour/pomodoro/web-timer-state/map-web-timer-event-stream-up-and-down-tracking-polling-fallback-and-backoff.md
+- **tags:** web, timer, sse
+- **relates_to:** map-timer-event-stream-keep-alive-auth-rechecks-and-stream-cap, map-accepttimerstate-one-validated-entry-for-every-web-timer-state
 
 ## map-wordmark-crop-and-its-four-outputs
 
@@ -473,6 +762,15 @@ Total nodes: 116
 - **tags:** wordmark, web, icons, imagemagick
 - **relates_to:** map-app-shell-brand-and-navigation, map-readme-screenshots-script, map-icons-test-ts-checks-and-rerunning-the-script
 - **derived_from:** b647f585-ce8f-44a2-8bb9-fdf30d08dbe4:map:0
+
+## map-wordmark-dark-mode-halo-and-its-e2e-checks
+
+- **kind:** map
+- **title:** Wordmark dark-mode halo and its e2e checks
+- **path:** web-ui-styling-and-layout/shell-and-layout/app-shell/map-wordmark-dark-mode-halo-and-its-e2e-checks.md
+- **tags:** web, brand, wordmark
+- **relates_to:** practice-contrast-tables-and-project-colours, practice-visual-screenshot-baselines, practice-playwright-gotchas-in-the-e2e-specs, map-brand-component-and-the-png-wordmark-image
+- **derived_from:** 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:map:0
 
 ## practice-brand-packs-in-docs-brand-stay-as-the-owner-supplied-them
 
@@ -489,6 +787,16 @@ Total nodes: 116
 - **path:** web-ui-styling-and-layout/calendar/practice-calendar-lanes-follow-stored-spans-and-zero-length-markers-draw-on-top.md
 - **tags:** web, calendar, css
 - **relates_to:** map-web-calendar-day-view-and-touch-gestures-in-weekcalendar, practice-ui-time-math-uses-wall-clock-helpers, practice-week-calendar-hour-height-agrees-in-three-places, practice-stopped-entries-snap-to-the-time-resolution-on-write
+
+## practice-charge-invite-and-reset-link-misses-to-the-address-counter
+
+- **kind:** practice
+- **title:** Charge invite and reset link misses to the address counter
+- **path:** api-and-data/password-and-csrf-rules/password-attempt-limits/practice-charge-invite-and-reset-link-misses-to-the-address-counter.md
+- **tags:** server, auth, rate-limit
+- **relates_to:** map-invites-and-password-reset-links-in-account-tokens
+- **depends_on:** practice-verify-passwords-only-through-failurelimiter-attempt
+- **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:practice:8
 
 ## practice-client-deletion-keeps-projects
 
@@ -669,6 +977,15 @@ Total nodes: 116
 - **relates_to:** practice-keep-sift-ticket-ids-and-strikethroo-plans-out-of-code-and-public-docs
 - **derived_from:** 5470b272-9bff-4eb0-8fe5-ffc3d686cda3:practice:0
 
+## practice-key-login-rate-limits-with-normalizeemail-not-tolowercase
+
+- **kind:** practice
+- **title:** Key login rate limits with normalizeEmail, not toLowerCase
+- **path:** api-and-data/password-and-csrf-rules/password-attempt-limits/practice-key-login-rate-limits-with-normalizeemail-not-tolowercase.md
+- **tags:** server, auth, rate-limit
+- **relates_to:** practice-verify-passwords-only-through-failurelimiter-attempt
+- **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:practice:8
+
 ## practice-keyboard-arrow-keys-roving-tabindex-and-own-arrows
 
 - **kind:** practice
@@ -684,6 +1001,14 @@ Total nodes: 116
 - **path:** api-and-data/reports-and-totals/practice-live-entry-indexes-back-project-and-task-totals.md
 - **tags:** server, database, migrations, performance
 - **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:practice:6
+
+## practice-mark-every-write-that-can-move-the-timer-revision-with-moves-timer
+
+- **kind:** practice
+- **title:** Mark every write that can move the timer revision with MOVES_TIMER
+- **path:** web-ui-behaviour/time-and-timers/web-timer-actions/practice-mark-every-write-that-can-move-the-timer-revision-with-moves-timer.md
+- **tags:** web, timer, pomodoro
+- **relates_to:** practice-send-the-cached-revision-with-every-timer-action-and-adopt-the-reply, practice-post-running-entry-edits-to-the-timer-edit-endpoint-with-the-entry-id
 
 ## practice-merge-a-pr-stack-bottom-up-without-retargeting-its-prs
 
@@ -719,14 +1044,6 @@ Total nodes: 116
 - **relates_to:** practice-parse-duration-returns-null-over-999-hours, practice-twelve-hour-time-entry-parsing-rules, map-test-and-static-analysis-layout, map-pomodoro-session-model-in-packages-common-pomodorosession
 - **derived_from:** 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:practice:6
 
-## practice-password-checks-go-through-failurelimiter-attempt
-
-- **kind:** practice
-- **title:** Password checks go through FailureLimiter.attempt
-- **path:** api-and-data/password-and-csrf-rules/practice-password-checks-go-through-failurelimiter-attempt.md
-- **tags:** server, auth, rate-limit
-- **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:practice:8
-
 ## practice-phone-layout-css-gotchas
 
 - **kind:** practice
@@ -753,6 +1070,14 @@ Total nodes: 116
 - **relates_to:** map-web-pomodoro-driver-and-the-app-wide-pomodoroprovider, practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory
 - **derived_from:** 6f25aa82-f4d8-4d4f-8bd6-90bbec1441c7:practice:2, 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:practice:3
 
+## practice-post-running-entry-edits-to-the-timer-edit-endpoint-with-the-entry-id
+
+- **kind:** practice
+- **title:** Post running-entry edits to the timer edit endpoint with the entry id
+- **path:** web-ui-behaviour/time-and-timers/web-timer-actions/practice-post-running-entry-edits-to-the-timer-edit-endpoint-with-the-entry-id.md
+- **tags:** web, timer
+- **relates_to:** map-accepttimerstate-one-validated-entry-for-every-web-timer-state, practice-mark-every-write-that-can-move-the-timer-revision-with-moves-timer, practice-route-timer-writes-through-timerwrite-and-reconcile-after-an-unknown-outcome
+
 ## practice-preferences-validated-by-known-key
 
 - **kind:** practice
@@ -771,6 +1096,15 @@ Total nodes: 116
 - **relates_to:** practice-keep-sift-ticket-ids-and-strikethroo-plans-out-of-code-and-public-docs, map-tokkl-rename-legacy-name-fallbacks
 - **derived_from:** a8ccde73-a7bd-471e-8daf-eafb3524a6fb:practice:0, b647f585-ce8f-44a2-8bb9-fdf30d08dbe4:practice:0
 
+## practice-recheck-credentials-inside-the-guarded-account-transaction
+
+- **kind:** practice
+- **title:** Recheck credentials inside the guarded account transaction
+- **path:** api-and-data/password-and-csrf-rules/password-attempt-limits/practice-recheck-credentials-inside-the-guarded-account-transaction.md
+- **tags:** server, auth
+- **relates_to:** practice-verify-passwords-only-through-failurelimiter-attempt
+- **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:practice:8
+
 ## practice-report-totals-wrap-as-a-flex-row-amount-figures-never-break
 
 - **kind:** practice
@@ -778,6 +1112,14 @@ Total nodes: 116
 - **path:** web-ui-styling-and-layout/shell-and-layout/practice-report-totals-wrap-as-a-flex-row-amount-figures-never-break.md
 - **tags:** web, css, reports, layout, mobile, e2e
 - **relates_to:** practice-phone-layout-css-gotchas, practice-visual-screenshot-baselines, practice-writing-e2e-specs-areas-shared-helpers-and-extra-accounts, map-readme-screenshots-script
+
+## practice-route-timer-writes-through-timerwrite-and-reconcile-after-an-unknown-outcome
+
+- **kind:** practice
+- **title:** Route timer writes through timerWrite and reconcile after an unknown outcome
+- **path:** web-ui-behaviour/time-and-timers/web-timer-actions/practice-route-timer-writes-through-timerwrite-and-reconcile-after-an-unknown-outcome.md
+- **tags:** web, timer
+- **relates_to:** practice-send-the-cached-revision-with-every-timer-action-and-adopt-the-reply, practice-post-running-entry-edits-to-the-timer-edit-endpoint-with-the-entry-id, practice-send-an-idempotency-key-with-every-create-the-server-keys
 
 ## practice-run-the-gnome-extension-shell-harness-locally-on-one-version-only
 
@@ -804,6 +1146,39 @@ Total nodes: 116
 - **tags:** web, css, navigation, contrast, tokens, calendar
 - **relates_to:** map-app-shell-brand-and-navigation, practice-contrast-tables-and-project-colours, map-shared-list-controls-in-manage-ui, practice-week-calendar-hour-height-agrees-in-three-places
 - **derived_from:** 59dc3ffc-e25c-4710-a620-20a3ee05e3b7:practice:0
+
+## practice-send-an-idempotency-key-with-every-create-the-server-keys
+
+- **kind:** practice
+- **title:** Send an Idempotency-Key with every create the server keys
+- **path:** web-ui-behaviour/time-and-timers/web-timer-actions/practice-send-an-idempotency-key-with-every-create-the-server-keys.md
+- **tags:** web, timer, idempotency
+- **relates_to:** practice-creates-take-an-idempotency-key, practice-route-timer-writes-through-timerwrite-and-reconcile-after-an-unknown-outcome
+
+## practice-send-the-cached-revision-with-every-timer-action-and-adopt-the-reply
+
+- **kind:** practice
+- **title:** Send the cached revision with every timer action and adopt the reply
+- **path:** web-ui-behaviour/time-and-timers/web-timer-actions/practice-send-the-cached-revision-with-every-timer-action-and-adopt-the-reply.md
+- **tags:** web, timer, pause, pomodoro
+- **relates_to:** map-timer-state-service-settlement-revision-and-discarded-pomodoro, map-accepttimerstate-one-validated-entry-for-every-web-timer-state, practice-mark-every-write-that-can-move-the-timer-revision-with-moves-timer, practice-route-timer-writes-through-timerwrite-and-reconcile-after-an-unknown-outcome
+
+## practice-share-password-rate-limits-through-database-counters-and-reservations
+
+- **kind:** practice
+- **title:** Share password rate limits through database counters and reservations
+- **path:** api-and-data/password-and-csrf-rules/password-attempt-limits/practice-share-password-rate-limits-through-database-counters-and-reservations.md
+- **tags:** server, auth, rate-limit, storage
+- **relates_to:** practice-verify-passwords-only-through-failurelimiter-attempt
+- **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:practice:8
+
+## practice-show-the-pause-chain-s-fields-read-only-in-the-timer-bar-while-paused
+
+- **kind:** practice
+- **title:** Show the pause chain's fields read-only in the timer bar while paused
+- **path:** web-ui-behaviour/time-and-timers/web-timer-actions/practice-show-the-pause-chain-s-fields-read-only-in-the-timer-bar-while-paused.md
+- **tags:** web, timer, pause
+- **relates_to:** map-timer-state-service-settlement-revision-and-discarded-pomodoro, practice-web-ui-survives-background-refetches
 
 ## practice-signed-in-operations-bind-the-authenticated-user
 
@@ -916,6 +1291,24 @@ Total nodes: 116
 - **relates_to:** practice-client-deletion-keeps-projects
 - **derived_from:** packages/api/src/routes/toggl/timeEntries.ts, packages/api/src/routes/toggl/catalog.ts
 
+## practice-validate-new-passwords-with-parsenewpassword
+
+- **kind:** practice
+- **title:** Validate new passwords with parseNewPassword
+- **path:** api-and-data/password-and-csrf-rules/password-attempt-limits/practice-validate-new-passwords-with-parsenewpassword.md
+- **tags:** server, auth
+- **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:practice:8
+
+## practice-verify-passwords-only-through-failurelimiter-attempt
+
+- **kind:** practice
+- **title:** Verify passwords only through FailureLimiter.attempt
+- **path:** api-and-data/password-and-csrf-rules/password-attempt-limits/practice-verify-passwords-only-through-failurelimiter-attempt.md
+- **tags:** server, auth, rate-limit
+- **relates_to:** practice-charge-invite-and-reset-link-misses-to-the-address-counter, practice-recheck-credentials-inside-the-guarded-account-transaction, practice-key-login-rate-limits-with-normalizeemail-not-tolowercase
+- **depends_on:** practice-share-password-rate-limits-through-database-counters-and-reservations
+- **derived_from:** d103ede7-f126-4851-968a-8b39f6b3f9b1:practice:8
+
 ## practice-visual-screenshot-baselines
 
 - **kind:** practice
@@ -942,14 +1335,6 @@ Total nodes: 116
 - **tags:** web, tanstack-query, network
 - **relates_to:** practice-web-timer-actions-send-the-seen-revision-and-pause-fields-are-read-only, practice-e2e-isolation-worker-accounts-the-reset-fixture-and-the-error-guard
 - **derived_from:** packages/web/src/api/client.ts, packages/web/src/api/preferenceSaves.ts
-
-## practice-web-timer-actions-send-the-seen-revision-and-pause-fields-are-read-only
-
-- **kind:** practice
-- **title:** Web timer actions: send the seen revision, adopt the reply, fields read-only while paused
-- **path:** web-ui-behaviour/time-and-timers/practice-web-timer-actions-send-the-seen-revision-and-pause-fields-are-read-only.md
-- **tags:** web, timer, pause, pomodoro
-- **relates_to:** map-timer-state-service-settlement-revision-and-discarded-pomodoro, map-web-timer-state-stream-and-pomodoro-session-views, practice-web-ui-survives-background-refetches
 
 ## practice-web-ui-survives-background-refetches
 

@@ -28,6 +28,16 @@ Changing a setting or the stored secret starts a new generation. Account data cl
 <!-- kk:related:start -->
 # Related
 
-- Related: [map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types](../plasma-companion/map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types.md)
-- Related: [practice-password-checks-go-through-failurelimiter-attempt](../../../api-and-data/password-and-csrf-rules/practice-password-checks-go-through-failurelimiter-attempt.md)
+- Related: [map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types → map-desktop-kde-cmake-project-plasma-widget-package-and-minimum-versions](../plasma-companion/desktop-cmake-projects/map-desktop-kde-cmake-project-plasma-widget-package-and-minimum-versions.md)
+- Related: [map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types → map-desktop-kde-readme-guide-prd-scope-and-release-assets](../plasma-companion/desktop-cmake-projects/map-desktop-kde-readme-guide-prd-scope-and-release-assets.md)
+- Related: [map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types → map-desktop-version-resolution-and-plasma-metadata-stamping](../plasma-companion/desktop-cmake-projects/map-desktop-version-resolution-and-plasma-metadata-stamping.md)
+- Related: [map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types → map-kde-qml-foreign-types-and-backend-module-linking](../plasma-companion/desktop-cmake-projects/map-kde-qml-foreign-types-and-backend-module-linking.md)
+- Related: [map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types → map-tokklcore-static-library-and-its-ctest-suites-in-desktop-core](../plasma-companion/desktop-cmake-projects/map-tokklcore-static-library-and-its-ctest-suites-in-desktop-core.md)
+- Related: [map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types → map-tokklkde-static-library-kwallet-store-and-tokkl-kde-client-name](../plasma-companion/desktop-cmake-projects/map-tokklkde-static-library-kwallet-store-and-tokkl-kde-client-name.md)
+- Related: [practice-password-checks-go-through-failurelimiter-attempt → practice-charge-invite-and-reset-link-misses-to-the-address-counter](../../../api-and-data/password-and-csrf-rules/password-attempt-limits/practice-charge-invite-and-reset-link-misses-to-the-address-counter.md)
+- Related: [practice-password-checks-go-through-failurelimiter-attempt → practice-key-login-rate-limits-with-normalizeemail-not-tolowercase](../../../api-and-data/password-and-csrf-rules/password-attempt-limits/practice-key-login-rate-limits-with-normalizeemail-not-tolowercase.md)
+- Related: [practice-password-checks-go-through-failurelimiter-attempt → practice-recheck-credentials-inside-the-guarded-account-transaction](../../../api-and-data/password-and-csrf-rules/password-attempt-limits/practice-recheck-credentials-inside-the-guarded-account-transaction.md)
+- Related: [practice-password-checks-go-through-failurelimiter-attempt → practice-share-password-rate-limits-through-database-counters-and-reservations](../../../api-and-data/password-and-csrf-rules/password-attempt-limits/practice-share-password-rate-limits-through-database-counters-and-reservations.md)
+- Related: [practice-password-checks-go-through-failurelimiter-attempt → practice-validate-new-passwords-with-parsenewpassword](../../../api-and-data/password-and-csrf-rules/password-attempt-limits/practice-validate-new-passwords-with-parsenewpassword.md)
+- Related: [practice-password-checks-go-through-failurelimiter-attempt → practice-verify-passwords-only-through-failurelimiter-attempt](../../../api-and-data/password-and-csrf-rules/password-attempt-limits/practice-verify-passwords-only-through-failurelimiter-attempt.md)
 <!-- kk:related:end -->

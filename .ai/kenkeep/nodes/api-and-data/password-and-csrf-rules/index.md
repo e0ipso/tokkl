@@ -7,11 +7,10 @@
 > This index only orients you; leaves hold the durable guidance. Open at least one relevant leaf before acting.
 
 ## Subfolders
-_None._
+- Load [`password-attempt-limits/`](password-attempt-limits/index.md) for more information on password verification, login rate-limit counters, credential rechecks and new-password rules; read before you add or change a code path that checks or sets a password.
 
 ## Conventions (how we build)
 - Open [**Cookie writes and session-starting routes need the CSRF header**](practice-cookie-writes-and-session-starting-routes-need-the-csrf-header.md) to learn about: Cookie writes, login, setup, invite accept and password reset need X-Tokkl-CSRF: 1 before any lookup; callers and tests must send it. #server #auth #csrf
-- Open [**Password checks go through FailureLimiter.attempt**](practice-password-checks-go-through-failurelimiter-attempt.md) to learn about: Password checks charge three counters; 429s send Retry-After; disabled accounts fail like bad passwords; new passwords use parseNewPassword. #server #auth #rate-limit
 
 ## Components (what exists)
 _None yet._
@@ -19,14 +18,12 @@ _None yet._
 ## By topic
 
 ### #auth
-- Open [**Admin user management API and the last-active-admin rule**](../users-and-admin/map-admin-user-management-api-and-the-last-active-admin-rule.md) — /api/app/admin users: list, role, disable, session revoke, delete; one active admin must remain; disabled accounts are refused at sign-in.
-- Open [**Signed-in operations bind the authenticated user at construction**](../users-and-admin/practice-signed-in-operations-bind-the-authenticated-user.md) — entriesFor, timersFor, catalogsFor, importsFor, preferencesFor and accountsFor take the Authentication once; routes never pass the user's id or the admin actor again.
-- Open [**Cookie writes and session-starting routes need the CSRF header**](practice-cookie-writes-and-session-starting-routes-need-the-csrf-header.md) — Cookie writes, login, setup, invite accept and password reset need X-Tokkl-CSRF: 1 before any lookup; callers and tests must send it.
-### #server
-- Open [**Admin user management API and the last-active-admin rule**](../users-and-admin/map-admin-user-management-api-and-the-last-active-admin-rule.md) — /api/app/admin users: list, role, disable, session revoke, delete; one active admin must remain; disabled accounts are refused at sign-in.
-- Open [**Signed-in operations bind the authenticated user at construction**](../users-and-admin/practice-signed-in-operations-bind-the-authenticated-user.md) — entriesFor, timersFor, catalogsFor, importsFor, preferencesFor and accountsFor take the Authentication once; routes never pass the user's id or the admin actor again.
-- Open [**Parse incoming timestamps with parseInstant**](../time-handling/practice-parse-api-timestamps-with-parseinstant.md) — Server input instants go through parseInstant: RFC 3339 with seconds and a zone, real dates only. Never new Date(String(x)).
+- Open [**Recheck credentials inside the guarded account transaction**](password-attempt-limits/practice-recheck-credentials-inside-the-guarded-account-transaction.md) — Auth and PUT /me recheck the account and credential under the guarded transaction, so revocations during scrypt refuse stale credentials.
+- Open [**Validate new passwords with parseNewPassword**](password-attempt-limits/practice-validate-new-passwords-with-parsenewpassword.md) — New passwords are 8-1024 characters and go through parseNewPassword; current passwords are not capped on login or rotation.
+- Open [**Verify passwords only through FailureLimiter.attempt**](password-attempt-limits/practice-verify-passwords-only-through-failurelimiter-attempt.md) — Password checks run in loginLimiter.attempt over three counters; refusals answer 429 with Retry-After; never call verifyPassword directly.
 ### #csrf
 - Open [**Cookie writes and session-starting routes need the CSRF header**](practice-cookie-writes-and-session-starting-routes-need-the-csrf-header.md) — Cookie writes, login, setup, invite accept and password reset need X-Tokkl-CSRF: 1 before any lookup; callers and tests must send it.
-### #rate-limit
-- Open [**Password checks go through FailureLimiter.attempt**](practice-password-checks-go-through-failurelimiter-attempt.md) — Password checks charge three counters; 429s send Retry-After; disabled accounts fail like bad passwords; new passwords use parseNewPassword.
+### #server
+- Open [**Recheck credentials inside the guarded account transaction**](password-attempt-limits/practice-recheck-credentials-inside-the-guarded-account-transaction.md) — Auth and PUT /me recheck the account and credential under the guarded transaction, so revocations during scrypt refuse stale credentials.
+- Open [**Validate new passwords with parseNewPassword**](password-attempt-limits/practice-validate-new-passwords-with-parsenewpassword.md) — New passwords are 8-1024 characters and go through parseNewPassword; current passwords are not capped on login or rotation.
+- Open [**Verify passwords only through FailureLimiter.attempt**](password-attempt-limits/practice-verify-passwords-only-through-failurelimiter-attempt.md) — Password checks run in loginLimiter.attempt over three counters; refusals answer 429 with Retry-After; never call verifyPassword directly.

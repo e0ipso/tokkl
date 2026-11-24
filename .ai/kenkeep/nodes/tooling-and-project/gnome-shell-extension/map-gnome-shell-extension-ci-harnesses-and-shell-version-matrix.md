@@ -35,7 +35,12 @@ The root `npm test` also runs `desktop/gnome/extension/**/*.test.js` with `node 
 # Related
 
 - Related: [map-gnome-timerd-d-bus-timer-service → map-gnome-timer-service-activation-and-packaging](../gnome-timer-service/map-gnome-timer-service-activation-and-packaging.md)
-- Related: [map-gnome-timerd-d-bus-timer-service → map-gnome-timer-service-and-d-bus-contract](../gnome-timer-service/map-gnome-timer-service-and-d-bus-contract.md)
+- Related: [map-gnome-timerd-d-bus-timer-service → map-org-tokkl-timer1-interface-file-members-and-interfaceversion](../gnome-timer-service/timer1-d-bus-contract/map-org-tokkl-timer1-interface-file-members-and-interfaceversion.md)
+- Related: [map-gnome-timerd-d-bus-timer-service → map-timer1-actions-presentation-status-and-alarmerror-properties](../gnome-timer-service/timer1-d-bus-contract/map-timer1-actions-presentation-status-and-alarmerror-properties.md)
+- Related: [map-gnome-timerd-d-bus-timer-service → map-timer1-methods-requests-refreshprojects-configure-and-activate](../gnome-timer-service/timer1-d-bus-contract/map-timer1-methods-requests-refreshprojects-configure-and-activate.md)
+- Related: [map-gnome-timerd-d-bus-timer-service → map-timer1-propertieschanged-publication-from-timerservice](../gnome-timer-service/timer1-d-bus-contract/map-timer1-propertieschanged-publication-from-timerservice.md)
+- Related: [map-gnome-timerd-d-bus-timer-service → map-timer1-timer-project-and-pomodoro-limit-properties](../gnome-timer-service/timer1-d-bus-contract/map-timer1-timer-project-and-pomodoro-limit-properties.md)
+- Related: [map-gnome-timerd-d-bus-timer-service → map-tokkl-timerd-daemon-composition-root-and-secret-storage](../gnome-timer-service/timer1-d-bus-contract/map-tokkl-timerd-daemon-composition-root-and-secret-storage.md)
 - Related: [map-kde-ci-and-release-pipeline → map-kde-and-core-ci-jobs](../kde-companion/kde-ci-and-release-pipeline/map-kde-and-core-ci-jobs.md)
 - Related: [map-kde-ci-and-release-pipeline → map-kde-real-server-test](../kde-companion/kde-ci-and-release-pipeline/map-kde-real-server-test.md)
 - Related: [map-kde-ci-and-release-pipeline → map-release-stages-kde-semantic-release-plugin-and-gnome-assets](../kde-companion/kde-ci-and-release-pipeline/map-release-stages-kde-semantic-release-plugin-and-gnome-assets.md)

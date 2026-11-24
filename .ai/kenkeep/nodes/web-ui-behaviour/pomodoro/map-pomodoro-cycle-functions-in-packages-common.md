@@ -33,7 +33,9 @@ The API defaults/rules and `Preferences` in `packages/types/index.ts` expose onl
 
 - Related: [practice-preferences-validated-by-known-key](../../api-and-data/users-and-admin/practice-preferences-validated-by-known-key.md)
 - Related: [map-pomodoro-session-model-in-packages-common-pomodorosession](map-pomodoro-session-model-in-packages-common-pomodorosession.md)
-- Related: [map-web-timer-state-stream-and-pomodoro-session-views](map-web-timer-state-stream-and-pomodoro-session-views.md)
+- Related: [map-web-timer-state-stream-and-pomodoro-session-views → map-accepttimerstate-one-validated-entry-for-every-web-timer-state](web-timer-state/map-accepttimerstate-one-validated-entry-for-every-web-timer-state.md)
+- Related: [map-web-timer-state-stream-and-pomodoro-session-views → map-pomodorosessionprovider-a-tab-side-view-of-the-server-s-pomodoro-session](web-timer-state/map-pomodorosessionprovider-a-tab-side-view-of-the-server-s-pomodoro-session.md)
+- Related: [map-web-timer-state-stream-and-pomodoro-session-views → map-web-timer-event-stream-up-and-down-tracking-polling-fallback-and-backoff](web-timer-state/map-web-timer-event-stream-up-and-down-tracking-polling-fallback-and-backoff.md)
 <!-- kk:related:end -->
 
 <!-- kk:citations:start -->

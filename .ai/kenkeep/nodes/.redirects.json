@@ -10,11 +10,43 @@
     "map-desktop-colour-and-monochrome-icons",
     "map-icons-test-ts-checks-and-rerunning-the-script"
   ],
+  "map-app-report-endpoints": [
+    "map-web-app-report-routes-range-limits-and-rounding",
+    "map-report-route-admission-to-the-reportrunner-report-lane",
+    "map-download-lane-for-account-exports-and-detailed-csvs",
+    "map-reportrunner-lanes-worker-placement-and-crash-handling",
+    "map-report-job-reads-in-sql-batches-and-golden-report-answers",
+    "map-reports-page-query-body-caching-and-cancellation",
+    "map-reports-page-filter-state-in-url-params"
+  ],
+  "map-app-shell-brand-and-navigation": [
+    "map-brand-component-and-the-png-wordmark-image",
+    "map-wordmark-dark-mode-halo-and-its-e2e-checks",
+    "map-nav-list-phone-more-sheet-and-nav-running-dots",
+    "map-lazy-page-chunks-and-failed-load-recovery",
+    "map-phone-e2e-navigation-helpers-tapnav-and-openmore"
+  ],
+  "map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types": [
+    "map-desktop-kde-cmake-project-plasma-widget-package-and-minimum-versions",
+    "map-tokklcore-static-library-and-its-ctest-suites-in-desktop-core",
+    "map-tokklkde-static-library-kwallet-store-and-tokkl-kde-client-name",
+    "map-kde-qml-foreign-types-and-backend-module-linking",
+    "map-desktop-version-resolution-and-plasma-metadata-stamping",
+    "map-desktop-kde-readme-guide-prd-scope-and-release-assets"
+  ],
   "map-gnome-shell-extension-for-tokkl-timerd": [
     "map-gnome-shell-extension-panel-button-and-menu",
     "map-gnome-shell-extension-project-indicator-and-chosen-project-label",
     "map-gnome-shell-extension-packaging-and-preferences",
     "map-gnome-shell-extension-ci-harnesses-and-shell-version-matrix"
+  ],
+  "map-gnome-timer-service-and-d-bus-contract": [
+    "map-tokkl-timerd-daemon-composition-root-and-secret-storage",
+    "map-org-tokkl-timer1-interface-file-members-and-interfaceversion",
+    "map-timer1-timer-project-and-pomodoro-limit-properties",
+    "map-timer1-actions-presentation-status-and-alarmerror-properties",
+    "map-timer1-propertieschanged-publication-from-timerservice",
+    "map-timer1-methods-requests-refreshprojects-configure-and-activate"
   ],
   "map-gnome-timerd-d-bus-timer-service": [
     "map-gnome-timer-service-and-d-bus-contract",
@@ -37,6 +69,26 @@
     "map-macos-bundle-icon-and-nsstatusitem-status-image",
     "map-macos-ci-job-and-dmg-release-publishing"
   ],
+  "map-timer-event-stream-keep-alive-auth-rechecks-and-stream-cap": [
+    "map-timer-event-stream-protocol-keep-alive-and-proxy-requirements",
+    "map-timer-stream-credential-checks-and-recheck-after-credential-changes",
+    "map-timer-stream-admission-caps-and-shared-publish",
+    "map-asynchronous-ordered-timer-delivery-after-commit",
+    "map-timer-stream-backpressure-for-slow-clients"
+  ],
+  "map-timer-state-service-settlement-revision-and-discarded-pomodoro": [
+    "map-timer-settlement-and-revision-fingerprint",
+    "map-touchtimer-settled-reads-and-catalog-timer-effects",
+    "map-timer-and-pomodoro-actions-revision-checks-and-optional-revision",
+    "map-timer-start-stop-and-edit-routes",
+    "map-server-api-capabilities-and-pomodoro-limits-in-api-app-status",
+    "map-stoprunningentry-workspace-membership-check-on-every-stop"
+  ],
+  "map-web-timer-state-stream-and-pomodoro-session-views": [
+    "map-accepttimerstate-one-validated-entry-for-every-web-timer-state",
+    "map-web-timer-event-stream-up-and-down-tracking-polling-fallback-and-backoff",
+    "map-pomodorosessionprovider-a-tab-side-view-of-the-server-s-pomodoro-session"
+  ],
   "practice-e2e-test-workflow": [
     "practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory",
     "practice-e2e-isolation-worker-accounts-the-reset-fixture-and-the-error-guard",
@@ -52,9 +104,25 @@
     "practice-password-checks-go-through-failurelimiter-attempt",
     "practice-cookie-writes-and-session-starting-routes-need-the-csrf-header"
   ],
+  "practice-password-checks-go-through-failurelimiter-attempt": [
+    "practice-verify-passwords-only-through-failurelimiter-attempt",
+    "practice-share-password-rate-limits-through-database-counters-and-reservations",
+    "practice-recheck-credentials-inside-the-guarded-account-transaction",
+    "practice-key-login-rate-limits-with-normalizeemail-not-tolowercase",
+    "practice-validate-new-passwords-with-parsenewpassword",
+    "practice-charge-invite-and-reset-link-misses-to-the-address-counter"
+  ],
   "practice-stopped-entries-snap-to-the-time-resolution-on-write": [
     "practice-stopped-entry-grid-validation",
     "practice-timer-stop-snapping-and-duration-limits",
     "practice-entry-resolution-at-dst-imports-and-reports"
+  ],
+  "practice-web-timer-actions-send-the-seen-revision-and-pause-fields-are-read-only": [
+    "practice-send-the-cached-revision-with-every-timer-action-and-adopt-the-reply",
+    "practice-mark-every-write-that-can-move-the-timer-revision-with-moves-timer",
+    "practice-post-running-entry-edits-to-the-timer-edit-endpoint-with-the-entry-id",
+    "practice-route-timer-writes-through-timerwrite-and-reconcile-after-an-unknown-outcome",
+    "practice-send-an-idempotency-key-with-every-create-the-server-keys",
+    "practice-show-the-pause-chain-s-fields-read-only-in-the-timer-bar-while-paused"
   ]
 }

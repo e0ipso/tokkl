@@ -29,7 +29,11 @@ Palette reduction drops the master's faintest edge pixels (its top row is at mos
 <!-- kk:related:start -->
 # Related
 
-- Related: [map-app-shell-brand-and-navigation](../../../web-ui-styling-and-layout/shell-and-layout/map-app-shell-brand-and-navigation.md)
+- Related: [map-app-shell-brand-and-navigation → map-brand-component-and-the-png-wordmark-image](../../../web-ui-styling-and-layout/shell-and-layout/app-shell/map-brand-component-and-the-png-wordmark-image.md)
+- Related: [map-app-shell-brand-and-navigation → map-lazy-page-chunks-and-failed-load-recovery](../../../web-ui-styling-and-layout/shell-and-layout/app-shell/map-lazy-page-chunks-and-failed-load-recovery.md)
+- Related: [map-app-shell-brand-and-navigation → map-nav-list-phone-more-sheet-and-nav-running-dots](../../../web-ui-styling-and-layout/shell-and-layout/app-shell/map-nav-list-phone-more-sheet-and-nav-running-dots.md)
+- Related: [map-app-shell-brand-and-navigation → map-phone-e2e-navigation-helpers-tapnav-and-openmore](../../../web-ui-styling-and-layout/shell-and-layout/app-shell/map-phone-e2e-navigation-helpers-tapnav-and-openmore.md)
+- Related: [map-app-shell-brand-and-navigation → map-wordmark-dark-mode-halo-and-its-e2e-checks](../../../web-ui-styling-and-layout/shell-and-layout/app-shell/map-wordmark-dark-mode-halo-and-its-e2e-checks.md)
 - Related: [map-readme-screenshots-script](../map-readme-screenshots-script.md)
 - Related: [map-icons-test-ts-checks-and-rerunning-the-script](map-icons-test-ts-checks-and-rerunning-the-script.md)
 <!-- kk:related:end -->

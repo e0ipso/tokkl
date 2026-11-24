@@ -7,14 +7,13 @@
 > This index only orients you; leaves hold the durable guidance. Open at least one relevant leaf before acting.
 
 ## Subfolders
-_None._
+- Load [`web-timer-actions/`](web-timer-actions/index.md) for more information on web timer actions, revision guards, unknown-outcome reconciliation, create idempotency keys and the paused timer bar; read before changing a web write that starts, stops, pauses or edits the timer.
 
 ## Conventions (how we build)
 - Open [**UI time math uses account-local wall-clock helpers**](practice-ui-time-math-uses-wall-clock-helpers.md) to learn about: Calendar positions and day/clock shifts use packages/common/time.ts helpers, never +86400000 ms or minutes*60000, so DST days work. #web #time #dst #calendar #common
 - Open [**Web previews and the entry editor show the snapped duration**](practice-web-previews-and-editor-show-snapped-durations.md) to learn about: Previews use snappedSeconds and snappedInstant with the /me resolution; toasts and chained starts use the server-returned entry. #web #time #timer #entries
 - Open [**12-hour time entry: explicit AM/PM wins, ends follow the start**](practice-twelve-hour-time-entry-parsing-rules.md) to learn about: parseTimeOfDay never overrides a typed AM/PM; unsuffixed ends take the first occurrence after the start; starts guess near now. #web #time #parsing
 - Open [**Durations: over 999 hours is unreadable (null), not clamped**](practice-parse-duration-returns-null-over-999-hours.md) to learn about: MAX_DURATION_SECONDS caps parseDuration on every branch; callers read null as unreadable input. #time #parsing #validation
-- Open [**Web timer actions: send the seen revision, adopt the reply, fields read-only while paused**](practice-web-timer-actions-send-the-seen-revision-and-pause-fields-are-read-only.md) to learn about: Start, Stop, Pause, Resume, Stop while paused and session actions post to the server; a 409 carries the current state; the bar edits nothing while paused. #web #timer #pause #pomodoro
 
 ## Components (what exists)
 _None yet._
@@ -23,20 +22,16 @@ _None yet._
 
 ### #time
 - Open [**Parse incoming timestamps with parseInstant**](../../api-and-data/time-handling/practice-parse-api-timestamps-with-parseinstant.md) — Server input instants go through parseInstant: RFC 3339 with seconds and a zone, real dates only. Never new Date(String(x)).
-- Open [**Stopped entry grid validation**](../../api-and-data/time-handling/stopped-entry-resolution/practice-stopped-entry-grid-validation.md) — Stopped live entries use snapSpan and the instance grid; typed zero spans fail while unchanged spans remain editable.
 - Open [**Timer stop snapping and duration limits**](../../api-and-data/time-handling/stopped-entry-resolution/practice-timer-stop-snapping-and-duration-limits.md) — Timer stops can trash zero spans, preserve switching boundaries and clamp the maximum duration.
+- Open [**Stopped entry grid validation**](../../api-and-data/time-handling/stopped-entry-resolution/practice-stopped-entry-grid-validation.md) — Stopped live entries use snapSpan and the instance grid; typed zero spans fail while unchanged spans remain editable.
 ### #web
-- Open [**Bulk bar sticks under the timer bar through --timer-bar-height**](../../web-ui-styling-and-layout/shell-and-layout/practice-timer-bar-height-drives-sticky-bulk-bar.md) — TimerBar writes --timer-bar-height on <html>; .bulk-bar sticks at it; phones zero it while entries are selected.
-- Open [**Calendar lanes follow stored spans; zero-length markers draw on top**](../../web-ui-styling-and-layout/calendar/practice-calendar-lanes-follow-stored-spans-and-zero-length-markers-draw-on-top.md) — assignLanes clusters on stored spans, shorter first; thin blocks, markers and drags stack 3, 4, 5; blocks under a marker are drawn taller.
-- Open [**Week calendar hour height lives in three places**](../../web-ui-styling-and-layout/calendar/practice-week-calendar-hour-height-agrees-in-three-places.md) — HOUR_HEIGHT, the 48px hour lines in styles.css and HOUR in the e2e calendar helpers must match.
+- Open [**Route timer writes through timerWrite and reconcile after an unknown outcome**](web-timer-actions/practice-route-timer-writes-through-timerwrite-and-reconcile-after-an-unknown-outcome.md) — After an unknown write outcome, the next timer write reads GET /api/app/timer first; a guarded write fails as a conflict if it moved.
+- Open [**Post running-entry edits to the timer edit endpoint with the entry id**](web-timer-actions/practice-post-running-entry-edits-to-the-timer-edit-endpoint-with-the-entry-id.md) — Running-entry edits post to /api/app/timer/edit with entry_id and no revision; a 409 is adopted and fails the edit as a conflict.
+- Open [**Mark every write that can move the timer revision with MOVES_TIMER**](web-timer-actions/practice-mark-every-write-that-can-move-the-timer-revision-with-moves-timer.md) — currentRevision waits for writes marked MOVES_TIMER before a timer action; mark any write that changes the running entry, session or pause.
 ### #parsing
 - Open [**12-hour time entry: explicit AM/PM wins, ends follow the start**](practice-twelve-hour-time-entry-parsing-rules.md) — parseTimeOfDay never overrides a typed AM/PM; unsuffixed ends take the first occurrence after the start; starts guess near now.
 - Open [**Durations: over 999 hours is unreadable (null), not clamped**](practice-parse-duration-returns-null-over-999-hours.md) — MAX_DURATION_SECONDS caps parseDuration on every branch; callers read null as unreadable input.
 - Open [**Parser cases live in packages/common/fixtures JSON, not in TS asserts**](../../tooling-and-project/testing/practice-parser-cases-live-in-shared-json-fixtures.md) — duration, timeOfDay, snap and pomodoroSession cases are a cross-client contract in JSON; add cases there, not in TS tests.
-### #timer
-- Open [**Web timer state: one stream per tab, server-corrected clock and Pomodoro views**](../pomodoro/map-web-timer-state-stream-and-pomodoro-session-views.md) — TimerStateProvider opens the SSE stream; PomodoroSessionProvider only views the server's session, rings and notifies; nothing is kept in localStorage.
-- Open [**Web timer actions: send the seen revision, adopt the reply, fields read-only while paused**](practice-web-timer-actions-send-the-seen-revision-and-pause-fields-are-read-only.md) — Start, Stop, Pause, Resume, Stop while paused and session actions post to the server; a 409 carries the current state; the bar edits nothing while paused.
-- Open [**Web notifications: phaseNotification.ts and the Allow notifications button**](../pomodoro/map-web-pomodoro-driver-and-the-app-wide-pomodoroprovider.md) — notificationAccess and AllowNotifications; notifyInBackground for long-timer reminders, notifySessionPhaseEnd for Pomodoro sessions.
 ### #calendar
 - Open [**Week calendar hour height lives in three places**](../../web-ui-styling-and-layout/calendar/practice-week-calendar-hour-height-agrees-in-three-places.md) — HOUR_HEIGHT, the 48px hour lines in styles.css and HOUR in the e2e calendar helpers must match.
 - Open [**Calendar lanes follow stored spans; zero-length markers draw on top**](../../web-ui-styling-and-layout/calendar/practice-calendar-lanes-follow-stored-spans-and-zero-length-markers-draw-on-top.md) — assignLanes clusters on stored spans, shorter first; thin blocks, markers and drags stack 3, 4, 5; blocks under a marker are drawn taller.
@@ -50,13 +45,10 @@ _None yet._
 ### #entries
 - Open [**Web previews and the entry editor show the snapped duration**](practice-web-previews-and-editor-show-snapped-durations.md) — Previews use snappedSeconds and snappedInstant with the /me resolution; toasts and chained starts use the server-returned entry.
 - Open [**Stopped entry grid validation**](../../api-and-data/time-handling/stopped-entry-resolution/practice-stopped-entry-grid-validation.md) — Stopped live entries use snapSpan and the instance grid; typed zero spans fail while unchanged spans remain editable.
-### #pause
-- Open [**Timer state service: settlement, revision and the discarded pomodoro**](../../api-and-data/timer-state/map-timer-state-service-settlement-revision-and-discarded-pomodoro.md) — settleTimer numbers a user's running entry, pause chain and Pomodoro session; every write that can change the running entry calls touchTimer.
-- Open [**Web timer actions: send the seen revision, adopt the reply, fields read-only while paused**](practice-web-timer-actions-send-the-seen-revision-and-pause-fields-are-read-only.md) — Start, Stop, Pause, Resume, Stop while paused and session actions post to the server; a 409 carries the current state; the bar edits nothing while paused.
-### #pomodoro
-- Open [**Web timer actions: send the seen revision, adopt the reply, fields read-only while paused**](practice-web-timer-actions-send-the-seen-revision-and-pause-fields-are-read-only.md) — Start, Stop, Pause, Resume, Stop while paused and session actions post to the server; a 409 carries the current state; the bar edits nothing while paused.
-- Open [**Web timer state: one stream per tab, server-corrected clock and Pomodoro views**](../pomodoro/map-web-timer-state-stream-and-pomodoro-session-views.md) — TimerStateProvider opens the SSE stream; PomodoroSessionProvider only views the server's session, rings and notifies; nothing is kept in localStorage.
-- Open [**Web notifications: phaseNotification.ts and the Allow notifications button**](../pomodoro/map-web-pomodoro-driver-and-the-app-wide-pomodoroprovider.md) — notificationAccess and AllowNotifications; notifyInBackground for long-timer reminders, notifySessionPhaseEnd for Pomodoro sessions.
+### #timer
+- Open [**Route timer writes through timerWrite and reconcile after an unknown outcome**](web-timer-actions/practice-route-timer-writes-through-timerwrite-and-reconcile-after-an-unknown-outcome.md) — After an unknown write outcome, the next timer write reads GET /api/app/timer first; a guarded write fails as a conflict if it moved.
+- Open [**Post running-entry edits to the timer edit endpoint with the entry id**](web-timer-actions/practice-post-running-entry-edits-to-the-timer-edit-endpoint-with-the-entry-id.md) — Running-entry edits post to /api/app/timer/edit with entry_id and no revision; a 409 is adopted and fails the edit as a conflict.
+- Open [**acceptTimerState: one validated entry for every web timer state**](../pomodoro/web-timer-state/map-accepttimerstate-one-validated-entry-for-every-web-timer-state.md) — Every web timer state passes isTimerState and acceptTimerState: revision check, cache writes, stale.timerChanged and server clock offset.
 ### #validation
 - Open [**Parse incoming timestamps with parseInstant**](../../api-and-data/time-handling/practice-parse-api-timestamps-with-parseinstant.md) — Server input instants go through parseInstant: RFC 3339 with seconds and a zone, real dates only. Never new Date(String(x)).
 - Open [**Toggl CSV import: choose team-export users by opaque key**](../../api-and-data/toggl-compat-and-import/practice-toggl-csv-import-selects-users-by-opaque-key.md) — Team CSVs list users by JSON key; send one user=<key> query param per user; a real multi-user import without one is a 400.

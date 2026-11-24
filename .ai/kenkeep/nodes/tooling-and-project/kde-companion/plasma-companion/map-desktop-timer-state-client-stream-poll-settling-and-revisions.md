@@ -33,8 +33,22 @@ Actions (`start`, `stop`, `pause`, `resume`, `discard`, `edit`, `startPomodoro`,
 <!-- kk:related:start -->
 # Related
 
-- Related: [map-timer-state-service-settlement-revision-and-discarded-pomodoro](../../../api-and-data/timer-state/map-timer-state-service-settlement-revision-and-discarded-pomodoro.md)
-- Related: [map-timer-event-stream-keep-alive-auth-rechecks-and-stream-cap](../../../api-and-data/timer-state/map-timer-event-stream-keep-alive-auth-rechecks-and-stream-cap.md)
+- Related: [map-timer-state-service-settlement-revision-and-discarded-pomodoro → map-server-api-capabilities-and-pomodoro-limits-in-api-app-status](../../../api-and-data/timer-state/timer-state-service/map-server-api-capabilities-and-pomodoro-limits-in-api-app-status.md)
+- Related: [map-timer-state-service-settlement-revision-and-discarded-pomodoro → map-stoprunningentry-workspace-membership-check-on-every-stop](../../../api-and-data/timer-state/timer-state-service/map-stoprunningentry-workspace-membership-check-on-every-stop.md)
+- Related: [map-timer-state-service-settlement-revision-and-discarded-pomodoro → map-timer-and-pomodoro-actions-revision-checks-and-optional-revision](../../../api-and-data/timer-state/timer-state-service/map-timer-and-pomodoro-actions-revision-checks-and-optional-revision.md)
+- Related: [map-timer-state-service-settlement-revision-and-discarded-pomodoro → map-timer-settlement-and-revision-fingerprint](../../../api-and-data/timer-state/timer-state-service/map-timer-settlement-and-revision-fingerprint.md)
+- Related: [map-timer-state-service-settlement-revision-and-discarded-pomodoro → map-timer-start-stop-and-edit-routes](../../../api-and-data/timer-state/timer-state-service/map-timer-start-stop-and-edit-routes.md)
+- Related: [map-timer-state-service-settlement-revision-and-discarded-pomodoro → map-touchtimer-settled-reads-and-catalog-timer-effects](../../../api-and-data/timer-state/timer-state-service/map-touchtimer-settled-reads-and-catalog-timer-effects.md)
+- Related: [map-timer-event-stream-keep-alive-auth-rechecks-and-stream-cap → map-asynchronous-ordered-timer-delivery-after-commit](../../../api-and-data/timer-state/timer-event-stream/map-asynchronous-ordered-timer-delivery-after-commit.md)
+- Related: [map-timer-event-stream-keep-alive-auth-rechecks-and-stream-cap → map-timer-event-stream-protocol-keep-alive-and-proxy-requirements](../../../api-and-data/timer-state/timer-event-stream/map-timer-event-stream-protocol-keep-alive-and-proxy-requirements.md)
+- Related: [map-timer-event-stream-keep-alive-auth-rechecks-and-stream-cap → map-timer-stream-admission-caps-and-shared-publish](../../../api-and-data/timer-state/timer-event-stream/map-timer-stream-admission-caps-and-shared-publish.md)
+- Related: [map-timer-event-stream-keep-alive-auth-rechecks-and-stream-cap → map-timer-stream-backpressure-for-slow-clients](../../../api-and-data/timer-state/timer-event-stream/map-timer-stream-backpressure-for-slow-clients.md)
+- Related: [map-timer-event-stream-keep-alive-auth-rechecks-and-stream-cap → map-timer-stream-credential-checks-and-recheck-after-credential-changes](../../../api-and-data/timer-state/timer-event-stream/map-timer-stream-credential-checks-and-recheck-after-credential-changes.md)
 - Related: [practice-kde-timer-controller-rules](../practice-kde-timer-controller-rules.md)
-- Related: [map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types](map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types.md)
+- Related: [map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types → map-desktop-kde-cmake-project-plasma-widget-package-and-minimum-versions](desktop-cmake-projects/map-desktop-kde-cmake-project-plasma-widget-package-and-minimum-versions.md)
+- Related: [map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types → map-desktop-kde-readme-guide-prd-scope-and-release-assets](desktop-cmake-projects/map-desktop-kde-readme-guide-prd-scope-and-release-assets.md)
+- Related: [map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types → map-desktop-version-resolution-and-plasma-metadata-stamping](desktop-cmake-projects/map-desktop-version-resolution-and-plasma-metadata-stamping.md)
+- Related: [map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types → map-kde-qml-foreign-types-and-backend-module-linking](desktop-cmake-projects/map-kde-qml-foreign-types-and-backend-module-linking.md)
+- Related: [map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types → map-tokklcore-static-library-and-its-ctest-suites-in-desktop-core](desktop-cmake-projects/map-tokklcore-static-library-and-its-ctest-suites-in-desktop-core.md)
+- Related: [map-desktop-core-and-desktop-kde-cmake-projects-libraries-and-qml-types → map-tokklkde-static-library-kwallet-store-and-tokkl-kde-client-name](desktop-cmake-projects/map-tokklkde-static-library-kwallet-store-and-tokkl-kde-client-name.md)
 <!-- kk:related:end -->

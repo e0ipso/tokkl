@@ -13,6 +13,7 @@ kk_schema_version: 3
 kk_id: map-test-and-static-analysis-layout
 kk_derived_from:
   - package.json
+  - '67af81ef-1520-46b4-8ecc-cec8e46dc6ec:map:0'
 kk_relates_to:
   - practice-running-the-e2e-suite-build-chromium-ports-and-the-data-directory
   - map-npm-workspaces-package-layout
@@ -21,7 +22,7 @@ kk_confidence: high
 ---
 `npm test` runs `npm run test --workspaces --if-present`. `packages/api` (`test/**/*.test.ts`), `packages/common` (`*.test.ts`) and `packages/web` (`src/**/*.test.ts`) each run `node --test` over their own files; `packages/types` has no tests. After the workspaces, the root script runs `node --test --test-reporter=spec 'e2e/**/*.test.ts' 'scripts/**/*.test.ts' 'desktop/gnome/extension/**/*.test.js'`, so node:test files under `e2e/` (today `e2e/data-dir-lock.test.ts`), under `scripts/` (today `check-tracker-refs.test.ts`, `commitlint.test.ts`, `icons.test.ts`, which checks the committed wordmark PNGs and manifest icons against their sources without ImageMagick (see [map-app-icons-script](../repo-and-scripts/map-app-icons-script.md)), and the release-only code tests `release-publish.test.ts`, which runs steps of `ci.yml` against a stub `gh`, `kde-semantic-release.test.ts`, `kde-previous-package.test.ts` and `kde-image-id.test.ts`; see [map-kde-ci-and-release-pipeline](../kde-companion/map-kde-ci-and-release-pipeline.md)) and the GNOME extension's pure-JS tests run in `npm test`; Playwright specs stay `*.spec.ts` and run only through `npm run test:e2e`. `npm run build` works the same way, and only `packages/web` has a build.
 
-Multi-user concurrency coverage lives in `packages/api/test/storage/`. `multiUserConcurrency.test.ts` runs on SQLite, PostgreSQL, MySQL and MariaDB. Three users (two through one app, one through another) send overlapping writes, forced by `transactionBarrier()` in `support/invariantHttp.ts`. Each user must end with only their own entries, catalogs, totals and timer revision. Two users also stream `GET /api/app/timer/events` through one app while their timer writes overlap, and each stream must carry only its owner's states. Timer publication is local to a process, so both streams share one app. The test "independent timer owners can write while another owner holds its guards" in `applicationIntegration.test.ts` checks that writers do not block each other. It runs on PostgreSQL, MySQL and MariaDB only. SQLite is left out because `BEGIN IMMEDIATE` makes a second writer wait by design. SQLite still runs the correctness checks in `multiUserConcurrency.test.ts`.
+Multi-user concurrency coverage lives in `packages/api/test/storage/`. `multiUserConcurrency.test.ts` runs on SQLite, PostgreSQL, MySQL and MariaDB. Three users (two through one app, one through another) send overlapping writes, forced by `transactionBarrier()` in `support/invariantHttp.ts`. Each user must end with only their own entries, catalogs, totals and timer revision. Two users also stream `GET /api/app/timer/events` through one app while their timer writes overlap, and each stream must carry only its owner's states. Timer publication is local to a process, so both streams share one app. The test "independent timer owners can write while another owner holds its guards" in `applicationIntegration.test.ts` checks that writers do not block each other. It runs on PostgreSQL, MySQL and MariaDB only. SQLite is left out because `BEGIN IMMEDIATE` makes a second writer wait by design. SQLite still runs the correctness checks in `multiUserConcurrency.test.ts`. Most files in `packages/api/test/storage/` loop over the backends they cover and start each through `disposableBackend`, so `TOKKL_TEST_BACKEND` (read by `test/fixtures/database.ts`, SQLite by default) does not narrow them and running them starts the PostgreSQL, MySQL and MariaDB containers. To stay on SQLite, filter with `--test-name-pattern` on the sqlite case; test names usually start with the backend, as in `sqlite: ...`.
 
 Unit tests in `packages/web` can only import plain `.ts` modules, because Node strips types from `.ts` but cannot load `.tsx`. Logic worth unit testing is pulled out of components into a `.ts` file next to them, as with `pages/manage/swatchCheck.ts` and `components/arrowKeys.ts`. Anything that needs a DOM or React goes through the Playwright e2e suite.
 
@@ -42,4 +43,5 @@ Every config inherits `erasableSyntaxOnly` because Node runs `.ts` files by stri
 # Citations
 
 [1] [package.json](../../../../../package.json)
+[2] 67af81ef-1520-46b4-8ecc-cec8e46dc6ec:map:0
 <!-- kk:citations:end -->

@@ -19,16 +19,32 @@ _None yet._
 
 ## Components (what exists)
 - Open [**API composition root: services, HTTP app and clock**](map-api-composition-root-services-http-app-and-clock.md) to learn about: index.ts builds createApplicationServices, then createHttpApp over them, and holds the typed close; tests compose the same two pieces through composeApp and pass a fixed Clock. #server #architecture #testing
+- Open [**TOKKL_TRUST_PROXY accepted values**](map-tokkl-trust-proxy-accepted-values.md) to learn about: TOKKL_TRUST_PROXY takes empty/0, a hop count, or an IP/CIDR list; boolean words like true/yes stop startup with a named error. #api #config #proxy #rate-limit #security
 
 ## By topic
 
+### #api
+- Open [**Asynchronous ordered timer delivery after commit**](timer-state/timer-event-stream/map-asynchronous-ordered-timer-delivery-after-commit.md) — A timer write enqueues its state on an ordered per-user queue after commit and never waits for stream delivery.
+- Open [**Timer event stream protocol, keep-alive and proxy requirements**](timer-state/timer-event-stream/map-timer-event-stream-protocol-keep-alive-and-proxy-requirements.md) — GET /api/app/timer/events sends full state on connect and change, a keep-alive event every 25 s, and needs unbuffered proxies.
+- Open [**Timer stream backpressure for slow clients**](timer-state/timer-event-stream/map-timer-stream-backpressure-for-slow-clients.md) — A full socket makes a timer stream wait up to 30 s for drain; more than 64 KiB unsent ends the stream.
 ### #architecture
-- Open [**Signed-in operations bind the authenticated user at construction**](users-and-admin/practice-signed-in-operations-bind-the-authenticated-user.md) — entriesFor, timersFor, catalogsFor, importsFor, preferencesFor and accountsFor take the Authentication once; routes never pass the user's id or the admin actor again.
 - Open [**API composition root: services, HTTP app and clock**](map-api-composition-root-services-http-app-and-clock.md) — index.ts builds createApplicationServices, then createHttpApp over them, and holds the typed close; tests compose the same two pieces through composeApp and pass a fixed Clock.
-### #server
-- Open [**Admin user management API and the last-active-admin rule**](users-and-admin/map-admin-user-management-api-and-the-last-active-admin-rule.md) — /api/app/admin users: list, role, disable, session revoke, delete; one active admin must remain; disabled accounts are refused at sign-in.
 - Open [**Signed-in operations bind the authenticated user at construction**](users-and-admin/practice-signed-in-operations-bind-the-authenticated-user.md) — entriesFor, timersFor, catalogsFor, importsFor, preferencesFor and accountsFor take the Authentication once; routes never pass the user's id or the admin actor again.
-- Open [**Parse incoming timestamps with parseInstant**](time-handling/practice-parse-api-timestamps-with-parseinstant.md) — Server input instants go through parseInstant: RFC 3339 with seconds and a zone, real dates only. Never new Date(String(x)).
+### #config
+- Open [**Old Timetrack names still accepted after the Tokkl rename**](../tooling-and-project/repo-and-scripts/map-tokkl-rename-legacy-name-fallbacks.md) — Legacy non-database environment settings, cookies, CSRF, theme and export formats are accepted; storage selection is explicit.
+- Open [**TOKKL_TRUST_PROXY accepted values**](map-tokkl-trust-proxy-accepted-values.md) — TOKKL_TRUST_PROXY takes empty/0, a hop count, or an IP/CIDR list; boolean words like true/yes stop startup with a named error.
+### #proxy
+- Open [**TOKKL_TRUST_PROXY accepted values**](map-tokkl-trust-proxy-accepted-values.md) — TOKKL_TRUST_PROXY takes empty/0, a hop count, or an IP/CIDR list; boolean words like true/yes stop startup with a named error.
+### #rate-limit
+- Open [**Verify passwords only through FailureLimiter.attempt**](password-and-csrf-rules/password-attempt-limits/practice-verify-passwords-only-through-failurelimiter-attempt.md) — Password checks run in loginLimiter.attempt over three counters; refusals answer 429 with Retry-After; never call verifyPassword directly.
+- Open [**Charge invite and reset link misses to the address counter**](password-and-csrf-rules/password-attempt-limits/practice-charge-invite-and-reset-link-misses-to-the-address-counter.md) — Invite and reset token lookups charge misses to the 100-per-window address counter and answer 429 before lookup once it is full.
+- Open [**Key login rate limits with normalizeEmail, not toLowerCase**](password-and-csrf-rules/password-attempt-limits/practice-key-login-rate-limits-with-normalizeemail-not-tolowercase.md) — Rate-limit accounts are keyed by normalizeEmail (trim, ASCII A-Z lowercase), matching users.email_key; toLowerCase merges distinct users.
+### #security
+- Open [**TOKKL_TRUST_PROXY accepted values**](map-tokkl-trust-proxy-accepted-values.md) — TOKKL_TRUST_PROXY takes empty/0, a hop count, or an IP/CIDR list; boolean words like true/yes stop startup with a named error.
+### #server
+- Open [**Recheck credentials inside the guarded account transaction**](password-and-csrf-rules/password-attempt-limits/practice-recheck-credentials-inside-the-guarded-account-transaction.md) — Auth and PUT /me recheck the account and credential under the guarded transaction, so revocations during scrypt refuse stale credentials.
+- Open [**Validate new passwords with parseNewPassword**](password-and-csrf-rules/password-attempt-limits/practice-validate-new-passwords-with-parsenewpassword.md) — New passwords are 8-1024 characters and go through parseNewPassword; current passwords are not capped on login or rotation.
+- Open [**Verify passwords only through FailureLimiter.attempt**](password-and-csrf-rules/password-attempt-limits/practice-verify-passwords-only-through-failurelimiter-attempt.md) — Password checks run in loginLimiter.attempt over three counters; refusals answer 429 with Retry-After; never call verifyPassword directly.
 ### #testing
 - Open [**E2E isolation: worker accounts, the reset fixture and the error guard**](../tooling-and-project/testing/e2e-suite/practice-e2e-isolation-worker-accounts-the-reset-fixture-and-the-error-guard.md) — Each worker has its own admin; the data fixture wipes that user's data; runtimeErrors fails tests unless a spec allows the failure.
 - Open [**Writing e2e specs: areas, shared helpers and extra accounts**](../tooling-and-project/testing/e2e-suite/practice-writing-e2e-specs-areas-shared-helpers-and-extra-accounts.md) — Specs live by area with per-area helpers; ReportApi, transfer fixtures, disposable servers, the users fixture and login.

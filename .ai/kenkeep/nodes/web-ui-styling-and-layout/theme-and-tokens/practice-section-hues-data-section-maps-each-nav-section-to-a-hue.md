@@ -36,7 +36,11 @@ The active nav item, in the sidebar, the phone bar and the More sheet, fills wit
 <!-- kk:related:start -->
 # Related
 
-- Related: [map-app-shell-brand-and-navigation](../shell-and-layout/map-app-shell-brand-and-navigation.md)
+- Related: [map-app-shell-brand-and-navigation → map-brand-component-and-the-png-wordmark-image](../shell-and-layout/app-shell/map-brand-component-and-the-png-wordmark-image.md)
+- Related: [map-app-shell-brand-and-navigation → map-lazy-page-chunks-and-failed-load-recovery](../shell-and-layout/app-shell/map-lazy-page-chunks-and-failed-load-recovery.md)
+- Related: [map-app-shell-brand-and-navigation → map-nav-list-phone-more-sheet-and-nav-running-dots](../shell-and-layout/app-shell/map-nav-list-phone-more-sheet-and-nav-running-dots.md)
+- Related: [map-app-shell-brand-and-navigation → map-phone-e2e-navigation-helpers-tapnav-and-openmore](../shell-and-layout/app-shell/map-phone-e2e-navigation-helpers-tapnav-and-openmore.md)
+- Related: [map-app-shell-brand-and-navigation → map-wordmark-dark-mode-halo-and-its-e2e-checks](../shell-and-layout/app-shell/map-wordmark-dark-mode-halo-and-its-e2e-checks.md)
 - Related: [practice-contrast-tables-and-project-colours](practice-contrast-tables-and-project-colours.md)
 - Related: [map-shared-list-controls-in-manage-ui](../shell-and-layout/map-shared-list-controls-in-manage-ui.md)
 - Related: [practice-week-calendar-hour-height-agrees-in-three-places](../calendar/practice-week-calendar-hour-height-agrees-in-three-places.md)

@@ -7,37 +7,30 @@
 > This index only orients you; leaves hold the durable guidance. Open at least one relevant leaf before acting.
 
 ## Subfolders
-_None._
+- Load [`timer-event-stream/`](timer-event-stream/index.md) for more information on the timer Server-Sent Events stream: protocol, keep-alive, credential checks, caps, delivery order and slow clients; read when changing GET /api/app/timer/events, timer publication or a route that ends a credential.
+- Load [`timer-state-service/`](timer-state-service/index.md) for more information on the server timer state service: settlement, touchTimer, timer and Pomodoro actions, status capabilities and stop membership checks; read before changing a timer action or any write that touches the running entry.
 
 ## Conventions (how we build)
 _None yet._
 
 ## Components (what exists)
-- Open [**Timer state service: settlement, revision and the discarded pomodoro**](map-timer-state-service-settlement-revision-and-discarded-pomodoro.md) to learn about: settleTimer numbers a user's running entry, pause chain and Pomodoro session; every write that can change the running entry calls touchTimer. #api #timer #pomodoro #pause
-- Open [**Timer event stream: keep-alive, credential rechecks and the stream cap**](map-timer-event-stream-keep-alive-auth-rechecks-and-stream-cap.md) to learn about: GET /api/app/timer/events sends the full state on connect and each change, a keep-alive every 25 s, and ends when the credential stops passing. #api #timer #sse #auth
+- Open [**TimerBus: cross-instance timer delivery to SSE streams**](map-timerbus-cross-instance-timer-delivery-to-sse-streams.md) to learn about: TimerBus carries {userId, revision} signals between API processes (PostgreSQL LISTEN/NOTIFY); receivers rebuild timer state from the DB. #api #timer #sse #multi-instance #postgres
 
 ## By topic
 
 ### #api
-- Open [**Parse incoming timestamps with parseInstant**](../time-handling/practice-parse-api-timestamps-with-parseinstant.md) — Server input instants go through parseInstant: RFC 3339 with seconds and a zone, real dates only. Never new Date(String(x)).
-- Open [**Time zones: store canonicalTimeZone, reject offset IDs**](../time-handling/practice-time-zone-names-are-stored-in-canonical-form.md) — Account zones go through canonicalTimeZone and are stored as ICU names; bad input is a 400 'Invalid timezone'.
-- Open [**Toggl CSV import: choose team-export users by opaque key**](../toggl-compat-and-import/practice-toggl-csv-import-selects-users-by-opaque-key.md) — Team CSVs list users by JSON key; send one user=<key> query param per user; a real multi-user import without one is a 400.
-### #timer
-- Open [**Web timer state: one stream per tab, server-corrected clock and Pomodoro views**](../../web-ui-behaviour/pomodoro/map-web-timer-state-stream-and-pomodoro-session-views.md) — TimerStateProvider opens the SSE stream; PomodoroSessionProvider only views the server's session, rings and notifies; nothing is kept in localStorage.
-- Open [**Web timer actions: send the seen revision, adopt the reply, fields read-only while paused**](../../web-ui-behaviour/time-and-timers/practice-web-timer-actions-send-the-seen-revision-and-pause-fields-are-read-only.md) — Start, Stop, Pause, Resume, Stop while paused and session actions post to the server; a 409 carries the current state; the bar edits nothing while paused.
-- Open [**Web notifications: phaseNotification.ts and the Allow notifications button**](../../web-ui-behaviour/pomodoro/map-web-pomodoro-driver-and-the-app-wide-pomodoroprovider.md) — notificationAccess and AllowNotifications; notifyInBackground for long-timer reminders, notifySessionPhaseEnd for Pomodoro sessions.
-### #auth
-- Open [**Admin user management API and the last-active-admin rule**](../users-and-admin/map-admin-user-management-api-and-the-last-active-admin-rule.md) — /api/app/admin users: list, role, disable, session revoke, delete; one active admin must remain; disabled accounts are refused at sign-in.
-- Open [**Signed-in operations bind the authenticated user at construction**](../users-and-admin/practice-signed-in-operations-bind-the-authenticated-user.md) — entriesFor, timersFor, catalogsFor, importsFor, preferencesFor and accountsFor take the Authentication once; routes never pass the user's id or the admin actor again.
-- Open [**Cookie writes and session-starting routes need the CSRF header**](../password-and-csrf-rules/practice-cookie-writes-and-session-starting-routes-need-the-csrf-header.md) — Cookie writes, login, setup, invite accept and password reset need X-Tokkl-CSRF: 1 before any lookup; callers and tests must send it.
-### #pause
-- Open [**Timer state service: settlement, revision and the discarded pomodoro**](map-timer-state-service-settlement-revision-and-discarded-pomodoro.md) — settleTimer numbers a user's running entry, pause chain and Pomodoro session; every write that can change the running entry calls touchTimer.
-- Open [**Web timer actions: send the seen revision, adopt the reply, fields read-only while paused**](../../web-ui-behaviour/time-and-timers/practice-web-timer-actions-send-the-seen-revision-and-pause-fields-are-read-only.md) — Start, Stop, Pause, Resume, Stop while paused and session actions post to the server; a 409 carries the current state; the bar edits nothing while paused.
-### #pomodoro
-- Open [**Web timer actions: send the seen revision, adopt the reply, fields read-only while paused**](../../web-ui-behaviour/time-and-timers/practice-web-timer-actions-send-the-seen-revision-and-pause-fields-are-read-only.md) — Start, Stop, Pause, Resume, Stop while paused and session actions post to the server; a 409 carries the current state; the bar edits nothing while paused.
-- Open [**Web timer state: one stream per tab, server-corrected clock and Pomodoro views**](../../web-ui-behaviour/pomodoro/map-web-timer-state-stream-and-pomodoro-session-views.md) — TimerStateProvider opens the SSE stream; PomodoroSessionProvider only views the server's session, rings and notifies; nothing is kept in localStorage.
-- Open [**Web notifications: phaseNotification.ts and the Allow notifications button**](../../web-ui-behaviour/pomodoro/map-web-pomodoro-driver-and-the-app-wide-pomodoroprovider.md) — notificationAccess and AllowNotifications; notifyInBackground for long-timer reminders, notifySessionPhaseEnd for Pomodoro sessions.
+- Open [**Asynchronous ordered timer delivery after commit**](timer-event-stream/map-asynchronous-ordered-timer-delivery-after-commit.md) — A timer write enqueues its state on an ordered per-user queue after commit and never waits for stream delivery.
+- Open [**Timer event stream protocol, keep-alive and proxy requirements**](timer-event-stream/map-timer-event-stream-protocol-keep-alive-and-proxy-requirements.md) — GET /api/app/timer/events sends full state on connect and change, a keep-alive event every 25 s, and needs unbuffered proxies.
+- Open [**Timer stream backpressure for slow clients**](timer-event-stream/map-timer-stream-backpressure-for-slow-clients.md) — A full socket makes a timer stream wait up to 30 s for drain; more than 64 KiB unsent ends the stream.
+### #multi-instance
+- Open [**TimerBus: cross-instance timer delivery to SSE streams**](map-timerbus-cross-instance-timer-delivery-to-sse-streams.md) — TimerBus carries {userId, revision} signals between API processes (PostgreSQL LISTEN/NOTIFY); receivers rebuild timer state from the DB.
+### #postgres
+- Open [**TimerBus: cross-instance timer delivery to SSE streams**](map-timerbus-cross-instance-timer-delivery-to-sse-streams.md) — TimerBus carries {userId, revision} signals between API processes (PostgreSQL LISTEN/NOTIFY); receivers rebuild timer state from the DB.
 ### #sse
-- Open [**Timer event stream: keep-alive, credential rechecks and the stream cap**](map-timer-event-stream-keep-alive-auth-rechecks-and-stream-cap.md) — GET /api/app/timer/events sends the full state on connect and each change, a keep-alive every 25 s, and ends when the credential stops passing.
-- Open [**Web timer state: one stream per tab, server-corrected clock and Pomodoro views**](../../web-ui-behaviour/pomodoro/map-web-timer-state-stream-and-pomodoro-session-views.md) — TimerStateProvider opens the SSE stream; PomodoroSessionProvider only views the server's session, rings and notifies; nothing is kept in localStorage.
-- Open [**Desktop TimerStateClient: stream, poll, settling and revisions**](../../tooling-and-project/kde-companion/plasma-companion/map-desktop-timer-state-client-stream-poll-settling-and-revisions.md) — One TimerStateClient per desktop app reads GET /api/app/timer, follows the event stream, polls only while it is down, and settles unknown write outcomes.
+- Open [**Asynchronous ordered timer delivery after commit**](timer-event-stream/map-asynchronous-ordered-timer-delivery-after-commit.md) — A timer write enqueues its state on an ordered per-user queue after commit and never waits for stream delivery.
+- Open [**Timer event stream protocol, keep-alive and proxy requirements**](timer-event-stream/map-timer-event-stream-protocol-keep-alive-and-proxy-requirements.md) — GET /api/app/timer/events sends full state on connect and change, a keep-alive event every 25 s, and needs unbuffered proxies.
+- Open [**Timer stream backpressure for slow clients**](timer-event-stream/map-timer-stream-backpressure-for-slow-clients.md) — A full socket makes a timer stream wait up to 30 s for drain; more than 64 KiB unsent ends the stream.
+### #timer
+- Open [**Route timer writes through timerWrite and reconcile after an unknown outcome**](../../web-ui-behaviour/time-and-timers/web-timer-actions/practice-route-timer-writes-through-timerwrite-and-reconcile-after-an-unknown-outcome.md) — After an unknown write outcome, the next timer write reads GET /api/app/timer first; a guarded write fails as a conflict if it moved.
+- Open [**Post running-entry edits to the timer edit endpoint with the entry id**](../../web-ui-behaviour/time-and-timers/web-timer-actions/practice-post-running-entry-edits-to-the-timer-edit-endpoint-with-the-entry-id.md) — Running-entry edits post to /api/app/timer/edit with entry_id and no revision; a 409 is adopted and fails the edit as a conflict.
+- Open [**acceptTimerState: one validated entry for every web timer state**](../../web-ui-behaviour/pomodoro/web-timer-state/map-accepttimerstate-one-validated-entry-for-every-web-timer-state.md) — Every web timer state passes isTimerState and acceptTimerState: revision check, cache writes, stale.timerChanged and server clock offset.
