@@ -1,3 +1,9 @@
+## [2.8.1](https://github.com/e0ipso/tokkl/compare/v2.8.0...v2.8.1) (2026-11-24)
+
+### Bug Fixes
+
+* require the current password to change the account email ([#103](https://github.com/e0ipso/tokkl/issues/103)) ([604df7a](https://github.com/e0ipso/tokkl/commit/604df7a7c28da9ee263ca5e7e044a893213df15b))
+
 ## [2.8.0](https://github.com/e0ipso/tokkl/compare/v2.7.0...v2.8.0) (2026-11-24)
 
 ### Features
