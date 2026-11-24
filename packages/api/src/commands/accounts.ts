@@ -94,13 +94,12 @@ function accountChanges(body: JsonBody): AccountChanges {
   };
 }
 
-/** A new password requires the current one. */
+/** The domain decides which changes need the current password. */
 export function parseProfileUpdate(body: JsonBody): ProfileUpdate {
   const changes = accountChanges(body);
-  if (body.password === undefined) return { changes };
-  const password = parseNewPassword(body.password);
-  const currentPassword = optionalString(body.current_password, 'current_password', Number.POSITIVE_INFINITY) ?? '';
-  return { changes, password: { password, currentPassword } };
+  const password = body.password === undefined ? undefined : parseNewPassword(body.password);
+  const currentPassword = optionalString(body.current_password, 'current_password', Number.POSITIVE_INFINITY);
+  return { changes, password, currentPassword };
 }
 
 export function parsePreferenceChanges(body: JsonBody): PreferenceChanges {

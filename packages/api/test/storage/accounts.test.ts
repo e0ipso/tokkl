@@ -389,6 +389,40 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
             error(429, 'Too many failed attempts, try again later')(e) && errorReply(e).headers['Retry-After'] === '17',
         );
       });
+      await t.test('an email change by token verifies the password once and is rechecked under the lock', async () => {
+        const user = await add('email-rule@example.test');
+        const token = { kind: 'api-token' as const, token: user.apiToken };
+        let checks = 0;
+        const counted = {
+          async attempt(check: () => Promise<boolean>) {
+            checks++;
+            return { refused: false as const, valid: await check() };
+          },
+        };
+        await assert.rejects(
+          operations.updateProfile(user, token, { email: 'moved@example.test' }, effects, counted),
+          error(400, 'Current password is required'),
+        );
+        assert.equal(checks, 0, 'a missing password is not charged');
+
+        await competitor.updateProfile(user, { kind: 'password' }, { email: 'moved@example.test' }, effects);
+        await assert.rejects(
+          operations.updateProfile(user, token, { email: 'EMAIL-RULE@example.test' }, effects, counted),
+          error(400, 'Current password is required'),
+        );
+        assert.equal(checks, 0);
+        assert.equal((await readUser(user.id))!.email, 'moved@example.test', 'the stale snapshot writes nothing');
+
+        const changed = await operations.updateProfile(
+          (await readUser(user.id))!,
+          token,
+          { email: 'both@example.test', password: 'password two', current_password: 'password one' },
+          effects,
+          counted,
+        );
+        assert.equal(checks, 1, 'email and password together verify once');
+        assert.equal(changed.email, 'both@example.test');
+      });
       await t.test('reset, revocation, rotation and deletion during password verification prevent writes', async () => {
         for (const kind of ['reset', 'session-revoke', 'token-rotate', 'delete', 'suspend'] as const) {
           const user = await add(`during-${kind}@example.test`);

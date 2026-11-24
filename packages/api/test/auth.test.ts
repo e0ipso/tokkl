@@ -330,7 +330,7 @@ test('PUT /me refuses an email another user has, in any case, and allows recasin
   };
 
   for (const email of ['me@example.com', 'ME@EXAMPLE.COM', '  Me@Example.com  ']) {
-    const taken = await putAs(other, { email, fullname: 'Renamed' });
+    const taken = await putAs(other, { email, fullname: 'Renamed', current_password: PASSWORD });
     assert.equal(taken.status, 400, email);
     assert.equal(taken.body, 'Email already in use');
     assert.equal((await getUser(ctx.db, other.id))!.email, 'b@example.com', 'the email is unchanged');
@@ -342,6 +342,30 @@ test('PUT /me refuses an email another user has, in any case, and allows recasin
   assert.equal(recased.body.email, 'Me@Example.COM');
   assert.equal((await getUser(ctx.db, ctx.user.id))!.email, 'Me@Example.COM');
   assert.equal((await putAs(other, { email: 'b@example.com' })).status, 200, 'resending your own email is fine');
+});
+
+test('PUT /me needs the current password to change the email with an API token, but not with password Basic', async () => {
+  const ctx = await setup();
+  const missing = await ctx.json('PUT', '/api/v9/me', { email: 'new@example.com' });
+  assert.equal(missing.status, 400);
+  assert.equal(missing.body, 'Current password is required');
+  const wrong = await ctx.json('PUT', '/api/v9/me', { email: 'new@example.com', current_password: 'nope' });
+  assert.equal(wrong.status, 400);
+  assert.equal(wrong.body, 'Current password is not valid');
+  assert.equal((await getUser(ctx.db, ctx.user.id))!.email, 'me@example.com', 'the email is unchanged');
+
+  const changed = await ctx.json('PUT', '/api/v9/me', { email: 'new@example.com', current_password: PASSWORD });
+  assert.equal(changed.status, 200);
+  assert.equal(changed.body.email, 'new@example.com');
+
+  const viaPassword = await ctx.request(
+    'PUT',
+    '/api/v9/me',
+    { email: 'other@example.com' },
+    { authorization: basic('new@example.com', PASSWORD) },
+  );
+  assert.equal(viaPassword.status, 200);
+  assert.equal((await getUser(ctx.db, ctx.user.id))!.email, 'other@example.com');
 });
 
 test('behind a trusted proxy the rate limit keys on the last X-Forwarded-For hop', async () => {
