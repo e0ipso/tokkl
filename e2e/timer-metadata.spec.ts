@@ -110,7 +110,7 @@ test('Continue and a favorite copy every field and stop the replaced timer at th
   const all = await api.entries();
   const byId = new Map(all.map(entry => [entry.id, entry]));
   expect(all.filter(entry => entry.stop === null).map(entry => entry.id)).toEqual([favorite.id]);
-  const step = (await data.me()).time_resolution_minutes * 60_000;
+  const step = (await data.timeResolution()) * 60_000;
   const saved = byId.get(plain.id)!;
   expect(instant(saved.stop) % step).toBe(0);
   expect(Math.abs(instant(saved.stop) - instant(continued.start))).toBeLessThanOrEqual(step / 2);

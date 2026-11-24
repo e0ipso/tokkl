@@ -98,7 +98,7 @@ test('manual mode survives reload and a 24-hour overnight sequence chains on the
 });
 
 test('off-grid manual entries chain from the stored, snapped stop without overlapping', async ({ page, data }) => {
-  expect((await data.me()).time_resolution_minutes).toBe(5);
+  expect(await data.timeResolution()).toBe(5);
   await login(page);
   const api = await TimerApi.open(page);
   const timer = page.getByRole('region', { name: 'Timer' });

@@ -192,14 +192,13 @@ test('stored session and invite lifetimes apply to new sessions and invites, acr
     expect(await (await api.get('/api/app/admin/settings')).json()).toMatchObject({
       session_days: 30,
       invite_days: 7,
-      time_resolution_minutes: 5,
     });
     for (const change of [{ session_days: 366 }, { invite_days: 91 }]) {
       expect((await api.put('/api/app/admin/settings', { data: change })).status(), JSON.stringify(change)).toBe(400);
     }
     const put = await api.put('/api/app/admin/settings', { data: { session_days: 2, invite_days: 1 } });
     expect(put.status()).toBe(200);
-    expect(await put.json()).toMatchObject({ session_days: 2, invite_days: 1, time_resolution_minutes: 5 });
+    expect(await put.json()).toMatchObject({ session_days: 2, invite_days: 1 });
   });
 
   const after = await logIn(first.baseURL);
@@ -220,7 +219,6 @@ test('stored session and invite lifetimes apply to new sessions and invites, acr
     expect(await (await api.get('/api/app/admin/settings')).json()).toMatchObject({
       session_days: 2,
       invite_days: 1,
-      time_resolution_minutes: 5,
     });
     expect(await (await api.get('/api/app/admin/invites')).json()).toEqual([]);
     expect((await api.get(inviteLookup)).status()).toBe(404);

@@ -187,7 +187,7 @@ test('the clock keeps ticking and a refetch keeps what is being typed into the r
 });
 
 test('a timer left running past 999 hours stops at the cap instead of failing', async ({ page, data }) => {
-  const step = (await data.me()).time_resolution_minutes * 60_000;
+  const step = (await data.timeResolution()) * 60_000;
   await login(page);
   const api = await TimerApi.open(page);
   const start = new Date(Date.now() - 1000 * 3_600_000).toISOString();
