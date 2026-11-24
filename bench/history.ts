@@ -92,6 +92,8 @@ if (!/^\d{4}-\d{2}-\d{2}$/.test(endDate) || Number.isNaN(Date.parse(`${endDate}T
 
 const TIMEZONE = 'Europe/Madrid';
 const SETUP_CODE = 'BENCH-SETUP-CODE';
+/** A preference of the bench account; the server snaps its entries to this grid. */
+const TIME_RESOLUTION_MINUTES = 5;
 const DESCRIPTIONS = Array.from({ length: 40 }, (_, i) => `Task ${String(i + 1).padStart(2, '0')}`);
 const TAGS = ['meeting', 'review', 'deep-work', 'support', 'admin'];
 
@@ -232,15 +234,13 @@ class Client {
   readonly base: string;
   readonly workspaceId: number;
   readonly userId: number;
-  readonly timeResolutionMinutes: number;
   private readonly auth: string;
 
-  constructor(base: string, auth: string, workspaceId: number, userId: number, timeResolutionMinutes: number) {
+  constructor(base: string, auth: string, workspaceId: number, userId: number) {
     this.base = base;
     this.auth = auth;
     this.workspaceId = workspaceId;
     this.userId = userId;
-    this.timeResolutionMinutes = timeResolutionMinutes;
   }
 
   static async create(server: Server): Promise<Client> {
@@ -257,7 +257,9 @@ class Client {
     });
     check(setup.ok, `account setup answered ${setup.status}`);
     const client = await Client.signedIn(server.base, setup);
-    equal(client.timeResolutionMinutes, 5, 'unchanged default five-minute time resolution');
+    await client.ok('POST', '/api/v9/me/preferences', { time_resolution_minutes: TIME_RESOLUTION_MINUTES });
+    const preferences = await client.ok('GET', '/api/v9/me/preferences');
+    equal(preferences.data.time_resolution_minutes, TIME_RESOLUTION_MINUTES, 'bench account time resolution');
     return client;
   }
 
@@ -280,14 +282,12 @@ class Client {
       id: number;
       api_token: string;
       default_workspace_id: number;
-      time_resolution_minutes: number;
     };
     return new Client(
       base,
       `Basic ${Buffer.from(`${me.api_token}:api_token`).toString('base64')}`,
       me.default_workspace_id,
       me.id,
-      me.time_resolution_minutes,
     );
   }
 
@@ -892,7 +892,7 @@ const run = {
   backend,
   argv: process.argv,
   cwd: process.cwd(),
-  settings: { host: '127.0.0.1', port, end_date: endDate, time_resolution_minutes: 5 },
+  settings: { host: '127.0.0.1', port, end_date: endDate, time_resolution_minutes: TIME_RESOLUTION_MINUTES },
   resources_before: resourceSample(),
   runtime: {
     node: process.version,

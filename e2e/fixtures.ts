@@ -74,6 +74,7 @@ const BASELINE_PREFERENCES = {
   pomodoro_long_break_every: 4,
   long_timer_reminder_enabled: true,
   long_timer_reminder_hours: 8,
+  time_resolution_minutes: 5,
 };
 
 interface SeedEntry {
@@ -183,7 +184,7 @@ export class TestData {
     }
   }
 
-  async me(): Promise<{ role: 'admin' | 'user'; time_resolution_minutes: number }> {
+  async me(): Promise<{ role: 'admin' | 'user' }> {
     return json(this.api.get('/api/v9/me'));
   }
 
@@ -196,11 +197,11 @@ export class TestData {
   }
 
   async saveInstanceSettings(settings: Partial<InstanceSettings>): Promise<void> {
-    const { session_days, invite_days, time_resolution_minutes, signup_enabled } = settings;
+    const { session_days, invite_days, signup_enabled } = settings;
     await ok(
       await this.api.put('/api/app/admin/settings', {
         headers: CSRF,
-        data: { session_days, invite_days, time_resolution_minutes, signup_enabled },
+        data: { session_days, invite_days, signup_enabled },
       }),
     );
   }
@@ -305,6 +306,19 @@ export class TestData {
     theme?: 'system' | 'light' | 'dark';
   }): Promise<void> {
     await ok(await this.api.post('/api/v9/me/preferences', { headers: CSRF, data: preferences }));
+  }
+
+  /** The grid, in minutes, to which the server snaps this account's entries. */
+  async timeResolution(): Promise<number> {
+    return (await json<{ time_resolution_minutes: number }>(this.api.get('/api/v9/me/preferences')))
+      .time_resolution_minutes;
+  }
+
+  /** A preference of this account only; the fixture puts it back to 5 after the test. */
+  async setTimeResolution(minutes: number): Promise<void> {
+    await ok(
+      await this.api.post('/api/v9/me/preferences', { headers: CSRF, data: { time_resolution_minutes: minutes } }),
+    );
   }
 
   /** Touches only this account and its own workspace. */

@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { expect, test } from './admin-tests-helpers.ts';
+import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
 import {
   dragBy,
@@ -10,8 +10,8 @@ import {
   todayBlock,
 } from './history-calendar-tests-helpers.ts';
 
-// Instance project: the `instance` fixture restores settings. Drags step in multiples of the resolution and
-// drop on its grid, so the server stores what the drag showed.
+// The resolution is a preference of the account; the fixture resets it to 5. Drags step in multiples of the
+// resolution and drop on its grid, so the server stores what the drag showed.
 
 const MINUTE = 60_000;
 // 09:00 on Wednesday 2026-06-17 in Madrid (CEST, UTC+2), the account's zone.
@@ -37,7 +37,7 @@ for (const { resolution, step, end, next, travel, joined } of RESIZES) {
     page,
     data,
   }) => {
-    await data.saveInstanceSettings({ time_resolution_minutes: resolution });
+    await data.setTimeResolution(resolution);
     const before = await data.createEntry({ description: 'Before', start: at(0), stop: at(end) });
     const after = await data.createEntry({ description: 'After', start: at(next), stop: at(next + 60) });
     await page.clock.setFixedTime(new Date('2026-06-17T16:00:00Z'));
@@ -69,10 +69,10 @@ test('at a 12-minute resolution a moved or resized entry with an off-grid start 
   data,
 }) => {
   // Saved at a 1-minute resolution, so they keep times off the 12-minute grid, as imports do.
-  await data.saveInstanceSettings({ time_resolution_minutes: 1 });
+  await data.setTimeResolution(1);
   const moved = await data.createEntry({ description: 'Moved', start: at(7), stop: at(50) });
   const resized = await data.createEntry({ description: 'Resized', start: at(127), stop: at(170) });
-  await data.saveInstanceSettings({ time_resolution_minutes: 12 });
+  await data.setTimeResolution(12);
   await page.clock.setFixedTime(new Date('2026-06-17T16:00:00Z'));
   await login(page);
   await openCalendar(page);

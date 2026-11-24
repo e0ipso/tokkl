@@ -58,6 +58,13 @@ export function recordLogs(t: NodeTestContext): Array<Record<string, unknown>> {
 /** Session-starting and cookie-authenticated writes need it. */
 export const CSRF = { 'x-tokkl-csrf': '1' };
 
+/** The server snaps this user's entries to a grid of `minutes`. */
+export async function setTimeResolution(ctx: TestContext, minutes: number): Promise<void> {
+  const saved = await ctx.json('POST', '/api/app/me/preferences', { time_resolution_minutes: minutes });
+  if (saved.status !== 200)
+    throw new Error(`Setting time_resolution_minutes to ${minutes} failed with ${saved.status}`);
+}
+
 export const timerState = async (ctx: TestContext) => (await ctx.json<TimerState>('GET', '/api/app/timer')).body;
 
 export interface TestServer {

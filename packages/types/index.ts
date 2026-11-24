@@ -10,8 +10,6 @@ export interface Me {
   beginning_of_week: number;
   /** Tokkl only: the instance role. Only admins reach /api/app/admin. */
   role: UserRole;
-  /** Tokkl only: the instance time resolution in minutes. */
-  time_resolution_minutes: number;
 }
 
 export type UserRole = 'admin' | 'user';
@@ -71,8 +69,6 @@ export interface PasswordResetLink {
 export interface InstanceSettings {
   session_days: number;
   invite_days: number;
-  /** A divisor of 60; 5 by default. */
-  time_resolution_minutes: number;
   signup_enabled: boolean;
   /** Read-only environment state; contains variable names only. */
   mail_configured: { configured: boolean; missing: string[] };
@@ -107,6 +103,8 @@ export interface Preferences {
   long_timer_reminder_enabled: boolean;
   /** Hours before asking whether a running timer was forgotten; integer from 1 to 168. */
   long_timer_reminder_hours: number;
+  /** Minutes in the grid to which the server snaps this user's entries; a divisor of 60, 5 by default. */
+  time_resolution_minutes: number;
   showTimeInTitle?: boolean;
   favorites?: Favorite[];
   [key: string]: unknown;

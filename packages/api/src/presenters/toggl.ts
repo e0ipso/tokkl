@@ -169,7 +169,6 @@ export function serializeSettings(settings: InstanceSettings): Omit<InstanceSett
   return {
     session_days: settings.sessionDays,
     invite_days: settings.inviteDays,
-    time_resolution_minutes: settings.timeResolutionMinutes,
     signup_enabled: settings.signupEnabled,
   };
 }

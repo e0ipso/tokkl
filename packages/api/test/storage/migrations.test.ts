@@ -206,7 +206,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
 for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
   test(`${backend}: token email upgrade preserves existing links and migration history`, async () => {
     const available = migrations(backend);
-    assert.equal(available.at(-1)?.name, 'account_token_email');
+    assert.equal(available.find(m => m.version === 9)?.name, 'account_token_email');
     // Cover both earlier supported schemas.
     for (const previous of [5, 8]) {
       const fixture = await disposableBackend(backend);
@@ -248,6 +248,44 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         await connection.close();
         await fixture.cleanup();
       }
+    }
+  });
+}
+
+for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
+  test(`${backend}: the upgrade drops the stored instance time resolution and keeps the other settings`, async () => {
+    const fixture = await disposableBackend(backend);
+    try {
+      const connection = await openConnection<PhysicalDatabase>(fixture.config);
+      try {
+        const available = migrations(backend);
+        await runMigrations(
+          connection,
+          available.slice(
+            0,
+            available.findIndex(m => m.name === 'drop_instance_time_resolution'),
+          ),
+        );
+        for (const [key, value] of [
+          ['time_resolution_minutes', '15'],
+          ['session_days', '12'],
+        ])
+          await insert(connection.db, backend, 'instance_settings', {
+            key,
+            value,
+            updated_at: '2026-10-01T00:00:00.000Z',
+          });
+        await runMigrations(connection, available);
+        assert.deepEqual(
+          (await rows(connection.db, backend, 'instance_settings')).map(row => [row.key, row.value]),
+          [['session_days', '12']],
+        );
+        await assertSchema(connection.db, backend);
+      } finally {
+        await connection.close();
+      }
+    } finally {
+      await fixture.cleanup();
     }
   });
 }

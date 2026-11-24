@@ -1,8 +1,9 @@
-import { expect, test } from './admin-tests-helpers.ts';
+import { expect, test } from './fixtures.ts';
 import { login, loginAs } from './helpers.ts';
 import { TimerApi, instant, madridWallClock } from './timer-tests-helpers.ts';
 
-// Instance project: the `instance` fixture restores settings. A running timer keeps real seconds until it stops.
+// The resolution is a preference of each account; the fixture resets it to 5. A running timer keeps real seconds
+// until it stops.
 
 const MINUTE = 60_000;
 
@@ -17,7 +18,7 @@ test('at a 15-minute resolution the timer bar previews and announces snapped dur
     path: /^\/api\/v9\/workspaces\/\d+\/time_entries$/,
     reason: 'the scenario adds an entry that rounds to zero',
   });
-  await data.saveInstanceSettings({ time_resolution_minutes: 15 });
+  await data.setTimeResolution(15);
   await login(page);
   const api = await TimerApi.open(page);
   const timer = page.getByRole('region', { name: 'Timer' });
@@ -78,7 +79,7 @@ test('at a 15-minute resolution the entry editor previews snapped durations and 
   page,
   data,
 }) => {
-  await data.saveInstanceSettings({ time_resolution_minutes: 15 });
+  await data.setTimeResolution(15);
   const day = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
   const start = Date.parse(`${day}T08:00:00Z`);
   const { id } = await data.createEntry({
@@ -139,10 +140,10 @@ test('at a 15-minute resolution the entry editor previews snapped durations and 
   ]);
 });
 
-test('across a half-hour clock change the stored start stays on the local hour grid', async ({ page, data, users }) => {
-  await data.saveInstanceSettings({ time_resolution_minutes: 60 });
+test('across a half-hour clock change the stored start stays on the local hour grid', async ({ page, users }) => {
   // Lord Howe springs forward 02:00 to 02:30 on 2026-10-04, so the grid point nearest 01:50 is 03:00.
   const user = await users.create({ timezone: 'Australia/Lord_Howe' });
+  await user.setTimeResolution(60);
   await loginAs(page, user.account);
   const api = await TimerApi.open(page);
   const timer = page.getByRole('region', { name: 'Timer' });
@@ -169,9 +170,9 @@ test('an entry saved under a finer resolution splits into halves that fill its s
 }) => {
   const day = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
   const start = Date.parse(`${day}T08:05:00Z`);
-  // The server then moves to 15: the entry snaps to 08:00-09:00, and the halves add up to that hour.
+  // The user then moves to 15: the entry snaps to 08:00-09:00, and the halves add up to that hour.
   await data.createEntry({ description: 'Older grid', start: `${day}T08:05:00Z`, stop: `${day}T09:05:00Z` });
-  await data.saveInstanceSettings({ time_resolution_minutes: 15 });
+  await data.setTimeResolution(15);
   await login(page);
   const row = page.locator('.entry-line', { has: page.locator('input[value="Older grid"]') });
   await row.getByRole('button', { name: 'More actions' }).click();
@@ -194,14 +195,10 @@ test('an entry saved under a finer resolution splits into halves that fill its s
   ]);
 });
 
-test('across a half-hour clock change the entry editor splits on the local hour grid', async ({
-  page,
-  data,
-  users,
-}) => {
-  await data.saveInstanceSettings({ time_resolution_minutes: 60 });
+test('across a half-hour clock change the entry editor splits on the local hour grid', async ({ page, users }) => {
   // On Lord Howe, 01:00 to 03:30 on 2026-10-04 is two hours; the stop ties and goes to 04:00, so it stores 2.5 h.
   const user = await users.create({ timezone: 'Australia/Lord_Howe' });
+  await user.setTimeResolution(60);
   const { id } = await user.createEntry({
     description: 'Island shift',
     start: '2026-10-03T14:30:00Z',

@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import type { TimerState } from '@tokkl/types';
 import { addWorkspaceMember, listTimeEntries, serializeTimeEntry } from './fixtures/domain.ts';
 import { removeWorkspaceMember } from './fixtures/physical.ts';
-import { addUser, setup, type TestContext, timerState as state } from './helpers.ts';
+import { addUser, setTimeResolution, setup, type TestContext, timerState as state } from './helpers.ts';
 
 const NO_ACCESS = 'User does not have access to this resource.';
 
@@ -18,7 +18,7 @@ interface LeftContext extends TestContext {
 /** `begin` runs while the user is still a member of its own workspace; then that membership ends. */
 async function leaving(begin: (ctx: LeftContext) => Promise<void>): Promise<LeftContext> {
   const ctx = await setup();
-  assert.equal((await ctx.json('PUT', '/api/app/admin/settings', { time_resolution_minutes: 1 })).status, 200);
+  await setTimeResolution(ctx, 1);
   const bob = await addUser(ctx, { email: 'bob@example.com', role: 'user' });
   await addWorkspaceMember(ctx.db, bob.wid, ctx.user.id, 'member');
   const left = { ...ctx, other: bob.wid };

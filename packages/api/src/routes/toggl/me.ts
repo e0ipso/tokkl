@@ -43,7 +43,6 @@ export function meRoutes(deps: Pick<Deps, 'readFor' | 'accountsFor' | 'preferenc
       const body = {
         ...serializeUser(user, { includeToken: true }),
         role: user.role,
-        time_resolution_minutes: (await queries.instanceSettings()).timeResolutionMinutes,
       };
       return queryFlag(req, 'with_related_data')
         ? { ...body, ...presentRelated(await queries.relatedData(user)) }

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { entryResolution, getEntryIn } from '../src/domain/entryAccess.ts';
+import { getEntryIn } from '../src/domain/entryAccess.ts';
 import { createTimerPublication } from '../src/services/timerDelivery.ts';
 import { createCatalogOperations } from '../src/services/catalogOperations.ts';
 import { createEntryOperations } from '../src/services/entryOperations.ts';
@@ -24,10 +24,6 @@ test('getEntryIn reads one entry and nothing else', async () => {
     [1, 7, undefined],
     [1, 7, undefined],
   ]);
-});
-
-test('entryResolution reads the instance settings and nothing else', async () => {
-  assert.equal(await entryResolution({ settings: { read: async () => ({ timeResolutionMinutes: 15 }) } }), 15);
 });
 
 test('entry and catalog writes run on a runner that offers only transactions', async t => {

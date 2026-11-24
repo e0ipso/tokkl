@@ -65,10 +65,15 @@ export const settings = {
   remindAfter: 'Remind me after (hours)',
   remindHint:
     'Choose 1 to 168 hours. Tokkl asks once per timer while this app is open. Confirming keeps the timer running.',
+  timeEntries: 'Time entries',
+  timeResolution: 'Time resolution (minutes)',
+  timeResolutionHint:
+    'Starts and stops move to the nearest multiple of this many minutes. A timer that rounds to zero goes to the trash, and a typed entry that rounds to zero is refused. Existing entries change only when they are edited.',
   pomodoroDefaults: 'Pomodoro session defaults',
   pomodoroHint:
     'New sessions on the Pomodoro page start with these lengths. You can change them there before you start.',
   spokenHours: 'hours',
+  spokenMinutes: 'minutes',
   wholeNumber: 'Enter a whole number of {unit}',
 
   workspaceSaved: 'Workspace saved',

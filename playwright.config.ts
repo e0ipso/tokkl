@@ -40,7 +40,7 @@ if (!dataDir) {
 // the fixed ports E2E_PORT + 50 to + 59. They run one at a time on their own server, alongside the
 // parallel project.
 const INSTANCE_SPECS =
-  /\/(admin-page|history-calendar-resolution|timer-resolution|timer-pomodoro-session|visual|worker-accounts|auth-(access|browser|invite|reset|sessions|token))\.spec\.ts$/;
+  /\/(admin-page|visual|worker-accounts|auth-(access|browser|invite|reset|sessions|token))\.spec\.ts$/;
 
 function server(serverPort: number, serverDataDir: string) {
   return {

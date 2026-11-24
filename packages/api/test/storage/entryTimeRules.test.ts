@@ -31,14 +31,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         await t.test(f.name, async () => {
           await runner.transaction(async ctx => {
             await ctx.users.updateAccount(user.id, { timezone: f.input.timeZone });
-            await ctx.settings.write([
-              {
-                key: 'timeResolutionMinutes',
-                value: f.input.minutes,
-                updatedAt: at('00:00:00').toISOString(),
-                updatedBy: null,
-              },
-            ]);
+            await ctx.users.setPreferences(user.id, { ...user.preferences, time_resolution_minutes: f.input.minutes });
           });
           user = (await runner.readSnapshot(ctx => ctx.users.get(user.id)))!;
           const work = () =>
@@ -54,9 +47,7 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         });
       await runner.transaction(async ctx => {
         await ctx.users.updateAccount(user.id, { timezone: 'UTC' });
-        await ctx.settings.write([
-          { key: 'timeResolutionMinutes', value: 5, updatedAt: at('00:00:00').toISOString(), updatedBy: null },
-        ]);
+        await ctx.users.setPreferences(user.id, { ...user.preferences, time_resolution_minutes: 5 });
       });
       user = (await runner.readSnapshot(ctx => ctx.users.get(user.id)))!;
       await t.test('exact import, unchanged zero length, DTO fields and reference scoping', async () => {
