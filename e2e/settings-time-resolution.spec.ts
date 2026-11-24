@@ -5,6 +5,9 @@ import { TimerApi, instant } from './timer-tests-helpers.ts';
 
 // Every scenario signs in as an account of its own. The resolution is a preference of each account.
 
+const MINUTE = 60_000;
+const QUARTER = 15 * MINUTE;
+
 test('a resolution saved in Preferences snaps the next entry without a reload, and other accounts keep theirs', async ({
   page,
   data,
@@ -17,6 +20,10 @@ test('a resolution saved in Preferences snaps the next entry without a reload, a
     path: /^\/api\/v9\/me\/preferences$/,
     reason: 'a time resolution of 7 minutes does not divide an hour',
   });
+  // The page clock starts the timer 8 minutes past a quarter hour: at 15 minutes that start snaps to the next
+  // quarter, at 5 to 10 past. The stop is the server's real time, which the page works out from each reply.
+  const startedAt = Math.floor(Date.now() / QUARTER) * QUARTER - 2 * QUARTER + 8 * MINUTE;
+  await page.clock.setFixedTime(new Date(startedAt));
   const rita = await users.create();
   await loginAs(page, rita.account);
   await page.goto('/settings/preferences');
@@ -50,11 +57,22 @@ test('a resolution saved in Preferences snaps the next entry without a reload, a
   await timer.getByRole('button', { name: 'Add entry' }).click();
   await expect(page.getByText('Added 0:15:00')).toBeVisible();
 
-  const [saved] = await (await TimerApi.open(page)).entries();
-  expect(saved!.description).toBe('Quarter hour');
+  const api = await TimerApi.open(page);
+  const saved = (await api.entries()).find(entry => entry.description === 'Quarter hour')!;
   // 9:00 to 9:15 in Madrid (CET, UTC+1).
-  expect([instant(saved!.start), instant(saved!.stop)]).toEqual([
+  expect([instant(saved.start), instant(saved.stop)]).toEqual([
     Date.parse('2025-11-12T08:00:00Z'),
     Date.parse('2025-11-12T08:15:00Z'),
   ]);
+
+  await timer.getByRole('button', { name: 'Timer mode' }).click();
+  await timer.getByLabel('Description').fill('On the clock');
+  await timer.getByRole('button', { name: 'Start timer' }).click();
+  await timer.getByRole('button', { name: 'Stop timer' }).click();
+  await expect(timer.getByRole('button', { name: 'Start timer' })).toBeVisible();
+  const stopped = (await api.entries()).find(entry => entry.description === 'On the clock')!;
+  // Madrid's quarter hours are the UTC ones. At 5 minutes the start would be 5 minutes earlier.
+  expect(instant(stopped.start)).toBe(startedAt + 7 * MINUTE);
+  expect(instant(stopped.stop) % QUARTER).toBe(0);
+  expect(instant(stopped.stop)).toBeGreaterThan(instant(stopped.start));
 });
