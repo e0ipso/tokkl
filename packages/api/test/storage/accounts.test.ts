@@ -10,7 +10,7 @@ import { sha256, verifyPassword } from '../../src/lib/crypto.ts';
 import { getPreferences } from '../../src/domain/accountValues.ts';
 import { parseNewAccount as readNewAccount } from '../../src/commands/accounts.ts';
 import { serializeAccount, serializeInvite, serializeUser, serializeWorkspace } from '../../src/presenters/toggl.ts';
-import { jsonObject } from '../../src/storage/conversion.ts';
+import { jsonObject, utcInstant } from '../../src/storage/conversion.ts';
 import { createAccountOperations, createPreferenceOperations } from '../fixtures/accountBodies.ts';
 import { disposableBackend } from './support/disposableBackend.ts';
 
@@ -257,6 +257,19 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
           );
         },
       );
+      await t.test('a settings read ignores a stored key that no setting maps to', async () => {
+        const at = new Date().toISOString();
+        await runner.transaction(ctx =>
+          ctx.settings.write([{ key: 'sessionDays', value: 2, updatedAt: at, updatedBy: null }]),
+        );
+        await connection!.db
+          .insertInto('instance_settings')
+          .values({ key: 'time_resolution_minutes', value: '15', updated_at: utcInstant(at), updated_by: null })
+          .execute();
+        const stored = await runner.readSnapshot(ctx => ctx.settings.read());
+        assert.equal(stored.sessionDays, 2);
+        assert.deepEqual(Object.keys(stored).sort(), ['inviteDays', 'sessionDays']);
+      });
       await t.test('token expiry boundary, invite revocation, reset replacement and single consumption', async () => {
         const expired = await runner.transaction(ctx =>
           ctx.tokens.create({
