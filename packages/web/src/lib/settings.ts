@@ -1,3 +1,4 @@
+import { isTimeResolution } from '@tokkl/common/snap';
 import type { DurationFormat, Me, Preferences } from '@tokkl/types';
 import { browserTimeZone } from './browserTimeZone.ts';
 
@@ -17,6 +18,12 @@ export function isTwelveHour(timeOfDayFormat: string): boolean {
   return /a/i.test(timeOfDayFormat);
 }
 
+/** A save shows its value before the server checks it, and snapping throws on a step that does not divide the hour. */
+function resolutionOf(prefs: Preferences | undefined): number {
+  const minutes = prefs?.time_resolution_minutes;
+  return minutes !== undefined && isTimeResolution(minutes) ? minutes : 1;
+}
+
 /** Toggl's defaults for what has not loaded. */
 export function settingsFrom(me: Me | undefined, prefs: Preferences | undefined): Settings {
   return {
@@ -27,6 +34,6 @@ export function settingsFrom(me: Me | undefined, prefs: Preferences | undefined)
     beginningOfWeek: me?.beginning_of_week ?? 1,
     collapseSimilar: prefs?.collapseTimeEntries ?? true,
     shortcuts: prefs?.keyboard_shortcuts_enabled ?? true,
-    timeResolution: prefs?.time_resolution_minutes ?? 1,
+    timeResolution: resolutionOf(prefs),
   };
 }

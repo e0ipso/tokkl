@@ -11,3 +11,10 @@ test("the time resolution comes from the user's preferences", () => {
 test('the time resolution is exact until the preferences load', () => {
   assert.equal(settingsFrom(undefined, undefined).timeResolution, 1);
 });
+
+test('a resolution that does not divide the hour falls back to exact times', () => {
+  for (const minutes of [7, 0, 2.5]) {
+    const prefs = { time_resolution_minutes: minutes } as Preferences;
+    assert.equal(settingsFrom(undefined, prefs).timeResolution, 1, `for ${minutes}`);
+  }
+});
