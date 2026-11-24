@@ -23,14 +23,12 @@ export interface AccessChange {
   disabled?: boolean;
 }
 
-interface PasswordChange {
-  password: string;
-  currentPassword: string;
-}
-
 export interface ProfileUpdate {
   changes: AccountChanges;
-  password?: PasswordChange;
+  /** The new password. */
+  password?: string;
+  /** Proves the account's password for a password or email change. */
+  currentPassword?: string;
 }
 
 /** Known preferences hold usable values; other keys are kept as sent. */

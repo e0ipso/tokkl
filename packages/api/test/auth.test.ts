@@ -16,7 +16,7 @@ import {
 } from '../src/auth/rateLimit.ts';
 import { openDatabase, type FixtureDatabase } from './fixtures/database.ts';
 import { insertAccount, createFirstAdmin, getUser, type User } from './fixtures/domain.ts';
-import { CSRF, PASSWORD, SERVER_API, setup, testConfig, testServer } from './helpers.ts';
+import { CSRF, PASSWORD, SERVER_API, sessionCookie, setup, testConfig, testServer } from './helpers.ts';
 
 test('API token Basic auth works and wrong credentials get 403', async () => {
   const ctx = await setup();
@@ -330,7 +330,7 @@ test('PUT /me refuses an email another user has, in any case, and allows recasin
   };
 
   for (const email of ['me@example.com', 'ME@EXAMPLE.COM', '  Me@Example.com  ']) {
-    const taken = await putAs(other, { email, fullname: 'Renamed' });
+    const taken = await putAs(other, { email, fullname: 'Renamed', current_password: PASSWORD });
     assert.equal(taken.status, 400, email);
     assert.equal(taken.body, 'Email already in use');
     assert.equal((await getUser(ctx.db, other.id))!.email, 'b@example.com', 'the email is unchanged');
@@ -342,6 +342,73 @@ test('PUT /me refuses an email another user has, in any case, and allows recasin
   assert.equal(recased.body.email, 'Me@Example.COM');
   assert.equal((await getUser(ctx.db, ctx.user.id))!.email, 'Me@Example.COM');
   assert.equal((await putAs(other, { email: 'b@example.com' })).status, 200, 'resending your own email is fine');
+});
+
+test('PUT /me needs the current password to change the email with an API token, but not with password Basic', async () => {
+  const ctx = await setup();
+  const missing = await ctx.json('PUT', '/api/v9/me', { email: 'new@example.com' });
+  assert.equal(missing.status, 400);
+  assert.equal(missing.body, 'Current password is required');
+  const wrong = await ctx.json('PUT', '/api/v9/me', { email: 'new@example.com', current_password: 'nope' });
+  assert.equal(wrong.status, 400);
+  assert.equal(wrong.body, 'Current password is not valid');
+  assert.equal((await getUser(ctx.db, ctx.user.id))!.email, 'me@example.com', 'the email is unchanged');
+
+  const changed = await ctx.json('PUT', '/api/v9/me', { email: 'new@example.com', current_password: PASSWORD });
+  assert.equal(changed.status, 200);
+  assert.equal(changed.body.email, 'new@example.com');
+
+  const viaPassword = await ctx.request(
+    'PUT',
+    '/api/v9/me',
+    { email: 'other@example.com' },
+    { authorization: basic('new@example.com', PASSWORD) },
+  );
+  assert.equal(viaPassword.status, 200);
+  assert.equal((await getUser(ctx.db, ctx.user.id))!.email, 'other@example.com');
+});
+
+test('PUT /me email changes by session or API token: free when unchanged, uncharged when missing, limited when wrong', async () => {
+  for (const kind of ['session', 'api token'] as const) {
+    const ctx = await setup();
+    await insertSecondUser(ctx.db, ctx.user, 'taken@example.com');
+    const headers = kind === 'session' ? { authorization: '', cookie: await sessionCookie(ctx), ...CSRF } : {};
+    const put = async (body: Record<string, unknown>) => {
+      const response = await ctx.request('PUT', '/api/v9/me', body, headers);
+      return { status: response.status, retryAfter: retryAfter(response), body: (await response.json()) as unknown };
+    };
+    const storedEmail = async () => (await getUser(ctx.db, ctx.user.id))!.email;
+
+    for (const body of [
+      { email: 'me@example.com' },
+      { email: 'ME@Example.com' },
+      { fullname: 'Renamed' },
+      { timezone: 'Europe/Madrid' },
+      { beginning_of_week: 0 },
+    ]) {
+      assert.equal((await put(body)).status, 200, `${kind}: ${JSON.stringify(body)} needs no password`);
+    }
+    assert.equal(await storedEmail(), 'ME@Example.com', `${kind}: recasing is saved`);
+
+    // More misses than the per-account-and-address limit, so a charge would end in 429.
+    for (let i = 0; i <= ACCOUNT_ADDRESS_LIMIT; i++) {
+      const missing = await put({ email: i === 0 ? 'taken@example.com' : 'new@example.com' });
+      assert.deepEqual([missing.status, missing.body], [400, 'Current password is required'], `${kind}: miss ${i}`);
+    }
+    assert.equal(await storedEmail(), 'ME@Example.com', `${kind}: a missing password changes nothing`);
+    const changed = await put({ email: 'new@example.com', current_password: PASSWORD });
+    assert.equal(changed.status, 200, `${kind}: missing passwords were not charged`);
+    assert.equal(await storedEmail(), 'new@example.com');
+
+    for (let i = 0; i < ACCOUNT_ADDRESS_LIMIT; i++) {
+      const wrong = await put({ email: i === 0 ? 'taken@example.com' : 'next@example.com', current_password: 'nope' });
+      assert.deepEqual([wrong.status, wrong.body], [400, 'Current password is not valid'], `${kind}: wrong ${i}`);
+    }
+    const refused = await put({ email: 'next@example.com', current_password: PASSWORD });
+    assert.equal(refused.status, 429, `${kind}: wrong passwords were counted`);
+    assert.match(refused.retryAfter ?? '', /^[1-9]\d*$/, `${kind}: Retry-After`);
+    assert.equal(await storedEmail(), 'new@example.com', `${kind}: nothing changed once refused`);
+  }
 });
 
 test('behind a trusted proxy the rate limit keys on the last X-Forwarded-For hop', async () => {

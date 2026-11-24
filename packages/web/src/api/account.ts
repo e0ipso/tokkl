@@ -83,7 +83,10 @@ export function useWorkspace() {
   });
 }
 
-export type ProfileChanges = Pick<Me, 'fullname' | 'email' | 'timezone' | 'beginning_of_week'>;
+export type ProfileChanges = Pick<Me, 'fullname' | 'email' | 'timezone' | 'beginning_of_week'> & {
+  /** Required by the server when the email changes. */
+  current_password?: string;
+};
 export type WorkspaceChanges = Pick<
   Workspace,
   'name' | 'default_currency' | 'default_hourly_rate' | 'rounding' | 'rounding_minutes'

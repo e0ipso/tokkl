@@ -1,6 +1,6 @@
 import type { Locator, Page } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
-import { contrast, login } from './helpers.ts';
+import { contrast, login, loginAs } from './helpers.ts';
 import { EntityApi } from './entity-tests-helpers.ts';
 
 function backgroundOf(target: Locator): Promise<string> {
@@ -290,4 +290,54 @@ test('the settings forms show password, workspace and profile errors inline', as
   await profile.getByRole('button', { name: 'Save' }).click();
   await expectFieldError(page, email, 'Enter a valid email address');
   await expect(email).toBeFocused();
+});
+
+test('a profile email change asks for the current password and shows a wrong one on its field', async ({
+  page,
+  users,
+  runtimeErrors,
+}) => {
+  runtimeErrors.allowResponse({
+    status: 400,
+    method: 'PUT',
+    path: /^\/api\/v9\/me$/,
+    reason: 'the first save sends a wrong current password',
+  });
+  // Its own account: the scenario changes the login email, and the fixture deletes the account by that email.
+  const user = await users.create();
+  const { email: storedEmail, password } = user.account;
+  const movedEmail = storedEmail.replace('@', '.moved@');
+  await loginAs(page, user.account);
+  try {
+    await page.goto('/settings/profile');
+    const profile = page.locator('#profile');
+    const email = profile.getByLabel('Email');
+    const current = profile.getByLabel('Current password');
+    await expect(email).toHaveValue(storedEmail);
+    await expect(current).toHaveCount(0);
+
+    await email.fill(storedEmail.toUpperCase());
+    await expect(current).toHaveCount(0);
+
+    await email.fill(movedEmail);
+    await expect(current).toBeVisible();
+    await expect(profile.getByText('Enter your current password to change the email.')).toBeVisible();
+    await current.fill('not the password');
+    await profile.getByRole('button', { name: 'Save' }).click();
+    await expectFieldError(page, current, 'Current password is not valid');
+    await expectValid(email);
+
+    await current.fill(password);
+    await profile.getByRole('button', { name: 'Save' }).click();
+    await expect(current).toHaveCount(0);
+    await page.reload();
+    await expect(email).toHaveValue(movedEmail);
+    await expect(current).toHaveCount(0);
+  } finally {
+    // Puts the stored email back, so the fixture's deletion, which confirms it, still matches.
+    await page.request.put('/api/v9/me', {
+      headers: { 'X-Tokkl-CSRF': '1' },
+      data: { email: storedEmail, current_password: password },
+    });
+  }
 });

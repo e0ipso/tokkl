@@ -27,6 +27,7 @@ export const settings = {
     'The account timezone decides which day an entry belongs to in lists, reports and imports. You use the email to log in.',
   browserZone: 'This browser is set to {browser}, but the account uses {account}.',
   useZone: 'Use {zone}',
+  emailNeedsPassword: 'Enter your current password to change the email.',
 
   passwordChanged: 'Password changed. Other browsers were logged out.',
   enterCurrentPassword: 'Enter your current password',

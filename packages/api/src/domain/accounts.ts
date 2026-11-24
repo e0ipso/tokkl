@@ -137,17 +137,49 @@ function createAdminOperations<R extends AccountRepositories>(
   };
 }
 
+const PASSWORD_REQUIRED = 'Current password is required';
+
 /** Checks the current password under the shared attempt limit. */
-async function verifiedPasswordHash(
+async function verifyCurrentPassword(
   seen: User,
-  change: NonNullable<ProfileUpdate['password']>,
+  currentPassword: string,
   attempt: AccountPasswordAttempt | undefined,
-): Promise<string> {
+): Promise<void> {
   if (!attempt) throw new Error('Password attempt policy required');
-  const result = await attempt.attempt(() => verifyPassword(change.currentPassword, seen.passwordHash));
+  const result = await attempt.attempt(() => verifyPassword(currentPassword, seen.passwordHash));
   if (result.refused) throw tooManyAttempts('Too many failed attempts, try again later', result.retryAfter);
   if (!result.valid) throw invalidInput('Current password is not valid');
-  return hashPassword(change.password);
+}
+
+/** Password Basic already proved the password, and a recased email is no change. */
+function emailChangeNeedsPassword(email: string | undefined, stored: User, credential: AccountCredential): boolean {
+  return (
+    credential.kind !== 'password' && email !== undefined && normalizeEmail(email) !== normalizeEmail(stored.email)
+  );
+}
+
+/**
+ * Verifies at most once per request and returns whether it did. A missing password refuses an email change
+ * without a charge; a new password without one is still checked, and charged, as an empty password.
+ */
+async function verifyProfileUpdate(
+  seen: User,
+  credential: AccountCredential,
+  { changes, password, currentPassword }: ProfileUpdate,
+  attempt: AccountPasswordAttempt | undefined,
+): Promise<boolean> {
+  if (password === undefined) {
+    if (!emailChangeNeedsPassword(changes.email, seen, credential)) return false;
+    if (!currentPassword) throw invalidInput(PASSWORD_REQUIRED);
+  }
+  await verifyCurrentPassword(seen, currentPassword ?? '', attempt);
+  return true;
+}
+
+/** What the request proved before the transaction. */
+interface ProfileProof {
+  verified: boolean;
+  passwordHash?: string;
 }
 
 function createProfileOperations<R extends AccountRepositories>(
@@ -160,7 +192,7 @@ function createProfileOperations<R extends AccountRepositories>(
     seen: User,
     credential: AccountCredential,
     { changes }: ProfileUpdate,
-    passwordHash: string | undefined,
+    { verified, passwordHash }: ProfileProof,
     effects: AccountEntryEffects<R>,
   ): Promise<User> {
     await ctx.lockInstanceAdministration();
@@ -172,6 +204,8 @@ function createProfileOperations<R extends AccountRepositories>(
     await ctx.lockUsers([seen.id]);
     const user = await currentCredentialUser(ctx, seen, credential);
     if (!user) throw refused();
+    // The email may have changed since the snapshot the check before the transaction used.
+    if (!verified && emailChangeNeedsPassword(changes.email, user, credential)) throw invalidInput(PASSWORD_REQUIRED);
     if (changes.defaultWorkspaceId && !(await ctx.workspaces.forMember(user.id, changes.defaultWorkspaceId)))
       throw invalidInput('Invalid default_workspace_id');
     if (changes.email !== undefined) {
@@ -213,9 +247,11 @@ function createProfileOperations<R extends AccountRepositories>(
       effects: AccountEntryEffects<R>,
       attempt?: AccountPasswordAttempt,
     ): Promise<User> {
-      const passwordHash = update.password ? await verifiedPasswordHash(seen, update.password, attempt) : undefined;
+      const verified = await verifyProfileUpdate(seen, credential, update, attempt);
+      const passwordHash = update.password === undefined ? undefined : await hashPassword(update.password);
+      const proof = { verified, passwordHash };
       return emailConflict(
-        () => runner.transaction(ctx => applyProfile(ctx, seen, credential, update, passwordHash, effects)),
+        () => runner.transaction(ctx => applyProfile(ctx, seen, credential, update, proof, effects)),
         'Email already in use',
       );
     },
