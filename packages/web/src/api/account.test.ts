@@ -40,7 +40,18 @@ function setup(cached: Preferences | null = base) {
     if (!request) throw new Error(`Request ${index} was not sent`);
     return request;
   };
-  return { save, sent, nth, shown, settled };
+  /** Starts a refetch, as a window focus does; `resolve` answers it with what the server held at the start. */
+  const refetch = () => {
+    let resolve: (preferences: Preferences) => void = () => undefined;
+    const fetched = qc
+      .fetchQuery({
+        queryKey: keys.preferences,
+        queryFn: () => new Promise<Preferences>(done => (resolve = done)),
+      })
+      .catch(() => undefined);
+    return { fetched, resolve: (preferences: Preferences) => resolve(preferences) };
+  };
+  return { save, sent, nth, shown, settled, refetch };
 }
 
 test('both changes show at once, and the second save goes out only after the first has its reply', async () => {
@@ -114,4 +125,18 @@ test('with no preferences loaded, a failed save leaves the cache empty', async (
   nth(0).fail();
   await first;
   assert.equal(shown(), undefined);
+});
+
+test('a refetch that started before a save does not overwrite the saved value', async () => {
+  const { save, nth, shown, settled, refetch } = setup();
+  const stale = refetch();
+  await settled();
+  const saving = save({ theme: 'dark' } as Partial<Preferences>);
+  await settled();
+  stale.resolve(base);
+  await stale.fetched;
+  assert.equal(shown()?.theme, 'dark', 'the pending save still shows');
+  nth(0).reply({ theme: 'dark' } as Partial<Preferences>);
+  await saving;
+  assert.equal(shown()?.theme, 'dark');
 });
