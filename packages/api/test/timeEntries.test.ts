@@ -3,7 +3,7 @@ import { entryRecord, entryCount } from './fixtures/observations.ts';
 import { storageFor } from './fixtures/database.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { addUser, iso, setup, type TestContext } from './helpers.ts';
+import { addUser, iso, setTimeResolution, setup, type TestContext } from './helpers.ts';
 import { addWorkspaceMember, createWorkspace } from './fixtures/domain.ts';
 
 test('starting a timer returns a running entry with negative epoch duration', async () => {
@@ -98,7 +98,7 @@ test('a switch between timers is stored back to back on either side of a half st
     [15, '09:23:00', '09:30:00'],
   ] as const) {
     const ctx = await setup();
-    await setResolution(ctx, minutes);
+    await setTimeResolution(ctx, minutes);
     const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
     const label = `R=${minutes} switch at ${switchAt}`;
     const first = await ctx.json('POST', url, { start: '2026-10-14T09:00:00Z', duration: -1 });
@@ -194,7 +194,7 @@ test('zone-free, impossible and non-string timestamps are rejected without side 
 
 test('offsets, null stop, sub-second values and negative running durations still work', async () => {
   const ctx = await setup();
-  assert.equal((await ctx.json('PUT', '/api/app/admin/settings', { time_resolution_minutes: 1 })).status, 200);
+  await setTimeResolution(ctx, 1);
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
   // Fractions of a second are dropped, then each end snaps to the nearest whole minute: 09:00:20 to
   // 09:00 and 10:30:10 to 10:30.
@@ -547,13 +547,9 @@ async function assertStored(ctx: TestContext, entry: any, start: string, stop: s
   assert.deepEqual({ start: row.start, stop: row.stop }, { start: iso(start), stop: iso(stop) });
 }
 
-async function setResolution(ctx: TestContext, minutes: number): Promise<void> {
-  assert.equal((await ctx.json('PUT', '/api/app/admin/settings', { time_resolution_minutes: minutes })).status, 200);
-}
-
 test('create, update and bulk PATCH store the span snapped to the resolution', async () => {
   const ctx = await setup();
-  await setResolution(ctx, 15);
+  await setTimeResolution(ctx, 15);
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
 
   // 10:07:40 is nearer 10:15 than 10:00, and 10:37:25 is nearer 10:30 than 10:45.
@@ -596,9 +592,59 @@ test('create, update and bulk PATCH store the span snapped to the resolution', a
   );
 });
 
+test("stop, create, update and split snap each entry to its owner's time resolution", async () => {
+  const alice = await setup();
+  const bob = await addUser(alice, { email: 'bob@example.com', role: 'user' });
+  await setTimeResolution(alice, 15);
+  await setTimeResolution(bob, 60);
+  const cases = [
+    {
+      ctx: alice,
+      stopped: ['09:00', '09:45'],
+      created: ['10:15', '10:45'],
+      updated: ['10:15', '12:45'],
+      split: ['10:15', '11:15', '12:45'],
+    },
+    {
+      ctx: bob,
+      stopped: ['09:00', '10:00'],
+      created: ['10:00', '11:00'],
+      updated: ['10:00', '13:00'],
+      split: ['10:00', '11:00', '13:00'],
+    },
+  ];
+  for (const { ctx, ...expected } of cases) {
+    const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
+    const on = (day: string) => (time: string) => `2026-10-${day}T${time}:00+00:00`;
+    const [stopDay, otherDay] = [on('15'), on('14')];
+
+    const running = await ctx.json('POST', url, { start: '2026-10-15T09:02:10Z', duration: -1 });
+    const stopped = await ctx.json('PATCH', `${url}/${running.body.id}/stop`, { stop: '2026-10-15T09:52:00Z' });
+    assert.equal(stopped.status, 200, ctx.user.email);
+    await assertStored(ctx, stopped.body, stopDay(expected.stopped[0]!), stopDay(expected.stopped[1]!));
+
+    const created = await ctx.json('POST', url, { start: '2026-10-14T10:07:40Z', stop: '2026-10-14T10:52:25Z' });
+    assert.equal(created.status, 200, ctx.user.email);
+    await assertStored(ctx, created.body, otherDay(expected.created[0]!), otherDay(expected.created[1]!));
+
+    const updated = await ctx.json('PUT', `${url}/${created.body.id}`, { stop: '2026-10-14T12:40:00Z' });
+    assert.equal(updated.status, 200, ctx.user.email);
+    await assertStored(ctx, updated.body, otherDay(expected.updated[0]!), otherDay(expected.updated[1]!));
+
+    const split = await ctx.json('POST', `/api/app/time_entries/${created.body.id}/split`, {
+      at: '2026-10-14T11:20:00Z',
+      created_with: 'test',
+    });
+    assert.equal(split.status, 200, ctx.user.email);
+    const [start, cut, stop] = expected.split.map(otherDay);
+    await assertStored(ctx, split.body.first, start!, cut!);
+    await assertStored(ctx, split.body.second, cut!, stop!);
+  }
+});
+
 test('create, update and bulk PATCH refuse a span that rounds to zero', async () => {
   const ctx = await setup();
-  await setResolution(ctx, 15);
+  await setTimeResolution(ctx, 15);
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
   const message = 'Time entry is too short: it rounds to zero at the 15-minute time resolution';
   const entry = await ctx.json('POST', url, { start: '2026-10-14T09:00:00Z', duration: 1800 });
@@ -628,7 +674,7 @@ test('create, update and bulk PATCH refuse a span that rounds to zero', async ()
 
 test("the grid follows the clock of the entry owner's timezone", async () => {
   const ctx = await setup({ timezone: 'Asia/Kolkata' });
-  await setResolution(ctx, 60);
+  await setTimeResolution(ctx, 60);
   // Kolkata is UTC+5:30, so its whole hours fall at half past in UTC.
   const entry = await ctx.json('POST', `/api/v9/workspaces/${ctx.wid}/time_entries`, {
     start: '2026-10-14T04:40:00Z',
@@ -701,7 +747,7 @@ test('the stop endpoint stops at a supplied timestamp on the grid, whatever its 
   assert.equal(stopped.body.server_deleted_at, null);
 
   const zoned = await setup({ timezone: 'Asia/Kathmandu' });
-  await setResolution(zoned, 20);
+  await setTimeResolution(zoned, 20);
   const zonedUrl = `/api/v9/workspaces/${zoned.wid}/time_entries`;
   const other = await zoned.json('POST', zonedUrl, { start: '2026-10-14T09:02:10Z', duration: -1 });
   const snapped = await zoned.json('PATCH', `${zonedUrl}/${other.body.id}/stop`, { stop: '2026-10-14T15:31:00+05:45' });
@@ -929,7 +975,7 @@ test('an older entry that rounds to zero keeps its times through edits that leav
 
 test('a no-time entry starts at local midnight and keeps a snapped duration', async () => {
   const ctx = await setup({ timezone: 'Europe/Madrid' });
-  await setResolution(ctx, 15);
+  await setTimeResolution(ctx, 15);
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
 
   // 5000 seconds is nearer 5400 than 4500 at 15 minutes.
@@ -968,7 +1014,7 @@ test('a no-time entry starts at local midnight and keeps a snapped duration', as
 
 test('a no-time entry that is running, rounds to zero, runs over a day or has no duration is refused', async () => {
   const ctx = await setup({ timezone: 'America/New_York' });
-  await setResolution(ctx, 15);
+  await setTimeResolution(ctx, 15);
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
   const cases: Array<[Record<string, unknown>, string]> = [
     [{ duration: 0 }, 'Time entry is too short: it rounds to zero at the 15-minute time resolution'],
@@ -1061,7 +1107,7 @@ async function allDayColumn(ctx: TestContext, id: number): Promise<number> {
 
 test('an update turns an entry into a no-time entry and back', async () => {
   const ctx = await setup({ timezone: 'Europe/Madrid' });
-  await setResolution(ctx, 15);
+  await setTimeResolution(ctx, 15);
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
   const entry = await ctx.json('POST', url, { start: '2026-10-14T09:07:00Z', duration: 5000, description: 'review' });
   await assertStored(ctx, entry.body, '2026-10-14T09:00:00+00:00', '2026-10-14T10:30:00+00:00');
@@ -1110,7 +1156,7 @@ test('an update turns an entry into a no-time entry and back', async () => {
 
 test('a no-time entry changes its date and duration but refuses a time of day', async () => {
   const ctx = await setup({ timezone: 'Europe/Madrid' });
-  await setResolution(ctx, 15);
+  await setTimeResolution(ctx, 15);
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
   const entry = await ctx.json('POST', url, { all_day: true, start_date: '2026-10-14', duration: 3600 });
   const id = entry.body.id;
@@ -1147,7 +1193,7 @@ test('a no-time entry changes its date and duration but refuses a time of day', 
 
 test('a no-time entry stored off the grid keeps its span through edits that leave the day and duration alone', async () => {
   const ctx = await setup({ timezone: 'Europe/Madrid' });
-  await setResolution(ctx, 15);
+  await setTimeResolution(ctx, 15);
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
   const entry = await ctx.json('POST', url, { all_day: true, start_date: '2026-10-14', duration: 3600 });
   await corruptRecord(ctx.db, 'time_entries', { stop: '2026-10-13T22:16:40.000Z' }, { id: entry.body.id });
@@ -1175,7 +1221,7 @@ test('a no-time entry stored off the grid keeps its span through edits that leav
 
 test('bulk PATCH refuses start and stop on a no-time entry and moves its duration', async () => {
   const ctx = await setup({ timezone: 'Europe/Madrid' });
-  await setResolution(ctx, 15);
+  await setTimeResolution(ctx, 15);
   const url = `/api/v9/workspaces/${ctx.wid}/time_entries`;
   const noTime = await ctx.json('POST', url, { all_day: true, start_date: '2026-10-14', duration: 3600 });
   const timed = await ctx.json('POST', url, { start: '2026-10-14T09:00:00Z', duration: 900 });

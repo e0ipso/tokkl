@@ -55,7 +55,9 @@ export function savePreferencesOptions(qc: QueryClient, send: SendPreferences = 
     // One save at a time, so the server applies them in order and the replies arrive in order.
     scope: { id: 'preferences' },
     mutationFn: send,
-    onMutate: (changes: Partial<Preferences>) => {
+    onMutate: async (changes: Partial<Preferences>) => {
+      // A fetch that started before this save would bring back the old value after it shows.
+      await qc.cancelQueries({ queryKey: keys.preferences });
       const { save, shown } = savesOf(qc).begin(qc.getQueryData<Preferences>(keys.preferences), changes);
       show(shown);
       return { save };

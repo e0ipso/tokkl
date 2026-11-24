@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import type { Page } from '@playwright/test';
-import { expect, test } from './admin-tests-helpers.ts';
+import { expect, test } from './fixtures.ts';
 import { login } from './helpers.ts';
 import { PHONE, expectFits, expectNoPageOverflow } from './mobile-tests-helpers.ts';
 import {
@@ -142,7 +142,7 @@ test('one-minute sessions retain entry fields, skip phases, count overtime and l
   page,
   data,
 }) => {
-  await data.saveInstanceSettings({ time_resolution_minutes: 1 });
+  await data.setTimeResolution(1);
   const api = await openPomodoro(page);
   const preferences = await api.preferences();
   for (const [label, key] of [
@@ -498,7 +498,7 @@ test('one audio owner hands a ringing session to the other tab when it closes', 
 });
 
 test("starting a session stops the regular timer at the new pomodoro's start", async ({ page, data }) => {
-  await data.saveInstanceSettings({ time_resolution_minutes: 1 });
+  await data.setTimeResolution(1);
   const api = await openPomodoro(page);
   const running = await api.startTimer({
     description: 'Regular work',
@@ -515,7 +515,7 @@ test("starting a session stops the regular timer at the new pomodoro's start", a
 
 for (const action of ['Start', 'Continue', 'favorite'] as const) {
   test(`${action} on the Timer page ends the session and saves the partial pomodoro`, async ({ page, data }) => {
-    await data.saveInstanceSettings({ time_resolution_minutes: 1 });
+    await data.setTimeResolution(1);
     // The timer the page starts takes its start from the browser clock, which has to agree with the server's.
     const api = await openPomodoro(page, { fakeClock: false });
     const earlier = Date.now() - 60 * 60_000;
@@ -548,7 +548,7 @@ for (const action of ['Start', 'Continue', 'favorite'] as const) {
 }
 
 test('a remote timer ends the session at the remote start without a reload', async ({ page, data }) => {
-  await data.saveInstanceSettings({ time_resolution_minutes: 1 });
+  await data.setTimeResolution(1);
   const api = await openPomodoro(page);
   await startPomodoro(page);
   const moved = await backdate(page, api);
@@ -561,7 +561,7 @@ test('a remote timer ends the session at the remote start without a reload', asy
 });
 
 test('a too-short pomodoro is announced and goes to the trash', async ({ page, data }) => {
-  await data.saveInstanceSettings({ time_resolution_minutes: 1 });
+  await data.setTimeResolution(1);
   const api = await openPomodoro(page);
   await startPomodoro(page);
   const pomodoro = (await api.current())!;
@@ -588,7 +588,7 @@ test("a session started on one device shows on the other, and Next phase there s
   browser,
   data,
 }, testInfo) => {
-  await data.saveInstanceSettings({ time_resolution_minutes: 1 });
+  await data.setTimeResolution(1);
   await observeAudio(page);
   const api = await openPomodoro(page);
   const { other, errors } = await secondDevice(page, browser);
@@ -637,7 +637,7 @@ test("a second confirm with an old revision gets a conflict, advances nothing an
     path: /\/api\/app\/pomodoro\/next$/,
     reason: 'both devices confirm the same phase end',
   });
-  await data.saveInstanceSettings({ time_resolution_minutes: 1 });
+  await data.setTimeResolution(1);
   await observeAudio(page);
   const api = await openPomodoro(page);
   const { other, errors } = await secondDevice(page, browser);

@@ -24,6 +24,7 @@ export const THEMES: ReadonlyArray<{ value: Preferences['theme']; label: Message
 const NUMBER_FIELDS = [
   ...POMODORO_FIELDS.map(({ preference: key, spokenUnit: unit }) => ({ key, unit })),
   { key: 'long_timer_reminder_hours', unit: 'settings.spokenHours' },
+  { key: 'time_resolution_minutes', unit: 'settings.spokenMinutes' },
 ] as const;
 export type NumberKey = (typeof NUMBER_FIELDS)[number]['key'];
 
@@ -48,6 +49,7 @@ export function editableOf(prefs: Preferences, limits: PomodoroLimits): Editable
     theme: prefs.theme ?? 'system',
     long_timer_reminder_enabled: prefs.long_timer_reminder_enabled ?? true,
     long_timer_reminder_hours: prefs.long_timer_reminder_hours ?? 8,
+    time_resolution_minutes: prefs.time_resolution_minutes,
     date_format: prefs.date_format,
     timeofday_format: prefs.timeofday_format,
     duration_format: prefs.duration_format,
@@ -65,6 +67,7 @@ export function toDraft(values: Editable): Draft {
   return {
     ...values,
     long_timer_reminder_hours: String(values.long_timer_reminder_hours),
+    time_resolution_minutes: String(values.time_resolution_minutes),
     pomodoro_focus_interval_in_minutes: String(values.pomodoro_focus_interval_in_minutes),
     pomodoro_break_interval_in_minutes: String(values.pomodoro_break_interval_in_minutes),
     pomodoro_long_break_interval_in_minutes: String(values.pomodoro_long_break_interval_in_minutes),

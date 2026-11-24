@@ -16,7 +16,7 @@ import {
   resumeTimer,
   startPomodoro,
 } from './fixtures/domain.ts';
-import { addUser, setup, type TestContext } from './helpers.ts';
+import { addUser, setTimeResolution, setup, type TestContext } from './helpers.ts';
 import { at } from './fixtures/clock.ts';
 
 const iso = (time: string) => at(time).toISOString();
@@ -29,7 +29,7 @@ interface SessionContext extends TestContext {
 /** 1-minute resolution, 1-minute phases, a long rest after every 2 work phases. `user` is read after saving them. */
 async function sessionSetup(): Promise<SessionContext> {
   const ctx = await setup();
-  assert.equal((await ctx.json('PUT', '/api/app/admin/settings', { time_resolution_minutes: 1 })).status, 200);
+  await setTimeResolution(ctx, 1);
   const saved = await ctx.json('POST', '/api/v9/me/preferences', {
     pomodoro_focus_interval_in_minutes: 1,
     pomodoro_break_interval_in_minutes: 1,

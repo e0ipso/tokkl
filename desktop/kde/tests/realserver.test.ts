@@ -135,6 +135,17 @@ function describeUser(
   };
 }
 
+/** Sets the account's own time resolution preference to the fixture's, as that account. */
+async function withResolution(ctx: TestContext): Promise<TestContext> {
+  await ok(ctx, 'POST', '/api/app/me/preferences', { time_resolution_minutes: RESOLUTION_MINUTES });
+  return ctx;
+}
+
+/** A user account on the admin's instance, with the fixture's time resolution. */
+async function fixtureUser(admin: TestContext, email: string): Promise<TestContext> {
+  return withResolution(await addUser(admin, { email, role: 'user' }));
+}
+
 /**
  * The same accounts, projects and running entries in the same order on each instance, so their ids
  * collide; names and start times differ. Instance a also gets the accounts that lose access.
@@ -146,8 +157,7 @@ async function seed(name: string, extra: boolean) {
   const users: Record<string, FixtureUser> = {};
   const contexts: Record<string, TestContext> = {};
 
-  const admin = await setup();
-  await ok(admin, 'PUT', '/api/app/admin/settings', { time_resolution_minutes: RESOLUTION_MINUTES });
+  const admin = await withResolution(await setup());
   const adminProject = await project(admin, admin.wid, `${label} admin project`);
   const adminEntry = await running(admin, admin.wid, `${label} admin running`, new Date(now - 3 * hour), {
     project_id: adminProject.id,
@@ -155,12 +165,12 @@ async function seed(name: string, extra: boolean) {
   users[`${name}.admin`] = describeUser(name, admin, admin.wid, [adminProject], adminEntry);
   contexts[`${name}.admin`] = admin;
 
-  const u = await addUser(admin, { email: `u@${name}.example.com`, role: 'user' });
+  const u = await fixtureUser(admin, `u@${name}.example.com`);
   const uProjects = [await project(u, u.wid, `${label} u first`), await project(u, u.wid, `${label} u second`)];
   users[`${name}.u`] = describeUser(name, u, u.wid, uProjects, null);
   contexts[`${name}.u`] = u;
 
-  const s = await addUser(admin, { email: `s@${name}.example.com`, role: 'user' });
+  const s = await fixtureUser(admin, `s@${name}.example.com`);
   const sProject = await project(s, s.wid, `${label} s project`);
   const sEntry = await running(s, s.wid, `${label} s running`, new Date(now - (extra ? 2 : 1) * hour), {
     project_id: sProject.id,
@@ -170,7 +180,7 @@ async function seed(name: string, extra: boolean) {
 
   if (extra) {
     // Works in the admin's workspace as a member, so it can lose it.
-    const m = await addUser(admin, { email: `m@${name}.example.com`, role: 'user' });
+    const m = await fixtureUser(admin, `m@${name}.example.com`);
     await addWorkspaceMember(m.db, admin.wid, m.user.id, 'member');
     await ok(m, 'PUT', '/api/v9/me', { default_workspace_id: admin.wid });
     const mEntry = await running(m, admin.wid, `${label} m running`, new Date(now - hour));
@@ -178,7 +188,7 @@ async function seed(name: string, extra: boolean) {
     contexts[`${name}.m`] = m;
 
     for (const key of ['dt', 'dp']) {
-      const ctx = await addUser(admin, { email: `${key}@${name}.example.com`, role: 'user' });
+      const ctx = await fixtureUser(admin, `${key}@${name}.example.com`);
       const entry = await running(ctx, ctx.wid, `${label} ${key} running`, new Date(now - hour));
       users[`${name}.${key}`] = describeUser(name, ctx, ctx.wid, [], entry);
       contexts[`${name}.${key}`] = ctx;
@@ -186,7 +196,7 @@ async function seed(name: string, extra: boolean) {
 
     // Pauses and resumes an entry with a task, tags and the billable flag, then loses the task
     // and the project while paused.
-    const p = await addUser(admin, { email: `p@${name}.example.com`, role: 'user' });
+    const p = await fixtureUser(admin, `p@${name}.example.com`);
     const pProject = await project(p, p.wid, `${label} p project`);
     const pTask = await ok<{ id: number }>(p, 'POST', `/api/v9/workspaces/${p.wid}/projects/${pProject.id}/tasks`, {
       name: `${label} p task`,
@@ -202,20 +212,20 @@ async function seed(name: string, extra: boolean) {
 
     // Pauses an entry with a project and no task, then loses the project while paused. The server
     // checks a task before the project, so only a chain without a task is refused for the project.
-    const q = await addUser(admin, { email: `q@${name}.example.com`, role: 'user' });
+    const q = await fixtureUser(admin, `q@${name}.example.com`);
     const qProject = await project(q, q.wid, `${label} q project`);
     const qEntry = await running(q, q.wid, `${label} q running`, new Date(now - hour), { project_id: qProject.id });
     users[`${name}.q`] = describeUser(name, q, q.wid, [qProject], qEntry);
     contexts[`${name}.q`] = q;
 
     // Runs a Pomodoro session from the companion: starts it, confirms Next phase twice and ends it.
-    const sn = await addUser(admin, { email: `sn@${name}.example.com`, role: 'user' });
+    const sn = await fixtureUser(admin, `sn@${name}.example.com`);
     const snProject = await project(sn, sn.wid, `${label} sn project`);
     users[`${name}.sn`] = describeUser(name, sn, sn.wid, [snProject], null);
     contexts[`${name}.sn`] = sn;
 
     // Pauses, resumes, pauses again and discards the chain.
-    const pc = await addUser(admin, { email: `pc@${name}.example.com`, role: 'user' });
+    const pc = await fixtureUser(admin, `pc@${name}.example.com`);
     const pcProject = await project(pc, pc.wid, `${label} pc project`);
     const pcEntry = await running(pc, pc.wid, `${label} pc running`, new Date(now - hour), {
       project_id: pcProject.id,
@@ -225,12 +235,12 @@ async function seed(name: string, extra: boolean) {
     contexts[`${name}.pc`] = pc;
 
     // Has its session started, advanced and ended by another device, through the API.
-    const pu = await addUser(admin, { email: `pu@${name}.example.com`, role: 'user' });
+    const pu = await fixtureUser(admin, `pu@${name}.example.com`);
     users[`${name}.pu`] = describeUser(name, pu, pu.wid, [], null);
     contexts[`${name}.pu`] = pu;
 
     // Pauses, and the reply to the pause is dropped.
-    const hd = await addUser(admin, { email: `hd@${name}.example.com`, role: 'user' });
+    const hd = await fixtureUser(admin, `hd@${name}.example.com`);
     const hdProject = await project(hd, hd.wid, `${label} hd project`);
     const hdEntry = await running(hd, hd.wid, `${label} hd running`, new Date(now - hour), {
       project_id: hdProject.id,
@@ -253,7 +263,7 @@ function assertStopped(row: Row, exactStart?: number) {
 const without = (row: Row, ...keys: string[]) =>
   Object.fromEntries(Object.entries(row).filter(([key]) => !keys.includes(key)));
 
-/** The instances' time resolution, set in the fixture, on the UTC clock of the fixture accounts. */
+/** Every fixture account's time resolution preference, on the UTC clock of the fixture accounts. */
 const RESOLUTION_MINUTES = 1;
 const RESOLUTION_MS = RESOLUTION_MINUTES * 60_000;
 

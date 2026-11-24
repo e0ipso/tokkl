@@ -18,6 +18,7 @@ const preferences: Preferences = {
   pomodoro_long_break_every: 3,
   long_timer_reminder_enabled: true,
   long_timer_reminder_hours: 8,
+  time_resolution_minutes: 15,
 };
 
 /** Unlike the limits this repo's server ships with. */

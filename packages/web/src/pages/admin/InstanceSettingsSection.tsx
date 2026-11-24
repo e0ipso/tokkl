@@ -22,12 +22,6 @@ const SETTING_FIELDS = [
     label: 'admin.inviteLifetime',
     hint: 'admin.inviteLifetimeHint',
   },
-  {
-    key: 'time_resolution_minutes',
-    unit: 'admin.unitMinutes',
-    label: 'admin.timeResolution',
-    hint: 'admin.timeResolutionHint',
-  },
 ] as const satisfies ReadonlyArray<{
   key: keyof InstanceSettings;
   unit: MessageKey;
@@ -43,7 +37,6 @@ function toDraft(settings: InstanceSettings): SettingsDraft {
   return {
     session_days: String(settings.session_days),
     invite_days: String(settings.invite_days),
-    time_resolution_minutes: String(settings.time_resolution_minutes),
     signup_enabled: settings.signup_enabled,
   };
 }

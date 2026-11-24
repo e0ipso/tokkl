@@ -125,11 +125,7 @@ export async function insertTrashedEntries(
       .values(rows.slice(i, i + 100))
       .execute();
 }
-export async function corruptSetting(
-  handle: FixtureDatabase,
-  value: string,
-  key = 'time_resolution_minutes',
-): Promise<void> {
+export async function corruptSetting(handle: FixtureDatabase, key: string, value: string): Promise<void> {
   const db = physical(handle);
   await db.deleteFrom('instance_settings').where('key', '=', key).execute();
   await db

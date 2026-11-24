@@ -11,7 +11,17 @@ import { loadConfig } from '../src/config.ts';
 import { sha256 } from '../src/lib/crypto.ts';
 import { openDatabase, type FixtureDatabase } from './fixtures/database.ts';
 import { createFirstAdmin, type User } from './fixtures/domain.ts';
-import { CSRF, PASSWORD, addUser, sessionCookie, setup, testConfig, testServer } from './helpers.ts';
+import {
+  CSRF,
+  PASSWORD,
+  addUser,
+  sessionCookie,
+  setTimeResolution,
+  setup,
+  testConfig,
+  testServer,
+  type TestContext,
+} from './helpers.ts';
 
 const DAY_MS = 86_400_000;
 const SIGNUP_DEFAULTS = {
@@ -52,20 +62,20 @@ const storedRows = async (db: FixtureDatabase) =>
         {
           sessionDays: 'session_days',
           inviteDays: 'invite_days',
-          timeResolutionMinutes: 'time_resolution_minutes',
           signupEnabled: 'signup_enabled',
         } as Record<string, string>
       )[key],
       value: JSON.stringify(value),
     }))
     .sort((a, b) => a.key!.localeCompare(b.key!));
+const storedPreferences = async (ctx: TestContext) =>
+  JSON.stringify((await storageFor(ctx.db).users.get(ctx.user.id))!.preferences);
 
 test('with nothing stored, the settings come from TOKKL_SESSION_DAYS and the invite default', async () => {
   const admin = await setup();
   assert.deepEqual((await admin.json('GET', '/api/app/admin/settings')).body, {
     session_days: 30,
     invite_days: 7,
-    time_resolution_minutes: 5,
     ...SIGNUP_DEFAULTS,
   });
 
@@ -79,7 +89,7 @@ test('with nothing stored, the settings come from TOKKL_SESSION_DAYS and the inv
   });
   const response = await serveWith(db, owner, 12)('GET', '/api/app/admin/settings');
   assert.equal(response.status, 200);
-  assert.deepEqual(response.body, { session_days: 12, invite_days: 7, time_resolution_minutes: 5, ...SIGNUP_DEFAULTS });
+  assert.deepEqual(response.body, { session_days: 12, invite_days: 7, ...SIGNUP_DEFAULTS });
 });
 
 test('an admin stores settings, and they survive a restart on the same database', async () => {
@@ -98,21 +108,18 @@ test('an admin stores settings, and they survive a restart on the same database'
     const put = await serveWith(first, owner)('PUT', '/api/app/admin/settings', {
       session_days: 90,
       invite_days: 3,
-      time_resolution_minutes: 15,
     });
     assert.equal(put.status, 200);
-    assert.deepEqual(put.body, { session_days: 90, invite_days: 3, time_resolution_minutes: 15, ...SIGNUP_DEFAULTS });
+    assert.deepEqual(put.body, { session_days: 90, invite_days: 3, ...SIGNUP_DEFAULTS });
     const partial = await serveWith(first, owner)('PUT', '/api/app/admin/settings', { invite_days: 14 });
     assert.deepEqual(partial.body, {
       session_days: 90,
       invite_days: 14,
-      time_resolution_minutes: 15,
       ...SIGNUP_DEFAULTS,
     });
     assert.deepEqual(await settingRows(first), [
       { key: 'invite_days', value: '14', updated_by: owner.id },
       { key: 'session_days', value: '90', updated_by: owner.id },
-      { key: 'time_resolution_minutes', value: '15', updated_by: owner.id },
     ]);
     await storageFor(first).close();
 
@@ -123,7 +130,6 @@ test('an admin stores settings, and they survive a restart on the same database'
       assert.deepEqual(get.body, {
         session_days: 90,
         invite_days: 14,
-        time_resolution_minutes: 15,
         ...SIGNUP_DEFAULTS,
       });
     } finally {
@@ -162,7 +168,6 @@ test('out-of-range, non-integer and unknown settings return 400 and store nothin
   assert.deepEqual((await admin.json('GET', '/api/app/admin/settings')).body, {
     session_days: 30,
     invite_days: 7,
-    time_resolution_minutes: 5,
     ...SIGNUP_DEFAULTS,
   });
 
@@ -198,69 +203,56 @@ test('a regular user gets 403 from the settings routes, and cookie writes need t
   assert.equal(withCsrf.status, 200);
 });
 
-// The time resolution is a set of allowed values, the divisors of an hour, rather than a range.
-test('time_resolution_minutes accepts every divisor of 60 and nothing else', async () => {
+test('the time resolution is no instance setting: admins cannot store it and /me does not carry it', async () => {
   const admin = await setup();
-  for (const minutes of [1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60]) {
-    const put = await admin.json('PUT', '/api/app/admin/settings', { time_resolution_minutes: minutes });
-    assert.equal(put.status, 200, String(minutes));
-    assert.equal((await admin.json('GET', '/api/app/admin/settings')).body.time_resolution_minutes, minutes);
-  }
-
-  assert.equal((await admin.json('PUT', '/api/app/admin/settings', { time_resolution_minutes: 15 })).status, 200);
-  const stored = await storedRows(admin.db);
-  const bodies: unknown[] = [
-    { time_resolution_minutes: 0 },
-    { time_resolution_minutes: 7 },
-    { time_resolution_minutes: 61 },
-    { time_resolution_minutes: -5 },
-    { time_resolution_minutes: 120 },
-    { time_resolution_minutes: 5.5 },
-    { time_resolution_minutes: '15' },
-    { time_resolution_minutes: null },
-    { time_resolution_minutes: true },
-    { session_days: 10, invite_days: 3, time_resolution_minutes: 7 },
-  ];
-  for (const body of bodies) {
+  for (const body of [{ time_resolution_minutes: 15 }, { session_days: 10, time_resolution_minutes: 15 }]) {
     const response = await admin.json('PUT', '/api/app/admin/settings', body);
     assert.equal(response.status, 400, JSON.stringify(body));
+    assert.equal(response.body, 'Unknown setting: time_resolution_minutes');
+  }
+  assert.deepEqual(await storedRows(admin.db), []);
+  assert.equal(
+    Object.hasOwn((await admin.json('GET', '/api/app/admin/settings')).body, 'time_resolution_minutes'),
+    false,
+  );
+  for (const path of ['/api/v9/me', '/api/v9/me?with_related_data=true'])
+    assert.equal(Object.hasOwn((await admin.json('GET', path)).body, 'time_resolution_minutes'), false, path);
+});
+
+// The time resolution is a set of allowed values, the divisors of an hour, rather than a range.
+test('each user stores a divisor of 60 as time_resolution_minutes and reads 5 for anything else', async () => {
+  const admin = await setup();
+  const bob = await addUser(admin, { email: 'bob@example.com', role: 'user' });
+  const resolutionOf = async (ctx: TestContext) =>
+    (await ctx.json('GET', '/api/app/me/preferences')).body.time_resolution_minutes;
+  assert.equal(await resolutionOf(bob), 5);
+
+  for (const minutes of [1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60]) {
+    const saved = await bob.json('POST', '/api/app/me/preferences', { time_resolution_minutes: minutes });
+    assert.equal(saved.status, 200, String(minutes));
+    assert.equal(await resolutionOf(bob), minutes);
+  }
+  await setTimeResolution(bob, 15);
+  const stored = await storedPreferences(bob);
+  for (const value of [0, 7, 61, 5.5, '15', null, true]) {
+    const response = await bob.request('POST', '/api/app/me/preferences', { time_resolution_minutes: value });
+    assert.equal(response.status, 400, String(value));
+    assert.equal(response.headers.get('tokkl-error-code'), 'invalid_preference');
+    assert.equal(response.headers.get('tokkl-error-field'), 'time_resolution_minutes');
     assert.equal(
-      response.body,
+      await response.json(),
       'Invalid time_resolution_minutes: expected one of 1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60',
     );
   }
-  assert.deepEqual(await storedRows(admin.db), stored);
-  assert.deepEqual((await admin.json('GET', '/api/app/admin/settings')).body, {
-    session_days: 30,
-    invite_days: 7,
-    time_resolution_minutes: 15,
-    ...SIGNUP_DEFAULTS,
-  });
-});
+  assert.equal(await storedPreferences(bob), stored);
+  assert.equal(await resolutionOf(bob), 15);
+  assert.equal(await resolutionOf(admin), 5, "one user's preference leaves the others alone");
 
-test('a stored time resolution outside the allowed values reads back as the default', async () => {
-  const admin = await setup();
-  for (const value of ['7', '0', '5.5', '"15"', 'null', 'not json']) {
-    await corruptSetting(admin.db, value);
-    assert.equal((await admin.json('GET', '/api/app/admin/settings')).body.time_resolution_minutes, 5, value);
-    assert.equal((await admin.json('GET', '/api/v9/me')).body.time_resolution_minutes, 5, value);
+  // Values stored before the rule existed read back as the default.
+  for (const value of [7, 0, 5.5, '15', null]) {
+    await storageFor(bob.db).users.setPreferences(bob.user.id, { time_resolution_minutes: value });
+    assert.equal(await resolutionOf(bob), 5, JSON.stringify(value));
   }
-});
-
-test('a regular user cannot change the time resolution and reads its effective value on /api/v9/me', async () => {
-  const admin = await setup();
-  const bob = await addUser(admin, { email: 'bob@example.com', role: 'user' });
-  assert.equal((await bob.json('GET', '/api/v9/me')).body.time_resolution_minutes, 5);
-
-  assert.equal((await bob.json('GET', '/api/app/admin/settings')).status, 403);
-  assert.equal((await bob.json('PUT', '/api/app/admin/settings', { time_resolution_minutes: 30 })).status, 403);
-  assert.deepEqual(await storedRows(admin.db), []);
-  assert.equal((await bob.json('GET', '/api/v9/me')).body.time_resolution_minutes, 5);
-
-  assert.equal((await admin.json('PUT', '/api/app/admin/settings', { time_resolution_minutes: 15 })).status, 200);
-  assert.equal((await bob.json('GET', '/api/v9/me')).body.time_resolution_minutes, 15);
-  assert.equal((await bob.json('GET', '/api/v9/me?with_related_data=true')).body.time_resolution_minutes, 15);
-  assert.equal((await admin.json('GET', '/api/v9/me')).body.time_resolution_minutes, 15);
 });
 
 test('a new login uses the stored session_days, and earlier sessions keep their expiry', async () => {
@@ -365,7 +357,7 @@ test('sign-up accepts only booleans and mail state remains read-only', async () 
   assert.equal(readOnly.body, 'Unknown setting: mail_configured');
   const empty = await request('PUT', '/api/app/admin/settings', {});
   assert.equal(empty.status, 400);
-  assert.equal(empty.body, 'Expected session_days or invite_days or time_resolution_minutes or signup_enabled');
+  assert.equal(empty.body, 'Expected session_days or invite_days or signup_enabled');
   assert.deepEqual(await storedRows(admin.db), []);
 });
 
@@ -373,7 +365,7 @@ test('a stored non-boolean sign-up value falls back to false even with mail conf
   const admin = await setup();
   const request = serveWith(admin.db, admin.user, 30, MAIL_ENV);
   for (const value of ['1', '0', '"true"', 'null', '{}', 'not json']) {
-    await corruptSetting(admin.db, value, 'signup_enabled');
+    await corruptSetting(admin.db, 'signup_enabled', value);
     assert.equal((await request('GET', '/api/app/admin/settings')).body.signup_enabled, false, value);
     assert.equal((await request('GET', '/api/app/status', undefined, false)).body.signup_enabled, false, value);
   }

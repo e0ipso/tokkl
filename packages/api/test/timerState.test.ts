@@ -6,15 +6,11 @@ import { settleTimer } from './fixtures/domain.ts';
 import { createTimeEntry, stopTimeEntry } from './fixtures/domain.ts';
 import { addWorkspaceMember } from './fixtures/domain.ts';
 import { subscribeTimer, timerDelivered } from './fixtures/domain.ts';
-import { addUser, iso, setup, type TestContext } from './helpers.ts';
+import { addUser, iso, setTimeResolution, setup, type TestContext } from './helpers.ts';
 
 const at = (time: string) => `2026-10-14T${time}Z`;
 
 const entriesUrl = (wid: number) => `/api/v9/workspaces/${wid}/time_entries`;
-
-async function setResolution(ctx: TestContext, minutes: number): Promise<void> {
-  assert.equal((await ctx.json('PUT', '/api/app/admin/settings', { time_resolution_minutes: minutes })).status, 200);
-}
 
 async function startTimer(ctx: TestContext, body: Record<string, unknown> = {}, wid = ctx.wid): Promise<number> {
   const response = await ctx.json('POST', entriesUrl(wid), {
@@ -157,7 +153,7 @@ test('each write that stops or removes the pomodoro entry ends the session and p
 
 test('a pomodoro that a stop rounds to zero is the discarded pomodoro until the next change', async () => {
   const ctx = await setup();
-  await setResolution(ctx, 1);
+  await setTimeResolution(ctx, 1);
   const url = entriesUrl(ctx.wid);
   const older = (await ctx.json('POST', url, { start: at('08:00:00'), stop: at('08:30:00') })).body.id as number;
   const entryId = await startTimer(ctx, { start: at('09:00:10') });

@@ -147,6 +147,33 @@ export function TimerReminderFields({ draft, set, fields }: PreferenceFieldsProp
   );
 }
 
+/** The server accepts only divisors of 60 and shows its refusal on the field. */
+export function TimeResolutionField({ draft, set, fields }: PreferenceFieldsProps & { fields: NumberFieldErrors }) {
+  return (
+    <>
+      <h3 className="settings-subheading" id="time-entries-title">
+        {t('settings.timeEntries')}
+      </h3>
+      <div className="form-grid" role="group" aria-labelledby="time-entries-title">
+        <div className="field">
+          <label htmlFor={fields.id('time_resolution_minutes')}>{t('settings.timeResolution')}</label>
+          <input
+            {...fields.field('time_resolution_minutes')}
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={60}
+            value={draft.time_resolution_minutes}
+            onChange={event => set('time_resolution_minutes', event.target.value)}
+          />
+          {fields.message('time_resolution_minutes')}
+        </div>
+        <p className="hint field-full">{t('settings.timeResolutionHint')}</p>
+      </div>
+    </>
+  );
+}
+
 /** Within the server's `limits`. */
 export function PomodoroDefaults({
   draft,

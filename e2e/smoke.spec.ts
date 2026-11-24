@@ -34,7 +34,7 @@ test('start and stop a timer with a new project and tag', async ({ page, data })
   // Stopping snaps the entry; until then it kept its exact start, which the title's elapsed time counts from.
   const [stopped] = await api.entries();
   expect(stopped!.id).toBe(running.id);
-  const step = (await data.me()).time_resolution_minutes * 60_000;
+  const step = (await data.timeResolution()) * 60_000;
   expectSnapped(stopped!, backdated.start, step);
   // Each end moves at most half a step, so ten minutes keep at least one step.
   expect(instant(stopped!.stop) - instant(stopped!.start)).toBeGreaterThanOrEqual(step);
@@ -123,7 +123,7 @@ test('undoing a discard while another timer runs restores the entry stopped on t
   expectSnapped(
     all.find(entry => entry.id === discarded.id)!,
     discarded.start,
-    (await data.me()).time_resolution_minutes * 60_000,
+    (await data.timeResolution()) * 60_000,
   );
   await expect(timer.getByLabel('Description')).toHaveValue('Started on purpose');
   await timer.getByRole('button', { name: 'Stop timer' }).click();
@@ -164,7 +164,7 @@ test('Continue, a favorite and C each replace a running timer', async ({ page, d
     (await page.request.get('/api/app/trash')).json() as Promise<
       Array<{ description: string; start: string; stop: string }>
     >;
-  const step = (await data.me()).time_resolution_minutes * 60_000;
+  const step = (await data.timeResolution()) * 60_000;
   // `previous` was replaced seconds after it started, so it rounded to zero and is the newest of `trashed`.
   const expectReplaced = async (description: string, previous: string, trashed: number) => {
     await expect(timer.getByLabel('Description')).toHaveValue(description);

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { storageFor } from './fixtures/database.ts';
-import { addUser, setup, type TestContext } from './helpers.ts';
+import { addUser, setTimeResolution, setup, type TestContext } from './helpers.ts';
 
 type Entry = Record<string, unknown> & { id: number; start: string; stop: string | null; tags: string[] };
 
@@ -23,7 +23,7 @@ function shown({ id: _id, at: _at, ...fields }: Entry) {
 
 test('a split answers the same two entries the client used to write with a create and an edit', async () => {
   const ctx = await setup({ timezone: 'Europe/Madrid' });
-  assert.equal((await ctx.json('PUT', '/api/app/admin/settings', { time_resolution_minutes: 15 })).status, 200);
+  await setTimeResolution(ctx, 15);
   const project = await ctx.json('POST', `/api/v9/workspaces/${ctx.wid}/projects`, { name: 'Alpha', billable: true });
   const task = await ctx.json('POST', `/api/v9/workspaces/${ctx.wid}/projects/${project.body.id}/tasks`, {
     name: 'Review',

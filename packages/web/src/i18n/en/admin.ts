@@ -89,11 +89,7 @@ export const admin = {
   sessionLengthHint: 'New logins stay signed in this long. Existing sessions keep their expiry.',
   inviteLifetime: 'Invite link lifetime (days)',
   inviteLifetimeHint: 'New invite links stop working after this many days.',
-  timeResolution: 'Time resolution (minutes)',
-  timeResolutionHint:
-    'Starts and stops move to the nearest multiple of this many minutes. A timer that rounds to zero goes to the trash, and a typed entry that rounds to zero is refused. Existing entries change only when they are edited.',
   unitDays: 'days',
-  unitMinutes: 'minutes',
   wholeNumber: 'Enter a whole number of {unit}',
   instanceSaved: 'Instance settings saved',
   noChanges: 'No changes to save',

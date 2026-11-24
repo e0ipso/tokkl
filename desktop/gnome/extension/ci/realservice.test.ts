@@ -24,7 +24,7 @@ import { composeApp } from '../../../../packages/api/test/fixtures/app.ts';
 import { addUser, setup, testConfig, type TestContext } from '../../../../packages/api/test/helpers.ts';
 
 const RUN_TIMEOUT_MS = 20 * 60 * 1000;
-/** The instance's default time resolution, five minutes, on the UTC clock of the fixture accounts. */
+/** The fixture user's default time resolution preference, five minutes, on the UTC clock of the fixture accounts. */
 const RESOLUTION_MS = 5 * 60_000;
 
 async function ok<T>(ctx: TestContext, method: string, path: string, body?: unknown): Promise<T> {

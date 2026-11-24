@@ -8,7 +8,7 @@ import { useToast } from '../../../components/Toast.tsx';
 import { useServerDraft } from '../../../components/useServerDraft.ts';
 import { today } from '../../../lib/format.ts';
 import { AllowNotifications } from '../../../components/AllowNotifications.tsx';
-import { DisplayFields, PomodoroDefaults, TimerReminderFields } from './PreferenceFields.tsx';
+import { DisplayFields, PomodoroDefaults, TimeResolutionField, TimerReminderFields } from './PreferenceFields.tsx';
 import {
   changesFrom,
   editableOf,
@@ -59,6 +59,7 @@ export function PreferencesSection({ prefs, limits }: { prefs: Preferences; limi
   return (
     <SettingsCard id="preferences" title={t('settings.sectionPreferences')} onSubmit={submit} saving={save.isPending}>
       <DisplayFields draft={draft} set={set} timeZone={settings.timeZone} todayKey={today(settings.timeZone)} />
+      <TimeResolutionField draft={draft} set={set} fields={fields} />
       <TimerReminderFields draft={draft} set={set} fields={fields} />
       <PomodoroDefaults draft={draft} set={set} fields={fields} limits={limits} />
       <h3 className="settings-subheading" id="notifications-title">

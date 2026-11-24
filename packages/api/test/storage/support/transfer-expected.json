@@ -96,6 +96,7 @@
         "reminder_enabled": false,
         "long_timer_reminder_enabled": true,
         "long_timer_reminder_hours": 8,
+        "time_resolution_minutes": 5,
         "keyboard_shortcuts_enabled": true,
         "theme": "system"
       },
@@ -470,6 +471,7 @@
         "reminder_enabled": false,
         "long_timer_reminder_enabled": true,
         "long_timer_reminder_hours": 8,
+        "time_resolution_minutes": 5,
         "keyboard_shortcuts_enabled": true,
         "theme": "system"
       },
