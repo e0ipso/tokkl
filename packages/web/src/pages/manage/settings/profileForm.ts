@@ -14,10 +14,13 @@ export function emailChanged(stored: string, edited: string): boolean {
   return emailKey(stored) !== emailKey(edited);
 }
 
-/** A 429 (too many failed attempts) stays a toast, so it is not mistaken for a wrong password. */
-export function refusedProfileField(error: Error): ProfileField | undefined {
+/**
+ * A 429 (too many failed attempts) stays a toast, so it is not mistaken for a wrong password. So does a password
+ * refusal while the password field is hidden: another session changed the email, so the form's copy is stale.
+ */
+export function refusedProfileField(error: Error, passwordShown: boolean): ProfileField | undefined {
   if (isApiError(error, 429)) return undefined;
-  if (CURRENT_PASSWORD_MESSAGES.includes(error.message)) return 'currentPassword';
+  if (CURRENT_PASSWORD_MESSAGES.includes(error.message)) return passwordShown ? 'currentPassword' : undefined;
   if (error.message === EMAIL_IN_USE) return 'email';
   return undefined;
 }

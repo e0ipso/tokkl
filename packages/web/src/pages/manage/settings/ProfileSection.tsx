@@ -48,8 +48,8 @@ export function ProfileSection({ me }: { me: Me }) {
     invalidate: stale.profile,
     success: t('settings.profileSaved'),
     onSuccess: () => setCurrentPassword(''),
-    onError: error => {
-      const refused = refusedProfileField(error);
+    onError: (error, sent) => {
+      const refused = refusedProfileField(error, sent.current_password !== undefined);
       if (refused) fields.validate([[refused, error.message]]);
       else toast.error(error);
     },
