@@ -88,9 +88,6 @@ std::optional<PhaseKind> parsePhaseKind(QStringView name);
 QString transitionKindName(TransitionKind kind);
 std::optional<TransitionKind> parseTransitionKind(QStringView name);
 
-// True for minute counts that divide an hour evenly.
-bool isTimeResolution(qint64 minutes);
-
 // api_version and capabilities from GET /api/app/status. Never pick a route
 // from a 404: a current server also sends one for a missing project.
 struct ServerApi {
@@ -119,8 +116,6 @@ struct Me {
     QString timezone;
     qint64 defaultWorkspaceId = 0;
     int beginningOfWeek = 1;
-    // Divides an hour; a missing or invalid value reads as 1.
-    int timeResolutionMinutes = 1;
 
     QVariantMap toVariantMap() const;
     bool operator==(const Me &other) const = default;

@@ -815,10 +815,10 @@ server's or refuse a server of another version.
 `TimerStateClient`, `TimerController` and `PomodoroSession`, built as the
 widget builds them through `TimerStack`, with the real
 HTTP transport, against two Tokkl instances started with the API's multi-user
-test fixtures (`packages/api/test/helpers.ts`) on 127.0.0.1. The instances'
-time resolution is 1 minute, and the ids on the two collide by construction.
-A proxy in front of each instance passes the event stream through as it
-arrives, can hold or cut off a reply to any other request, and counts the
+test fixtures (`packages/api/test/helpers.ts`) on 127.0.0.1. Each fixture
+account sets its time resolution preference to 1 minute, and the ids on the
+two collide by construction. A proxy in front of each instance passes the
+event stream through as it arrives, can hold or cut off a reply to any other request, and counts the
 requests it receives. The test binary (`tests/realservertest.cpp`, built by
 CMake but not a CTest test) drives a control server to hold, release and cut
 off replies, stall the event streams, disable an account through the admin

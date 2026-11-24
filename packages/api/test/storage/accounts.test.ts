@@ -234,15 +234,10 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         async () => {
           const session = await operations.createSession(bob, 'x'.repeat(300), 12);
           assert.equal(Date.parse(session.expires.toISOString()) - Date.now() > 11 * 86400000, true);
-          const settings = await operations.updateSettings(
-            admin.id,
-            { session_days: 2, invite_days: 4, time_resolution_minutes: 10 },
-            12,
-          );
+          const settings = await operations.updateSettings(admin.id, { session_days: 2, invite_days: 4 }, 12);
           assert.deepEqual(settings, {
             sessionDays: 2,
             inviteDays: 4,
-            timeResolutionMinutes: 10,
             signupEnabled: false,
           });
           await operations.updateSettings(admin.id, { invite_days: 3 }, 12);

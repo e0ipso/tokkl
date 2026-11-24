@@ -25,6 +25,7 @@ const prefs: Preferences = {
   pomodoro_long_break_every: 4,
   long_timer_reminder_enabled: true,
   long_timer_reminder_hours: 8,
+  time_resolution_minutes: 15,
 };
 
 const limits: PomodoroLimits = {
@@ -38,6 +39,7 @@ test('the draft shows numbers as the text in their inputs', () => {
   const draft = toDraft(editableOf(prefs, limits));
   assert.equal(draft.pomodoro_long_break_every, '4');
   assert.equal(draft.theme, 'dark');
+  assert.equal(draft.time_resolution_minutes, '15');
   assert.equal('manualMode' in draft, false);
 });
 
@@ -57,8 +59,9 @@ test('a typed number is stored when its value matches, whatever its text', () =>
 });
 
 test('a save sends typed numbers as numbers', () => {
-  assert.deepEqual(changesFrom({ long_timer_reminder_hours: ' 12 ', theme: 'light' }), {
+  assert.deepEqual(changesFrom({ long_timer_reminder_hours: ' 12 ', time_resolution_minutes: '30', theme: 'light' }), {
     long_timer_reminder_hours: 12,
+    time_resolution_minutes: 30,
     theme: 'light',
   });
 });
@@ -68,15 +71,18 @@ test('number fields refuse text that is not a whole number', () => {
     ...toDraft(editableOf(prefs, limits)),
     pomodoro_focus_interval_in_minutes: '2.5',
     long_timer_reminder_hours: '',
+    time_resolution_minutes: 'abc',
   };
   const errors = new Map(numberErrors(draft));
   assert.equal(errors.get('pomodoro_focus_interval_in_minutes'), 'Enter a whole number of minutes');
   assert.equal(errors.get('long_timer_reminder_hours'), 'Enter a whole number of hours');
+  assert.equal(errors.get('time_resolution_minutes'), 'Enter a whole number of minutes');
   assert.equal(errors.get('pomodoro_long_break_every'), false);
 });
 
 test('a server refusal names the field it is about', () => {
   assert.equal(refusedField('Invalid pomodoro_long_break_every: expected 1 to 12'), 'pomodoro_long_break_every');
+  assert.equal(refusedField('Invalid time_resolution_minutes: expected a divisor of 60'), 'time_resolution_minutes');
   assert.equal(refusedField('Server error'), undefined);
 });
 

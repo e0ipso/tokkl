@@ -11,10 +11,8 @@ test('composed storage shares rollback, snapshots, dry runs and awaited closure'
   const config = parseStorageConfig({ TOKKL_DATABASE_URL: 'sqlite::memory:' }, '.');
   const storage = createStorage(await initializeDatabase(config));
   await storage.health();
-  await storage.settings.write([
-    { key: 'timeResolutionMinutes', value: 1, updatedAt: new Date().toISOString(), updatedBy: null },
-  ]);
-  assert.equal((await storage.settings.read()).timeResolutionMinutes, 1);
+  await storage.settings.write([{ key: 'inviteDays', value: 1, updatedAt: new Date().toISOString(), updatedBy: null }]);
+  assert.equal((await storage.settings.read()).inviteDays, 1);
   let rolledBackId: number | undefined;
   await assert.rejects(
     storage.transaction(async ctx => {

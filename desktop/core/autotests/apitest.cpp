@@ -206,28 +206,6 @@ private Q_SLOTS:
         QVERIFY(!Tokkl::decodeMe(*parseJsonBody("[]")));
     }
 
-    void decodeMeTimeResolution_data()
-    {
-        QTest::addColumn<QByteArray>("field"); // added to a valid body
-        QTest::addColumn<int>("minutes");
-
-        QTest::newRow("present") << QByteArray(R"(,"time_resolution_minutes":15)") << 15;
-        QTest::newRow("missing") << QByteArray() << 1;
-        QTest::newRow("does not divide an hour") << QByteArray(R"(,"time_resolution_minutes":7)") << 1;
-        QTest::newRow("zero") << QByteArray(R"(,"time_resolution_minutes":0)") << 1;
-        QTest::newRow("string") << QByteArray(R"(,"time_resolution_minutes":"15")") << 1;
-    }
-
-    void decodeMeTimeResolution()
-    {
-        QFETCH(QByteArray, field);
-        QFETCH(int, minutes);
-        const std::optional<Me> me = Tokkl::decodeMe(*parseJsonBody(R"({"id":3,"email":"b@example.com","default_workspace_id":9)" + field + "}"));
-        QVERIFY(me);
-        QCOMPARE(me->timeResolutionMinutes, minutes);
-        QCOMPARE(me->toVariantMap().value(QStringLiteral("timeResolutionMinutes")), QVariant(minutes));
-    }
-
     void statusServerApi_data()
     {
         QTest::addColumn<int>("status"); // 0 for no HTTP answer

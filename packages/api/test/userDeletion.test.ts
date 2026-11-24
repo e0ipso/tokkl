@@ -171,7 +171,6 @@ test("a deleted admin's pending invites stop working; their used invites and set
   assert.deepEqual((await admin.json('GET', '/api/app/admin/settings')).body, {
     session_days: 30,
     invite_days: 4,
-    time_resolution_minutes: 5,
     signup_enabled: false,
     mail_configured: {
       configured: false,

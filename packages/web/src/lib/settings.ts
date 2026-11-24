@@ -9,7 +9,7 @@ export interface Settings {
   beginningOfWeek: number;
   collapseSimilar: boolean;
   shortcuts: boolean;
-  /** From the instance settings. */
+  /** From the user's preferences: the minutes in the grid that starts and stops snap to. */
   timeResolution: number;
 }
 
@@ -27,6 +27,6 @@ export function settingsFrom(me: Me | undefined, prefs: Preferences | undefined)
     beginningOfWeek: me?.beginning_of_week ?? 1,
     collapseSimilar: prefs?.collapseTimeEntries ?? true,
     shortcuts: prefs?.keyboard_shortcuts_enabled ?? true,
-    timeResolution: me?.time_resolution_minutes ?? 1,
+    timeResolution: prefs?.time_resolution_minutes ?? 1,
   };
 }

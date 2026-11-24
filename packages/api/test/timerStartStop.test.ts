@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import type { TimerState } from '@tokkl/types';
 import { listTimeEntries, serializeTimeEntry } from './fixtures/domain.ts';
 import { removeWorkspaceMember } from './fixtures/physical.ts';
-import { setup, type TestContext, timerState as state } from './helpers.ts';
+import { setTimeResolution, setup, type TestContext, timerState as state } from './helpers.ts';
 
 /** 1-minute resolution, so starts and stops keep their minute. */
 async function timerSetup(): Promise<TestContext> {
   const ctx = await setup();
-  assert.equal((await ctx.json('PUT', '/api/app/admin/settings', { time_resolution_minutes: 1 })).status, 200);
+  await setTimeResolution(ctx, 1);
   return ctx;
 }
 
