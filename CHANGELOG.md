@@ -1,3 +1,9 @@
+## [2.8.0](https://github.com/e0ipso/tokkl/compare/v2.7.0...v2.8.0) (2026-11-24)
+
+### Features
+
+* make the time resolution a per-user preference ([#101](https://github.com/e0ipso/tokkl/issues/101)) ([9ee34ed](https://github.com/e0ipso/tokkl/commit/9ee34ed750fb0bf2ab7e6464888caba15e293d3a))
+
 ## [2.7.0](https://github.com/e0ipso/tokkl/compare/v2.6.1...v2.7.0) (2026-11-19)
 
 ### Features
