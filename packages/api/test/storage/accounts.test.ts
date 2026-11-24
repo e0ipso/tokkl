@@ -413,14 +413,28 @@ for (const backend of ['sqlite', 'postgres', 'mysql', 'mariadb'] as const) {
         assert.equal(checks, 0);
         assert.equal((await readUser(user.id))!.email, 'moved@example.test', 'the stale snapshot writes nothing');
 
+        const moved = (await readUser(user.id))!;
+        await assert.rejects(
+          operations.updateProfile(
+            moved,
+            token,
+            { email: 'both@example.test', password: 'password two', current_password: 'wrong password' },
+            effects,
+            counted,
+          ),
+          error(400, 'Current password is not valid'),
+        );
+        assert.equal(checks, 1, 'a wrong password for email and password together is charged once');
+        assert.equal((await readUser(user.id))!.email, 'moved@example.test');
+
         const changed = await operations.updateProfile(
-          (await readUser(user.id))!,
+          moved,
           token,
           { email: 'both@example.test', password: 'password two', current_password: 'password one' },
           effects,
           counted,
         );
-        assert.equal(checks, 1, 'email and password together verify once');
+        assert.equal(checks, 2, 'email and password together verify once');
         assert.equal(changed.email, 'both@example.test');
       });
       await t.test('reset, revocation, rotation and deletion during password verification prevent writes', async () => {

@@ -4,7 +4,9 @@ import { accountRequests, type ProfileChanges } from '../../../api/account.ts';
 import { stale } from '../../../api/keys.ts';
 import type { Me } from '@tokkl/types';
 import { useFieldErrors } from '../../../components/FieldError.tsx';
+import { useToast } from '../../../components/Toast.tsx';
 import { useAction } from '../../../components/useAction.ts';
+import { emailChanged, refusedProfileField } from './profileForm.ts';
 import { SettingsCard } from './SettingsCard.tsx';
 import { browserTimeZone } from '../../../lib/browserTimeZone.ts';
 import { dayOfWeekName } from '../../../lib/format.ts';
@@ -28,24 +30,45 @@ function sameZone(a: string, b: string): boolean {
 }
 
 export function ProfileSection({ me }: { me: Me }) {
-  const fields = useFieldErrors<'email'>();
+  const toast = useToast();
+  const fields = useFieldErrors<'email' | 'currentPassword'>();
   const [fullname, setFullname] = useState(me.fullname);
   const [email, setEmail] = useState(me.email);
+  const [currentPassword, setCurrentPassword] = useState('');
   const [timezone, setTimezone] = useState(me.timezone);
   const [weekStart, setWeekStart] = useState(me.beginning_of_week);
   const zones = useMemo(() => timeZones(me.timezone), [me.timezone]);
   const browserZone = browserTimeZone();
+  // The server asks for the password only for a real change, so a recased email saves without one.
+  const needsPassword = emailChanged(me.email, email);
 
   const save = useAction<ProfileChanges>({
     mutationFn: accountRequests.saveProfile,
     // Day boundaries depend on the timezone and week start, so entry lists and reports refetch too.
     invalidate: stale.profile,
     success: t('settings.profileSaved'),
+    onSuccess: () => setCurrentPassword(''),
+    onError: error => {
+      const refused = refusedProfileField(error);
+      if (refused) fields.validate([[refused, error.message]]);
+      else toast.error(error);
+    },
   });
 
   const submit = () => {
-    if (!fields.validate([['email', !/^[^@\s]+@[^@\s]+$/.test(email.trim()) && t('settings.enterValidEmail')]])) return;
-    save.mutate({ fullname: fullname.trim(), email: email.trim(), timezone, beginning_of_week: weekStart });
+    const valid = fields.validate([
+      ['email', !/^[^@\s]+@[^@\s]+$/.test(email.trim()) && t('settings.enterValidEmail')],
+      ['currentPassword', needsPassword && !currentPassword && t('settings.enterCurrentPassword')],
+    ]);
+    if (!valid) return;
+    const changes: ProfileChanges = {
+      fullname: fullname.trim(),
+      email: email.trim(),
+      timezone,
+      beginning_of_week: weekStart,
+    };
+    if (needsPassword) changes.current_password = currentPassword;
+    save.mutate(changes);
   };
 
   return (
@@ -73,6 +96,20 @@ export function ProfileSection({ me }: { me: Me }) {
           />
           {fields.message('email')}
         </div>
+        {needsPassword ? (
+          <div className="field">
+            <label htmlFor={fields.id('currentPassword')}>{t('settings.currentPassword')}</label>
+            <input
+              {...fields.field('currentPassword')}
+              type="password"
+              value={currentPassword}
+              autoComplete="current-password"
+              onChange={event => setCurrentPassword(event.target.value)}
+            />
+            {fields.message('currentPassword')}
+            <p className="hint">{t('settings.emailNeedsPassword')}</p>
+          </div>
+        ) : null}
         <label className="field">
           <span>{t('settings.timezone')}</span>
           <select value={timezone} onChange={event => setTimezone(event.target.value)}>
