@@ -130,8 +130,7 @@ export function parseSettingChanges(body: JsonBody): SettingChanges {
     const key = SETTING_NAMES[name as keyof typeof SETTING_NAMES];
     addSetting(name, key, value);
   }
-  if (!Object.keys(changes).length)
-    throw invalidInput('Expected session_days or invite_days or time_resolution_minutes or signup_enabled');
+  if (!Object.keys(changes).length) throw invalidInput('Expected session_days or invite_days or signup_enabled');
   return changes;
 }
 

@@ -50,7 +50,6 @@ export interface WorkspaceMember extends Membership {
 export interface InstanceSettings {
   sessionDays: number;
   inviteDays: number;
-  timeResolutionMinutes: number;
   signupEnabled: boolean;
 }
 export interface SettingChange {

@@ -8,6 +8,7 @@ import {
   catalogRevisionDDL,
   idempotencyDDL,
   indexDDL,
+  quote,
   rateLimitDDL,
   runningEntriesDDL,
   timerSessionEntryDDL,
@@ -37,6 +38,14 @@ export function migrations(backend: Backend): readonly Migration[] {
     { version: 7, name: 'idempotency_keys', statements: idempotencyDDL(backend) },
     { version: 8, name: 'catalog_revision', statements: catalogRevisionDDL(backend) },
     { version: 9, name: 'account_token_email', statements: accountTokenEmailDDL(backend) },
+    {
+      version: 10,
+      name: 'drop_instance_time_resolution',
+      // The time resolution became a user preference; `key` is reserved on MySQL and MariaDB.
+      statements: [
+        `DELETE FROM ${quote(backend, 'instance_settings')} WHERE ${quote(backend, 'key')} = 'time_resolution_minutes'`,
+      ],
+    },
   ];
 }
 

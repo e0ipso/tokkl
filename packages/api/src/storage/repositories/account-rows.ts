@@ -65,7 +65,6 @@ export function accountToken(row: Selectable<AccountTokensRow>): AccountToken {
 export const settingKeys = {
   sessionDays: 'session_days',
   inviteDays: 'invite_days',
-  timeResolutionMinutes: 'time_resolution_minutes',
   signupEnabled: 'signup_enabled',
 } as const;
 

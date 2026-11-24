@@ -2,11 +2,11 @@
 import { MAX_DURATION_SECONDS } from '@tokkl/common/duration';
 import { snapInstant } from '@tokkl/common/snap';
 import { dateKey, startOfDay } from '@tokkl/common/time';
-import type { EntriesRepository, EntryInput, SettingsRepository } from './ports.ts';
+import type { EntriesRepository, EntryInput } from './ports.ts';
 import type { EntryDetails, Id, TimeEntry, User } from './model.ts';
 import { ApplicationError, conflict, invalidInput } from '../lib/errors.ts';
 import { isoSeconds } from '../lib/values.ts';
-import { entryResolution, getEntryIn, getTimeEntry, protectEntryOperation, type EntryContext } from './entryAccess.ts';
+import { getEntryIn, getTimeEntry, protectEntryOperation, type EntryContext } from './entryAccess.ts';
 import type { EntryChanges, EntryFields, EntryPatchStep, EntrySplit, NewEntry } from './entryCommands.ts';
 import {
   applyTagAction,
@@ -27,6 +27,7 @@ import {
   wholeSeconds,
   type Span,
 } from './entrySpans.ts';
+import { timeResolutionOf } from './accountValues.ts';
 import { memberWorkspace } from './membership.ts';
 import { touchTimer, type TimerPublication } from './timerSettlement.ts';
 
@@ -58,12 +59,12 @@ export async function reanchorNoTimeEntries(
 
 /** Discards an entry too short to keep and answers false. */
 async function stopEntryAt(
-  ctx: { settings: Pick<SettingsRepository, 'read'>; entries: Pick<EntriesRepository, 'update'> },
+  ctx: { entries: Pick<EntriesRepository, 'update'> },
   user: User,
   entry: TimeEntry,
   at: Date,
 ): Promise<boolean> {
-  const resolution = await entryResolution(ctx),
+  const resolution = timeResolutionOf(user),
     start = new Date(entry.start);
   const snapped = snapToResolution(resolution, user, start, at < start ? start : at);
   if (!snapped) {
@@ -122,7 +123,7 @@ export async function prepareEntry(
 ): Promise<EntryInput> {
   assertWorkspace(entry, wid);
   // Exact spans never use the grid, including no-time imports.
-  const resolution = exact ? 1 : await entryResolution(ctx);
+  const resolution = exact ? 1 : timeResolutionOf(user);
   let span: Span = entry.allDay ? newNoTimeSpan(resolution, user, entry.times, exact) : newTimedSpan(entry);
   const { projectId, taskId, project } = await resolveProjectAndTask(refs, wid, entry, {
     projectId: null,
@@ -208,7 +209,7 @@ async function applyEntryUpdate(
 ): Promise<EntryDetails> {
   assertWorkspace(changes, wid);
   const current = await getEntryIn(ctx, user.id, wid, id);
-  const resolution = await entryResolution(ctx);
+  const resolution = timeResolutionOf(user);
   const allDay = changes.allDay ?? current.allDay;
   const timed = allDay ? undefined : updatedTimedSpan(current, changes);
   let span: Span = timed ?? updatedNoTimeSpan(resolution, user, current, changes.times);
@@ -247,7 +248,7 @@ export async function splitTimeEntry(
   const current = await getEntryIn(ctx, user.id, wid, id);
   if (current.allDay) throw invalidInput('No-time entries have no start or end time');
   if (!current.stop) throw conflict('A running time entry can not be split');
-  const resolution = await entryResolution(ctx);
+  const resolution = timeResolutionOf(user);
   const whole = snapToResolution(resolution, user, new Date(current.start), new Date(current.stop));
   const cut = snapInstant(wholeSeconds(split.at), resolution, user.timezone);
   if (!whole || cut <= whole.start || cut >= whole.stop)

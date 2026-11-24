@@ -1,22 +1,12 @@
-import type { EntriesRepository, OperationContext, Repositories, SettingsRepository } from './ports.ts';
+import type { EntriesRepository, OperationContext, Repositories } from './ports.ts';
 import type { EntryDetails, Id, User } from './model.ts';
 import { StorageConflict } from './ports.ts';
 import { notFound } from '../lib/errors.ts';
-import { timeResolutionOf } from './instanceSettings.ts';
 import { noWorkspaceAccess } from './membership.ts';
 
 export type EntryRepositories = Pick<
   Repositories,
-  | 'users'
-  | 'workspaces'
-  | 'settings'
-  | 'clients'
-  | 'projects'
-  | 'tasks'
-  | 'tags'
-  | 'entries'
-  | 'idempotencyKeys'
-  | 'timers'
+  'users' | 'workspaces' | 'clients' | 'projects' | 'tasks' | 'tags' | 'entries' | 'idempotencyKeys' | 'timers'
 >;
 export type EntryContext = OperationContext<EntryRepositories>;
 /** A `Storage` is one. */
@@ -80,8 +70,4 @@ export async function protectEntryOperation(
   )
     throw new StorageConflict('serialization');
   return user;
-}
-
-export async function entryResolution(ctx: { settings: Pick<SettingsRepository, 'read'> }): Promise<number> {
-  return timeResolutionOf(await ctx.settings.read());
 }

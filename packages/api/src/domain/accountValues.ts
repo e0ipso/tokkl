@@ -3,6 +3,7 @@ import {
   POMODORO_SESSION_CONFIG_RANGES,
   type PomodoroSessionConfig,
 } from '@tokkl/common/pomodoroSession';
+import { isTimeResolution } from '@tokkl/common/snap';
 import type { JsonObject, User } from './model.ts';
 import { MAX_NAME_LENGTH } from './catalogCommands.ts';
 import { MAX_DESCRIPTION_LENGTH } from './entryCommands.ts';
@@ -39,6 +40,7 @@ export const DEFAULT_PREFERENCES = {
   reminder_enabled: false,
   long_timer_reminder_enabled: true,
   long_timer_reminder_hours: 8,
+  time_resolution_minutes: 5,
   keyboard_shortcuts_enabled: true,
   theme: 'system',
 } as const;
@@ -67,6 +69,12 @@ const integerFrom = (min: number, max: number): PreferenceRule => ({
   valid: value => Number.isInteger(value) && (value as number) >= min && (value as number) <= max,
   expected: `an integer from ${min} to ${max}`,
 });
+
+const TIME_RESOLUTIONS = Array.from({ length: 60 }, (_, i) => i + 1).filter(isTimeResolution);
+const timeResolution: PreferenceRule = {
+  valid: value => Number.isSafeInteger(value) && isTimeResolution(value as number),
+  expected: `one of ${TIME_RESOLUTIONS.join(', ')}`,
+};
 
 const pomodoroRange = (key: keyof PomodoroSessionConfig): PreferenceRule => {
   const { min, max } = POMODORO_SESSION_CONFIG_RANGES[key];
@@ -107,6 +115,7 @@ const PREFERENCE_RULES = new Map<string, PreferenceRule>(
     pomodoro_long_break_every: pomodoroRange('longRestEvery'),
     long_timer_reminder_enabled: boolean,
     long_timer_reminder_hours: integerFrom(1, 168),
+    time_resolution_minutes: timeResolution,
     favorites: {
       valid: value => Array.isArray(value) && value.length <= MAX_FAVORITES && value.every(isFavorite),
       expected: `a list of at most ${MAX_FAVORITES} favorites with description, project_id, task_id, tags and billable`,
@@ -136,4 +145,9 @@ export function getPomodoroSessionConfig(user: User): PomodoroSessionConfig {
     longRestMinutes: preferences.pomodoro_long_break_interval_in_minutes as number,
     longRestEvery: preferences.pomodoro_long_break_every as number,
   };
+}
+
+/** The grid, in minutes, to which the server snaps the user's entries. */
+export function timeResolutionOf(user: User): number {
+  return getPreferences(user).time_resolution_minutes as number;
 }
